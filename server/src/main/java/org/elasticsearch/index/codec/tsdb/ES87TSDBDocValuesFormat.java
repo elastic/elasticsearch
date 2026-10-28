@@ -28,7 +28,8 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final String META_CODEC = "ES87TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
     static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
+    static final int VERSION_SKIPPER_MAX_VALUE_COUNT = 1;
+    static final int VERSION_CURRENT = VERSION_SKIPPER_MAX_VALUE_COUNT;
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
     static final byte SORTED = 2;
@@ -75,7 +76,7 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
-    private final int skipIndexIntervalSize;
+    final int skipIndexIntervalSize;
 
     /** Default constructor. */
     public ES87TSDBDocValuesFormat() {
@@ -93,7 +94,7 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        throw new UnsupportedOperationException("writing es87 doc values is no longer supported");
     }
 
     @Override

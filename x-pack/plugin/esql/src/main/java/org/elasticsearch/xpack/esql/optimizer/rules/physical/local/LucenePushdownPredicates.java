@@ -7,12 +7,21 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -31,6 +40,26 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  */
 public interface LucenePushdownPredicates {
     /**
+     * If we're extracting a query for {@code can_match} then this is the
+     * minimum transport version in the cluster. Otherwise, this is {@code null}.
+     * <p>
+     *     If this is not null {@link Expression}s should not claim to be
+     *     serializable unless their {@link QueryBuilder}
+     *     {@link QueryBuilder#supportsVersion supports} the version.
+     * </p>
+     * <p>
+     *     This is done on the coordinating node <strong>and</strong>. And for
+     *     cross cluster search this is done on the coordinating node on the
+     *     remote cluster. So! We actually <strong>have</strong> the minimum
+     *     cluster transport version.
+     * </p>
+     */
+    @Nullable
+    TransportVersion minTransportVersion();
+
+    EsqlFlags flags();
+
+    /**
      * For TEXT fields, we need to check if the field has a subfield of type KEYWORD that can be used instead.
      */
     boolean hasExactSubfield(FieldAttribute attr);
@@ -47,6 +76,42 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
+
+    /**
+     * Whether every field with this name supports the given block-loader configuration. This is the same hook
+     * that gates block-loader fusion ({@link MappedFieldType#supportsBlockLoaderConfig}); {@code field_extract}
+     * query pushdown reuses it so the flattened field type itself rejects pushdown for mapped sub-fields (keys
+     * declared under {@code properties}). Both pushdown paths therefore agree on which keys are pushable, keeping
+     * the function's result consistent with the per-row evaluator regardless of plan shape.
+     */
+    boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
+
+    /**
+     * Whether a predicate over this attribute's value can be answered from the values its doc values hold, which a
+     * {@code text} field keeping its values in a column can do. The index of such a field holds no exact form of the
+     * value - only the tokens it analyzes into - so this is the one way a predicate over it is pushed.
+     */
+    boolean hasValueQueries(FieldAttribute attr);
+
+    /**
+     * Whether a predicate over this attribute's value can be pushed to Lucene at all: either it is pushable as it
+     * stands - an exact form its index holds, or a metadata attribute - or its values answer the query themselves.
+     */
+    default boolean isPushableValueAttribute(Expression exp) {
+        if (isPushableAttribute(exp)) {
+            return true;
+        }
+        // A field the block loader synthesizes, or one that may be unmapped on a shard, keeps no values of its own. A
+        // union-typed field keeps values of the type each index mapped, and the plan asks about the type they are
+        // converted to on load, so the values a column holds are not the ones the predicate names.
+        return exp instanceof FieldAttribute fa
+            && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
+            && fa.field() instanceof UnionTypeEsField == false
+            && hasValueQueries(fa);
+    }
+
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -56,14 +121,30 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndHasDocValues(fa)) {
-            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasExactSubfield(fa);
+        // Potentially unmapped fields are not pushable: the field may be unmapped on some shards, and pushing down would produce wrong
+        // results (e.g., missing rows when the predicate is pushed to Lucene).
+        // FunctionEsField values are synthesized by the block loader (e.g. LENGTH(kwd), field_extract(...)); there is no indexed Lucene
+        // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
+        if (exp instanceof FieldAttribute fa
+            && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
+            && fa.field() instanceof FunctionEsField == false
+            && fa.getExactInfo().hasExact()
+            && isIndexedAndHasDocValues(fa)) {
+            return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
         }
         return false;
     }
 
+    /**
+     * Whether this attribute is pushable only over the values it keeps, which decides both the name a query names and
+     * the semantics it asks for: the value whole rather than the tokens a text field's index holds.
+     */
+    static boolean pushesOverValuesOnly(LucenePushdownPredicates predicates, Expression exp) {
+        return predicates.isPushableAttribute(exp) == false && predicates.isPushableValueAttribute(exp);
+    }
+
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && (fa.dataType() == DataType.TEXT || fa.dataType() == DataType.SEMANTIC_TEXT);
+        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {
@@ -99,34 +180,86 @@ public interface LucenePushdownPredicates {
      * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
      */
-    LucenePushdownPredicates DEFAULT = new LucenePushdownPredicates() {
-        @Override
-        public boolean hasExactSubfield(FieldAttribute attr) {
-            return false;
-        }
-
-        @Override
-        public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
-            // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
-
-        @Override
-        public boolean isIndexed(FieldAttribute attr) {
-            // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
-            return attr.field().isAggregatable();
-        }
-    };
+    LucenePushdownPredicates DEFAULT = forCanMatch(null, new EsqlFlags(true));
 
     /**
-     * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
-     * This should open up more opportunities for lucene pushdown.
+     * A {@link LucenePushdownPredicates} for use with the {@code can_match} phase.
      */
-    static LucenePushdownPredicates from(SearchStats stats) {
+    static LucenePushdownPredicates forCanMatch(TransportVersion minTransportVersion, EsqlFlags flags) {
         return new LucenePushdownPredicates() {
             @Override
+            public TransportVersion minTransportVersion() {
+                return minTransportVersion;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
+            }
+
+            @Override
             public boolean hasExactSubfield(FieldAttribute attr) {
-                return stats.hasExactSubfield(attr.name());
+                return false;
+            }
+
+            @Override
+            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
+                // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
+
+            @Override
+            public boolean isIndexed(FieldAttribute attr) {
+                // TODO: This is the original behaviour, but is it correct? In FieldType isAggregatable usually only means hasDocValues
+                return attr.field().isAggregatable();
+            }
+
+            @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                // No mapping access during can_match: be conservative and never report a loader config as
+                // supported, so field_extract query pushdown never fires without SearchStats to confirm the
+                // key is an unmapped keyed sub-field.
+                return false;
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return false;
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                // No mapping access during can_match: a field's values are not known to answer anything.
+                return false;
+            }
+        };
+    }
+
+    /**
+     * If we have access to {@link SearchStats} over a collection of shards, we can make more fine-grained decisions about what can be
+     * pushed down. This should open up more opportunities for lucene pushdown.
+     */
+    static LucenePushdownPredicates from(SearchStats stats, EsqlFlags flags) {
+        // TODO: use FieldAttribute#fieldName, otherwise this doesn't apply to field attributes used for union types.
+        // C.f. https://github.com/elastic/elasticsearch/issues/128905
+        return new LucenePushdownPredicates() {
+            @Override
+            public TransportVersion minTransportVersion() {
+                return null;
+            }
+
+            @Override
+            public EsqlFlags flags() {
+                return flags;
+            }
+
+            @Override
+            public boolean hasExactSubfield(FieldAttribute attr) {
+                return stats.hasExactSubfield(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
@@ -134,12 +267,33 @@ public interface LucenePushdownPredicates {
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?
-                return attr.field().isAggregatable() || stats.isIndexed(attr.name()) && stats.hasDocValues(attr.name());
+                return attr.field().isAggregatable()
+                    || stats.isIndexed(new FieldAttribute.FieldName(attr.name()))
+                        && stats.hasDocValues(new FieldAttribute.FieldName(attr.name()));
             }
 
             @Override
             public boolean isIndexed(FieldAttribute attr) {
-                return stats.isIndexed(attr.name());
+                return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                return stats.supportsLoaderConfig(new FieldAttribute.FieldName(field.name()), config, preference);
+            }
+
+            @Override
+            public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
+                return stats.canUseEqualityOnSyntheticSourceDelegate(attr.fieldName(), value);
+            }
+
+            @Override
+            public boolean hasValueQueries(FieldAttribute attr) {
+                return stats.hasValueQueries(attr.fieldName());
             }
         };
     }

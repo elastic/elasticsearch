@@ -14,10 +14,8 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.hamcrest.Matcher;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,22 +29,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-@WithoutSecurityManager
 public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     private String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void restoreEnforceBootstrapChecksSysprop() throws Exception {
         setEsEnforceBootstrapChecks(esEnforceBootstrapChecks);
-        super.tearDown();
     }
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {

@@ -13,7 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHttpResponseHeadersIT extends ESRestTestCase {
+public class RestHttpResponseHeadersIT extends AbstractHttpSmokeTestIT {
 
     /**
      * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP
@@ -44,6 +44,14 @@ public class RestHttpResponseHeadersIT extends ESRestTestCase {
         assertThat(response.getHeader("Allow"), notNullValue());
         List<String> responseAllowHeaderStringArray = Arrays.asList(response.getHeader("Allow").split(","));
         assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
+    }
+
+    public void testDateHttpHeader() throws Exception {
+        Response response = client().performRequest(new Request("HEAD", "/"));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getHeader("date"), Matchers.matchesPattern("""
+            (Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{4} \
+            [0-9]{2}:[0-9]{2}:[0-9]{2} GMT""")); // IMF-fixdate format, see https://httpwg.org/specs/rfc9110.html#preferred.date.format
     }
 
     /**

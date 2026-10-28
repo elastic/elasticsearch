@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -38,10 +36,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_API_KEY_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.Subject.FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
@@ -54,8 +57,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SubjectTests extends ESTestCase {
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
 
     public void testGetRoleReferencesForRegularUser() {
         final User user = new User("joe", "role_a", "role_b");
@@ -113,6 +118,134 @@ public class SubjectTests extends ESTestCase {
         assertThat(roleReferences.get(0), instanceOf(ServiceAccountRoleReference.class));
         final ServiceAccountRoleReference serviceAccountRoleReference = (ServiceAccountRoleReference) roleReferences.get(0);
         assertThat(serviceAccountRoleReference.getPrincipal(), equalTo(serviceUser.principal()));
+    }
+
+    public void testGetRoleReferencesForCloudServiceAccount() {
+        final User serviceAccountUser = new User(randomAlphanumericOfLength(20), "role_a", "role_b");
+        final List<String> limitedByRoleNames = randomBoolean() ? List.of("role_b", "role_c") : List.of();
+        final Subject subject = new Subject(
+            serviceAccountUser,
+            new Authentication.RealmRef(CLOUD_SERVICE_ACCOUNT_REALM_NAME, CLOUD_SERVICE_ACCOUNT_REALM_TYPE, "node"),
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+        );
+
+        final AnonymousUser anonymousUser = randomFrom(getAnonymousUser(), null);
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+        assertThat(roleReferences, contains(isA(NamedRoleReference.class), isA(NamedRoleReference.class)));
+        final NamedRoleReference assignedRoleReference = (NamedRoleReference) roleReferences.get(0);
+        assertThat(
+            assignedRoleReference.getRoleNames(),
+            arrayContaining(
+                ArrayUtils.concat(serviceAccountUser.roles(), anonymousUser == null ? Strings.EMPTY_ARRAY : anonymousUser.roles())
+            )
+        );
+        final NamedRoleReference limitedByRoleReference = (NamedRoleReference) roleReferences.get(1);
+        assertThat(limitedByRoleReference.getRoleNames(), equalTo(limitedByRoleNames.toArray(String[]::new)));
+    }
+
+    public void testGetRoleReferencesForCloudServiceAccountWithoutLimitedByRoles() {
+        final User serviceAccountUser = new User(randomAlphanumericOfLength(20), "role_a", "role_b");
+        final Subject subject = new Subject(
+            serviceAccountUser,
+            new Authentication.RealmRef(CLOUD_SERVICE_ACCOUNT_REALM_NAME, CLOUD_SERVICE_ACCOUNT_REALM_TYPE, "node"),
+            TransportVersion.current(),
+            Map.of()
+        );
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(null);
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+        assertThat(roleReferences, contains(isA(NamedRoleReference.class)));
+        final NamedRoleReference assignedRoleReference = (NamedRoleReference) roleReferences.get(0);
+        assertThat(assignedRoleReference.getRoleNames(), equalTo(serviceAccountUser.roles()));
+    }
+
+    public void testGetRoleReferencesForCloudApiKeyWithLimitedByRoles() {
+        final User apiKeyUser = new User(randomAlphanumericOfLength(64), "role_a", "role_b");
+        final List<String> limitedByRoleNames = randomBoolean() ? List.of("role_b", "role_c") : List.of();
+        final Subject subject = new Subject(
+            apiKeyUser,
+            new Authentication.RealmRef(CLOUD_API_KEY_REALM_NAME, CLOUD_API_KEY_REALM_TYPE, "node"),
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+        );
+
+        final AnonymousUser anonymousUser = randomFrom(getAnonymousUser(), null);
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+        assertThat(roleReferences, contains(isA(NamedRoleReference.class), isA(NamedRoleReference.class)));
+        final NamedRoleReference assignedRoleReference = (NamedRoleReference) roleReferences.get(0);
+        assertThat(
+            assignedRoleReference.getRoleNames(),
+            arrayContaining(ArrayUtils.concat(apiKeyUser.roles(), anonymousUser == null ? Strings.EMPTY_ARRAY : anonymousUser.roles()))
+        );
+        final NamedRoleReference limitedByRoleReference = (NamedRoleReference) roleReferences.get(1);
+        assertThat(limitedByRoleReference.getRoleNames(), equalTo(limitedByRoleNames.toArray(String[]::new)));
+    }
+
+    public void testGetRoleReferencesForCloudApiKeyWithoutLimitedByRoles() {
+        final User apiKeyUser = new User(randomAlphanumericOfLength(64), "role_a", "role_b");
+        final Subject subject = new Subject(
+            apiKeyUser,
+            new Authentication.RealmRef(CLOUD_API_KEY_REALM_NAME, CLOUD_API_KEY_REALM_TYPE, "node"),
+            TransportVersion.current(),
+            Map.of()
+        );
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(null);
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+        assertThat(roleReferences, contains(isA(NamedRoleReference.class)));
+        assertThat(((NamedRoleReference) roleReferences.get(0)).getRoleNames(), equalTo(apiKeyUser.roles()));
+    }
+
+    public void testHasCloudLimitedByRoles() {
+        final User user = new User("joe", "role_a");
+        final Subject uncapped = new Subject(
+            user,
+            new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
+            TransportVersion.current(),
+            Map.of()
+        );
+        assertThat(uncapped.hasCloudLimitedByRoles(), equalTo(false));
+        assertThat(uncapped.getCloudLimitedByRoleNames(), nullValue());
+
+        final List<String> limitedByRoleNames = List.of("role_b");
+        final Subject capped = new Subject(
+            user,
+            new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+        );
+        assertThat(capped.hasCloudLimitedByRoles(), equalTo(true));
+        assertThat(capped.getCloudLimitedByRoleNames(), equalTo(limitedByRoleNames));
+    }
+
+    public void testGetRoleReferencesForCloudUserWithLimitedByRoles() {
+        final User user = new User("joe", "role_a", "role_b");
+        final List<String> limitedByRoleNames = randomBoolean() ? List.of("role_b", "role_c") : List.of();
+        // a cloud user token authenticates through an ordinary realm, so the subject type is USER
+        final Subject subject = new Subject(
+            user,
+            new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
+            TransportVersion.current(),
+            Map.of(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+        );
+
+        final AnonymousUser anonymousUser = randomFrom(getAnonymousUser(), null);
+
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
+        assertThat(roleReferences, contains(isA(NamedRoleReference.class), isA(NamedRoleReference.class)));
+        final NamedRoleReference assignedRoleReference = (NamedRoleReference) roleReferences.get(0);
+        assertThat(
+            assignedRoleReference.getRoleNames(),
+            arrayContaining(ArrayUtils.concat(user.roles(), anonymousUser == null ? Strings.EMPTY_ARRAY : anonymousUser.roles()))
+        );
+        final NamedRoleReference limitedByRoleReference = (NamedRoleReference) roleReferences.get(1);
+        assertThat(limitedByRoleReference.getRoleNames(), equalTo(limitedByRoleNames.toArray(String[]::new)));
     }
 
     public void testGetRoleReferencesForRestApiKey() {
@@ -307,7 +440,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1),
+            VERSION_7_0_0,
             authMetadata
         );
 
@@ -358,7 +491,7 @@ public class SubjectTests extends ESTestCase {
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class)));
         final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);
-        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
+        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalBytes(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
     }
 
     private AnonymousUser getAnonymousUser() {

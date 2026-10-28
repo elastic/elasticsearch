@@ -10,12 +10,14 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TransportMessage;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,8 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class SearchProfileResultsBuilderTests extends ESTestCase {
     public void testFetchWithoutQuery() {
@@ -77,7 +81,28 @@ public class SearchProfileResultsBuilderTests extends ESTestCase {
                 equalTo((long) searchPhase.size())
             );
         } finally {
-            fetchPhase.forEach(TransportMessage::decRef);
+            fetchPhase.forEach(RefCounted::decRef);
+        }
+    }
+
+    public void testRequestMetadataPropagatesToBuiltSearchProfileResults() {
+        Map<SearchShardTarget, SearchProfileQueryPhaseResult> searchPhase = randomSearchPhaseResults(1);
+        SearchSourceBuilder originalSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(3);
+        String[] requestIndices = new String[] { "coord-*" };
+        SearchProfileResultsBuilder profileBuilder = builder(searchPhase);
+        FetchSearchResult fetchPhase = searchPhase.keySet()
+            .stream()
+            .map(k -> fetchResult(k, new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())))
+            .findFirst()
+            .orElseThrow();
+        try {
+            SearchProfileResults built = profileBuilder.build(List.of(fetchPhase));
+            built.setOriginalSource(originalSource);
+            built.setRequestIndices(requestIndices);
+            assertEquals(originalSource, built.getOriginalSource());
+            assertArrayEquals(requestIndices, built.getRequestIndices());
+        } finally {
+            fetchPhase.decRef();
         }
     }
 

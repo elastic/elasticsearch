@@ -57,29 +57,37 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -94,13 +102,23 @@ import java.util.function.Function;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+    public IndicesModule(
+        List<MapperPlugin> mapperPlugins,
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins,
+        RootObjectMapperNamespaceValidator namespaceValidator
+    ) {
         this.mapperRegistry = new MapperRegistry(
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins)
+            getFieldFilter(mapperPlugins),
+            getVectorFormatProviders(vectorFormatProviderPlugins),
+            namespaceValidator
         );
+    }
+
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        this(mapperPlugins, Collections.emptyList(), null);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -115,7 +133,8 @@ public class IndicesModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new),
-            new NamedWriteableRegistry.Entry(Condition.class, OptimalShardCountCondition.NAME, OptimalShardCountCondition::new)
+            new NamedWriteableRegistry.Entry(Condition.class, OptimalShardCountCondition.NAME, OptimalShardCountCondition::new),
+            new NamedWriteableRegistry.Entry(DirectoryMetrics.PluggableMetrics.class, StoreMetrics.NAME, StoreMetrics::new)
         );
     }
 
@@ -221,6 +240,19 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
+    private static List<VectorsFormatProvider> getVectorFormatProviders(
+        List<InternalVectorFormatProviderPlugin> vectorFormatProviderPlugins
+    ) {
+        List<VectorsFormatProvider> vectorsFormatProviders = new ArrayList<>();
+        for (InternalVectorFormatProviderPlugin plugin : vectorFormatProviderPlugins) {
+            VectorsFormatProvider vectorsFormatProvider = plugin.getVectorsFormatProvider();
+            if (vectorsFormatProvider != null) {
+                vectorsFormatProviders.add(vectorsFormatProvider);
+            }
+        }
+        return Collections.unmodifiableList(vectorsFormatProviders);
+    }
+
     private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {
         Map<String, RuntimeField.Parser> runtimeParsers = new LinkedHashMap<>();
         runtimeParsers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER);
@@ -259,6 +291,7 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, RoutingFieldMapper.PARSER);
         builtInMetadataMappers.put(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.PARSER);
         builtInMetadataMappers.put(TimeSeriesRoutingHashFieldMapper.NAME, TimeSeriesRoutingHashFieldMapper.PARSER);
+        builtInMetadataMappers.put(SliceKeyFieldMapper.NAME, SliceKeyFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexFieldMapper.NAME, IndexFieldMapper.PARSER);
         builtInMetadataMappers.put(IndexModeFieldMapper.NAME, IndexModeFieldMapper.PARSER);
         builtInMetadataMappers.put(SourceFieldMapper.NAME, SourceFieldMapper.PARSER);
@@ -268,6 +301,9 @@ public class IndicesModule extends AbstractModule {
         builtInMetadataMappers.put(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PARSER);
         builtInMetadataMappers.put(DocCountFieldMapper.NAME, DocCountFieldMapper.PARSER);
         builtInMetadataMappers.put(DataStreamTimestampFieldMapper.NAME, DataStreamTimestampFieldMapper.PARSER);
+        if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            builtInMetadataMappers.put(FlattenedFieldMapper.UNMAPPED_SINK_NAME, UnmappedSinkFieldMapper.PARSER);
+        }
         // _field_names must be added last so that it has a chance to see all the other mappers
         builtInMetadataMappers.put(FieldNamesFieldMapper.NAME, FieldNamesFieldMapper.PARSER);
         return Collections.unmodifiableMap(builtInMetadataMappers);

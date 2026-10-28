@@ -95,11 +95,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
-    public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
-        return unpooled(hits, totalHits, maxScore, null, null, null);
-    }
-
-    public static SearchHits unpooled(
+    private static SearchHits unpooled(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
         float maxScore,
@@ -118,7 +114,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
-    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHits readFrom(StreamInput in) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -135,14 +131,14 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                var hit = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in);
                 hits[i] = hit;
                 isPooled = isPooled || hit.isPooled();
             }
         }
-        var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        var sortFields = in.readOptional(Lucene::readSortFieldArray);
         var collapseField = in.readOptionalString();
-        var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        var collapseValues = in.readOptional(Lucene::readSortValues);
         if (isPooled) {
             return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         } else {
@@ -152,6 +148,20 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
 
     public boolean isPooled() {
         return refCounted != ALWAYS_REFERENCED;
+    }
+
+    /**
+     * Replaces the hit at {@code index} with {@code newHit}, taking ownership of {@code newHit} without incrementing its
+     * reference count. The replaced hit is released via {@link SearchHit#decRef()}.
+     * Used by {@link org.elasticsearch.action.search.ExpandSearchPhase} to swap an unpooled hit for a pooled replacement
+     * that owns the collapse inner hits.
+     */
+    public void replaceHit(int index, SearchHit newHit) {
+        assert hasReferences();
+        assert isPooled() : "unpooled container would never release the new hit via deallocate()";
+        assert newHit.isPooled();
+        hits[index].decRef();
+        hits[index] = newHit;
     }
 
     @Override
@@ -164,7 +174,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         }
         out.writeFloat(maxScore);
         out.writeArray(hits);
-        out.writeOptionalArray(Lucene::writeSortField, sortFields);
+        out.writeOptional(Lucene::writeSortFieldArray, sortFields);
         out.writeOptionalString(collapseField);
         out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
     }
@@ -252,6 +262,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     }
 
     private void deallocate() {
+        var hits = this.hits;
         for (int i = 0; i < hits.length; i++) {
             assert hits[i] != null;
             hits[i].decRef();
@@ -262,18 +273,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public SearchHits asUnpooled() {
-        assert hasReferences();
-        if (refCounted == ALWAYS_REFERENCED) {
-            return this;
-        }
-        final SearchHit[] unpooledHits = new SearchHit[hits.length];
-        for (int i = 0; i < hits.length; i++) {
-            unpooledHits[i] = hits[i].asUnpooled();
-        }
-        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     public static final class Fields {

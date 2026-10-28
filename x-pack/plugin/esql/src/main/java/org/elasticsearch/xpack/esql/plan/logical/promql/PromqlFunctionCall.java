@@ -1,0 +1,174 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plan.logical.promql;
+
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Represents a PromQL function call in the logical plan.
+ *
+ * This is a surrogate logical plan that encapsulates a PromQL function invocation
+ * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
+ */
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+    AcrossSeriesReduction, HistogramFunctionCall, MetadataManipulationFunction, ScalarConversionFunction, SortFunction,
+    WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
+    // implements TelemetryAware {
+
+    private final List<Expression> parameters;
+    private final PromqlFunctionDefinition definition;
+
+    public PromqlFunctionCall(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child);
+        this.parameters = parameters != null ? parameters : List.of();
+        this.definition = definition;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("PromqlFunctionCall does not support serialization");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("PromqlFunctionCall does not support serialization");
+    }
+
+    public String functionName() {
+        return definition.name();
+    }
+
+    public List<Expression> parameters() {
+        return parameters;
+    }
+
+    public PromqlFunctionDefinition definition() {
+        return definition;
+    }
+
+    @Override
+    public boolean expressionsResolved() {
+        return Resolvables.resolved(parameters);
+    }
+
+    // @Override
+    // public String telemetryLabel() {
+    // return "PROMQL_FUNCTION_CALL";
+    // }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(child(), parameters, definition);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        PromqlFunctionCall other = (PromqlFunctionCall) obj;
+        return Objects.equals(child(), other.child())
+            && Objects.equals(parameters, other.parameters)
+            && Objects.equals(definition, other.definition);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return List.of();
+    }
+
+    /**
+     * Builds the ES|QL expression that implements this PromQL function call.
+     * <p>
+     * The builder returns an {@link Expression}: a value expression for scalar/aggregate/value-transformation
+     * functions, or an {@code Order} (possibly {@code null} when unordered) for the order-statistic reductions
+     * ({@code topk}, {@code bottomk}, {@code limitk}), consumed by the translator. Functions lowered to plan nodes
+     * instead ({@code limit_ratio}) are translated directly and their builders throw.
+     *
+     * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
+     * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
+     */
+    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+        try {
+            // PromQL accepts any numeric range vector. ES|QL distinguishes counter from gauge types
+            // internally, so plain numerics are wrapped with to_counter() for counter-required
+            // functions and counter metrics are wrapped with to_gauge() for gauge-only functions.
+            if (target != null && target.resolved() && target.dataType().isHistogram() == false) {
+                var counterSupport = definition.counterSupport();
+                if (counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED && DataType.isCounter(target.dataType()) == false) {
+                    target = new ToCounter(source(), target);
+                } else if (counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED && DataType.isCounter(target.dataType())) {
+                    target = new ToGauge(source(), target);
+                }
+            }
+            return definition.esqlBuilder().build(source(), target, ctx, parameters());
+        } catch (Exception e) {
+            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());
+        }
+    }
+
+    public abstract FunctionType functionType();
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Re-declared abstract on the {@link PromqlFunctionCall} hierarchy so every PromQL function node classifies itself
+     * explicitly instead of silently inheriting the transparent default: adding a new function node fails to compile until
+     * its relabel-placement semantics are decided.
+     */
+    @Override
+    public abstract boolean isIdentityTransparent();
+
+    @Override
+    public final PromqlDataType returnType() {
+        return functionType().outputType;
+    }
+
+    /**
+     * Translates a generic PromQL function call (rate, ceil, abs, etc.) into an expression over the child's value.
+     * Shared by the function families that need no special lowering; each still declares its own
+     * {@link #translate} so a new family cannot inherit this lowering by accident.
+     */
+    protected final IntermediateResult translateValueFunction(TranslationContext context) {
+        IntermediateResult child = context.translate(child());
+        if (child.kind().constant) {
+            return child;
+        }
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (child() instanceof RangeSelector rangeSelector) {
+            window = context.cmd().resolveRangeWindow(rangeSelector.range());
+        }
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
+    }
+}

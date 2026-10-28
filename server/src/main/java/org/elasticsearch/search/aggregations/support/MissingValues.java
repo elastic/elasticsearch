@@ -10,14 +10,13 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -34,8 +33,8 @@ public enum MissingValues {
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes valuesSource, final BytesRef missing) {
         return new ValuesSource.Bytes() {
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                SortedBinaryDocValues values = valuesSource.bytesValues(context);
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                SortableBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
 
@@ -46,8 +45,10 @@ public enum MissingValues {
         };
     }
 
-    public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
-        return new SortedBinaryDocValues() {
+    public static SortableBinaryDocValues replaceMissing(final SortableBinaryDocValues values, final BytesRef missing) {
+        // We do not directly delegate to the SortableBinaryDocValues because it doesn't account for the missing values.
+        // If needed, this could be supported by using DocIdSetIterator.range() along with the maxDoc.
+        return new SortableBinaryDocValues(null) {
 
             private int count;
 
@@ -78,8 +79,15 @@ public enum MissingValues {
             }
 
             @Override
+            public ValueOrder getValueOrder() {
+                // A document without a value yields the single missing value, which is ordered whatever this says.
+                // One that has values yields the delegate's, in the delegate's order, so that is what this reports.
+                return values.getValueOrder();
+            }
+
+            @Override
             public String toString() {
-                return "anon SortedBinaryDocValues of [" + super.toString() + "]";
+                return "anon SortableBinaryDocValues of [" + super.toString() + "]";
             }
         };
     }
@@ -95,13 +103,13 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-                final SortedNumericDocValues values = valuesSource.longValues(context);
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
+                final SortedNumericLongValues values = valuesSource.longValues(context);
                 return replaceMissing(values, missing.longValue());
             }
 
@@ -118,8 +126,8 @@ public enum MissingValues {
         };
     }
 
-    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
-        return new AbstractSortedNumericDocValues() {
+    public static SortedNumericLongValues replaceMissing(final SortedNumericLongValues values, final long missing) {
+        return new SortedNumericLongValues(null) {
 
             private int count;
 
@@ -158,7 +166,7 @@ public enum MissingValues {
     }
 
     static SortedNumericDoubleValues replaceMissing(final SortedNumericDoubleValues values, final double missing) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(values.isSingleton(), null) {
 
             private int count;
 
@@ -199,8 +207,8 @@ public enum MissingValues {
     public static ValuesSource.Bytes replaceMissing(final ValuesSource.Bytes.WithOrdinals valuesSource, final BytesRef missing) {
         return new ValuesSource.Bytes.WithOrdinals() {
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                SortedBinaryDocValues values = valuesSource.bytesValues(context);
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                SortableBinaryDocValues values = valuesSource.bytesValues(context);
                 return replaceMissing(values, missing);
             }
 
@@ -407,12 +415,12 @@ public enum MissingValues {
         return new ValuesSource.GeoPoint() {
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
 
             @Override
-            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
                 return replaceMissing(valuesSource.geoSortedNumericDocValues(context), missing.getEncoded());
             }
 

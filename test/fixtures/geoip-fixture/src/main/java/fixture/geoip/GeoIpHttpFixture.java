@@ -11,7 +11,8 @@ package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.geoip.GeoIpCli;
 import org.junit.rules.ExternalResource;
 
@@ -46,7 +47,8 @@ public class GeoIpHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/";
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort() + "/";
     }
 
     @Override

@@ -28,7 +28,7 @@ public class DeleteQueryRulesetActionRequestBWCSerializingTests extends Abstract
 
     @Override
     protected DeleteQueryRulesetAction.Request mutateInstance(DeleteQueryRulesetAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteQueryRulesetAction.Request(randomValueOtherThan(instance.rulesetId(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

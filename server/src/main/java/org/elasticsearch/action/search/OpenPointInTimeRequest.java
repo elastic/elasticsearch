@@ -9,16 +9,19 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -29,7 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class OpenPointInTimeRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -37,14 +40,22 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     private int maxConcurrentShardRequests = SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
     @Nullable
     private String routing;
+    private boolean routingFromSlice;
     @Nullable
     private String preference;
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
+    @Nullable
+    private String projectRouting;
 
     private QueryBuilder indexFilter;
 
     private boolean allowPartialSearchResults = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    public static final IndicesOptions DEFAULT_CPS_INDICES_OPTIONS = SearchRequest.DEFAULT_CPS_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");
@@ -57,14 +68,25 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            this.maxConcurrentShardRequests = in.readVInt();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.allowPartialSearchResults = in.readBoolean();
+        this.maxConcurrentShardRequests = in.readVInt();
+        this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.allowPartialSearchResults = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            this.routingFromSlice = in.readBoolean();
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
+        } else {
+            this.routingFromSlice = false;
         }
     }
 
@@ -76,16 +98,14 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeVInt(maxConcurrentShardRequests);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(indexFilter);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        } else if (allowPartialSearchResults) {
-            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
+        out.writeVInt(maxConcurrentShardRequests);
+        out.writeOptionalWriteable(indexFilter);
+        out.writeBoolean(allowPartialSearchResults);
+        if (out.getTransportVersion().supports(SliceIndexing.OPEN_POINT_IN_TIME_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
         }
     }
 
@@ -97,6 +117,16 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         }
         if (keepAlive == null) {
             validationException = addValidationError("[keep_alive] is not specified", validationException);
+        }
+        if (projectRouting != null && indicesOptions.resolveCrossProjectIndexExpression() == false) {
+            validationException = ValidateActions.addValidationError(
+                "Unknown key for a VALUE_STRING in [project_routing]",
+                validationException
+            );
+
+        }
+        if (routingFromSlice && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            validationException = addValidationError("request does not support [_slice]", validationException);
         }
         return validationException;
     }
@@ -143,6 +173,39 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         return this;
     }
 
+    /**
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    public OpenPointInTimeRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public OpenPointInTimeRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[_slice] must not be null");
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
+    }
+
     public String preference() {
         return preference;
     }
@@ -187,6 +250,44 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     }
 
     @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public void projectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+        this.projectRouting = projectRouting;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }
@@ -217,6 +318,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             + ", routing='"
             + routing
             + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''
@@ -240,13 +343,22 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             && indicesOptions.equals(that.indicesOptions)
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
+            && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference, allowPartialSearchResults);
+        int result = Objects.hash(
+            indicesOptions,
+            keepAlive,
+            maxConcurrentShardRequests,
+            routing,
+            routingFromSlice,
+            preference,
+            allowPartialSearchResults
+        );
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

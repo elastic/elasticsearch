@@ -107,15 +107,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(1));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals("""
+        long mappingSize = mappingSize(metadata);
+        assertEquals(Strings.format("""
             {
               "mappings" : {
                 "total_field_count" : 12,
                 "total_deduplicated_field_count" : 6,
-                "total_deduplicated_mapping_size" : "260b",
-                "total_deduplicated_mapping_size_in_bytes" : 260,
+                "total_deduplicated_mapping_size" : "%sb",
+                "total_deduplicated_mapping_size_in_bytes" : %s,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -217,7 +218,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 2
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingSize, mappingSize), Strings.toString(mappingStats, true, true));
     }
 
     public void testToXContentWithSomeSharedMappings() {
@@ -239,15 +240,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
-        assertThat(metadata.getMappingsByHash(), Matchers.aMapWithSize(2));
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals("""
+        long mappingSize = mappingSize(metadata);
+        assertEquals(Strings.format("""
             {
               "mappings" : {
                 "total_field_count" : 18,
                 "total_deduplicated_field_count" : 12,
-                "total_deduplicated_mapping_size" : "519b",
-                "total_deduplicated_mapping_size_in_bytes" : 519,
+                "total_deduplicated_mapping_size" : "%sb",
+                "total_deduplicated_mapping_size_in_bytes" : %s,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -349,7 +351,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 3
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingSize, mappingSize), Strings.toString(mappingStats, true, true));
+    }
+
+    private static long mappingSize(Metadata metadata) {
+        return metadata.getProject().getMappingsByHash().values().stream().mapToLong(v -> v.source().compressed().length).sum();
     }
 
     private static String scriptAsJSON(String script) {
@@ -533,6 +539,56 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
+    public void testRankVectorsType() {
+        // vector1 omits element_type (defaults to float), vector5 sets it explicitly to float.
+        // Both must be counted under the same "float" key to verify the accumulation path.
+        String mapping = """
+            {
+              "properties": {
+                "vector1": {
+                  "type": "rank_vectors",
+                  "dims": 64
+                },
+                "vector2": {
+                  "type": "rank_vectors",
+                  "element_type": "byte",
+                  "dims": 128
+                },
+                "vector3": {
+                  "type": "rank_vectors",
+                  "element_type": "bit",
+                  "dims": 1024
+                },
+                "vector4": {
+                  "type": "rank_vectors",
+                  "element_type": "bfloat16"
+                },
+                "vector5": {
+                  "type": "rank_vectors",
+                  "element_type": "float",
+                  "dims": 256
+                }
+              }
+            }""";
+        int indicesCount = 3;
+        IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
+        RankVectorsFieldStats expectedStats = new RankVectorsFieldStats("rank_vectors");
+        expectedStats.count = 5 * indicesCount;
+        expectedStats.indexCount = indicesCount;
+        expectedStats.vectorDimMin = 64;
+        expectedStats.vectorDimMax = 1024;
+        // vector1 (implicit float) and vector5 (explicit float) both count under "float"
+        expectedStats.vectorElementTypeCount.put("float", 2 * indicesCount);
+        expectedStats.vectorElementTypeCount.put("byte", indicesCount);
+        expectedStats.vectorElementTypeCount.put("bit", indicesCount);
+        expectedStats.vectorElementTypeCount.put("bfloat16", indicesCount);
+        assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
+    }
+
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
@@ -569,7 +625,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);

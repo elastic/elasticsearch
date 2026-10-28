@@ -15,6 +15,5 @@ dependencies {
 }
 
 tasks.named("test").configure {
-  systemProperty 'tests.security.manager', 'false'
   include '**/*Tests.class'
 }

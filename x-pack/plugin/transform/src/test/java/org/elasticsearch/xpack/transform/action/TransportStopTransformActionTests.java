@@ -62,11 +62,11 @@ public class TransportStopTransformActionTests extends ESTestCase {
     public void testTaskStateValidationWithNoTasks() {
         Metadata.Builder metadata = Metadata.builder();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(metadata);
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build().metadata().getDefaultProject(), List.of("non-failed-task"), false);
 
         PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder();
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build().metadata().getDefaultProject(), List.of("non-failed-task"), false);
     }
 
     public void testTaskStateValidationWithTransformTasks() {
@@ -80,7 +80,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build().metadata().getDefaultProject(), List.of("non-failed-task"), false);
 
         // test again with a non failed task but this time it has internal state
         pTasksBuilder.updateTaskState(
@@ -89,7 +89,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         );
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build().metadata().getDefaultProject(), List.of("non-failed-task"), false);
 
         // test again with one failed task
         pTasksBuilder.addTask(
@@ -104,14 +104,18 @@ public class TransportStopTransformActionTests extends ESTestCase {
             );
         final ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build())).build();
 
-        TransportStopTransformAction.validateTaskState(cs, List.of("non-failed-task", "failed-task"), true);
+        TransportStopTransformAction.validateTaskState(cs.metadata().getDefaultProject(), List.of("non-failed-task", "failed-task"), true);
 
-        TransportStopTransformAction.validateTaskState(cs, List.of("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(cs.metadata().getDefaultProject(), List.of("non-failed-task"), false);
 
         ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStopTransformAction.validateTaskState(csBuilderFinal.build(), List.of("failed-task"), false)
+            () -> TransportStopTransformAction.validateTaskState(
+                csBuilderFinal.build().metadata().getDefaultProject(),
+                List.of("failed-task"),
+                false
+            )
         );
 
         assertThat(ex.status(), equalTo(CONFLICT));
@@ -148,7 +152,11 @@ public class TransportStopTransformActionTests extends ESTestCase {
         var csBuilderMultiTask = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStopTransformAction.validateTaskState(csBuilderMultiTask.build(), List.of("failed-task", "failed-task-2"), false)
+            () -> TransportStopTransformAction.validateTaskState(
+                csBuilderMultiTask.build().metadata().getDefaultProject(),
+                List.of("failed-task", "failed-task-2"),
+                false
+            )
         );
 
         assertThat(ex.status(), equalTo(CONFLICT));

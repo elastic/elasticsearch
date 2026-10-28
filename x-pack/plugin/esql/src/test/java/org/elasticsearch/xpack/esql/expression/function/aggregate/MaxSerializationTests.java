@@ -14,16 +14,23 @@ import java.io.IOException;
 public class MaxSerializationTests extends AbstractExpressionSerializationTests<Max> {
     @Override
     protected Max createTestInstance() {
-        return new Max(randomSource(), randomChild());
+        return new Max(randomSource(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * {@code createTestInstance} randomizes the non-finite flag, so a single generic round-trip only exercises one of
+     * the two forms; this covers both.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        Max nonFinite = new Max(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(nonFinite).allowNonFinite());
+
+        Max strict = new Max(randomSource(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override
     protected Max mutateInstance(Max instance) throws IOException {
         return new Max(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

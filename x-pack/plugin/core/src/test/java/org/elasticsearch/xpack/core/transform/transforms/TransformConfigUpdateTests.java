@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
@@ -47,7 +50,8 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE
+            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE,
+            randomBoolean()
         );
     }
 
@@ -64,6 +68,30 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     @Override
     protected Reader<TransformConfigUpdate> instanceReader() {
         return TransformConfigUpdate::new;
+    }
+
+    @Override
+    protected TransformConfigUpdate mutateInstanceForVersion(TransformConfigUpdate instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfigUpdate mutateForVersion(TransformConfigUpdate instance, TransportVersion version) {
+        SourceConfig source = instance.getSource();
+        TransformConfigUpdate mutated = new TransformConfigUpdate(
+            source == null ? null : SourceConfigTests.mutateForVersion(source, version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getDescription(),
+            SettingsConfigTests.mutateForVersion(instance.getSettings(), version),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig(),
+            version.supports(TransformConfig.TRANSFORM_FORCE_REKEYING) && instance.isForceRekeying()
+        );
+        if (instance.getHeaders() != null) {
+            mutated.setHeaders(instance.getHeaders());
+        }
+        return mutated;
     }
 
     public void testIsNoop() {
@@ -173,6 +201,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             .setDeduceMappings(true)
             .setNumFailureRetries(10)
             .setUnattended(true)
+            .setIndexerRequestTimeout(TimeValue.timeValueMinutes(5))
             .build();
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
@@ -274,6 +303,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         assertThat(updatedConfig.getSettings().getDocsPerSecond(), equalTo(config.getSettings().getDocsPerSecond()));
         assertThat(updatedConfig.getSettings().getDatesAsEpochMillis(), equalTo(config.getSettings().getDatesAsEpochMillis()));
         assertThat(updatedConfig.getSettings().getAlignCheckpoints(), equalTo(config.getSettings().getAlignCheckpoints()));
+        assertThat(updatedConfig.getSettings().getIndexerRequestTimeout(), equalTo(config.getSettings().getIndexerRequestTimeout()));
 
         update = new TransformConfigUpdate(
             null,
@@ -418,7 +448,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             this::createParser,
             TransformConfigUpdateTests::randomTransformConfigUpdate,
             this::toXContent,
-            TransformConfigUpdate::fromXContent
+            parser -> TransformConfigUpdate.fromXContent(parser, new TransformParsingContext(false))
         ).supportsUnknownFields(false).assertEqualsConsumer(this::assertEqualInstances).test();
     }
 
@@ -456,6 +486,9 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 builder.endObject();
             }
         }
+        if (update.isForceRekeying()) {
+            builder.field(TransformConfigUpdate.FORCE_REKEYING.getPreferredName(), true);
+        }
 
         builder.endObject();
     }
@@ -489,5 +522,23 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return null;
         }
+    }
+
+    public void testForceRekeyingParsing() throws IOException {
+        String json = """
+            {
+              "_force_rekeying": true
+            }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            TransformConfigUpdate update = TransformConfigUpdate.fromXContent(parser, new TransformParsingContext(false));
+            assertThat(update.isForceRekeying(), equalTo(true));
+        }
+    }
+
+    public void testForceRekeyingOmittedOnOlderTransportVersion() {
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null, true);
+        TransformConfigUpdate mutated = mutateForVersion(update, TransportVersion.fromName("transform_cloud_credential_on_request"));
+        assertThat(mutated.isForceRekeying(), equalTo(false));
     }
 }

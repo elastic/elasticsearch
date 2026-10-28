@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(float, 1.0, 2.0)

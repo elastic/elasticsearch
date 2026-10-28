@@ -30,11 +30,13 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SliceKeyFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -46,8 +48,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
@@ -66,7 +70,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null, c -> null);
+    private static final MetadataFieldMapper.TypeParser PARSER = new MetadataFieldMapper.ConfigurableTypeParser(c -> null);
 
     private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
         @Override
@@ -80,12 +84,13 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static final String[] EXPECTED_METADATA_FIELDS = new String[] {
+    private static final String[] EXPECTED_METADATA_FIELDS = Stream.of(
         IgnoredFieldMapper.NAME,
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
         TimeSeriesIdFieldMapper.NAME,
         TimeSeriesRoutingHashFieldMapper.NAME,
+        SliceKeyFieldMapper.NAME,
         IndexFieldMapper.NAME,
         IndexModeFieldMapper.NAME,
         SourceFieldMapper.NAME,
@@ -95,12 +100,14 @@ public class IndicesModuleTests extends ESTestCase {
         SeqNoFieldMapper.NAME,
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
-        FieldNamesFieldMapper.NAME };
+        FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled() ? FlattenedFieldMapper.UNMAPPED_SINK_NAME : null,
+        FieldNamesFieldMapper.NAME
+    ).filter(Objects::nonNull).toArray(String[]::new);
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current());
             assertThat(
                 module.getMapperRegistry().getMapperParser("object", IndexVersion.current()),
                 instanceOf(ObjectMapper.TypeParser.class)
@@ -116,7 +123,6 @@ public class IndicesModuleTests extends ESTestCase {
         }
         {
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.V_7_0_0,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
@@ -249,8 +255,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;
@@ -292,8 +297,7 @@ public class IndicesModuleTests extends ESTestCase {
         int numPlugins = randomIntBetween(0, 10);
         List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
-            mapperPlugins.add(new MapperPlugin() {
-            });
+            mapperPlugins.add(new MapperPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         Function<String, FieldPredicate> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
@@ -301,8 +305,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testNoOpFieldPredicate() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;

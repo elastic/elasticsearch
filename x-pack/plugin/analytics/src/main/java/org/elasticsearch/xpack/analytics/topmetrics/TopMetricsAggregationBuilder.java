@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -224,6 +223,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         return size;
     }
 
+    @Override
+    public int getRankedHitSize() {
+        return size;
+    }
+
     List<MultiValuesSourceFieldConfig> getMetricFields() {
         return metricFields;
     }
@@ -235,6 +239,6 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

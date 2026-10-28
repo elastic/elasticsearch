@@ -44,8 +44,8 @@ public abstract class FilterRestHandler implements RestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return delegate.supportsBulkContent();
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return delegate.supportsReadOnlyFormEncodedPostBody();
     }
 
     @Override

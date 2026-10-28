@@ -10,15 +10,19 @@ package org.elasticsearch.action;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.transport.LeakTracker;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -28,12 +32,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ActionListenerTests extends ESTestCase {
 
@@ -359,17 +365,12 @@ public class ActionListenerTests extends ESTestCase {
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }
 
-    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() {
         assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
-        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
-            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
-        }));
-        // Nullify reference so it becomes unreachable
-        listenerRef = null;
-        assertBusy(() -> {
-            System.gc();
-            assertLeakDetected();
-        });
+        var window = LeakTracker.newWindow();
+        ActionListener.assertAtLeastOnce(ActionListener.running(() -> {})); // never invoked
+        expectThrows(AssertionError.class, window::assertNoLeaks);
+        // window.assertNoLeaks() drained the resource from activeTrackers; @After will not double-report.
     }
 
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
@@ -610,16 +611,26 @@ public class ActionListenerTests extends ESTestCase {
         );
     }
 
-    public void testReleaseAfter() {
-        runReleaseAfterTest(true, false);
-        runReleaseAfterTest(true, true);
-        runReleaseAfterTest(false, false);
+    public void testReleaseBefore() {
+        runReleaseListenerTest(true, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(true, true, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
+        runReleaseListenerTest(false, false, (delegate, releasable) -> ActionListener.releaseBefore(releasable, delegate));
     }
 
-    private static void runReleaseAfterTest(boolean successResponse, final boolean throwFromOnResponse) {
+    public void testReleaseAfter() {
+        runReleaseListenerTest(true, false, ActionListener::releaseAfter);
+        runReleaseListenerTest(true, true, ActionListener::releaseAfter);
+        runReleaseListenerTest(false, false, ActionListener::releaseAfter);
+    }
+
+    private static void runReleaseListenerTest(
+        boolean successResponse,
+        final boolean throwFromOnResponse,
+        BiFunction<ActionListener<Void>, Releasable, ActionListener<Void>> releaseListenerProvider
+    ) {
         final AtomicBoolean released = new AtomicBoolean();
         final String description = randomAlphaOfLength(10);
-        final ActionListener<Void> l = ActionListener.releaseAfter(new ActionListener<>() {
+        final ActionListener<Void> l = releaseListenerProvider.apply(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 if (throwFromOnResponse) {
@@ -695,5 +706,84 @@ public class ActionListenerTests extends ESTestCase {
 
     public static <T> Matcher<T> isMappedActionListener() {
         return instanceOf(ActionListenerImplementations.MappedActionListener.class);
+    }
+
+    public void testAddTimeout() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadpool = deterministicTaskQueue.getThreadPool();
+        final var expectException = randomBoolean();
+        final var expectedOutcome = new Exception("simulated");
+        final var timeout = TimeValue.timeValueMillis(randomFrom(0, 1, between(0, 100_000)));
+
+        final var listenerDoesNotTimeOutComplete = new AtomicBoolean();
+        final var listenerDoesNotTimeOut = ActionListener.addTimeout(
+            timeout.millis() == 0 ? null : timeout,
+            threadpool,
+            deterministicTaskQueue::scheduleNow,
+            new ActionListener<Exception>() {
+                @Override
+                public void onResponse(Exception e) {
+                    assertFalse(expectException);
+                    onComplete(e);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertTrue(expectException);
+                    onComplete(e);
+                }
+
+                private void onComplete(Object result) {
+                    assertSame(result, expectedOutcome);
+                    assertTrue(listenerDoesNotTimeOutComplete.compareAndSet(false, true));
+                    if (timeout.millis() != 0) {
+                        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), lessThan(timeout.millis()));
+                    }
+                }
+            }
+        );
+        final Runnable completer = expectException
+            ? () -> listenerDoesNotTimeOut.onFailure(expectedOutcome)
+            : () -> listenerDoesNotTimeOut.onResponse(expectedOutcome);
+        if (timeout.millis() == 0) {
+            // special case null timeout
+            deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + between(0, 100_000), completer);
+        } else {
+            deterministicTaskQueue.scheduleAt(
+                deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0L, timeout.millis() - 1),
+                completer
+            );
+        }
+
+        final var listenerTimesOutComplete = new AtomicBoolean();
+        final var listenerTimesOut = ActionListener.addTimeout(
+            timeout,
+            threadpool,
+            deterministicTaskQueue::scheduleNow,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Object o) {
+                    fail("should not complete successfully");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
+                    assertTrue(listenerTimesOutComplete.compareAndSet(false, true));
+                    assertEquals(timeout.millis(), deterministicTaskQueue.getCurrentTimeMillis());
+                }
+            }
+        );
+
+        if (randomBoolean()) {
+            deterministicTaskQueue.scheduleAt(
+                deterministicTaskQueue.getCurrentTimeMillis() + timeout.millis() + between(1, 200_000),
+                () -> listenerTimesOut.onResponse(new Object())
+            );
+        }
+
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(listenerDoesNotTimeOutComplete.get());
+        assertTrue(listenerTimesOutComplete.get());
     }
 }

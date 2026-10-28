@@ -9,20 +9,25 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -111,10 +116,15 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
-        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
+        final var projectId = randomProjectIdOrDefault();
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(
+            systemIndices,
+            client,
+            TestProjectResolvers.singleProject(projectId)
+        );
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(getIndexMetadata(d1, null, 6, IndexMetadata.State.OPEN))
                 .put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN))
                 .build()
@@ -152,11 +162,16 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                 new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
             )
         );
-        ;
-        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
+
+        final var projectId = randomProjectIdOrDefault();
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(
+            systemIndices,
+            client,
+            TestProjectResolvers.singleProject(projectId)
+        );
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
-            Metadata.builder().put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
+            ProjectMetadata.builder(projectId).put(getIndexMetadata(d2, d2.getMappings(), 6, IndexMetadata.State.OPEN)).build()
         );
 
         assertThat(eligibleDescriptors, hasSize(1));
@@ -167,11 +182,8 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
-        assertThat(
-            SystemIndexMappingUpdateService.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR),
-            equalTo(UpgradeStatus.CLOSED)
-        );
+        final ProjectState projectState = createProjectState(IndexMetadata.State.CLOSE);
+        assertThat(SystemIndexMappingUpdateService.getUpgradeStatus(projectState, DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
     }
 
     /**
@@ -179,7 +191,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithRedStatus() {
         assertThat(
-            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsUnavailable(createProjectState()), DESCRIPTOR),
             equalTo(UpgradeStatus.UNHEALTHY)
         );
     }
@@ -190,7 +202,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
         assertThat(
-            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createProjectState(5)), DESCRIPTOR),
             equalTo(UpgradeStatus.NEEDS_UPGRADE)
         );
     }
@@ -200,7 +212,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
         assertThat(
-            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR),
+            SystemIndexMappingUpdateService.getUpgradeStatus(markShardsAvailable(createProjectState()), DESCRIPTOR),
             equalTo(UpgradeStatus.UP_TO_DATE)
         );
     }
@@ -211,7 +223,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithOldMappingsVersion() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", null)))),
+                markShardsAvailable(createProjectState(Strings.toString(getMappings("1.0.0", null)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -224,7 +236,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithOutdatedMappings() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4)))),
+                markShardsAvailable(createProjectState(Strings.toString(getMappings("1.0.0", 4)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -237,7 +249,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithNullMetadata() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings(builder -> {})))),
+                markShardsAvailable(createProjectState(Strings.toString(getMappings(builder -> {})))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -250,7 +262,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null, null)))),
+                markShardsAvailable(createProjectState(Strings.toString(getMappings((String) null, null)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
@@ -262,11 +274,52 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
      */
     public void testManagerSubmitsPutRequest() {
         SystemIndices systemIndices = new SystemIndices(List.of(FEATURE));
-        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(systemIndices, client);
+        final ProjectState projectState = createProjectState(Strings.toString(getMappings("1.0.0", 4)));
+        SystemIndexMappingUpdateService manager = new SystemIndexMappingUpdateService(
+            systemIndices,
+            client,
+            TestProjectResolvers.singleProject(projectState.projectId())
+        );
 
-        manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
+        manager.clusterChanged(event(markShardsAvailable(projectState)));
 
         verify(client, times(1)).execute(same(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
+    }
+
+    /**
+     * Reproduces a bug where SystemIndexMappingUpdateService incorrectly reports UP_TO_DATE for an index whose mappings are
+     * outdated after a major-version migration (reindex).
+     */
+    public void testManagerDetectsOutdatedMappingsInReindexedIndex() {
+        final String reindexedIndexName = SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
+        final var projectId = randomProjectIdOrDefault();
+
+        // Simulate the post-migration state: the concrete index has the reindexed suffix and an
+        // outdated managed_index_mappings_version, while the original primary index name and the
+        // alias are both aliases pointing to the new concrete index.
+        IndexMetadata.Builder reindexedIndexMeta = IndexMetadata.builder(reindexedIndexName)
+            .settings(Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6))
+            .putMapping(Strings.toString(getMappings("1.0.0", 4)))
+            .putAlias(AliasMetadata.builder(SYSTEM_INDEX_NAME).build())
+            .putAlias(AliasMetadata.builder(DESCRIPTOR.getAliasName()).build());
+
+        final Metadata metadata = Metadata.builder()
+            .generateClusterUuidIfNeeded()
+            .put(ProjectMetadata.builder(projectId).put(reindexedIndexMeta))
+            .build();
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
+        final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+        ProjectState projectState = clusterState.projectState(projectId);
+
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(projectState, DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
     }
 
     /**
@@ -275,55 +328,58 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     public void testCanHandleIntegerMetaVersion() {
         assertThat(
             SystemIndexMappingUpdateService.getUpgradeStatus(
-                markShardsAvailable(createClusterState(Strings.toString(getMappings(3)))),
+                markShardsAvailable(createProjectState(Strings.toString(getMappings(3)))),
                 DESCRIPTOR
             ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
 
-    private static ClusterState.Builder createClusterState() {
-        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings());
+    private static ProjectState createProjectState() {
+        return createProjectState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings());
     }
 
-    private static ClusterState.Builder createClusterState(String mappings) {
-        return createClusterState(mappings, IndexMetadata.State.OPEN);
+    private static ProjectState createProjectState(String mappings) {
+        return createProjectState(mappings, 6, IndexMetadata.State.OPEN);
     }
 
-    private static ClusterState.Builder createClusterState(IndexMetadata.State state) {
-        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), 6, state);
+    private static ProjectState createProjectState(IndexMetadata.State state) {
+        return createProjectState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), 6, state);
     }
 
-    private static ClusterState.Builder createClusterState(String mappings, IndexMetadata.State state) {
-        return createClusterState(mappings, 6, state);
+    private static ProjectState createProjectState(int format) {
+        return createProjectState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
     }
 
-    private static ClusterState.Builder createClusterState(int format) {
-        return createClusterState(SystemIndexMappingUpdateServiceTests.DESCRIPTOR.getMappings(), format, IndexMetadata.State.OPEN);
-    }
-
-    private static ClusterState.Builder createClusterState(String mappings, int format, IndexMetadata.State state) {
+    private static ProjectState createProjectState(String mappings, int format, IndexMetadata.State state) {
+        final var projectId = randomProjectIdOrDefault();
         IndexMetadata.Builder indexMeta = getIndexMetadata(SystemIndexMappingUpdateServiceTests.DESCRIPTOR, mappings, format, state);
 
-        Metadata.Builder metadataBuilder = new Metadata.Builder();
-        metadataBuilder.put(indexMeta);
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+        projectBuilder.put(indexMeta);
 
-        return ClusterState.builder(state()).metadata(metadataBuilder.build());
-    }
-
-    private ClusterState markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
-        final ClusterState cs = clusterStateBuilder.build();
-        return ClusterState.builder(cs)
-            .routingTable(buildIndexRoutingTable(cs.metadata().index(DESCRIPTOR.getPrimaryIndex()).getIndex()))
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
+        final Metadata metadata = Metadata.builder().generateClusterUuidIfNeeded().put(projectBuilder).build();
+        final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
+        return clusterState.projectState(projectId);
     }
 
-    private ClusterState markShardsUnavailable(ClusterState.Builder clusterStateBuilder) {
-        final ClusterState cs = clusterStateBuilder.build();
-        final RoutingTable routingTable = buildIndexRoutingTable(cs.metadata().index(DESCRIPTOR.getPrimaryIndex()).getIndex());
+    private ProjectState markShardsAvailable(ProjectState project) {
+        final ClusterState previousClusterState = project.cluster();
+        final GlobalRoutingTable routingTable = GlobalRoutingTable.builder(previousClusterState.globalRoutingTable())
+            .put(project.projectId(), buildIndexRoutingTable(project.metadata().index(DESCRIPTOR.getPrimaryIndex()).getIndex()))
+            .build();
+        final ClusterState newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTable).build();
+        return newClusterState.projectState(project.projectId());
+    }
 
-        Index prevIndex = routingTable.index(DESCRIPTOR.getPrimaryIndex()).getIndex();
-
+    private ProjectState markShardsUnavailable(ProjectState projectState) {
+        Index prevIndex = projectState.routingTable().index(DESCRIPTOR.getPrimaryIndex()).getIndex();
         final RoutingTable unavailableRoutingTable = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(prevIndex)
@@ -335,22 +391,23 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
                                     true,
                                     RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                                    ShardRouting.Role.DEFAULT
+                                    ShardRouting.Role.DEFAULT,
+                                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                                 )
                                     .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
-                                    .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
+                                    .moveToUnassigned(
+                                        new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""),
+                                        ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+                                    )
                             )
                     )
             )
             .build();
 
-        return ClusterState.builder(cs).routingTable(unavailableRoutingTable).build();
-    }
-
-    private static ClusterState state() {
-        final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
-        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
-        return ClusterState.builder(CLUSTER_NAME).nodes(nodes).metadata(Metadata.builder().generateClusterUuidIfNeeded()).build();
+        return ClusterState.builder(projectState.cluster())
+            .routingTable(GlobalRoutingTable.builder().put(projectState.projectId(), unavailableRoutingTable).build())
+            .build()
+            .projectState(projectState.projectId());
     }
 
     private static IndexMetadata.Builder getIndexMetadata(
@@ -389,7 +446,8 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         return RoutingTable.builder()
@@ -407,8 +465,8 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .build();
     }
 
-    private ClusterChangedEvent event(ClusterState clusterState) {
-        return new ClusterChangedEvent("test-event", clusterState, EMPTY_CLUSTER_STATE);
+    private ClusterChangedEvent event(ProjectState projectState) {
+        return new ClusterChangedEvent("test-event", projectState.cluster(), EMPTY_CLUSTER_STATE);
     }
 
     private static Settings getSettings() {
@@ -416,7 +474,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings() {
-        return getMappings(Version.CURRENT.toString(), 6);
+        return getMappings(Build.current().version(), 6);
     }
 
     private static XContentBuilder getMappings(String nodeVersion, Integer mappingsVersion) {

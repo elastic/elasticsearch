@@ -102,7 +102,6 @@ public class RemoteClusterStatsResponse extends ActionResponse {
     }
 
     public RemoteClusterStatsResponse(StreamInput in) throws IOException {
-        super(in);
         this.clusterUUID = in.readString();
         this.status = ClusterHealthStatus.readFrom(in);
         this.versions = in.readCollectionAsSet(StreamInput::readString);

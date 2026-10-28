@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 public class CoreAnalysisFactoryTests extends AnalysisFactoryTestCase {
     public CoreAnalysisFactoryTests() {
         // Use an empty plugin that doesn't define anything so the test doesn't need a ton of null checks.
-        super(new AnalysisPlugin() {
-        });
+        super(new AnalysisPlugin() {});
     }
 }

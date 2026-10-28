@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -322,8 +322,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     private Path config;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createScriptFiles() throws Exception {
         config = createTempDir().resolve("config");
         final Path scripts = config.resolve("scripts");
 
@@ -332,13 +331,10 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             // When using the MockScriptPlugin we can map File scripts to inline scripts:
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-            Files.write(scripts.resolve("init_script.mockscript"), "vars.multiplier = 3".getBytes("UTF-8"));
-            Files.write(scripts.resolve("map_script.mockscript"), "state.list.add(vars.multiplier)".getBytes("UTF-8"));
-            Files.write(scripts.resolve("combine_script.mockscript"), "sum state values as a new aggregation".getBytes("UTF-8"));
-            Files.write(
-                scripts.resolve("reduce_script.mockscript"),
-                "sum all states (lists) values as a new aggregation".getBytes("UTF-8")
-            );
+            Files.writeString(scripts.resolve("init_script.mockscript"), "vars.multiplier = 3");
+            Files.writeString(scripts.resolve("map_script.mockscript"), "state.list.add(vars.multiplier)");
+            Files.writeString(scripts.resolve("combine_script.mockscript"), "sum state values as a new aggregation");
+            Files.writeString(scripts.resolve("reduce_script.mockscript"), "sum all states (lists) values as a new aggregation");
         } catch (IOException e) {
             throw new RuntimeException("failed to create scripts");
         }
@@ -716,7 +712,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             response -> {
                 assertThat(response.getHits().getTotalHits().value(), equalTo(numDocs));
 
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(numDocs));
@@ -1140,101 +1136,105 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long").setSettings(indexSettings(1, 1).put("requests.cache.enable", true))
         );
-        indexRandom(
-            true,
-            prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-            prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
-        );
+        try {
+            indexRandom(
+                true,
+                prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+                prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
+            );
 
-        // Make sure we are starting with a clear cache
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(0L)
-        );
+            // Make sure we are starting with a clear cache
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L)
+            );
 
-        // Test that a non-deterministic init script causes the result to not be cached
-        assertNoFailures(
-            prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(
-                    scriptedMetric("foo").initScript(ndInitScript)
-                        .mapScript(mapScript)
-                        .combineScript(combineScript)
-                        .reduceScript(reduceScript)
-                )
-        );
+            // Test that a non-deterministic init script causes the result to not be cached
+            assertNoFailures(
+                prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(
+                        scriptedMetric("foo").initScript(ndInitScript)
+                            .mapScript(mapScript)
+                            .combineScript(combineScript)
+                            .reduceScript(reduceScript)
+                    )
+            );
 
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(0L)
-        );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L)
+            );
 
-        // Test that a non-deterministic map script causes the result to not be cached
-        assertNoFailures(
-            prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(scriptedMetric("foo").mapScript(ndMapScript).combineScript(combineScript).reduceScript(reduceScript))
-        );
+            // Test that a non-deterministic map script causes the result to not be cached
+            assertNoFailures(
+                prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(scriptedMetric("foo").mapScript(ndMapScript).combineScript(combineScript).reduceScript(reduceScript))
+            );
 
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(0L)
-        );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L)
+            );
 
-        // Test that a non-deterministic combine script causes the result to not be cached
-        assertNoFailures(
-            prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(ndRandom).reduceScript(reduceScript))
-        );
+            // Test that a non-deterministic combine script causes the result to not be cached
+            assertNoFailures(
+                prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(ndRandom).reduceScript(reduceScript))
+            );
 
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(0L)
-        );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L)
+            );
 
-        // NOTE: random reduce scripts don't hit the query shard context (they are done on the coordinator) and so can be cached.
-        assertNoFailures(
-            prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(ndRandom))
-        );
+            // NOTE: random reduce scripts don't hit the query shard context (they are done on the coordinator) and so can be cached.
+            assertNoFailures(
+                prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(ndRandom))
+            );
 
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(1L)
-        );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(1L)
+            );
 
-        // Test that all deterministic scripts cause the request to be cached
-        assertNoFailures(
-            prepareSearch("cache_test_idx").setSize(0)
-                .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
-        );
+            // Test that all deterministic scripts cause the request to be cached
+            assertNoFailures(
+                prepareSearch("cache_test_idx").setSize(0)
+                    .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
+            );
 
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
-            equalTo(0L)
-        );
-        assertThat(
-            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
-            equalTo(2L)
-        );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L)
+            );
+            assertThat(
+                indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(2L)
+            );
+        } finally {
+            assertAcked(indicesAdmin().prepareDelete("cache_test_idx"));
+        }
     }
 
     public void testConflictingAggAndScriptParams() {

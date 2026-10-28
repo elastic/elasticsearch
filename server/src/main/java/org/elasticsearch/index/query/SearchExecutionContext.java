@@ -23,18 +23,26 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
@@ -43,20 +51,30 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.UnmappedFields;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -65,15 +83,21 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
@@ -83,8 +107,24 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  *
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
+ *
+ * The context is not designed to be thread-safe and is not expected to be
+ * shared between multiple threads. The exception is the Percolator that
+ * runs multiple queries simultaneously with the same context and will mutate
+ * elements of the context that are not threadsafe. Percolator makes copies of
+ * the context before executing each query.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
+
+    /**
+     * Per-call telemetry for the pre-flight reservation swap in
+     * {@link #addCircuitBreakerMemory(long, long, String)}. Enable at {@code DEBUG} to observe
+     * the {@code reservation/actual} ratio in production and inform tuning of the automaton peak
+     * multiplier used to size the reservation.
+     */
+    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger(
+        SearchExecutionContext.class.getCanonicalName() + ".cb.automaton.reservation"
+    );
 
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
@@ -97,64 +137,25 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
+    private UnmappedFields unmappedFields = null;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
+    private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    private SliceSelection sliceSelection = SliceSelection.UNSPECIFIED;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
-
-    /**
-     * Build a {@linkplain SearchExecutionContext}.
-     */
-    public SearchExecutionContext(
-        int shardId,
-        int shardRequestIndex,
-        IndexSettings indexSettings,
-        BitsetFilterCache bitsetFilterCache,
-        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
-        MapperService mapperService,
-        MappingLookup mappingLookup,
-        SimilarityService similarityService,
-        ScriptCompiler scriptService,
-        XContentParserConfiguration parserConfiguration,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Client client,
-        IndexSearcher searcher,
-        LongSupplier nowInMillis,
-        String clusterAlias,
-        Predicate<String> indexNameMatcher,
-        BooleanSupplier allowExpensiveQueries,
-        ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings,
-        MapperMetrics mapperMetrics
-    ) {
-        this(
-            shardId,
-            shardRequestIndex,
-            indexSettings,
-            bitsetFilterCache,
-            indexFieldDataLookup,
-            mapperService,
-            mappingLookup,
-            similarityService,
-            scriptService,
-            parserConfiguration,
-            namedWriteableRegistry,
-            client,
-            searcher,
-            nowInMillis,
-            clusterAlias,
-            indexNameMatcher,
-            allowExpensiveQueries,
-            valuesSourceRegistry,
-            runtimeMappings,
-            null,
-            mapperMetrics
-        );
-    }
+    private final ShardSearchStats shardSearchStats;
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
+    private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
+    private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    private final ConcurrentMap<AutomatonKey, SharedAutomaton> sharedAutomata = new ConcurrentHashMap<>();
+    private final List<Releasable> queryConstructionReleasables = new ArrayList<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -177,7 +178,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, Object> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ShardSearchStats shardSearchStats
     ) {
         this(
             shardId,
@@ -195,6 +197,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             searcher,
             nowInMillis,
             indexNameMatcher,
+            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -203,11 +206,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            shardSearchStats,
+            null
         );
     }
 
+    /**
+     * Copy constructor that preserves the circuit breaker from the source context.
+     */
     public SearchExecutionContext(SearchExecutionContext source) {
+        this(source, source.circuitBreaker);
+    }
+
+    /**
+     * Copy constructor that overrides the circuit breaker.
+     */
+    public SearchExecutionContext(SearchExecutionContext source, @Nullable CircuitBreaker circuitBreaker) {
         this(
             source.shardId,
             source.shardRequestIndex,
@@ -224,13 +239,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.searcher,
             source.nowInMillis,
             source.indexNameMatcher,
+            source.getLocalClusterAlias(),
             source.getFullyQualifiedIndex(),
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
             source.requestSize,
-            source.mapperMetrics
+            source.mapperMetrics,
+            source.shardSearchStats,
+            circuitBreaker
         );
+        this.sliceSelection = source.sliceSelection;
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -249,12 +269,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         Predicate<String> indexNameMatcher,
+        String clusterAlias,
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        ShardSearchStats shardSearchStats,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
             parserConfig,
@@ -264,6 +287,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             runtimeMappings,
             indexSettings,
+            null,
+            clusterAlias,
             fullyQualifiedIndex,
             indexNameMatcher,
             namedWriteableRegistry,
@@ -273,6 +298,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             null,
             null,
             null,
+            null,
+            false,
             false
         );
         this.shardId = shardId;
@@ -281,9 +308,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
+        this.shardSearchStats = shardSearchStats;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void reset() {
@@ -291,6 +321,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
+        this.autoPrefilteringScope = new AutoPrefilteringScope();
     }
 
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
@@ -300,6 +331,37 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public QueryBuilder getAliasFilter() {
         return aliasFilter;
+    }
+
+    /**
+     * Sets the slices this request reads from the shard.
+     */
+    public void setSliceSelection(SliceSelection sliceSelection) {
+        this.sliceSelection = Objects.requireNonNull(sliceSelection);
+    }
+
+    /**
+     * The slices this request reads from the shard.
+     */
+    public SliceSelection sliceSelection() {
+        return sliceSelection;
+    }
+
+    /**
+     * A filter matching the documents of the selected slices, or {@code null} when the request is not restricted to named
+     * slices. It matches no document on an index without slices.
+     */
+    @Nullable
+    public Query sliceFilter() {
+        if (sliceSelection.isRestricted() == false) {
+            return null;
+        }
+        final MappedFieldType routingFieldType = getIndexSettings().isSliceEnabled() ? getFieldType(RoutingFieldMapper.NAME) : null;
+        if (routingFieldType == null) {
+            return Queries.NO_DOCS_INSTANCE;
+        }
+        final List<String> names = sliceSelection.names();
+        return names.size() == 1 ? routingFieldType.termQuery(names.get(0), this) : routingFieldType.termsQuery(names, this);
     }
 
     /**
@@ -317,7 +379,33 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.indexType().hasDenseIndex()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
+    }
+
+    /**
+     * Whether {@code index.query.default_field} is configured as the all-fields wildcard, answered from
+     * the setting rather than from the possibly expanded {@link #defaultFields()}. Query builders force
+     * leniency on all-fields queries so that one field failing to parse the value does not fail the whole
+     * query, and that decision has to reflect what the user asked for.
+     */
+    public boolean hasAllFieldsWildcardDefaultField() {
+        return QueryParserHelper.hasAllFieldsWildcard(indexSettings.getDefaultFields());
     }
 
     public boolean queryStringLenient() {
@@ -345,6 +433,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -439,15 +528,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource) {
         if (forceSyntheticSource) {
             return new SourceLoader.Synthetic(
-                null,
+                filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
-                mapperMetrics.sourceFieldMetrics()
+                mapperMetrics.sourceFieldMetrics(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(null, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), null);
     }
 
     /**
@@ -499,16 +589,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            var sourceProvider = createSourceProvider();
+            var sourceProvider = createSourceProvider(null);
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
     }
 
-    public SourceProvider createSourceProvider() {
-        return isSourceSynthetic()
-            ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping(), null, mapperMetrics.sourceFieldMetrics())
-            : SourceProvider.fromStoredFields();
+    public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**
@@ -526,6 +614,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
+            fieldName -> mappingLookup.getMapper(fieldName) == null,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
                 new FieldDataContext(
@@ -533,16 +622,41 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),
             sourceProvider,
-            fieldLookupProvider
+            fieldLookupProvider,
+            // Account decode buffers that script doc-values readers retain (e.g. the uncompressed-block buffer of
+            // the TSDB binary doc-values format) on the request breaker. One such buffer is held per field, leaf
+            // and clause that reads doc values through a script, so an unbounded fan-out (many runtime-field
+            // clauses in a filters aggregation, say) trips the breaker instead of exhausting the heap. When the
+            // request is driven by a ContextIndexSearcher with a breaker, the memory is attributed to the leaf it
+            // was opened against and released as soon as that leaf is done being collected, so sequential execution
+            // does not accumulate charges across leaves. Otherwise (percolator's memory-index searcher, contexts
+            // without a searcher) it accumulates in this context's query construction pool and is drained at
+            // request end by releaseQueryConstructionMemory().
+            this::accountScriptFieldMemory
         );
+    }
+
+    // Package-private for testing.
+    void accountScriptFieldMemory(long bytes, String field, LeafReaderContext ctx) {
+        if (searcher instanceof ContextIndexSearcher contextIndexSearcher
+            && ContextIndexSearcher.circuitBreakerOrNull(contextIndexSearcher) != null) {
+            contextIndexSearcher.chargeLeaf(ctx, bytes, "script_doc_values:" + field);
+        } else {
+            addCircuitBreakerMemory(bytes, "script_doc_values:" + field);
+        }
     }
 
     public NestedScope nestedScope() {
         return nestedScope;
+    }
+
+    public AutoPrefilteringScope autoPrefilteringScope() {
+        return autoPrefilteringScope;
     }
 
     public IndexVersion indexVersionCreated() {
@@ -554,6 +668,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return indexSortConfig.hasPrimarySortOnField(field);
     }
 
+    /**
+     * Whether a range query on the field can use Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery}.
+     */
+    public boolean canUseIndexSortRangeQuery(String field) {
+        // NOTE: Workaround for a Lucene bug, see https://github.com/elastic/elasticsearch/issues/162656.
+        // That query binary searches the values of all documents in a segment and needs them sorted.
+        // The index sort only applies to the root document of a block, so the values of the nested
+        // documents are not in sort order.
+        // Remove this check once Lucene handles segments with document blocks.
+        return nestedLookup() == NestedLookup.EMPTY && indexSortedOnField(field);
+    }
+
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         reset();
         try {
@@ -562,7 +688,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
             }
             return new ParsedQuery(query, copyNamedQueries());
-        } catch (QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
@@ -696,16 +822,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (searcher == null) {
             return false;
         }
-        if (fieldsInIndex == null) {
-            fieldsInIndex = new HashSet<>();
+        Set<String> fields = fieldsInIndex;
+        if (fields == null) {
+            Set<String> names = new HashSet<>();
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 FieldInfos fis = ctx.reader().getFieldInfos();
                 for (FieldInfo fi : fis) {
-                    fieldsInIndex.add(fi.name);
+                    names.add(fi.name);
                 }
             }
+            // Immutable, so that a thread racing on the unsynchronized field can only see a complete set.
+            fields = fieldsInIndex = Set.copyOf(names);
         }
-        return fieldsInIndex.contains(fieldname);
+        return fields.contains(fieldname);
+    }
+
+    /**
+     * The fields of this shard's documents that its mapping does not declare.
+     */
+    public UnmappedFields unmappedFields() {
+        if (unmappedFields == null) {
+            unmappedFields = new UnmappedFields(indexSettings, mappingLookup, searcher == null ? null : this::fieldExistsInIndex);
+        }
+        return unmappedFields;
     }
 
     /**
@@ -716,6 +855,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
+        if (bitsetFilterCache == null) {
+            return null;
+        }
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 
@@ -732,5 +874,193 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public boolean rewriteToNamedQuery() {
         return rewriteToNamedQueries;
+    }
+
+    /**
+     * Returns the {@link ShardSearchStats} associated with this context, if available.
+     *
+     * @return the shard-level search statistics, or {@code null} if none are set
+     */
+    @Nullable
+    public ShardSearchStats stats() {
+        return shardSearchStats;
+    }
+
+    /**
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
+
+    /**
+     * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
+     * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.
+     *
+     * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
+     * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
+     */
+    public void addCircuitBreakerMemory(long bytes, String label) {
+        assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        addCircuitBreakerMemory(bytes, 0L, label);
+    }
+
+    /**
+     * Swap variant of {@link #addCircuitBreakerMemory(long, String)} that replaces a prior
+     * reservation of {@code heldBreakerBytes} with a final charge of {@code bytes}, applying the
+     * net delta as a single breaker operation. A positive delta may trip the breaker; if it does,
+     * the reservation residual remains on the breaker and the request counter until
+     * {@link #releaseQueryConstructionMemory()} runs at request end.
+     * <p>
+     * {@code heldBreakerBytes <= 0} behaves like the single-arg form.
+     * <p>
+     * Used by wildcard / regexp construction to keep the in-flight clause visible to the breaker
+     * across the unguarded {@code CompiledAutomaton} build window.
+     */
+    public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        if (circuitBreaker == null) {
+            return;
+        }
+        long held = Math.max(heldBreakerBytes, 0L);
+        long delta = bytes - held;
+        if (delta > 0) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
+        } else if (delta < 0) {
+            circuitBreaker.addWithoutBreaking(delta, label);
+        }
+        if (delta != 0) {
+            queryConstructionMemoryByLabel.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(delta);
+            queryConstructionMemoryUsed.addAndGet(delta);
+        }
+        if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
+            CB_RESERVATION_LOGGER.debug(
+                "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
+                bytes,
+                heldBreakerBytes,
+                label
+            );
+        }
+    }
+
+    /**
+     * Get total query construction memory used.
+     */
+    public long getQueryConstructionMemoryUsed() {
+        return queryConstructionMemoryUsed.get();
+    }
+
+    /**
+     * Returns the automaton {@code key} identifies, building it with {@code builder} on first use and charging its
+     * retained size once. Every later clause of this request that resolves to the same key reuses the instance, so a
+     * pattern expanded over many fields costs one automaton rather than one per field.
+     * <p>
+     * {@code builder} is responsible for guarding its own construction peak.
+     */
+    public SharedAutomaton computeAutomatonIfAbsent(AutomatonKey key, Supplier<SharedAutomaton> builder) {
+        return sharedAutomata.computeIfAbsent(key, k -> {
+            SharedAutomaton built = builder.get();
+            addCircuitBreakerMemory(built.ramBytesUsed(), k.category());
+            return built;
+        });
+    }
+
+    /**
+     * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
+     */
+    public void markQueryMemoryPreCharged(Query query) {
+        if (query != null) {
+            preChargedQueries.add(query);
+        }
+    }
+
+    /**
+     * @return {@code true} if {@code query} was already charged at construction time (see {@link #markQueryMemoryPreCharged}).
+     */
+    public boolean isQueryMemoryPreCharged(Query query) {
+        return preChargedQueries.contains(query);
+    }
+
+    /**
+     * Registers {@code releasable} to run when this context's query construction memory is released. It is meant for breaker
+     * charges that several contexts share, so a charge can stay held while any context using it is open.
+     */
+    void addQueryConstructionReleasable(Releasable releasable) {
+        synchronized (queryConstructionReleasables) {
+            queryConstructionReleasables.add(releasable);
+        }
+    }
+
+    /**
+     * Whether a query built with this context registered a shared breaker charge that is still held. Lets callers that never
+     * release a context, such as the rewrite copy in {@code SearchService}, assert that no query was built with it.
+     */
+    public boolean hasQueryConstructionReleasables() {
+        synchronized (queryConstructionReleasables) {
+            return queryConstructionReleasables.isEmpty() == false;
+        }
+    }
+
+    /**
+     * Drops all pre-charge markers and shared automata and runs the registered releasables. An override of
+     * {@link #releaseQueryConstructionMemory()} must call this, or it keeps automata alive that the breaker no longer accounts for.
+     */
+    protected final void clearQueryConstructionState() {
+        preChargedQueries.clear();
+        sharedAutomata.clear();
+        final List<Releasable> releasables;
+        synchronized (queryConstructionReleasables) {
+            releasables = List.copyOf(queryConstructionReleasables);
+            queryConstructionReleasables.clear();
+        }
+        Releasables.close(releasables);
+    }
+
+    /**
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
+     */
+    public void releaseQueryConstructionMemory() {
+        try {
+            clearQueryConstructionState();
+        } finally {
+            if (circuitBreaker != null) {
+                for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+                    long held = entry.getValue().getAndSet(0);
+                    if (held > 0) {
+                        circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+                    }
+                }
+                queryConstructionMemoryByLabel.clear();
+                queryConstructionMemoryUsed.set(0);
+            }
+        }
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker. The {@code label} must match the
+     * label the bytes were originally admitted under (see {@link #addCircuitBreakerMemory(long, String)}); otherwise the per-label
+     * bookkeeping drained by {@link #releaseQueryConstructionMemory()} at request end will not balance and the same bytes may be
+     * released twice from the underlying breaker.
+     *
+     * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @param label the label the bytes were originally admitted under
+     */
+    public void releaseQueryConstructionMemory(long bytes, String label) {
+        assert bytes >= 0 : "negative refund: " + bytes;
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
+        circuitBreaker.addWithoutBreaking(-bytes, label);
+        AtomicLong held = queryConstructionMemoryByLabel.get(label);
+        if (held != null) {
+            held.addAndGet(-bytes);
+        }
+        queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

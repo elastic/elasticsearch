@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +30,6 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         ToXContentObject,
         Comparable<DesiredNodeWithStatus> {
 
-    private static final TransportVersion STATUS_TRACKING_SUPPORT_VERSION = TransportVersions.V_8_4_0;
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
     public static final ConstructingObjectParser<DesiredNodeWithStatus, Void> PARSER = new ConstructingObjectParser<>(
@@ -78,25 +75,14 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     public static DesiredNodeWithStatus readFrom(StreamInput in) throws IOException {
         final var desiredNode = DesiredNode.readFrom(in);
         final Status status;
-        if (in.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
-            status = Status.fromValue(in.readShort());
-        } else {
-            // During upgrades, we consider all desired nodes as PENDING
-            // since it's impossible to know if a node that was supposed to
-            // join the cluster, it joined. The status will be updated
-            // once the master node is upgraded to a version >= STATUS_TRACKING_SUPPORT_VERSION
-            // in NodeJoinExecutor or when the desired nodes are upgraded to a new version.
-            status = Status.PENDING;
-        }
+        status = Status.fromValue(in.readShort());
         return new DesiredNodeWithStatus(desiredNode, status);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         desiredNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
-            out.writeShort(status.value);
-        }
+        out.writeShort(status.value);
     }
 
     @Override

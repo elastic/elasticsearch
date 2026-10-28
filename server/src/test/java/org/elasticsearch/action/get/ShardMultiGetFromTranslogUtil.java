@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public class ShardMultiGetFromTranslogUtil {
 
     // Converts a MultiGetRequest that has IDs of only one shard to a MultiGetShardRequest
     public static MultiGetShardRequest newMultiGetShardRequest(MultiGetRequest multiGetRequest, ShardId shardId) {
-        var request = new MultiGetShardRequest(multiGetRequest, shardId.getIndexName(), shardId.id());
+        var request = new MultiGetShardRequest(multiGetRequest, shardId.getIndexName(), shardId.id(), SplitShardCountSummary.UNSET);
         for (int i = 0; i < multiGetRequest.items.size(); i++) {
             request.add(i, multiGetRequest.items.get(i));
         }

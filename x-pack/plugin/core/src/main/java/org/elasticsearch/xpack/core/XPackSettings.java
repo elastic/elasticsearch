@@ -101,6 +101,9 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling the ML NLP features. Defaults to true. */
+    public static final Setting<Boolean> NLP_ENABLED = Setting.boolSetting("xpack.ml.nlp.enabled", true, Property.NodeScope);
+
     /** Setting for enabling or disabling universal profiling. Defaults to true. */
     public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
         "xpack.profiling.enabled",
@@ -118,6 +121,21 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling Prometheus Data ingestion and query support. Defaults to true. */
+    public static final Setting<Boolean> PROMETHEUS_ENABLED = Setting.boolSetting(
+        "xpack.prometheus.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
+    /** Setting for enabling or disabling metric exemplar ingestion. Defaults to true. */
+    public static final Setting<Boolean> METRIC_EXEMPLARS_ENABLED = Setting.boolSetting(
+        "xpack.metrics.exemplars.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",
@@ -129,7 +147,8 @@ public class XPackSettings {
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting(
         "xpack.security.audit.enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
@@ -212,7 +231,7 @@ public class XPackSettings {
         Property.NodeScope
     );
 
-    private static final List<String> JDK12_CIPHERS = List.of(
+    private static final List<String> PRE_JDK24_CIPHERS = List.of(
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
         "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
@@ -238,7 +257,27 @@ public class XPackSettings {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     ); // hardware support
 
-    public static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
+    private static final List<String> JDK24_CIPHERS = List.of(
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
+        "TLS_CHACHA20_POLY1305_SHA256", // TLSv1.3 cipher has PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", // PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" // PFS, hardware support
+    ); // hardware support
+
+    public static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultStoredPasswordHashAlgorithmSetting(
         "xpack.security.authc.password_hashing.algorithm",
@@ -324,17 +363,13 @@ public class XPackSettings {
     public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
-    // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
-
-    // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
-
-    // remote cluster specific settings
     public static final String REMOTE_CLUSTER_SERVER_SSL_PREFIX = SecurityField.setting("remote_cluster_server.ssl.");
     public static final String REMOTE_CLUSTER_CLIENT_SSL_PREFIX = SecurityField.setting("remote_cluster_client.ssl.");
+
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_SERVER_SSL_PREFIX,
@@ -372,6 +407,9 @@ public class XPackSettings {
         settings.add(MACHINE_LEARNING_ENABLED);
         settings.add(PROFILING_ENABLED);
         settings.add(APM_DATA_ENABLED);
+        settings.add(OTEL_DATA_ENABLED);
+        settings.add(PROMETHEUS_ENABLED);
+        settings.add(METRIC_EXEMPLARS_ENABLED);
         settings.add(ENTERPRISE_SEARCH_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);

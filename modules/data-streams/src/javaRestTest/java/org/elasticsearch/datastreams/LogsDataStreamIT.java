@@ -16,6 +16,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -738,6 +739,73 @@ public class LogsDataStreamIT extends AbstractDataStreamIT {
         List<String> ignored = (List<String>) ((Map<String, ?>) results.get(0)).get("_ignored");
         assertThat(ignored, not(empty()));
         assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testFailureStoreWithInvalidFieldType() throws Exception {
+        String dataStreamName = "logs-app-with-failure-store";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-11-30T12:00:00Z",
+              "message": "This is a valid message"
+            }
+            """);
+
+        // invalid document (message as an object instead of string)
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-11-30T12:01:00Z",
+              "message": {
+                "nested": "This should fail because message should be a string"
+              }
+            }
+            """);
+
+        refreshAllIndices();
+
+        Request dsInfoRequest = new Request("GET", "/_data_stream/" + dataStreamName);
+        Map<String, Object> dsInfoResponse = entityAsMap(client.performRequest(dsInfoRequest));
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) dsInfoResponse.get("data_streams");
+        Map<String, Object> dataStream = dataStreams.getFirst();
+        Map<String, Object> failureStoreInfo = (Map<String, Object>) dataStream.get("failure_store");
+        assertNotNull(failureStoreInfo);
+        assertThat(failureStoreInfo.get("enabled"), is(true));
+        List<Map<String, Object>> failureIndices = (List<Map<String, Object>>) failureStoreInfo.get("indices");
+
+        assertThat(failureIndices, not(empty()));
+        String failureIndex = (String) failureIndices.getFirst().get("index_name");
+        assertThat(failureIndex, matchesRegex("\\.fs-" + dataStreamName + "-.*"));
+
+        // query the failure store index
+        Request failureStoreQuery = new Request("GET", "/" + failureIndex + "/_search");
+        failureStoreQuery.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }
+            """);
+        Map<String, Object> failureStoreResponse = entityAsMap(client.performRequest(failureStoreQuery));
+        Map<String, Object> hits = (Map<String, Object>) failureStoreResponse.get("hits");
+        List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hits.get("hits");
+
+        // Verify the failed document is in the failure store
+        assertThat(hitsList.size(), is(1));
+        Map<String, Object> failedDoc = (Map<String, Object>) hitsList.getFirst().get("_source");
+        Map<String, Object> document = (Map<String, Object>) failedDoc.get("document");
+        assertNotNull(document);
+        Map<String, Object> source = (Map<String, Object>) document.get("source");
+        assertNotNull(source);
+        Map<String, Object> message = (Map<String, Object>) source.get("message");
+        assertNotNull(message);
+        assertThat(message.get("nested"), equalTo("This should fail because message should be a string"));
+        Map<String, Object> error = (Map<String, Object>) failedDoc.get("error");
+        assertNotNull(error);
+        assertEquals("document_parsing_exception", error.get("type"));
+        String errorMessage = (String) error.get("message");
+        assertThat(errorMessage, containsString("failed to parse field [message] of type [match_only_text] in document with id"));
     }
 
     @Override

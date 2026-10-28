@@ -16,6 +16,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -23,8 +24,10 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
@@ -43,6 +46,7 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
@@ -170,7 +174,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(PhraseQuery.class),
                     instanceOf(PointRangeQuery.class),
                     instanceOf(IndexOrDocValuesQuery.class),
-                    instanceOf(PrefixQuery.class)
+                    instanceOf(PrefixQuery.class),
+                    instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class)
                 )
             )
         );
@@ -423,19 +428,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
+        expected = new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f);
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
             new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).analyzer("stop")
         ).toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder().add(
-            new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f),
+            new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f),
             BooleanClause.Occur.SHOULD
         ).build();
         assertEquals(expected, query);
@@ -476,5 +481,25 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);
         assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testMultiMatchFuzzyCircuitBreakerTripsOnExpansionFloorForCheapClauses() {
+        assertCircuitBreakerTripsOnQueryConstruction(
+            "64kb",
+            () -> new MultiMatchQueryBuilder("abc", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME).fuzziness(Fuzziness.ONE).prefixLength(3)
+        );
+    }
+
+    public void testLongIllegalDateIsTruncatedInShardFailure() {
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(new MultiMatchQueryBuilder(value, DATE_FIELD_NAME))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse date field [xxx"));
+        // Without the truncation the reason holds the value five times
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

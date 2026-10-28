@@ -50,9 +50,11 @@ public abstract class Assertion implements ExecutableSection {
     }
 
     protected final Object getActualValue(ClientYamlTestExecutionContext executionContext) throws IOException {
-        if (executionContext.stash().containsStashedValue(field)) {
+        // If the "field" name contains only a simple stashed value reference, such as "$body", just get that value from the stash.
+        if (executionContext.stash().isStashedValue(field)) {
             return executionContext.stash().getValue(field);
         }
+        // Otherwise, get the value from the response. The field name will be subject to expansion of embedded ${...} references.
         return executionContext.response(field);
     }
 
@@ -74,7 +76,7 @@ public abstract class Assertion implements ExecutableSection {
     /**
      * a utility to get the class of an object, protecting for null (i.e., returning null if the input is null)
      */
-    protected Class<?> safeClass(Object o) {
+    protected static Class<?> safeClass(Object o) {
         return o == null ? null : o.getClass();
     }
 }

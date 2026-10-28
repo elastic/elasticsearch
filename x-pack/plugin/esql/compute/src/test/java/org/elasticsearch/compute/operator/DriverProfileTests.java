@@ -7,16 +7,18 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorStatusTests;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorStatusTests;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorStatusTests;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatusTests;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,24 +30,29 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
     public void testToXContent() {
         DriverProfile status = new DriverProfile(
             "test",
+            "elasticsearch",
+            "node-1",
             123413220000L,
             123413243214L,
             10012,
             10000,
+            10005,
             12,
             List.of(
-                new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
-                new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
+                new OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
+                new OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
             new DriverSleeps(
                 Map.of("driver time", 1L),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
-        assertThat(Strings.toString(status, true, true), equalTo("""
+        assertThat(Strings.toTruncatedString(status, true, true), equalTo("""
             {
-              "task_description" : "test",
+              "description" : "test",
+              "cluster_name" : "elasticsearch",
+              "node_name" : "node-1",
               "start" : "1973-11-29T09:27:00.000Z",
               "start_millis" : 123413220000,
               "stop" : "1973-11-29T09:27:23.214Z",
@@ -54,6 +61,14 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "took_time" : "10micros",
               "cpu_nanos" : 10000,
               "cpu_time" : "10micros",
+              "driver_nanos" : 10005,
+              "driver_time" : "10micros",
+              "documents_found" : 222,
+              "values_loaded" : 1000,
+              "rows_emitted" : 444,
+              "bytes_read" : 12288,
+              "read_nanos" : 0,
+              "read_cpu_nanos" : 0,
               "iterations" : 12,
               "operators" : [
                 {
@@ -76,6 +91,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 "first" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -85,6 +101,7 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                 "last" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -92,18 +109,33 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
                   }
                 ]
               }
-            }"""));
+            }""".replace("$$THREAD", Thread.currentThread().getName())));
+    }
+
+    /**
+     * {@code driver_nanos} is not sent to nodes that predate it. They see 0, and {@code cpu_nanos} still round-trips.
+     */
+    public void testDriverNanosNotSentToOlderNodes() throws IOException {
+        DriverProfile original = createTestInstance();
+        TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
+        DriverProfile copy = copyInstance(original, beforeDriverNanos);
+        assertThat(copy.cpuNanos(), equalTo(original.cpuNanos()));
+        assertThat(copy.driverNanos(), equalTo(0L));
+        assertThat(copy.iterations(), equalTo(original.iterations()));
     }
 
     @Override
     protected Writeable.Reader<DriverProfile> instanceReader() {
-        return DriverProfile::new;
+        return DriverProfile::readFrom;
     }
 
     @Override
     protected DriverProfile createTestInstance() {
         return new DriverProfile(
-            DriverStatusTests.randomTaskDescription(),
+            randomIdentifier(),
+            randomIdentifier(),
+            randomIdentifier(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -116,32 +148,50 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
 
     @Override
     protected DriverProfile mutateInstance(DriverProfile instance) throws IOException {
-        String taskDescription = instance.taskDescription();
+        String shortDescription = instance.description();
+        String clusterName = instance.clusterName();
+        String nodeName = instance.nodeName();
         long startMillis = instance.startMillis();
         long stopMillis = instance.stopMillis();
         long tookNanos = instance.tookNanos();
         long cpuNanos = instance.cpuNanos();
+        long driverNanos = instance.driverNanos();
         long iterations = instance.iterations();
         var operators = instance.operators();
         var sleeps = instance.sleeps();
-        switch (between(0, 7)) {
-            case 0 -> taskDescription = randomValueOtherThan(taskDescription, DriverStatusTests::randomTaskDescription);
-            case 1 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
-            case 2 -> stopMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
-            case 3 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
-            case 4 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
-            case 5 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
-            case 6 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
-            case 7 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+        switch (between(0, 10)) {
+            case 0 -> shortDescription = randomValueOtherThan(shortDescription, DriverStatusTests::randomIdentifier);
+            case 1 -> clusterName = randomValueOtherThan(clusterName, DriverStatusTests::randomIdentifier);
+            case 2 -> nodeName = randomValueOtherThan(nodeName, DriverStatusTests::randomIdentifier);
+            case 3 -> startMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 4 -> stopMillis = randomValueOtherThan(startMillis, ESTestCase::randomNonNegativeLong);
+            case 5 -> tookNanos = randomValueOtherThan(tookNanos, ESTestCase::randomNonNegativeLong);
+            case 6 -> cpuNanos = randomValueOtherThan(cpuNanos, ESTestCase::randomNonNegativeLong);
+            case 7 -> iterations = randomValueOtherThan(iterations, ESTestCase::randomNonNegativeLong);
+            case 8 -> operators = randomValueOtherThan(operators, DriverStatusTests::randomOperatorStatuses);
+            case 9 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
+            case 10 -> driverNanos = randomValueOtherThan(driverNanos, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverProfile(taskDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
+        return new DriverProfile(
+            shortDescription,
+            clusterName,
+            nodeName,
+            startMillis,
+            stopMillis,
+            tookNanos,
+            cpuNanos,
+            driverNanos,
+            iterations,
+            operators,
+            sleeps
+        );
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            List.of(LuceneSourceOperator.Status.ENTRY, ValuesSourceReaderOperator.Status.ENTRY, ExchangeSinkOperator.Status.ENTRY)
+            List.of(LuceneSourceOperator.Status.ENTRY, ValuesSourceReaderOperatorStatus.ENTRY, ExchangeSinkOperator.Status.ENTRY)
         );
     }
 }

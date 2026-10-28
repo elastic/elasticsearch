@@ -11,7 +11,6 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +22,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
@@ -49,6 +50,8 @@ import java.util.Set;
  * Defines the actual suggest command for phrase suggestions ( {@code phrase}).
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
+
+    private static final Logger logger = LogManager.getLogger(PhraseSuggestionBuilder.class);
 
     public static final String SUGGESTION_NAME = "phrase";
 
@@ -121,7 +124,17 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         gramSize = in.readOptionalVInt();
         model = in.readOptionalNamedWriteable(SmoothingModel.class);
         forceUnigrams = in.readBoolean();
-        tokenLimit = in.readVInt();
+        int rawTokenLimit = in.readVInt();
+        if (rawTokenLimit > NoisyChannelSpellChecker.MAX_TOKEN_LIMIT) {
+            logger.warn(
+                "Received token_limit [{}] exceeds maximum [{}]; clamping to maximum",
+                rawTokenLimit,
+                NoisyChannelSpellChecker.MAX_TOKEN_LIMIT
+            );
+            tokenLimit = NoisyChannelSpellChecker.MAX_TOKEN_LIMIT;
+        } else {
+            tokenLimit = rawTokenLimit;
+        }
         preTag = in.readOptionalString();
         postTag = in.readOptionalString();
         separator = in.readString();
@@ -331,6 +344,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
         if (tokenLimit <= 0) {
             throw new IllegalArgumentException("token_limit must be >= 1");
+        }
+        if (tokenLimit > NoisyChannelSpellChecker.MAX_TOKEN_LIMIT) {
+            throw new IllegalArgumentException("token_limit must be <= " + NoisyChannelSpellChecker.MAX_TOKEN_LIMIT);
         }
         this.tokenLimit = tokenLimit;
         return this;
@@ -696,7 +712,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override

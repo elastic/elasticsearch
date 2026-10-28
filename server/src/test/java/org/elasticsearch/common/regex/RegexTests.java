@@ -10,9 +10,12 @@ package org.elasticsearch.common.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Random;
 import java.util.function.Predicate;
@@ -20,6 +23,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
@@ -102,6 +106,45 @@ public class RegexTests extends ESTestCase {
                 randomBoolean()
             )
         );
+    }
+
+    public void testManyWildcardsStillMatch() {
+        final int wildcards = 500;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        pattern.append('b');
+        str.append('b');
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
+    }
+
+    public void testShallowWideBacktrackingResolvesCorrectly() {
+        // Shape that caused combinatorial backtracking blowup in the old recursive implementation;
+        // the iterative algorithm resolves it in a single pass with no backtracking possible.
+        final int groups = 15;
+        final StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < groups; i++) {
+            pattern.append("*a");
+        }
+        pattern.append('b'); // 'b' never occurs in str, so the correct result is no match
+        final String str = "a".repeat(groups * 2);
+        assertFalse(Regex.simpleMatch(pattern.toString(), str));
+    }
+
+    public void testVeryLongPatternMatchesCorrectly() {
+        // Shape that could exhaust the call stack in the old recursive implementation; the iterative
+        // algorithm has no recursion at all, so pattern length alone is never a problem.
+        final int wildcards = 50_000;
+        final StringBuilder pattern = new StringBuilder();
+        final StringBuilder str = new StringBuilder();
+        for (int i = 0; i < wildcards; i++) {
+            pattern.append('a').append('*');
+            str.append('a');
+        }
+        assertTrue(Regex.simpleMatch(pattern.toString(), str.toString()));
     }
 
     public void testSimpleMatch() {
@@ -249,5 +292,19 @@ public class RegexTests extends ESTestCase {
         for (int i = 0; i < patterns.length / 2; i++) {
             assertTrue(predicate.test(patterns[i]));
         }
+    }
+
+    public void testIntersectNonDeterminizedAutomaton() {
+        // patterns too complex to determinize within the default limit
+        String[] patterns = randomArray(20, 100, size -> new String[size], () -> "*" + randomAlphanumericOfLength(10) + "*");
+        Automaton a = Regex.simpleMatchToNonDeterminizedAutomaton(patterns);
+        assertFalse(a.isDeterministic());
+        Automaton b = Regex.simpleMatchToNonDeterminizedAutomaton(Arrays.copyOfRange(patterns, patterns.length / 2, patterns.length));
+        assertFalse(b.isDeterministic());
+        assertFalse(Operations.isEmpty(Operations.intersection(a, b)));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> assertMatchesAll(a, "my_test"));
+        // the run automaton expects a deterministic automaton
+        assertThat(exc.getMessage(), containsString("deterministic"));
+        expectThrows(TooComplexToDeterminizeException.class, () -> Regex.simpleMatchToAutomaton(patterns));
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,18 +18,30 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE
+                || e == ElementType.TDIGEST
+                || e == ElementType.EXPONENTIAL_HISTOGRAM
+                || e == ElementType.LONG_RANGE
+                || e == ElementType.DOUBLE_RANGE) {
                 continue;
             }
             params.add(new Object[] { e });
@@ -76,6 +87,32 @@ public class VectorBuilderTests extends ESTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * Fills exactly the room the builder starts with so it never grows. Before building, the breaker
+     * and {@link Vector.Builder#estimatedBytes} should both account for about as many bytes as the
+     * vector that the builder builds.
+     */
+    public void testAccountsForTheVectorItBuilds() {
+        // Enough values that undercounting each one by even a few bytes falls well outside the tolerance
+        int size = between(1_000, 50_000);
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
+        try (Vector.Builder builder = vectorBuilder(size, blockFactory)) {
+            RandomBlock random = RandomBlock.randomBlock(elementType, size, false, 1, 1, 0, 0);
+            fill(builder, random.block().asVector());
+            long usedBeforeBuild = blockFactory.breaker().getUsed();
+            long estimatedBytes = builder.estimatedBytes();
+            try (Vector built = builder.build()) {
+                assertThat(usedBeforeBuild, closeToBytes(built.ramBytesUsed()));
+                assertThat(estimatedBytes, closeToBytes(built.ramBytesUsed()));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private static Matcher<Long> closeToBytes(long bytes) {
+        return both(greaterThan(bytes - 1024)).and(lessThan(bytes + 1024));
+    }
+
     public void testDoubleBuild() {
         BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
         try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
@@ -93,7 +130,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
                 try (Vector.Builder builder = vectorBuilder(10, blockFactory)) {
@@ -114,7 +151,8 @@ public class VectorBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE, UNKNOWN ->
+                throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
             case FLOAT -> blockFactory.newFloatVectorBuilder(estimatedSize);
@@ -126,7 +164,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, TDIGEST, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.Builder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

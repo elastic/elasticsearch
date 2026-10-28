@@ -1,0 +1,108 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.deepseek.request;
+
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
+import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
+
+import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+
+public class DeepSeekChatCompletionRequest implements OutboundUnifiedCompletionRequest {
+    private static final Logger logger = LogManager.getLogger(DeepSeekChatCompletionRequest.class);
+    private static final String MODEL_FIELD = "model";
+    private static final String MAX_TOKENS = "max_tokens";
+
+    private final DeepSeekChatCompletionModel model;
+    private final UnifiedChatInput unifiedChatInput;
+
+    public DeepSeekChatCompletionRequest(UnifiedChatInput unifiedChatInput, DeepSeekChatCompletionModel model) {
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
+        this.model = Objects.requireNonNull(model);
+    }
+
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
+
+        httpPost.setBody(createEntity(), ContentType.APPLICATION_JSON);
+
+        model.apiKey()
+            .ifPresentOrElse(
+                apiKey -> httpPost.setHeader(createAuthBearerHeader(apiKey)),
+                () -> logger.debug("No auth token present in request, sending without auth...")
+            );
+
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+    }
+
+    private byte[] createEntity() {
+        var modelId = Objects.requireNonNullElseGet(unifiedChatInput.getRequest().model(), model::model);
+        try (var builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(
+                builder,
+                UnifiedCompletionRequestBody.withMaxTokens(modelId, ToXContent.EMPTY_PARAMS)
+            );
+            builder.endObject();
+            return Strings.toString(builder).getBytes(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to serialize request payload.", e);
+        }
+    }
+
+    @Override
+    public URI getURI() {
+        return model.uri();
+    }
+
+    @Override
+    public OutboundRequest truncate() {
+        return this;
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        return null;
+    }
+
+    @Override
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return unifiedChatInput.stream();
+    }
+}

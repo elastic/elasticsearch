@@ -62,10 +62,11 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
-                ShardStats indexShardStats = countsPerIndex.get(shardStats.getShardRouting().getIndexName());
+                final String indexUuid = shardStats.getShardRouting().index().getUUID();
+                ShardStats indexShardStats = countsPerIndex.get(indexUuid);
                 if (indexShardStats == null) {
                     indexShardStats = new ShardStats();
-                    countsPerIndex.put(shardStats.getShardRouting().getIndexName(), indexShardStats);
+                    countsPerIndex.put(indexUuid, indexShardStats);
                 }
 
                 indexShardStats.total++;

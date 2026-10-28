@@ -10,15 +10,19 @@ package org.elasticsearch.xpack.inference.rest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 
 import java.io.IOException;
+import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
@@ -36,7 +40,7 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     record Params(String inferenceEntityId, TaskType taskType) {}
 
     static TimeValue parseTimeout(RestRequest restRequest) {
-        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), InferenceAction.Request.DEFAULT_TIMEOUT);
+        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), TIMEOUT_NOT_DETERMINED);
     }
 
     @Override
@@ -44,6 +48,9 @@ abstract class BaseInferenceAction extends BaseRestHandler {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
         var inferTimeout = parseTimeout(restRequest);
+        var context = new InferenceContext(
+            InferenceRequestMetadata.capture(InferenceContext.WIRE_LAYOUT, header -> extractHeader(restRequest, header))
+        );
 
         var request = new InferenceActionProxy.Request(
             params.taskType(),
@@ -51,7 +58,8 @@ abstract class BaseInferenceAction extends BaseRestHandler {
             content,
             restRequest.getXContentType(),
             inferTimeout,
-            shouldStream()
+            shouldStream(),
+            context
         );
 
         return channel -> client.execute(InferenceActionProxy.INSTANCE, request, ActionListener.withRef(listener(channel), content));
@@ -60,4 +68,18 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     protected abstract boolean shouldStream();
 
     protected abstract ActionListener<InferenceAction.Response> listener(RestChannel channel);
+
+    private static String extractHeader(RestRequest restRequest, String headerName) {
+        var headers = restRequest.getHeaders();
+        if (Objects.isNull(headers) || headers.isEmpty()) {
+            return "";
+        }
+
+        var values = headers.get(headerName);
+        if (Objects.isNull(values) || values.isEmpty()) {
+            return "";
+        }
+
+        return values.get(0);
+    }
 }

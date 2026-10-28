@@ -1,0 +1,643 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.dsltranslate.QueryDslTranslator;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.stream.IntStream;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.lessThan;
+
+/**
+ * The out-of-band request {@code filter} is applied to an external dataset by translating the Query DSL into ES|QL
+ * predicates inserted above the dataset leaf, where the same filter on an index is applied as a Lucene query on the
+ * index fragment. Those are two entirely different evaluation paths; this suite is the differential proof that they
+ * <em>mean the same thing</em>.
+ *
+ * <p>The exact same rows are loaded twice — once as a mapped index, once as a strict declared-schema CSV dataset with
+ * column types matching the index mapping — and every case runs one DSL filter against both, asserting the set of
+ * {@code id}s each selects is identical. If the translation diverges from the index semantics for any construct (the
+ * {@code minimum_should_match} edge, integral narrowing, date round-up and {@code now} math, missing-field leniency),
+ * one of these fails with the offending filter in the message.
+ *
+ * <p>Fields are single-valued here so the any-value reduction the translator emits ({@code mv_contains} and friends)
+ * coincides with scalar equality; the multivalue any-value semantics are pinned by the translator's unit tests.
+ */
+public class ExternalDatasetRequestFilterConformanceIT extends AbstractExternalDataSourceIT {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // real HTTP transport is required for the REST-layer tests
+    }
+
+    private static final int ROWS = 40;
+    private static final String INDEX = "conf_idx";
+    // Non-midnight so a coarse day-precision bound actually exercises rounding: lte "2020-01-20" must round UP to the
+    // end of the day to include a 12:34:56 row — a naive midnight parse would drop it, diverging from the index.
+    private static final Instant BASE = Instant.parse("2020-01-01T12:34:56Z");
+
+    private String dataset;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> formatPlugins() {
+        return List.of(CsvDataSourcePlugin.class);
+    }
+
+    /** {@code id}, {@code status}, {@code bytes} at row i cycle so filters carve non-trivial, predictable subsets. */
+    private static int status(int i) {
+        return 200 + (i % 3) * 100; // 200, 300, 400
+    }
+
+    private static String tag(int i) {
+        return "t" + (i % 4); // t0..t3
+    }
+
+    // Sparse columns: a value on most rows, absent on the rest, so "has a value" selects part of the data.
+    private static boolean hasRating(int i) {
+        return i % 5 != 0;
+    }
+
+    private static int rating(int i) {
+        return (i * 7) % 100;
+    }
+
+    private static boolean hasNick(int i) {
+        return i % 3 != 0;
+    }
+
+    private static String nick(int i) {
+        return "n" + i;
+    }
+
+    private static long bytes(int i) {
+        return i * 1000L;
+    }
+
+    private static String ts(int i) {
+        return DateTimeFormatter.ISO_INSTANT.format(BASE.plus(Duration.ofDays(i))); // 12:34:56 on 2020-01-(i+1)
+    }
+
+    /** A keyword whose stored values are genuinely mixed-case, so a case-insensitive match exercises the field-side fold. */
+    private static String label(int i) {
+        return new String[] { "Alpha", "BETA", "gamma", "DeLtA" }[i % 4];
+    }
+
+    @Before
+    public void loadBothSources() throws Exception {
+        // The index: one shard so the result order is trivial to reason about; ESQL sorts explicitly anyway.
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(INDEX)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping(
+                    "id",
+                    "type=integer",
+                    "status",
+                    "type=integer",
+                    "tags",
+                    "type=keyword",
+                    "bytes",
+                    "type=long",
+                    "ts",
+                    "type=date",
+                    "label",
+                    "type=keyword",
+                    "rating",
+                    "type=integer",
+                    "nick",
+                    "type=keyword"
+                )
+        );
+        for (int i = 0; i < ROWS; i++) {
+            Map<String, Object> source = new HashMap<>();
+            source.put("id", i);
+            source.put("status", status(i));
+            source.put("tags", tag(i));
+            source.put("bytes", bytes(i));
+            source.put("ts", ts(i));
+            source.put("label", label(i));
+            if (hasRating(i)) {
+                source.put("rating", rating(i));
+            }
+            if (hasNick(i)) {
+                source.put("nick", nick(i));
+            }
+            client().prepareIndex(INDEX).setSource(source).get();
+        }
+        client().admin().indices().prepareRefresh(INDEX).get();
+
+        // The dataset: identical rows as a strict declared-schema CSV, types matching the index mapping exactly.
+        StringBuilder csv = new StringBuilder(
+            "id:integer,status:integer,tags:keyword,bytes:long,ts:date,label:keyword,rating:integer,nick:keyword\n"
+        );
+        for (int i = 0; i < ROWS; i++) {
+            csv.append(i)
+                .append(',')
+                .append(status(i))
+                .append(',')
+                .append(tag(i))
+                .append(',')
+                .append(bytes(i))
+                .append(',')
+                .append(ts(i))
+                .append(',')
+                .append(label(i))
+                .append(',')
+                .append(hasRating(i) ? String.valueOf(rating(i)) : "")
+                .append(',')
+                .append(hasNick(i) ? nick(i) : "")
+                .append('\n');
+        }
+        Path csvFile = createTempDir().resolve("conformance.csv");
+        Files.writeString(csvFile, csv.toString(), StandardCharsets.UTF_8);
+        dataset = registerStrictDataset(
+            "conf_ds",
+            StoragePath.fileUri(csvFile),
+            declaredColumns(),
+            // A blank cell is null, so a sparse column has genuinely missing values rather than empty strings.
+            Map.of("format", "csv", "null_value", "")
+        );
+    }
+
+    private static LinkedHashMap<String, DatasetFieldMapping> declaredColumns() {
+        LinkedHashMap<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("id", new DatasetFieldMapping("integer", null));
+        properties.put("status", new DatasetFieldMapping("integer", null));
+        properties.put("tags", new DatasetFieldMapping("keyword", null));
+        properties.put("bytes", new DatasetFieldMapping("long", null));
+        properties.put("ts", new DatasetFieldMapping("date", null));
+        properties.put("label", new DatasetFieldMapping("keyword", null));
+        properties.put("rating", new DatasetFieldMapping("integer", null));
+        properties.put("nick", new DatasetFieldMapping("keyword", null));
+        return properties;
+    }
+
+    /** The heart of the suite: the same request filter must select the identical id set on the index and the dataset. */
+    private void assertSelectsSameRows(QueryBuilder filter) {
+        List<Object> fromIndex = selectedIds(INDEX, filter);
+        List<Object> fromDataset = selectedIds(dataset, filter);
+        assertEquals("filter must select identical rows on index and dataset: " + filter, fromIndex, fromDataset);
+    }
+
+    private List<Object> selectedIds(String source, QueryBuilder filter) {
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + source + " | KEEP id | SORT id ASC").filter(filter);
+        try (EsqlQueryResponse response = run(request, TIMEOUT)) {
+            return getValuesList(response).stream().map(row -> row.get(0)).toList();
+        }
+    }
+
+    public void testTermOnInteger() {
+        assertSelectsSameRows(QueryBuilders.termQuery("status", 300));
+    }
+
+    public void testTermOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.termQuery("tags", "t2"));
+    }
+
+    /** A case-insensitive keyword term matches regardless of case — an uppercase query hits the lowercase values on both paths. */
+    public void testCaseInsensitiveTermOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.termQuery("tags", "T2").caseInsensitive(true));
+    }
+
+    /** A case-insensitive keyword term with no case-folding match selects nothing on both paths — never a silent over-match. */
+    public void testCaseInsensitiveTermNoMatch() {
+        assertSelectsSameRows(QueryBuilders.termQuery("tags", "T9").caseInsensitive(true));
+    }
+
+    /** Exercises the field-side fold: a lower-case term matches genuinely mixed-case STORED values (e.g. "BETA") on both paths. */
+    public void testCaseInsensitiveTermMatchesStoredMixedCase() {
+        assertSelectsSameRows(QueryBuilders.termQuery("label", "beta").caseInsensitive(true));
+    }
+
+    /** A decimal against an integral field matches nothing on both paths — never a truncated match (B2). */
+    public void testDecimalTermOnIntegerMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.termQuery("status", 300.5));
+    }
+
+    public void testTermsOnInteger() {
+        assertSelectsSameRows(QueryBuilders.termsQuery("status", List.of(200, 400)));
+    }
+
+    /** An unmatchable decimal is dropped from the set; the remaining integral values still match (B2). */
+    public void testTermsWithUnmatchableDecimalOnInteger() {
+        assertSelectsSameRows(QueryBuilders.termsQuery("status", List.of(200, 300.5, 400)));
+    }
+
+    public void testRangeOnLongBothBounds() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("bytes").gte(5_000).lt(25_000));
+    }
+
+    public void testRangeOnIntegerOneSided() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").gt(200));
+    }
+
+    /** A fractional bound on an integral field rounds inward exactly like the index — never truncates and over-matches. */
+    public void testFractionalIntegerRangeBoundRoundsInwardLikeIndex() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").gte(300.5)); // -> >= 301 (the 400s), not >= 300
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").lte(300.5)); // -> <= 300 (200s and 300s)
+        assertSelectsSameRows(QueryBuilders.rangeQuery("status").gte(200.5).lte(400.5)); // both ends inward
+    }
+
+    /** Coarse (day-precision) date bounds round to the edges of their unit identically on both paths (B3). */
+    public void testDateRangeCoarseInclusiveBounds() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("2020-01-05").lte("2020-01-20"));
+    }
+
+    /** Exclusive date bounds nudge one unit inward after rounding, identically on both paths (B3). */
+    public void testDateRangeCoarseExclusiveBounds() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gt("2020-01-05").lt("2020-01-20"));
+    }
+
+    /** {@code now} date math resolves against the one query start time both paths share, so they agree (B3). */
+    public void testDateRangeNowMathAgrees() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").lte("now")); // all 2020 rows precede now
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now")); // none do
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").gte("now-9000d")); // ~1995 — all rows
+    }
+
+    public void testExists() {
+        assertSelectsSameRows(QueryBuilders.existsQuery("tags"));
+    }
+
+    public void testBoolMustWithShould() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.rangeQuery("bytes").gte(3_000))
+                .should(QueryBuilders.termQuery("status", 200))
+                .should(QueryBuilders.termQuery("status", 400))
+        );
+    }
+
+    /** A should-only bool defaults to requiring one clause on both paths. */
+    public void testShouldOnlyBool() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.termQuery("tags", "t1"))
+        );
+    }
+
+    /** minimum_should_match=0 with a must present drops the should to optional on both paths (B1). */
+    public void testMinimumShouldMatchZeroWithMust() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.rangeQuery("bytes").gte(10_000))
+                .should(QueryBuilders.termQuery("status", 200))
+                .minimumShouldMatch(0)
+        );
+    }
+
+    /** minimum_should_match=0 on a should-ONLY bool still requires one clause on both paths — it is not match-all (B1). */
+    public void testMinimumShouldMatchZeroShouldOnly() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("status", 300))
+                .should(QueryBuilders.termQuery("status", 400))
+                .minimumShouldMatch(0)
+        );
+    }
+
+    /** A term on a field neither source has matches nothing on both — unmapped index field and missing dataset field agree. */
+    public void testMissingFieldUnderConjunctionMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.termQuery("nope", "x"));
+    }
+
+    /**
+     * An EXCLUSIVE range over a field neither source has matches nothing on both. The dataset used to degrade the whole
+     * filter to unfiltered here (returning every row) where the index's unmapped-field range matches none.
+     */
+    public void testMissingFieldExclusiveRangeMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(0).lt(10));
+    }
+
+    /**
+     * One bad clause must not sink the whole filter. A present term AND an exclusive range over a missing field: the
+     * missing leg folds to false, so both select nothing. Before the fix the range threw and degraded the entire
+     * filter, so the dataset returned every row while the index returned none.
+     */
+    public void testConjunctionWithMissingExclusiveRangeSelectsNothing() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.rangeQuery("nope").gte(0).lt(10))
+        );
+    }
+
+    /** A negated term on a field neither source has matches everything on both — the leniency the translation reproduces. */
+    public void testNegatedMissingFieldMatchesEverything() {
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("nope", "x")));
+    }
+
+    /** A conjunction that mixes a present and a missing field: the missing leg drops the whole clause on both. */
+    public void testConjunctionWithMissingFieldDropsClause() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).must(QueryBuilders.termQuery("nope", "x"))
+        );
+    }
+
+    /** A match on an exact-typed field selects the same rows as a term — on the index a match there IS a term query. */
+    public void testMatchOnIntegerEqualsTerm() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("status", 300));
+    }
+
+    public void testMatchOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("tags", "t2"));
+    }
+
+    /** A match on a field neither source has matches nothing on both — the same leniency as term. */
+    public void testMatchOnMissingFieldMatchesNothing() {
+        assertSelectsSameRows(QueryBuilders.matchQuery("nope", "x"));
+    }
+
+    /** A match_phrase on a keyword field is the whole value — equality — the same rows on both. */
+    public void testMatchPhraseOnKeyword() {
+        assertSelectsSameRows(QueryBuilders.matchPhraseQuery("tags", "t2"));
+    }
+
+    /** multi_match over exact fields is an OR of per-field equality, matching the index's multi_match. */
+    public void testMultiMatchOverExactFields() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(300, "status", "bytes"));
+    }
+
+    public void testMultiMatchSingleField() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(300, "status"));
+    }
+
+    /** The value matches only the SECOND field (bytes=3000 → one row; status is never 3000) — the OR has teeth. */
+    public void testMultiMatchSecondFieldSelects() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery(3000, "status", "bytes"));
+    }
+
+    /**
+     * A fieldless multi_match is implicitly lenient on both paths: it searches every field, dropping the ones that
+     * cannot hold the value. "t2" matches only the keyword column; the integer/long/date columns drop out.
+     */
+    public void testFieldlessMultiMatchIsImplicitlyLenient() {
+        assertSelectsSameRows(QueryBuilders.multiMatchQuery("t2"));
+    }
+
+    /**
+     * A filter mixing a supported {@code term} with an unsupported {@code wildcard} in a required must arm does not
+     * fail: the {@code term} is applied, the {@code wildcard} is dropped, and the dataset over-returns relative to the
+     * index rather than hiding a row. The wildcard matches only {@code t1}, so dropping it genuinely widens the result:
+     * the index applies both clauses and the dataset applies the {@code term} alone.
+     */
+    public void testUnsupportedConstructInAMustArmIsDropped() {
+        QueryBuilder mixed = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("status", 300))
+            .must(QueryBuilders.wildcardQuery("tags", "*1"));
+        List<Object> onIndex = selectedIds(INDEX, mixed);
+        List<Object> onDataset = selectedIds(dataset, mixed);
+        assertThat("the index must select part of the data, or nothing here can be observed", onIndex.isEmpty(), equalTo(false));
+        assertThat("a dropped clause may only over-return", onDataset, hasItems(onIndex.toArray()));
+        assertThat("dropping the wildcard must widen the result", onDataset.size(), greaterThan(onIndex.size()));
+        // Against the index, which does not go through the translator: comparing with the dataset's own term-only answer
+        // would pass even if the term stopped filtering, because both sides would be wrong the same way.
+        assertEquals(
+            "the dataset applies exactly the surviving term clause",
+            selectedIds(INDEX, QueryBuilders.termQuery("status", 300)),
+            onDataset
+        );
+    }
+
+    /**
+     * Non-required should arm with an unsupported construct leaves the applied filter semantically complete: the applied
+     * filter is semantically complete (the must conjunct is the binding constraint; the should is optional).
+     */
+    public void testNonRequiredShouldUnsupportedDoesNotFailQuery() {
+        // bool { must:[term], should:[wildcard] } — should is non-required because must is present and no msm override.
+        QueryBuilder filter = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery("status", 300))
+            .should(QueryBuilders.wildcardQuery("tags", "t*"));
+        // Must not throw; rows matching status=300 must be returned.
+        List<Object> ids = selectedIds(dataset, filter);
+        assertThat("filter on must=300 must return rows", ids.isEmpty(), equalTo(false));
+    }
+
+    // ---- A range with neither bound: the index answers it as exists, so the dataset must too ----
+
+    private static List<Object> idsWhere(IntPredicate row) {
+        return IntStream.range(0, ROWS).filter(row).<Object>mapToObj(i -> i).toList();
+    }
+
+    /**
+     * Positive control for every case below: each sparse column really is sparse on both sides. If a blank CSV cell read
+     * as an empty string or zero instead of null, the dataset would report a value on every row and the parity cases
+     * would be comparing against the wrong thing without noticing.
+     */
+    public void testSparseColumnsAreGenuinelySparseOnBothSides() {
+        List<Object> withRating = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasRating);
+        List<Object> withNick = idsWhere(ExternalDatasetRequestFilterConformanceIT::hasNick);
+        assertThat("rating must be present on some rows but not all", withRating.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertThat("nick must be present on some rows but not all", withNick.size(), allOf(greaterThan(0), lessThan(ROWS)));
+        assertEquals(withRating, selectedIds(INDEX, QueryBuilders.existsQuery("rating")));
+        assertEquals(withRating, selectedIds(dataset, QueryBuilders.existsQuery("rating")));
+        assertEquals(withNick, selectedIds(INDEX, QueryBuilders.existsQuery("nick")));
+        assertEquals(withNick, selectedIds(dataset, QueryBuilders.existsQuery("nick")));
+    }
+
+    /**
+     * The case that returned fewer rows than the index: negating a bound-less range. The index selects the rows lacking
+     * the field; translating the range as a tautology selected none. Checked against the known answer as well as
+     * against the index, so the two cannot pass by being wrong the same way.
+     */
+    public void testMustNotRangeWithNoBoundsSelectsTheRowsLackingTheField() {
+        List<Object> lackingRating = idsWhere(i -> hasRating(i) == false);
+        QueryBuilder filter = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating"));
+        assertEquals(lackingRating, selectedIds(INDEX, filter));
+        assertEquals(lackingRating, selectedIds(dataset, filter));
+
+        List<Object> lackingNick = idsWhere(i -> hasNick(i) == false);
+        QueryBuilder onKeyword = QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick"));
+        assertEquals(lackingNick, selectedIds(INDEX, onKeyword));
+        assertEquals(lackingNick, selectedIds(dataset, onKeyword));
+    }
+
+    /** Every column type, sparse, fully populated and missing, as a bare clause, under must_not and under filter. */
+    public void testRangeWithNoBoundsAgreesOnEveryColumn() {
+        for (String field : List.of("rating", "nick", "id", "status", "tags", "bytes", "ts", "label", "nope")) {
+            assertSelectsSameRows(QueryBuilders.rangeQuery(field));
+            assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery(field)));
+            assertSelectsSameRows(QueryBuilders.boolQuery().filter(QueryBuilders.rangeQuery(field)));
+        }
+    }
+
+    /**
+     * Options that only shape bounds do not change what a bound-less range means: the index checks for missing bounds
+     * before it reads any of them. A time_zone in particular must not make the clause untranslatable — dropping it would
+     * widen a plain range from "has a value" to every row.
+     */
+    public void testRangeOptionsWithoutBoundsStillMeanExists() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").timeZone("+01:00"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating").timeZone("+01:00")));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("rating").includeLower(false).includeUpper(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nick").includeLower(false)));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd"));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("ts").format("yyyy-MM-dd")));
+    }
+
+    /** Inside larger bools: beside a must, nested under must_not, as a required should arm, and against another sparse column. */
+    public void testRangeWithNoBoundsInsideLargerBools() {
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 300)).mustNot(QueryBuilders.rangeQuery("rating"))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("rating"))));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().should(QueryBuilders.rangeQuery("rating")).should(QueryBuilders.termQuery("status", 200))
+        );
+        assertSelectsSameRows(QueryBuilders.boolQuery().must(QueryBuilders.rangeQuery("nick")).mustNot(QueryBuilders.rangeQuery("rating")));
+        assertSelectsSameRows(
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("rating")).mustNot(QueryBuilders.rangeQuery("nick"))
+        );
+    }
+
+    /**
+     * A bound whose Java type is not a range type (a boolean), on a field neither source has. The translator types a
+     * one-bound literal from the Java value and a two-bound literal from the missing field, and skips the resolution
+     * check for a missing field, so this is where an unresolved leaf could reach the planner and fail the query.
+     */
+    public void testMissingFieldRangeWithNonRangeTypedBoundDoesNotFail() {
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").lte(false));
+        assertSelectsSameRows(QueryBuilders.rangeQuery("nope").gte(true).lte(false));
+        assertSelectsSameRows(QueryBuilders.boolQuery().mustNot(QueryBuilders.rangeQuery("nope").gte(true)));
+        assertSelectsSameRows(QueryBuilders.termQuery("nope", true));
+    }
+
+    // ---- REST layer tests: the policy a request actually gets, through the HTTP parsing path ----
+
+    /**
+     * REST: an untranslatable construct in a top-level conjunct costs the caller that clause — HTTP 200, the rows the
+     * translatable remainder selects, and a {@code Warning} response header naming the construct that was dropped.
+     * There is no request parameter to set: this is the only policy a request can get.
+     */
+    public void testUntranslatableConstructIsDroppedWithAWarning() throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "query": "FROM %s | KEEP id",
+              "filter": { "wildcard": { "tags": { "value": "t*" } } }
+            }
+            """, dataset));
+        Response response = getRestClient().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        List<String> warnings = response.getWarnings();
+        assertTrue(
+            "expected a warning about the dropped [wildcard] construct; got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("[wildcard]"))
+        );
+    }
+
+    /**
+     * Asking the translator directly whether it expressed a whole filter is how the sweep decides when to demand exact
+     * agreement with the index. That answer has to match the one the query gives, which is the drop warning.
+     */
+    public void testAskingTheTranslatorMatchesTheDropWarning() throws IOException {
+        // Every column the dataset declares, not a sample of them: a filter naming a column the map omits would bind
+        // to a null literal here and to a real field in the query, which is the divergence this test exists to deny.
+        Map<String, DataType> types = Map.ofEntries(
+            Map.entry("id", DataType.INTEGER),
+            Map.entry("status", DataType.INTEGER),
+            Map.entry("tags", DataType.KEYWORD),
+            Map.entry("bytes", DataType.LONG),
+            Map.entry("ts", DataType.DATETIME),
+            Map.entry("label", DataType.KEYWORD),
+            Map.entry("rating", DataType.INTEGER),
+            Map.entry("nick", DataType.KEYWORD)
+        );
+        List<QueryBuilder> filters = List.of(
+            QueryBuilders.termQuery("status", 200),
+            QueryBuilders.rangeQuery("bytes").gte(10).lte(100),
+            QueryBuilders.rangeQuery("tags").gte("a"),
+            QueryBuilders.existsQuery("tags"),
+            QueryBuilders.wildcardQuery("tags", "t*"),
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).must(QueryBuilders.wildcardQuery("tags", "t*")),
+            QueryBuilders.prefixQuery("tags", "t"),
+            // The four columns the old four-entry map left out, so an omission diverges here rather than in the field.
+            QueryBuilders.rangeQuery("ts").gte("2020-01-01"),
+            QueryBuilders.termQuery("label", "Alpha"),
+            QueryBuilders.rangeQuery("rating").gte(2),
+            QueryBuilders.existsQuery("nick")
+        );
+        for (QueryBuilder filter : filters) {
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity("{\"query\": \"FROM " + dataset + " | KEEP id\", \"filter\": " + Strings.toString(filter) + "}");
+            Response response = getRestClient().performRequest(request);
+            boolean warned = response.getWarnings().stream().anyMatch(w -> w.contains("Request filter not fully applied"));
+            Function<String, Expression> binder = name -> {
+                DataType type = types.get(name);
+                return type == null ? Literal.NULL : new ReferenceAttribute(Source.EMPTY, name, type);
+            };
+            boolean translatedInFull = new QueryDslTranslator(binder, types.keySet(), TEST_CFG, TransportVersion.current()).translate(
+                filter
+            ).unsupported().isEmpty();
+            assertThat(Strings.toString(filter), translatedInFull, equalTo(warned == false));
+        }
+    }
+
+    /**
+     * REST: {@code allow_partial_dsl_filter} is withdrawn, so sending it is a request error rather than a way to
+     * select the strict policy. Pins the removal: reintroducing the parameter makes this test fail.
+     */
+    public void testWithdrawnPartialFilterParameterIsRejected() throws IOException {
+        // The parameter came out of both REST specifications, so pin the removal on both endpoints.
+        for (String endpoint : List.of("/_query", "/_query/async")) {
+            Request request = new Request("POST", endpoint);
+            request.addParameter("allow_partial_dsl_filter", "true");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "query": "FROM %s | KEEP id",
+                  "filter": { "term": { "status": 200 } }
+                }
+                """, dataset));
+            ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+            assertThat(endpoint, e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(endpoint, EntityUtils.toString(e.getResponse().getEntity()), containsString("allow_partial_dsl_filter"));
+        }
+    }
+}

@@ -10,10 +10,10 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
@@ -39,16 +39,16 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     @Override
     public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
         final SortedNumericDoubleValues values = vs.doubleValues(context);
-        final NumericDoubleValues singleton = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
-            return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
+            return SortedNumericDoubleValues.singleton(doubleSingleValues(singleton), values.docIdIterator());
         } else {
             return doubleMultiValues(values);
         }
     }
 
     private SortedNumericDoubleValues doubleMultiValues(SortedNumericDoubleValues values) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(values.isSingleton(), values.docIdIterator()) {
             @Override
             public double nextValue() throws IOException {
                 return Math.floor(values.nextValue() / interval) * interval;
@@ -66,8 +66,8 @@ class HistogramValuesSource extends ValuesSource.Numeric {
         };
     }
 
-    private NumericDoubleValues doubleSingleValues(NumericDoubleValues values) {
-        return new NumericDoubleValues() {
+    private DoubleValues doubleSingleValues(DoubleValues values) {
+        return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
                 return Math.floor(values.doubleValue() / interval) * interval;
@@ -81,12 +81,12 @@ class HistogramValuesSource extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+    public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+    public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException("not applicable");
     }
 }

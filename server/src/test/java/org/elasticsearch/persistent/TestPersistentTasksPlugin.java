@@ -13,12 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
@@ -27,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -66,8 +67,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomUUID;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -78,10 +82,16 @@ import static org.junit.Assert.fail;
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
+    public static final Setting<PersistentTasksExecutor.Scope> PERSISTENT_TASK_SCOPE_SETTING = Setting.enumSetting(
+        PersistentTasksExecutor.Scope.class,
+        "cluster.test_persistent_tasks_executor.scope",
+        PersistentTasksExecutor.Scope.PROJECT,
+        Setting.Property.NodeScope
+    );
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(TEST_ACTION, TransportTestTaskAction.class));
+    public List<ActionHandler> getActions() {
+        return Collections.singletonList(new ActionHandler(TEST_ACTION, TransportTestTaskAction.class));
     }
 
     @Override
@@ -92,14 +102,19 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
+        final var scope = PERSISTENT_TASK_SCOPE_SETTING.get(settingsModule.getSettings());
+        return List.of(
+            new TestPersistentTasksExecutor(TestPersistentTasksExecutor.NAME, clusterService, scope),
+            new TestPersistentTasksExecutor(TestPersistentTasksExecutor.CLUSTER_NAME, clusterService, PersistentTasksExecutor.Scope.CLUSTER)
+        );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.NAME, TestParams::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new)
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, TestPersistentTasksExecutor.NAME, State::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TestPersistentTasksExecutor.CLUSTER_NAME, TestClusterParams::new)
         );
     }
 
@@ -115,8 +130,88 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 PersistentTaskState.class,
                 new ParseField(TestPersistentTasksExecutor.NAME),
                 State::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(TestPersistentTasksExecutor.CLUSTER_NAME),
+                TestClusterParams::fromXContent
             )
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(PERSISTENT_TASK_SCOPE_SETTING);
+    }
+
+    /**
+     * Starts a {@link TestPersistentTasksExecutor#NAME} task in the given project with random id and params.
+     */
+    public static SubscribableListener<PersistentTask<TestParams>> startProjectTask(PersistentTasksService service, ProjectId projectId) {
+        return SubscribableListener.newForked(
+            l -> service.sendProjectStartRequest(
+                projectId,
+                randomUUID(),
+                TestPersistentTasksExecutor.NAME,
+                new TestParams(randomAlphaOfLength(5)),
+                TEST_REQUEST_TIMEOUT,
+                l
+            )
+        );
+    }
+
+    /**
+     * Starts a {@link TestPersistentTasksExecutor#CLUSTER_NAME} task with random id and params.
+     */
+    public static SubscribableListener<PersistentTask<TestClusterParams>> startClusterTask(PersistentTasksService service) {
+        return SubscribableListener.newForked(
+            l -> service.sendClusterStartRequest(
+                randomUUID(),
+                TestPersistentTasksExecutor.CLUSTER_NAME,
+                new TestClusterParams(randomAlphaOfLength(5)),
+                TEST_REQUEST_TIMEOUT,
+                l
+            )
+        );
+    }
+
+    public static SubscribableListener<PersistentTask<?>> removeProjectTask(
+        PersistentTasksService service,
+        ProjectId projectId,
+        String taskId
+    ) {
+        return SubscribableListener.newForked(l -> service.sendProjectRemoveRequest(projectId, taskId, TEST_REQUEST_TIMEOUT, l));
+    }
+
+    public static SubscribableListener<PersistentTask<?>> updateProjectTaskState(
+        PersistentTasksService service,
+        ProjectId projectId,
+        PersistentTask<?> task
+    ) {
+        return SubscribableListener.newForked(
+            l -> service.sendProjectUpdateStateRequest(
+                projectId,
+                task.getId(),
+                task.getAllocationId(),
+                new State(randomAlphaOfLength(5)),
+                TEST_REQUEST_TIMEOUT,
+                l
+            )
+        );
+    }
+
+    public static SubscribableListener<PersistentTask<?>> completeProjectTask(
+        PersistentTasksService service,
+        ProjectId projectId,
+        PersistentTask<?> task
+    ) {
+        return SubscribableListener.newForked(
+            l -> service.sendProjectCompletionRequest(projectId, task.getId(), task.getAllocationId(), null, null, TEST_REQUEST_TIMEOUT, l)
+        );
+    }
+
+    public static SubscribableListener<PersistentTask<?>> removeClusterTask(PersistentTasksService service, String taskId) {
+        return SubscribableListener.newForked(l -> service.sendClusterRemoveRequest(taskId, TEST_REQUEST_TIMEOUT, l));
     }
 
     public static class TestParams implements PersistentTaskParams {
@@ -225,6 +320,30 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     }
 
+    /**
+     * Params for the {@link TestPersistentTasksExecutor#CLUSTER_NAME} task; a separate type is needed only because the writeable
+     * name must match the task name.
+     */
+    public static class TestClusterParams extends TestParams {
+
+        public TestClusterParams(String testParam) {
+            super(testParam);
+        }
+
+        public TestClusterParams(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TestPersistentTasksExecutor.CLUSTER_NAME;
+        }
+
+        public static TestClusterParams fromXContent(XContentParser parser) throws IOException {
+            return new TestClusterParams(TestParams.fromXContent(parser).getTestParam());
+        }
+    }
+
     public static class State implements PersistentTaskState {
 
         private final String phase;
@@ -294,13 +413,29 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private static final Logger logger = LogManager.getLogger(TestPersistentTasksExecutor.class);
 
         public static final String NAME = "cluster:admin/persistent/test";
+        /**
+         * A second registration of this executor that is always cluster-scoped (the scope of {@link #NAME} is fixed per node by
+         * {@link #PERSISTENT_TASK_SCOPE_SETTING}), so tests can run cluster and project tasks side by side. Uses {@link TestClusterParams}.
+         */
+        public static final String CLUSTER_NAME = "cluster:admin/persistent/test_cluster";
         private final ClusterService clusterService;
+        private final Scope scope;
 
         private static volatile boolean nonClusterStateCondition = true;
 
-        public TestPersistentTasksExecutor(ClusterService clusterService) {
-            super(NAME, clusterService.threadPool().generic());
+        public TestPersistentTasksExecutor(ClusterService clusterService, Scope scope) {
+            this(NAME, clusterService, scope);
+        }
+
+        public TestPersistentTasksExecutor(String name, ClusterService clusterService, Scope scope) {
+            super(name, clusterService.threadPool().generic());
             this.clusterService = clusterService;
+            this.scope = scope;
+        }
+
+        @Override
+        public Scope scope() {
+            return scope;
         }
 
         public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
@@ -308,12 +443,17 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getAssignment(TestParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+        protected Assignment doGetAssignment(
+            TestParams params,
+            Collection<DiscoveryNode> candidateNodes,
+            ClusterState clusterState,
+            ProjectId projectId
+        ) {
             if (nonClusterStateCondition == false) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getAssignment(params, candidateNodes, clusterState);
+                return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
             } else {
                 DiscoveryNode executorNode = selectLeastLoadedNode(
                     clusterState,

@@ -9,10 +9,15 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.xcontent.XContentParser;
 
 public interface XContentParserDecorator {
-    XContentParserDecorator NOOP = parser -> parser;
+    XContentParserDecorator NOOP = (parser, mapping) -> parser;
 
-    XContentParser decorate(XContentParser xContentParser);
+    /**
+     * Decorates the parser used to read a document's source. The {@code mapping} is unused by the implementations in this repository,
+     * but is used by {@code MeteringDocumentParserProvider} in serverless, so it must be kept.
+     */
+    XContentParser decorate(XContentParser xContentParser, Mapping mapping);
 }

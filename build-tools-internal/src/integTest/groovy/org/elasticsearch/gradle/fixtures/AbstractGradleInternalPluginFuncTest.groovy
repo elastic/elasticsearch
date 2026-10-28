@@ -20,10 +20,27 @@ abstract class AbstractGradleInternalPluginFuncTest extends AbstractJavaGradleFu
         plugins {
             id 'elasticsearch.java-toolchain'
         }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
         """ + settingsFile.text
 
         buildFile << """
         import ${getPluginClassUnderTest().getName()}
+        import org.elasticsearch.gradle.internal.info.BuildParameterExtension
 
         plugins {
           // bring in build-tools-internal onto the classpath

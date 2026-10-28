@@ -33,38 +33,65 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
-    public record TestRepository(String repositoryName, String clientName, String bucketName, String basePath) {
-
-        public Closeable register() throws IOException {
-            return register(UnaryOperator.identity());
-        }
-
+    public record TestRepository(
+        String repositoryName,
+        String clientName,
+        String bucketName,
+        String basePath,
+        Settings extraRepositorySettings
+    ) {
         public Closeable register(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
             assertOK(client().performRequest(getRegisterRequest(settingsUnaryOperator)));
             return () -> assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repositoryName())));
         }
 
         private Request getRegisterRequest(UnaryOperator<Settings> settingsUnaryOperator) throws IOException {
-            return newXContentRequest(
+            final var settings = settingsUnaryOperator.apply(
+                Settings.builder()
+                    .put("bucket", bucketName())
+                    .put("base_path", basePath())
+                    .put("client", clientName())
+                    .put("canned_acl", "private")
+                    .put("storage_class", "standard")
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
+                    .put(extraRepositorySettings)
+                    .build()
+            );
+            final var request = newXContentRequest(
                 HttpMethod.PUT,
                 "/_snapshot/" + repositoryName(),
-                (b, p) -> b.field("type", S3Repository.TYPE)
-                    .startObject("settings")
-                    .value(
-                        settingsUnaryOperator.apply(
-                            Settings.builder()
-                                .put("bucket", bucketName())
-                                .put("base_path", basePath())
-                                .put("client", clientName())
-                                .put("canned_acl", "private")
-                                .put("storage_class", "standard")
-                                .put("disable_chunked_encoding", randomBoolean())
-                                .build()
-                        )
-                    )
-                    .endObject()
+                (b, p) -> b.field("type", S3Repository.TYPE).startObject("settings").value(settings).endObject()
             );
+
+            final var expectedWarnings = new ArrayList<String>();
+            if (S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(settings)) {
+                expectedWarnings.add("""
+                    [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("disable_chunked_encoding")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.disable_chunked_encoding] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("legacy_content_md5")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (expectedWarnings.isEmpty() == false) {
+                request.setOptions(expectWarnings(expectedWarnings.toArray(String[]::new)));
+            }
+
+            return request;
+
         }
+    }
+
+    protected Settings extraRepositorySettings() {
+        return Settings.EMPTY;
     }
 
     protected abstract String getBucketName();
@@ -78,7 +105,7 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
     }
 
     private TestRepository newTestRepository() {
-        return new TestRepository(randomIdentifier(), getClientName(), getBucketName(), getBasePath());
+        return new TestRepository(randomIdentifier(), getClientName(), getBucketName(), getBasePath(), extraRepositorySettings());
     }
 
     private static UnaryOperator<Settings> readonlyOperator(Boolean readonly) {
@@ -146,7 +173,8 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
             randomIdentifier(),
             getClientName(),
             randomValueOtherThan(getBucketName(), ESTestCase::randomIdentifier),
-            getBasePath()
+            getBasePath(),
+            extraRepositorySettings()
         );
         final var registerRequest = repository.getRegisterRequest(readonlyOperator(readonly));
 
@@ -174,7 +202,8 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
             randomIdentifier(),
             randomValueOtherThanMany(c -> c.equals(getClientName()) || c.equals("default"), ESTestCase::randomIdentifier),
             getBucketName(),
-            getBasePath()
+            getBasePath(),
+            extraRepositorySettings()
         );
         final var registerRequest = repository.getRegisterRequest(readonlyOperator(readonly));
 
@@ -183,8 +212,10 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
         final var responseObjectPath = ObjectPath.createFromResponse(responseException.getResponse());
         assertThat(responseObjectPath.evaluate("error.type"), equalTo("repository_verification_exception"));
         assertThat(responseObjectPath.evaluate("error.reason"), containsString("is not accessible on master node"));
-        assertThat(responseObjectPath.evaluate("error.caused_by.type"), equalTo("illegal_argument_exception"));
-        assertThat(responseObjectPath.evaluate("error.caused_by.reason"), containsString("Unknown s3 client name"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.type"), equalTo("repository_exception"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.reason"), containsString("cannot create blob store"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.caused_by.type"), equalTo("illegal_argument_exception"));
+        assertThat(responseObjectPath.evaluate("error.caused_by.caused_by.reason"), containsString("Unknown s3 client name"));
     }
 
     public void testNonexistentSnapshot() throws Exception {
@@ -259,7 +290,7 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
 
     public void testSnapshotAndRestore() throws Exception {
         final var repository = newTestRepository();
-        try (var ignored = repository.register()) {
+        try (var ignored = repository.register(UnaryOperator.identity())) {
             final var repositoryName = repository.repositoryName();
             final var indexName = randomIdentifier();
             final var snapshotsToDelete = new ArrayList<String>(2);

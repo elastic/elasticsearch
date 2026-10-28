@@ -15,5 +15,5 @@ restResources {
 }
 
 tasks.named("yamlRestTest") {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

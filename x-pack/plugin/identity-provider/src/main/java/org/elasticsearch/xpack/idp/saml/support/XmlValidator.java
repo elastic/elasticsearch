@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.idp.saml.support;
 
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.XmlUtils;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSInput;
 import org.w3c.dom.ls.LSResourceResolver;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXNotSupportedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -20,7 +23,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.xml.XMLConstants;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
@@ -34,8 +36,8 @@ public class XmlValidator {
     private final SchemaFactory schemaFactory;
     private final String xsdName;
 
-    public XmlValidator(String xsdName) {
-        this.schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+    public XmlValidator(String xsdName) throws SAXNotSupportedException, SAXNotRecognizedException {
+        this.schemaFactory = XmlUtils.getHardenedSchemaFactory();
         this.xsdName = xsdName;
     }
 
@@ -49,9 +51,7 @@ public class XmlValidator {
         try (InputStream xsdStream = loadSchema(xsdName); ResourceResolver resolver = new ResourceResolver()) {
             schemaFactory.setResourceResolver(resolver);
             Schema schema = schemaFactory.newSchema(new StreamSource(xsdStream));
-            Validator validator = schema.newValidator();
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Validator validator = XmlUtils.getHardenedValidator(schema);
             validator.validate(new StreamSource(xml));
         }
     }

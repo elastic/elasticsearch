@@ -5,6 +5,8 @@
  * Public License v 1"; you may not use this file except in compliance with, at
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
+ *
+ * This file was contributed to by generative AI
  */
 
 package org.elasticsearch.action.termvectors;
@@ -12,12 +14,17 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -27,22 +34,27 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.concurrent.Executor;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * Performs the get operation.
  */
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
+    private final NodeClient client;
     private final IndicesService indicesService;
+    private final boolean stateless;
 
     @Inject
     public TransportTermVectorsAction(
         ClusterService clusterService,
+        NodeClient client,
         TransportService transportService,
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -51,32 +63,38 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             TermVectorsRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
+        this.client = client;
         this.indicesService = indicesService;
-
+        this.stateless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         final var operationRouting = clusterService.operationRouting();
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
-            return operationRouting.searchShards(state, new String[] { request.concreteIndex() }, null, request.request().preference())
+            return operationRouting.searchShards(project, new String[] { request.concreteIndex() }, null, request.request().preference())
                 .getFirst();
         }
 
-        return operationRouting.useOnlyPromotableShardsForStateless(
-            operationRouting.getShards(
-                state,
+        ShardIterator iterator = clusterService.operationRouting()
+            .getShards(
+                project,
                 request.concreteIndex(),
                 request.request().id(),
                 request.request().routing(),
                 request.request().preference()
-            )
-        );
+            );
+        if (iterator == null) {
+            // We return an empty iterator to avoid hitting an indexing node in serverless (e.g., if there are no search nodes available).
+            return new ShardIterator(null, List.of());
+        }
+        return ShardIterator.allSearchableShards(iterator);
     }
 
     @Override
@@ -85,9 +103,26 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
         request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
+        requireSliceRoutingWhenEnabled(state, request.request(), request.concreteIndex());
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, TermVectorsRequest request, String concreteIndex) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "term vectors request",
+            request.index()
+        );
     }
 
     @Override
@@ -96,7 +131,31 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // it's a realtime request which is not subject to refresh cycles
-            super.asyncShardOperation(request, shardId, listener);
+            if (stateless) {
+                // Ensure that the document is searchable before we execute the term vectors request.
+                //
+                // It is very important to pass the SplitShardCountSummary through here.
+                // This summary reflects the decision of the coordinator to route this request to the source shard.
+                // It is possible that the document now belongs to the target shard
+                // and if so we need to fix that routing decision on the coordinator.
+                // We are NOT interested in the state of the search shard node (where we currently are)
+                // and should not create a new summary here.
+                final var ensureDocsSearchableRequest = new EnsureDocsSearchableAction.EnsureDocsSearchableRequest(
+                    request.index(),
+                    shardId.id(),
+                    new String[] { request.id() },
+                    new String[] { request.routing() },
+                    request.getSplitShardCountSummary()
+                );
+                ensureDocsSearchableRequest.setParentTask(clusterService.localNode().getId(), request.getParentTask().getId());
+                client.execute(
+                    EnsureDocsSearchableAction.TYPE,
+                    ensureDocsSearchableRequest,
+                    listener.delegateFailureAndWrap((l, r) -> super.asyncShardOperation(request, shardId, l))
+                );
+            } else {
+                super.asyncShardOperation(request, shardId, listener);
+            }
         } else {
             indexShard.ensureShardSearchActive(b -> {
                 try {
@@ -118,13 +177,5 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected Writeable.Reader<TermVectorsResponse> getResponseReader() {
         return TermVectorsResponse::new;
-    }
-
-    @Override
-    protected Executor getExecutor(TermVectorsRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
     }
 }

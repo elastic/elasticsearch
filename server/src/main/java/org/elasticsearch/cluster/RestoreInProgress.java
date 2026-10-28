@@ -10,8 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,6 +34,10 @@ import java.util.Objects;
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
 
     public static final String TYPE = "restore";
+
+    private static final TransportVersion RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING = TransportVersion.fromName(
+        "restore_in_progress_report_shard_restoring"
+    );
 
     public static final RestoreInProgress EMPTY = new RestoreInProgress(Map.of());
 
@@ -117,10 +119,11 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         State state,
         boolean quiet,
         List<String> indices,
-        Map<ShardId, ShardRestoreStatus> shards
+        Map<ShardId, ShardRestoreStatus> shards,
+        boolean reportShardRestoring
     ) {
         /**
-         * Creates new restore metadata
+         * Creates new restore metadata that does not report restoring shards as {@code ShardRestoringException}
          *
          * @param uuid     uuid of the restore
          * @param snapshot snapshot
@@ -138,6 +141,33 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             List<String> indices,
             Map<ShardId, ShardRestoreStatus> shards
         ) {
+            this(uuid, snapshot, state, quiet, indices, shards, /* reportShardRestoring = */ false);
+        }
+
+        /**
+         * Creates new restore metadata
+         *
+         * @param uuid                 uuid of the restore
+         * @param snapshot             snapshot
+         * @param state                current state of the restore process
+         * @param quiet                {@code true} if logging of the start and completion of the snapshot restore should be at
+         *                             {@code DEBUG} log level, else it should be at {@code INFO} log level
+         * @param indices              list of indices being restored
+         * @param shards               map of shards being restored to their current restore status
+         * @param reportShardRestoring {@code true} if requests that hit a shard of this restore should fail with a
+         *                             {@code ShardRestoringException} rather than the generic shard-unavailable errors. Chosen explicitly
+         *                             by the caller that starts the restore. Nodes that do not support it read it as {@code false}.
+         */
+        public Entry(
+            String uuid,
+            Snapshot snapshot,
+            State state,
+            boolean quiet,
+            List<String> indices,
+            Map<ShardId, ShardRestoreStatus> shards,
+            boolean reportShardRestoring
+        ) {
+            this.reportShardRestoring = reportShardRestoring;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.state = Objects.requireNonNull(state);
             this.quiet = Objects.requireNonNull(quiet);
@@ -269,7 +299,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -285,17 +315,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             boolean quiet;
-            if (in.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
-                quiet = in.readBoolean();
-            } else {
-                // Backwards compatibility: previously there was no logging of the start or completion of a snapshot restore
-                quiet = true;
-            }
+            quiet = in.readBoolean();
             List<String> indices = in.readCollectionAsImmutableList(StreamInput::readString);
-            entriesBuilder.put(
-                uuid,
-                new Entry(uuid, snapshot, state, quiet, indices, in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom))
-            );
+            final Map<ShardId, ShardRestoreStatus> shards = in.readImmutableMap(ShardId::new, ShardRestoreStatus::readFrom);
+            // nodes that do not know about the flag never send it, which is the same as the restore not reporting shard restoring
+            final boolean reportShardRestoring = in.getTransportVersion().supports(RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING)
+                && in.readBoolean();
+            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, quiet, indices, shards, reportShardRestoring));
         }
         this.entries = Collections.unmodifiableMap(entriesBuilder);
     }
@@ -306,11 +332,12 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             o.writeString(entry.uuid);
             entry.snapshot().writeTo(o);
             o.writeByte(entry.state().value());
-            if (out.getTransportVersion().onOrAfter(RestoreSnapshotRequest.VERSION_SUPPORTING_QUIET_PARAMETER)) {
-                o.writeBoolean(entry.quiet());
-            }
+            o.writeBoolean(entry.quiet());
             o.writeStringCollection(entry.indices);
             o.writeMap(entry.shards);
+            if (o.getTransportVersion().supports(RESTORE_IN_PROGRESS_REPORT_SHARD_RESTORING)) {
+                o.writeBoolean(entry.reportShardRestoring());
+            }
         });
     }
 

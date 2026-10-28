@@ -10,7 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchService;
@@ -67,6 +69,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -129,8 +132,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
     public static final ParseField RETRIEVER = new ParseField("retriever");
+    public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
+
+    public static final TransportVersion SEARCH_SOURCE_EMBEDDINGS_FIELDS = TransportVersion.fromName("search_source_embeddings_fields");
 
     /**
      * A static factory method to construct a new search source.
@@ -212,6 +218,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean skipInnerHits = false;
 
+    private Map<String, VectorType> fetchEmbeddingsFields = new LinkedHashMap<>();
+
     /**
      * Constructs a new search source builder.
      */
@@ -235,14 +243,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         indexBoosts = in.readCollectionAsList(IndexBoost::new);
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
-        } else {
-            QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-            if (queryBuilder != null) {
-                subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
-            }
-        }
+        subSearchSourceBuilders = in.readCollectionAsList(SubSearchSourceBuilder::new);
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableCollectionAsList(RescorerBuilder.class);
         }
@@ -277,22 +278,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                KnnSearchBuilder searchBuilder = in.readOptionalWriteable(KnnSearchBuilder::new);
-                knnSearch = searchBuilder != null ? List.of(searchBuilder) : List.of();
-            } else {
-                knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
-            }
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
-        }
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
-            || in.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
-            skipInnerHits = in.readBoolean();
-        } else {
-            skipInnerHits = false;
+        knnSearch = in.readCollectionAsList(KnnSearchBuilder::new);
+        rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        skipInnerHits = in.readBoolean();
+        if (in.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            fetchEmbeddingsFields = new LinkedHashMap<>(
+                in.readOrderedMap(StreamInput::readString, i -> i.readOptionalEnum(VectorType.class))
+            );
         }
     }
 
@@ -301,6 +293,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (retrieverBuilder != null) {
             throw new IllegalStateException("SearchSourceBuilder should be rewritten first");
         }
+
+        List<FieldAndFormat> fetchFieldsToWrite = fetchFields;
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS) == false && fetchEmbeddingsFields.isEmpty() == false) {
+            // Write embeddings fields to fetch fields so we can attempt to get them, even if not in embeddings format. This is
+            // essentially a "best effort" BwC approach, as we cannot control the format the fetched fields will use.
+            fetchFieldsToWrite = fetchFields == null ? new ArrayList<>() : new ArrayList<>(fetchFields);
+            for (String embeddingsField : fetchEmbeddingsFields.keySet()) {
+                fetchFieldsToWrite.add(new FieldAndFormat(embeddingsField, null));
+            }
+        }
+
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -314,15 +317,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeCollection(indexBoosts);
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeCollection(subSearchSourceBuilders);
-        } else if (out.getTransportVersion().before(TransportVersions.V_8_4_0) && subSearchSourceBuilders.size() >= 2) {
-            throw new IllegalArgumentException(
-                "cannot serialize [sub_searches] to version [" + out.getTransportVersion().toReleaseVersion() + "]"
-            );
-        } else {
-            out.writeOptionalNamedWriteable(query());
-        }
+        out.writeCollection(subSearchSourceBuilders);
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -356,36 +351,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
-        out.writeBoolean(fetchFields != null);
-        if (fetchFields != null) {
-            out.writeCollection(fetchFields);
+        out.writeBoolean(fetchFieldsToWrite != null);
+        if (fetchFieldsToWrite != null) {
+            out.writeCollection(fetchFieldsToWrite);
         }
         out.writeOptionalWriteable(pointInTimeBuilder);
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)) {
-                if (knnSearch.size() > 1) {
-                    throw new IllegalArgumentException(
-                        "Versions before ["
-                            + TransportVersions.V_8_7_0.toReleaseVersion()
-                            + "] don't support multiple [knn] search clauses and search was sent to ["
-                            + out.getTransportVersion().toReleaseVersion()
-                            + "]"
-                    );
-                }
-                out.writeOptionalWriteable(knnSearch.isEmpty() ? null : knnSearch.get(0));
-            } else {
-                out.writeCollection(knnSearch);
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankBuilder);
-        } else if (rankBuilder != null) {
-            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
-        }
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)
-            || out.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
-            out.writeBoolean(skipInnerHits);
+        out.writeCollection(knnSearch);
+        out.writeOptionalNamedWriteable(rankBuilder);
+        out.writeBoolean(skipInnerHits);
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EMBEDDINGS_FIELDS)) {
+            out.writeMap(fetchEmbeddingsFields, StreamOutput::writeOptionalEnum);
         }
     }
 
@@ -880,7 +856,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetch,
+            fetchSourceContext.excludeVectors(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -917,7 +898,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes);
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            fetchSourceContext.excludeVectors(),
+            includes,
+            excludes
+        );
         return this;
     }
 
@@ -926,6 +912,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        return this;
+    }
+
+    /**
+     * Indicate whether vectors should be excluded from the _source.
+     */
+    public SearchSourceBuilder excludeVectors(boolean excludeVectors) {
+        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
+        this.fetchSourceContext = FetchSourceContext.of(
+            fetchSourceContext.fetchSource(),
+            excludeVectors,
+            fetchSourceContext.excludeInferenceFields(),
+            fetchSourceContext.includes(),
+            fetchSourceContext.excludes()
+        );
         return this;
     }
 
@@ -1025,6 +1026,33 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         fetchFields.add(fetchField);
         return this;
+    }
+
+    /**
+     * Adds a field whose embeddings should be returned as part of the search response. If the field has already been added, the vector
+     * type from this call replaces the previous one.
+     * <p>
+     * Embeddings fields cannot overlap with fields fetched via {@link fetchFields}. Any overlaps will be reported as errors in
+     * {@link validate(ActionRequestValidationException, boolean, boolean)}.
+     * </p>
+     * <p>
+     * NOTE: This functionality is intended for internal usage only. It should not be exposed to users.
+     * </p>
+     *
+     * @param field the embeddings field name
+     * @param vectorType the vector type the field is expected to produce, or {@code null} to accept whichever type it produces
+     */
+    public SearchSourceBuilder fetchEmbeddingsField(String field, @Nullable VectorType vectorType) {
+        fetchEmbeddingsFields.put(field, vectorType);
+        return this;
+    }
+
+    /**
+     * Gets the fields whose embeddings should be returned as part of the search response, mapped to the vector type each field is
+     * expected to produce. A {@code null} value means any vector type is accepted.
+     */
+    public Map<String, VectorType> fetchEmbeddingsFields() {
+        return Collections.unmodifiableMap(fetchEmbeddingsFields);
     }
 
     /**
@@ -1165,9 +1193,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             )
         ));
+
         if (retrieverBuilder != null) {
             var newRetriever = retrieverBuilder.rewrite(context);
             if (newRetriever != retrieverBuilder) {
@@ -1181,6 +1211,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 retriever.extractToSearchSourceBuilder(this, false);
                 validate();
             }
+        }
+
+        RankBuilder rankBuilder = null;
+        if (this.rankBuilder != null) {
+            rankBuilder = this.rankBuilder.rewrite(context);
         }
 
         List<SubSearchSourceBuilder> subSearchSourceBuilders = Rewriteable.rewrite(this.subSearchSourceBuilders, context);
@@ -1207,7 +1242,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             || aggregations != this.aggregations
             || rescoreBuilders != this.rescoreBuilders
             || sorts != this.sorts
-            || this.highlightBuilder != highlightBuilder;
+            || this.highlightBuilder != highlightBuilder
+            || this.rankBuilder != rankBuilder;
         if (rewritten) {
             return shallowCopy(
                 subSearchSourceBuilders,
@@ -1217,7 +1253,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 this.sliceBuilder,
                 sorts,
                 rescoreBuilders,
-                highlightBuilder
+                highlightBuilder,
+                rankBuilder
             );
         }
         return this;
@@ -1235,7 +1272,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             sliceBuilder,
             sorts,
             rescoreBuilders,
-            highlightBuilder
+            highlightBuilder,
+            rankBuilder
         );
     }
 
@@ -1252,7 +1290,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SliceBuilder slice,
         List<SortBuilder<?>> sorts,
         List<RescorerBuilder> rescoreBuilders,
-        HighlightBuilder highlightBuilder
+        HighlightBuilder highlightBuilder,
+        RankBuilder rankBuilder
     ) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
@@ -1289,7 +1328,30 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
         rewrittenBuilder.skipInnerHits = skipInnerHits;
+        rewrittenBuilder.fetchEmbeddingsFields = fetchEmbeddingsFields;
         return rewrittenBuilder;
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
     }
 
     /**
@@ -1306,7 +1368,29 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         SearchUsageHolder searchUsageHolder,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
+    }
+
+    /**
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent.
+     * This variant does not record search features usage. Most times the variant that accepts a {@link SearchUsageHolder} and records
+     * usage stats into it is the one to use.
+     *
+     * @param searchRequest The SearchRequest object that's representing the request we're parsing which shall receive
+     *                      the parsed info. Currently, this is non-null only if we expect project_routing to appear in
+     *                      the request body, and we allow it to appear because we're in a Cross Project Search
+     *                      environment and require this info.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
+     */
+    public SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(searchRequest, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     /**
@@ -1323,10 +1407,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean checkTrailingTokens,
         Predicate<NodeFeature> clusterSupportsFeature
     ) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
+        return parseXContent(null, parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
     private SearchSourceBuilder parseXContent(
+        SearchRequest searchRequest,
         XContentParser parser,
         boolean checkTrailingTokens,
         Consumer<SearchUsage> searchUsageConsumer,
@@ -1348,7 +1433,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (PROJECT_ROUTING.match(currentFieldName, parser.getDeprecationHandler()) && searchRequest != null) {
+                    /*
+                     * If project_routing was specified as a query parameter too, setProjectRouting() will throw
+                     * an error to prevent setting twice or overwriting previously set value.
+                     */
+                    searchRequest.setProjectRouting(parser.text());
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size(parser.intValue());
@@ -1391,6 +1482,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     }
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     sort(parser.text());
+                    searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sorts.getLast().name());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     profile = parser.booleanValue();
                 } else {
@@ -1472,6 +1564,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         sorts = new ArrayList<>(SortBuilder.fromXContent(parser));
+                        for (var sort : sorts) {
+                            searchUsage.trackSectionUsage(SORT_FIELD.getPreferredName(), sort.name());
+                        }
                     } else if (RESCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         rescoreBuilders = new ArrayList<>();
                         rescoreBuilders.add(RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage));
@@ -2120,7 +2215,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             trackTotalHitsUpTo,
             pointInTimeBuilder,
             runtimeMappings,
-            skipInnerHits
+            skipInnerHits,
+            fetchEmbeddingsFields
         );
     }
 
@@ -2166,7 +2262,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
             && Objects.equals(runtimeMappings, other.runtimeMappings)
-            && Objects.equals(skipInnerHits, other.skipInnerHits);
+            && Objects.equals(skipInnerHits, other.skipInnerHits)
+            && Objects.equals(fetchEmbeddingsFields, other.fetchEmbeddingsFields);
     }
 
     @Override
@@ -2182,13 +2279,28 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
     }
 
+    /**
+     * TEMPORARY shallow snapshot for coordinator {@code profile.request} metadata.
+     * Avoids copying via XContent (see {@link #toString(Params)}) which cannot round-trip internal-only query clauses
+     * (for example {@code rank_docs_query}). Prefer restoring a safe deep copy once XContent parsing
+     * covers all query types that can appear after rewrite.
+     */
+    public static SearchSourceBuilder shallowCopyForSearchCoordinatorContext(SearchSourceBuilder source) {
+        Objects.requireNonNull(source, "source");
+        SearchSourceBuilder copy = source.shallowCopy();
+        if (source.retriever() != null) {
+            copy.retriever(source.retriever());
+        }
+        return copy;
+    }
+
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinality) {
         if (profile) return false;
 
         if (sorts != null) {
-            // the implicit sorting is by _score, which supports parallel collection
-            for (SortBuilder<?> sortBuilder : sorts) {
-                if (sortBuilder.supportsParallelCollection() == false) return false;
+            var primarySort = sorts.stream().findFirst();
+            if (primarySort.map(SortBuilder::supportsParallelCollection).orElse(true) == false) {
+                return false;
             }
         }
 
@@ -2285,6 +2397,26 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         "[stored_fields] cannot be disabled when using the [fields] option",
                         validationException
                     );
+                }
+            }
+        }
+        if (fetchFields() != null && fetchEmbeddingsFields().isEmpty() == false) {
+            // Both requests are resolved into the same FetchFieldsContext, which is keyed on field name. An overlap means one of them
+            // would silently overwrite the other at fetch time.
+            for (FieldAndFormat fetchField : fetchFields()) {
+                for (String embeddingsField : fetchEmbeddingsFields().keySet()) {
+                    if (Regex.simpleMatch(fetchField.field, embeddingsField)) {
+                        validationException = addValidationError(
+                            "["
+                                + FETCH_FIELDS_FIELD.getPreferredName()
+                                + "] entry ["
+                                + fetchField.field
+                                + "] cannot overlap with the requested embeddings field ["
+                                + embeddingsField
+                                + "]",
+                            validationException
+                        );
+                    }
                 }
             }
         }

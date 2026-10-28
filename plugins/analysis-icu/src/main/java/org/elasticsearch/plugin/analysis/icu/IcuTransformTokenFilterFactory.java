@@ -17,20 +17,37 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
-    private final String id;
-    private final int dir;
     private final Transliterator transliterator;
+    private final Object sharingKey;
 
     public IcuTransformTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        this.id = settings.get("id", "Null");
-        String s = settings.get("dir", "forward");
-        this.dir = "forward".equals(s) ? Transliterator.FORWARD : Transliterator.REVERSE;
-        this.transliterator = Transliterator.getInstance(id, dir);
+        String id = settings.get("id");
+        String ruleset = settings.get("ruleset");
+        String strDir = settings.get("dir", "forward");
+        int dir = "forward".equals(strDir) ? Transliterator.FORWARD : Transliterator.REVERSE;
+
+        if (id != null && ruleset != null) {
+            throw new IllegalArgumentException("icu_transform filter [" + name + "] must not specify both [id] and [ruleset]");
+        }
+
+        if (ruleset != null) {
+            try {
+                this.transliterator = Transliterator.createFromRules(name, ruleset, dir);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("icu_transform filter [" + name + "] has invalid ruleset: " + e.getMessage(), e);
+            }
+        } else {
+            this.transliterator = Transliterator.getInstance(id != null ? id : "Null", dir);
+        }
+        // Transliterator has identity equality, so key on the settings it is built from. The filter name a
+        // ruleset transliterator is created with only labels it, so it is left out.
+        this.sharingKey = new Key(id, ruleset == null ? null : Analysis.sha256Hex(ruleset), dir);
     }
 
     @Override
@@ -38,4 +55,10 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         return new ICUTransformFilter(tokenStream, transliterator);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String id, String rulesetSha256, int dir) {}
 }

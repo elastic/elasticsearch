@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInform
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,9 +35,8 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
 
     private SignificanceHeuristic significanceHeuristic;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initializeSignificanceHeuristic() throws Exception {
         significanceHeuristic = randomSignificanceHeuristic();
     }
 

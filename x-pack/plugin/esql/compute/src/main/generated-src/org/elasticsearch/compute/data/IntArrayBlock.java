@@ -7,20 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link IntArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
@@ -86,14 +89,20 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getInt(int valueIndex) {
         return vector.getInt(valueIndex);
     }
 
     @Override
-    public IntBlock filter(int... positions) {
-        try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public IntBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newIntBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;
@@ -130,15 +139,11 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
-                if (false == mask.getBoolean(p)) {
+                if (false == mask.getBoolean(p) || isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
-                }
                 int start = getFirstValueIndex(p);
                 if (valueCount == 1) {
                     builder.appendInt(getInt(start));
@@ -181,17 +186,25 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
         long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
         blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
-        IntArrayBlock expanded = new IntArrayBlock(
-            vector,
-            expandedPositionCount,
-            null,
-            shiftNullsToExpandedPositions(),
-            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
-        );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
-        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
-        vector.incRef();
-        return expanded;
+        boolean success = false;
+        try {
+            IntArrayBlock expanded = new IntArrayBlock(
+                vector,
+                expandedPositionCount,
+                null,
+                shiftNullsToExpandedPositions(),
+                MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+            );
+            blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+            // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+            vector.incRef();
+            success = true;
+            return expanded;
+        } finally {
+            if (success == false) {
+                blockFactory().adjustBreaker(-bitSetRamUsedEstimate);
+            }
+        }
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -230,6 +243,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

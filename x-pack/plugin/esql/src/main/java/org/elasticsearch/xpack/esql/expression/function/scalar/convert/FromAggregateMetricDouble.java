@@ -7,39 +7,55 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateMetricDouble extends EsqlScalarFunction {
+public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction, BlockLoaderExpression, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateMetricDouble",
@@ -49,12 +65,17 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
     private final Expression field;
     private final Expression subfieldIndex;
 
-    @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "long", "double" },
+        briefSummary = "Converts an aggregate double metric to a single subfield block.",
+        description = "Convert aggregate double metric to a block of a single subfield."
+    )
     public FromAggregateMetricDouble(
         Source source,
         @Param(
             name = "aggregate_metric_double",
-            type = { "aggregate_metric_double" },
+            type = { "aggregate_metric_double", "int", "double", "long" },
             description = "Aggregate double metric to convert."
         ) Expression field,
         @Param(name = "subfieldIndex", type = "int", description = "Index of subfield") Expression subfieldIndex
@@ -101,6 +122,12 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
     }
 
     @Override
+    public boolean isNoop() {
+        // Extracts a single subfield, so it never passes its input through unchanged.
+        return false;
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new FromAggregateMetricDouble(source(), newChildren.get(0), newChildren.get(1));
     }
@@ -115,7 +142,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field, dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
+        return isType(field, dt -> dt == AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
     }
 
     @Override
@@ -124,9 +151,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new EvalOperator.ExpressionEvaluator.Factory() {
+        return new ExpressionEvaluator.Factory() {
 
             @Override
             public String toString() {
@@ -134,38 +161,124 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
             }
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
-
-                return new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        Block block = eval.eval(page);
-                        if (block.areAllValuesNull()) {
-                            return block;
-                        }
-                        try {
-                            CompositeBlock compositeBlock = (CompositeBlock) block;
-                            Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
-                            resultBlock.incRef();
-                            return resultBlock;
-                        } finally {
-                            block.close();
-                        }
-                    }
-
-                    @Override
-                    public void close() {
-                        Releasables.closeExpectNoException(eval);
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subfieldIndex + "]";
-                    }
-                };
-
+            public ExpressionEvaluator get(DriverContext context) {
+                final ExpressionEvaluator eval = fieldEvaluator.get(context);
+                final int subFieldIndex = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
+                return new Evaluator(
+                    context.blockFactory(),
+                    eval,
+                    subFieldIndex,
+                    // We use this factory method to be compatible with the AvgBlockLoader
+                    context.createOnlyWarnings(source())
+                );
             }
         };
+    }
+
+    private record Evaluator(BlockFactory blockFactory, ExpressionEvaluator eval, int subFieldIndex, Warnings warnings)
+        implements
+            ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            Block block = eval.eval(page);
+            try {
+                if (block.areAllValuesNull()) {
+                    return blockFactory.newConstantNullBlock(block.getPositionCount());
+                }
+                if (subFieldIndex == AggregateMetricDoubleBlockBuilder.Metric.DEFAULT.getIndex()) {
+                    return evaluateDefaultBlock((AggregateMetricDoubleBlock) block);
+                } else {
+                    Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(subFieldIndex);
+                    resultBlock.incRef();
+                    return resultBlock;
+                }
+            } finally {
+                block.close();
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public String toString() {
+            return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subFieldIndex + "]";
+        }
+
+        private Block evaluateDefaultBlock(AggregateMetricDoubleBlock block) {
+            int positionCount = block.getPositionCount();
+            DoubleBlock sumBlock = block.sumBlock();
+            IntBlock countBlock = block.countBlock();
+            if (sumBlock.areAllValuesNull() || countBlock.areAllValuesNull()) {
+                return blockFactory().newConstantNullBlock(positionCount);
+            }
+            try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    if (sumBlock.isNull(p) || countBlock.isNull(p)) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int sumFirstValueIndex = sumBlock.getFirstValueIndex(p);
+                    int countFirstValueIndex = countBlock.getFirstValueIndex(p);
+                    double sum = sumBlock.getDouble(sumFirstValueIndex);
+                    int count = countBlock.getInt(countFirstValueIndex);
+                    if (count <= 0) {
+                        warnings.registerException(
+                            IllegalArgumentException.class,
+                            "[aggregate_metric_double] fields has a non-positive count [value_count="
+                                + count
+                                + "], so it cannot fallback to a single average value, treating result as null"
+                        );
+                        builder.appendNull();
+                    } else {
+                        builder.appendDouble(sum / count);
+                    }
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    @Override
+    public Expression field() {
+        return field;
+    }
+
+    @Override
+    public Set<DataType> supportedTypes() {
+        return Set.of(AGGREGATE_METRIC_DOUBLE, INTEGER, LONG, DOUBLE);
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (field() instanceof FieldAttribute f
+            && f.dataType() == AGGREGATE_METRIC_DOUBLE
+            && (f.field() instanceof UnionTypeEsField) == false) {
+            var folded = subfieldIndex.fold(FoldContext.small());
+            if (folded == null) {
+                throw new IllegalArgumentException("Subfield Index was null");
+            }
+            var subfield = ((Number) folded).intValue();
+            var functionConfig = switch (AggregateMetricDoubleBlockBuilder.Metric.indexToMetric(subfield)) {
+                case MIN -> BlockLoaderFunctionConfig.Function.AMD_MIN;
+                case MAX -> BlockLoaderFunctionConfig.Function.AMD_MAX;
+                case SUM -> BlockLoaderFunctionConfig.Function.AMD_SUM;
+                case COUNT -> BlockLoaderFunctionConfig.Function.AMD_COUNT;
+                case DEFAULT -> BlockLoaderFunctionConfig.Function.AMD_DEFAULT;
+                case null -> throw new IllegalArgumentException("Received invalid subfield index [" + subfield + "].");
+            };
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.JustFunction(functionConfig));
+        }
+        return null;
     }
 }

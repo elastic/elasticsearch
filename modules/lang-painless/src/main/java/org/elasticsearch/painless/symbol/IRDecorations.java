@@ -23,6 +23,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 public class IRDecorations {
@@ -346,11 +347,79 @@ public class IRDecorations {
         }
     }
 
+    /** marks a typed-capture reference ({@code def s = obj; s::method}, known target type) whose target should be charged */
+    public static class IRCChargeAllocation implements IRCondition {
+
+        private IRCChargeAllocation() {
+
+        }
+    }
+
+    /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
+    public static class IRCScriptAware implements IRCondition {
+
+        private IRCScriptAware() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
         public IRDMaxLoopCounter(Integer value) {
             super(value);
+        }
+    }
+
+    /**
+     * describes the per-context heuristic allocation limit in bytes for a method, or {@code -1} when tracking is disabled.
+     * Mirrors {@link IRDMaxLoopCounter}: attached to every protected function so allocation-tracking bytecode can read the
+     * limit without reaching back into the compiler settings.
+     */
+    public static class IRDMaxAllocationBytes extends IRDecoration<Long> {
+
+        public IRDMaxAllocationBytes(Long value) {
+            super(value);
+        }
+    }
+
+    /**
+     * describes a function whose return path records the execution's allocation total. Attached only when metrics are
+     * enabled; metrics also enable the counter on their own, so it joins {@link IRDMaxAllocationBytes} in the writer's
+     * "is tracking on" test.
+     */
+    public static class IRCRecordAllocationMetrics implements IRCondition {
+
+        private IRCRecordAllocationMetrics() {
+
+        }
+    }
+
+    /** the resolved {@code @allocates} estimator for a call/construction site; attached only when tracking is enabled */
+    public static class IRDAllocationEstimator extends IRDecoration<Method> {
+
+        public IRDAllocationEstimator(Method value) {
+            super(value);
+        }
+    }
+
+    /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
+    public static class IRCInstanceCancellationCheck implements IRCondition {
+
+        private IRCInstanceCancellationCheck() {
+
+        }
+    }
+
+    /**
+     * marks a static lambda that receives the script as a synthetic leading {@code #scriptThis} parameter for allocation
+     * tracking. Cancellation never needs this: under cancellation every lambda is an instance lambda and polls through
+     * {@code this}.
+     */
+    public static class IRCStaticScriptCapture implements IRCondition {
+
+        private IRCStaticScriptCapture() {
+
         }
     }
 

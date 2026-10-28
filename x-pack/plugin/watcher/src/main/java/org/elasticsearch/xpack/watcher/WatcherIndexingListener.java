@@ -14,21 +14,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -68,15 +66,20 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
     private final WatchParser parser;
     private final Clock clock;
-    private final TriggerService triggerService;
     private final Supplier<WatcherState> watcherState;
+    private final WatcherEventConsumer watcherEventConsumer;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService, Supplier<WatcherState> watcherState) {
+    WatcherIndexingListener(
+        WatchParser parser,
+        Clock clock,
+        WatcherEventConsumer watcherEventConsumer,
+        Supplier<WatcherState> watcherState
+    ) {
         this.parser = parser;
         this.clock = clock;
-        this.triggerService = triggerService;
         this.watcherState = watcherState;
+        this.watcherEventConsumer = watcherEventConsumer;
     }
 
     // package private for testing
@@ -114,10 +117,11 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
+                // TODO: Will materialize the original source bytes if currently row. Consider making watcher row aware.
                 Watch watch = parser.parseWithSecrets(
                     operation.id(),
                     true,
-                    operation.source(),
+                    operation.source().originalBytes(),
                     now,
                     XContentType.JSON,
                     operation.getIfSeqNo(),
@@ -134,15 +138,15 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     return;
                 }
 
-                boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
+                boolean shouldBeTriggered = shardAllocationConfiguration.hostsWatch(watch.id());
                 WatcherState currentState = watcherState.get();
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
-                        triggerService.add(watch);
+                        watcherEventConsumer.onWatchAdded(watch);
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
-                        triggerService.remove(watch.id());
+                        watcherEventConsumer.onWatchRemoved(watch.id());
                     }
                 } else {
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
@@ -180,7 +184,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug("removing watch [{}] from trigger service via delete", delete.id());
-            triggerService.remove(delete.id());
+            watcherEventConsumer.onWatchRemoved(delete.id());
         }
         return delete;
     }
@@ -251,11 +255,16 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * @param event             The cluster changed event containing the new cluster state
      */
     private void reloadConfiguration(String watchIndex, List<ShardRouting> localShardRouting, ClusterChangedEvent event) {
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         // changed alias means to always read a new configuration
         boolean isAliasChanged = watchIndex.equals(configuration.index) == false;
-        if (isAliasChanged || hasShardAllocationIdChanged(watchIndex, event.state())) {
-            IndexRoutingTable watchIndexRoutingTable = event.state().routingTable().index(watchIndex);
-            Map<ShardId, ShardAllocationConfiguration> ids = getLocalShardAllocationIds(localShardRouting, watchIndexRoutingTable);
+        if (isAliasChanged || hasShardAllocationIdChanged(projectId, watchIndex, event.state())) {
+            IndexRoutingTable watchIndexRoutingTable = event.state().routingTable(projectId).index(watchIndex);
+            Map<ShardId, ShardAllocationConfiguration> ids = ShardAllocationConfiguration.forLocalShards(
+                localShardRouting,
+                watchIndexRoutingTable
+            );
             configuration = new Configuration(watchIndex, ids);
         }
     }
@@ -267,9 +276,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * @param state      The new cluster state
      * @return           true if the routing tables has changed and local shards are affected
      */
-    private boolean hasShardAllocationIdChanged(String watchIndex, ClusterState state) {
-        List<ShardRouting> allStartedRelocatedShards = state.getRoutingTable().index(watchIndex).shardsWithState(STARTED);
-        allStartedRelocatedShards.addAll(state.getRoutingTable().index(watchIndex).shardsWithState(RELOCATING));
+    private boolean hasShardAllocationIdChanged(ProjectId projectId, String watchIndex, ClusterState state) {
+        List<ShardRouting> allStartedRelocatedShards = state.routingTable(projectId).index(watchIndex).shardsWithState(STARTED);
+        allStartedRelocatedShards.addAll(state.routingTable(projectId).index(watchIndex).shardsWithState(RELOCATING));
 
         // exit early, when there are shards, but the current configuration is inactive
         if (allStartedRelocatedShards.isEmpty() == false && configuration == INACTIVE) {
@@ -307,53 +316,12 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             }
 
             Collection<String> allocationIds = shards.get(entry.getKey());
-            if (allocationIds.equals(entry.getValue().allocationIds) == false) {
+            if (allocationIds.equals(entry.getValue().allocationIds()) == false) {
                 return true;
             }
         }
 
         return false;
-    }
-
-    /**
-     * This returns a mapping of the shard it to the index of the shard allocation ids in that
-     * list. The idea here is to have a basis for consistent hashing in order to decide if a
-     * watch needs to be triggered locally or on another system, when it is being indexed
-     * as a single watch action.
-     *
-     * Example:
-     * - ShardId(".watch", 0)
-     * - all allocation ids sorted (in the cluster): [ "a", "b", "c", "d"]
-     * - local allocation id: b (index position 1)
-     * - then store the size of the allocation ids and the index position
-     *   data.put(ShardId(".watch", 0), new Tuple(1, 4))
-     */
-    static Map<ShardId, ShardAllocationConfiguration> getLocalShardAllocationIds(
-        List<ShardRouting> localShards,
-        IndexRoutingTable routingTable
-    ) {
-        Map<ShardId, ShardAllocationConfiguration> data = Maps.newMapWithExpectedSize(localShards.size());
-
-        for (ShardRouting shardRouting : localShards) {
-            ShardId shardId = shardRouting.shardId();
-
-            // find all allocation ids for this shard id in the cluster state
-            List<String> allocationIds = routingTable.shard(shardId.getId())
-                .activeShards()
-                .stream()
-                .map(ShardRouting::allocationId)
-                .map(AllocationId::getId)
-                .sorted()
-                .toList();
-
-            // sort the list so it is stable
-
-            String allocationId = shardRouting.allocationId().getId();
-            int idx = allocationIds.indexOf(allocationId);
-            data.put(shardId, new ShardAllocationConfiguration(idx, allocationIds.size(), allocationIds));
-        }
-
-        return data;
     }
 
     /**
@@ -380,24 +348,6 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          */
         public boolean isIndexAndActive(String index) {
             return active && index.equals(this.index);
-        }
-    }
-
-    static final class ShardAllocationConfiguration {
-        final int index;
-        final int shardCount;
-        final List<String> allocationIds;
-
-        ShardAllocationConfiguration(int index, int shardCount, List<String> allocationIds) {
-            this.index = index;
-            this.shardCount = shardCount;
-            this.allocationIds = allocationIds;
-        }
-
-        public boolean shouldBeTriggered(String id) {
-            int hash = Murmur3HashFunction.hash(id);
-            int shardIndex = Math.floorMod(hash, shardCount);
-            return shardIndex == index;
         }
     }
 }

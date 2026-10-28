@@ -10,19 +10,20 @@
 package org.elasticsearch.common.util;
 
 import java.util.Arrays;
+import java.util.IllformedLocaleException;
 import java.util.Locale;
 import java.util.MissingResourceException;
 
 /**
- * Utilities for for dealing with {@link Locale} objects
+ * Utilities for dealing with {@link Locale} objects
  */
 public class LocaleUtils {
 
     /**
      * Parse the given locale as {@code language}, {@code language-country} or
      * {@code language-country-variant}.
-     * Either underscores or hyphens may be used as separators, but consistently, ie.
-     * you may not use an hyphen to separate the language from the country and an
+     * Either underscores or hyphens may be used as separators, but consistently, i.e.
+     * you may not use a hyphen to separate the language from the country and an
      * underscore to separate the country from the variant.
      * @throws IllegalArgumentException if there are too many parts in the locale string
      * @throws IllegalArgumentException if the language or country is not recognized
@@ -82,6 +83,22 @@ public class LocaleUtils {
                 throw new IllegalArgumentException(
                     "Locales can have at most 3 parts but got " + parts.length + ": " + Arrays.asList(parts)
                 );
+        }
+    }
+
+    /**
+     * Strictly parse the given string as a well-formed language tag (for example {@code en}, {@code en-US} or
+     * {@code zh-Hant-TW}), as defined by {@link Locale.Builder#setLanguageTag(String)}.
+     * <p>
+     * Unlike {@link #parse(String)}, this rejects underscore separators and does not silently degrade a malformed tag to
+     * {@link Locale#ROOT}. Prefer it for newly accepted, user-facing locale options so failures are reported up front.
+     * @throws IllegalArgumentException if the tag is not a well-formed language tag
+     */
+    public static Locale parseLanguageTag(String languageTag) {
+        try {
+            return new Locale.Builder().setLanguageTag(languageTag).build();
+        } catch (IllformedLocaleException e) {
+            throw new IllegalArgumentException("[" + languageTag + "] is not a valid language tag", e);
         }
     }
 }

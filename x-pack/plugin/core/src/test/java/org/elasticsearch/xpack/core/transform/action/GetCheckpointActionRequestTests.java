@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -47,8 +48,10 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
         QueryBuilder query = instance.getQuery();
         String cluster = instance.getCluster();
         TimeValue timeout = instance.getTimeout();
+        String projectRouting = instance.getProjectRouting();
+        boolean includeResolvedIndexExpressions = instance.includeResolvedIndexExpressions();
 
-        switch (between(0, 4)) {
+        switch (between(0, 6)) {
             case 0:
                 indices.add(randomAlphaOfLengthBetween(1, 20));
                 break;
@@ -70,11 +73,41 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             case 4:
                 timeout = timeout != null ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 300));
                 break;
+            case 5:
+                projectRouting = projectRouting != null ? null : randomAlphaOfLength(5);
+                break;
+            case 6:
+                includeResolvedIndexExpressions = includeResolvedIndexExpressions == false;
+                break;
             default:
                 throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(indices.toArray(new String[0]), indicesOptions, query, cluster, timeout);
+        return new Request(
+            indices.toArray(new String[0]),
+            indicesOptions,
+            query,
+            cluster,
+            timeout,
+            projectRouting,
+            includeResolvedIndexExpressions
+        );
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.supports(GetCheckpointAction.CPS_SUPPORT)) {
+            return instance;
+        }
+        return new Request(
+            instance.indices(),
+            instance.indicesOptions(),
+            instance.getQuery(),
+            instance.getCluster(),
+            instance.getTimeout(),
+            null,
+            false
+        );
     }
 
     public void testCreateTask() {
@@ -84,7 +117,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(null, null, null, null, null);
+        Request request = new Request(null, null, null, null, null, null, false);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
@@ -101,7 +134,9 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             ),
             randomBoolean() ? QueryBuilders.matchAllQuery() : null,
             randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null,
-            randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null
+            randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null,
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            randomBoolean()
         );
     }
 }

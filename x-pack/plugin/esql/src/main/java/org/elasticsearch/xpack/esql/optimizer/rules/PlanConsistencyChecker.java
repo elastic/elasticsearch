@@ -7,16 +7,23 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -46,18 +53,62 @@ public class PlanConsistencyChecker {
                 binaryExec.right().outputSet(),
                 failures
             );
+        } else if (p instanceof MergePlan || p instanceof MergeExec) {
+            checkMissingMerge(p, failures);
         } else {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        Set<String> outputAttributeNames = new HashSet<>();
-        Set<NameId> outputAttributeIds = new HashSet<>();
-        for (Attribute outputAttr : p.output()) {
+        List<Attribute> output = p.output();
+        var outputAttributeNames = Sets.<String>newHashSetWithExpectedSize(output.size());
+        var outputAttributeIds = Sets.<NameId>newHashSetWithExpectedSize(output.size());
+        for (Attribute outputAttr : output) {
             if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );
             }
+        }
+    }
+
+    private static void checkMissingMerge(QueryPlan<?> plan, Failures failures) {
+        for (QueryPlan<?> child : plan.children()) {
+            // TODO: this checks the set-semantics, but not the ordering
+            checkMissingMergeBranch(child, plan.outputSet(), failures);
+        }
+    }
+
+    private static void checkMissingMergeBranch(QueryPlan<?> plan, AttributeSet mergeOutputSet, Failures failures) {
+        Map<String, DataType> attributeTypes = mergeOutputSet.stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+        Set<Attribute> missing = new HashSet<>();
+
+        Set<String> commonAttrs = new HashSet<>();
+
+        // get the missing attributes from the sub plan
+        plan.output().forEach(attribute -> {
+            var attrType = attributeTypes.get(attribute.name());
+            if (attrType == null || (attrType != attribute.dataType() && attrType != DataType.UNSUPPORTED)) {
+                missing.add(attribute);
+            }
+            commonAttrs.add(attribute.name());
+        });
+
+        // get the missing attributes from the merge output
+        mergeOutputSet.forEach(attribute -> {
+            if (commonAttrs.contains(attribute.name()) == false) {
+                missing.add(attribute);
+            }
+        });
+
+        if (missing.isEmpty() == false) {
+            failures.add(
+                fail(
+                    plan,
+                    "Plan [{}] optimized incorrectly due to missing attributes in subplans: [{}]",
+                    plan.nodeString(),
+                    missing.toString()
+                )
+            );
         }
     }
 

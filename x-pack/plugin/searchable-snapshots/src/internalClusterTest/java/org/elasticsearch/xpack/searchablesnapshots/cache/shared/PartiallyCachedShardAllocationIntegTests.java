@@ -113,7 +113,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         final var explanation = getClusterAllocationExplanation(client(), req.mountedIndexName(), 0, true);
         for (NodeAllocationResult nodeDecision : explanation.getShardAllocationDecision().getAllocateDecision().getNodeDecisions()) {
             assertTrue(
-                nodeDecision.getNode() + " vs " + Strings.toString(explanation),
+                nodeDecision.getNode() + " vs " + Strings.toTruncatedString(explanation),
                 nodeDecision.getCanAllocateDecision()
                     .getDecisions()
                     .stream()
@@ -239,10 +239,13 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertBusy(() -> {
             try {
                 final var explanation = getClusterAllocationExplanation(client(), req.mountedIndexName(), 0, true);
-                assertTrue(Strings.toString(explanation), explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken());
+                assertTrue(
+                    Strings.toTruncatedString(explanation),
+                    explanation.getShardAllocationDecision().getAllocateDecision().isDecisionTaken()
+                );
 
                 assertThat(
-                    Strings.toString(explanation),
+                    Strings.toTruncatedString(explanation),
                     explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
@@ -259,7 +262,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         assertFalse(responseFuture.isDone());
         final var explanation = getClusterAllocationExplanation(client(), req.mountedIndexName(), 0, true);
         assertThat(
-            Strings.toString(explanation),
+            Strings.toTruncatedString(explanation),
             explanation.getShardAllocationDecision().getAllocateDecision().getAllocationStatus(),
             equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
         );

@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,10 +46,12 @@ public class UnusedStatsRemover implements MlDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(UnusedStatsRemover.class);
 
     private final OriginSettingClient client;
+    private final ClusterService clusterService;
     private final TaskId parentTaskId;
 
-    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId) {
+    public UnusedStatsRemover(OriginSettingClient client, ClusterService clusterService, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
@@ -102,13 +107,29 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern()).setIndicesOptions(
+        var writableIndices = WritableIndexExpander.getInstance().getWritableIndices(MlStatsIndex.indexPattern());
+
+        RoutingTable routingTable = clusterService.state().routingTable(client.projectResolver().getProjectId());
+
+        // Newly created indices appear in the cluster state before their shards can serve searches, thereby failing the whole query.
+        var indicesToQuery = writableIndices.stream().filter(index -> {
+            IndexRoutingTable indexRoutingTable = routingTable.index(index);
+            return indexRoutingTable != null && indexRoutingTable.readyForSearch();
+        }).toList();
+
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for unused stats documents");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setIndicesOptions(
             IndicesOptions.lenientExpandOpen()
         ).setAbortOnVersionConflict(false).setRequestsPerSecond(requestsPerSec).setTimeout(DEFAULT_MAX_DURATION).setQuery(dbq);
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+            if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused stats documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())
@@ -124,4 +145,5 @@ public class UnusedStatsRemover implements MlDataRemover {
             listener.onFailure(e);
         }));
     }
+
 }

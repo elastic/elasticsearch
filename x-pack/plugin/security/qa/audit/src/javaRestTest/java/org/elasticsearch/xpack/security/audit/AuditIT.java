@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.security.audit;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
@@ -16,20 +19,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -37,16 +45,26 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class AuditIT extends ESRestTestCase {
 
     private static final String API_USER = "api_user";
+    private static final String SECONDARY_USER = "secondary_user";
+    private static final String SECONDARY_PASSWORD = "secondary-password";
     private static final DateTimeFormatter TSTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss,SSSZ");
+
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+
+    /** Loopback, admitted by the allowlist below: a permitted endpoint that routes nowhere. */
+    private static final String FIXTURE_ENDPOINT = "https://127.0.0.1:9000";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -54,11 +72,20 @@ public class AuditIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
         .setting("xpack.security.audit.logfile.events.emit_request_body", "true")
+        .setting("esql.federation.enabled", "true")
+        // Endpoints are confined to AWS hosts, so permit loopback the way the esql suites do.
+        .setting("esql.external.allowed_endpoint_hosts", "127.0.0.1:*,[::1]:*,localhost:*")
+        // _test REST handler is FeatureFlag-gated (snapshot-on, release-off); AuditIT covers credential masking on it.
+        .feature(FeatureFlag.ESQL_DATA_SOURCE_TEST_CONNECTION)
+        .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "audit-it-encryption-password")
+        .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .user("admin_user", "admin-password")
         .user(API_USER, "api-password", "superuser", false)
+        .user(SECONDARY_USER, SECONDARY_PASSWORD, "superuser", false)
         .build();
 
     @Override
@@ -103,15 +130,753 @@ public class AuditIT extends ESRestTestCase {
         });
     }
 
-    private void executeAndVerifyAudit(Request request, AuditLevel eventType, CheckedConsumer<Map<String, Object>, Exception> assertions)
-        throws Exception {
-        Instant start = Instant.now();
+    public void testFilteringOfDataSourceCredentials() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        request.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
+        );
+        var start = Instant.now();
+        executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"type\""));
+            assertThat(body, not(containsString(accessKey)));
+            assertThat(body, not(containsString(secretKey)));
+            assertThat(toJson(event), not(containsString(accessKey)));
+            assertThat(toJson(event), not(containsString(secretKey)));
+        });
+        assertPutDatasource(
+            dataSourceName,
+            Map.of(
+                "name",
+                dataSourceName,
+                "settings.secret_key",
+                "::es_redacted::",
+                "settings.access_key",
+                "::es_redacted::",
+                "type",
+                "s3",
+                "settings.endpoint",
+                FIXTURE_ENDPOINT
+            ),
+            start
+        );
+    }
+
+    public void testPutDatasetAuditsSecurityConfigChange() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String parentAccessKey = randomAlphaOfLength(20);
+        final String parentSecretKey = randomAlphaOfLength(40);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity(
+            Strings.format(
+                """
+                    {"type":"s3","settings":{"access_key":"%s","secret_key":"%s","endpoint":"%s"}}""",
+                parentAccessKey,
+                parentSecretKey,
+                FIXTURE_ENDPOINT
+            )
+        );
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        var request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.setJsonEntity(Strings.format("""
+            {
+              "data_source": "%s",
+              "resource": "s3://example-bucket/cloudtrail/*.parquet",
+              "settings": {
+                "region": "us-east-1"
+              }
+            }""", dataSourceName));
+        var start = Instant.now();
+        final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"data_source\""));
+            var requestId = (String) event.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME);
+
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                var events = findEvents(
+                    Streams.readAllLines(auditLog),
+                    AuditLevel.ACCESS_GRANTED,
+                    e -> EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME))
+                        && e.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME).equals(requestId)
+                );
+                assertThat(events, hasSize(1));
+                assertThat(events.get(0), hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            }
+        });
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertPutDataset(
+            datasetName,
+            Map.of(
+                "name",
+                datasetName,
+                "resource",
+                "s3://example-bucket/cloudtrail/*.parquet",
+                "data_source",
+                dataSourceName,
+                "settings.region",
+                "us-east-1"
+            ),
+            start
+        );
+
+        var deleteStart = Instant.now();
+        var deleteDatasetRequest = new Request("DELETE", "/_query/dataset/" + datasetName);
+        var deleteDatasetResponse = executeAndVerifyAudit(deleteDatasetRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {});
+        assertThat(deleteDatasetResponse.getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_dataset", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [delete_dataset] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(Map.of("names", List.of(datasetName))));
+            }
+        }, 5, TimeUnit.SECONDS);
+
+        var deleteDatasourceRequest = new Request("DELETE", "/_query/data_source/" + dataSourceName);
+        var deleteDatasourceResponse = executeAndVerifyAudit(deleteDatasourceRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {});
+        assertThat(deleteDatasourceResponse.getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "delete_data_source", deleteStart).stream()
+                    .filter(e -> e.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [delete_data_source] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(
+                    asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source")
+                );
+                assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Verifies that credentials in a {@code POST /_query/data_source/_test} body are masked in the audit log.
+     * The handler implements {@link org.elasticsearch.rest.RestRequestFilter} with the same secret-field mask
+     * as the PUT handler, so {@code access_key}, {@code secret_key}, etc. must not appear in the audit event
+     * even when {@code emit_request_body} is enabled. The probe itself will fail (no real S3 at the endpoint),
+     * but the audit event fires at authentication time and is written regardless of the probe outcome.
+     */
+    public void testFilteringOfTestConnectionCredentials() throws Exception {
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("POST", "/_query/data_source/_test");
+        request.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\"http://localhost:12345\"}}"
+        );
+        request.addParameter("ignore", "400,500");
+        executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"type\""));
+            assertThat(body, not(containsString(accessKey)));
+            assertThat(body, not(containsString(secretKey)));
+            assertThat(toJson(event), not(containsString(accessKey)));
+            assertThat(toJson(event), not(containsString(secretKey)));
+        });
+    }
+
+    /**
+     * Verifies that a data source PUT via the {@code source} query parameter is rejected with HTTP 400.
+     * Using {@code contentParser()} instead of {@code contentOrSourceParamParser()} in the REST handler
+     * prevents successful registration from a query string, which is the primary goal: credentials in
+     * the query string would otherwise be stored in cluster state and appear in query logs.
+     * <p>
+     * Note: the {@code url.query} field of an {@code authentication_failed} audit event is still written
+     * before the handler runs (SecurityRestFilter writes auth events before dispatching), so the query
+     * string is audited regardless of whether the handler accepts the request. This test only asserts
+     * that no successful registration occurs.
+     */
+    public void testDataSourceDefinitionInQueryStringRejected() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String accessKey = randomAlphaOfLength(20);
+        final String secretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        request.addParameter(
+            "source",
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + accessKey
+                + "\",\"secret_key\":\""
+                + secretKey
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
+        );
+        request.addParameter("source_content_type", "application/json");
+        request.addParameter("ignore", "400");
+        final Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+    }
+
+    /**
+     * Verifies that a dataset PUT via the {@code source} query parameter is rejected with HTTP 400.
+     * Same residual as {@link #testDataSourceDefinitionInQueryStringRejected}: {@code url.query} may still
+     * appear on authentication audit events because they fire before the handler runs; this test only
+     * asserts that no successful registration occurs.
+     */
+    public void testDatasetDefinitionInQueryStringRejected() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("{\"type\":\"s3\",\"settings\":{\"auth\":\"anonymous\",\"endpoint\":\"" + FIXTURE_ENDPOINT + "\"}}");
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.addParameter(
+            "source",
+            "{\"data_source\":\"" + dataSourceName + "\",\"resource\":\"s3://example-bucket/cloudtrail/*.parquet\"}"
+        );
+        request.addParameter("source_content_type", "application/json");
+        request.addParameter("ignore", "400");
+        final Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+
+        final Request getDataset = new Request("GET", "/_query/dataset/" + datasetName);
+        getDataset.addParameter("ignore", "404");
+        final Response getResponse = client().performRequest(getDataset);
+        assertThat(getResponse.getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    /**
+     * Verifies that a data-source secret setting name under {@code settings} is stripped from the audited
+     * dataset PUT body. Registration fails validation because the setting shadows a parent secret; the
+     * audit event still fires at authentication time.
+     */
+    public void testFilteringOfDatasetSettingsSecrets() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String parentAccessKey = randomAlphaOfLength(20);
+        final String parentSecretKey = randomAlphaOfLength(40);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity(
+            "{\"type\":\"s3\",\"settings\":{\"access_key\":\""
+                + parentAccessKey
+                + "\",\"secret_key\":\""
+                + parentSecretKey
+                + "\",\"endpoint\":\""
+                + FIXTURE_ENDPOINT
+                + "\"}}"
+        );
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String shadowedSecretKey = randomAlphaOfLength(40);
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.setJsonEntity(
+            "{\"data_source\":\""
+                + dataSourceName
+                + "\",\"resource\":\"s3://example-bucket/cloudtrail/*.parquet\","
+                + "\"settings\":{\"secret_key\":\""
+                + shadowedSecretKey
+                + "\"}}"
+        );
+        request.addParameter("ignore", "400");
+        var start = Instant.now();
+        final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"data_source\""));
+            assertThat(body, not(containsString(shadowedSecretKey)));
+            assertThat(toJson(event), not(containsString(shadowedSecretKey)));
+        });
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        assertPutDataset(
+            datasetName,
+            Map.of(
+                "name",
+                datasetName,
+                "resource",
+                "s3://example-bucket/cloudtrail/*.parquet",
+                "data_source",
+                dataSourceName,
+                "settings.secret_key",
+                "::es_redacted::"
+            ),
+            start
+        );
+    }
+
+    /**
+     * Verifies that secret parts of an {@code https} dataset {@code resource} (pre-signed URL signature)
+     * are redacted in the audited body while host, path, and {@code data_source} remain. Registration is
+     * refused (an {@code s3} data source does not accept {@code https} resources); the audit event still
+     * fires at authentication time.
+     */
+    public void testFilteringOfDatasetResourceSignature() throws Exception {
+        final String dataSourceName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final String datasetName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT) + randomIntBetween(100, 999);
+        final Request putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("{\"type\":\"s3\",\"settings\":{\"auth\":\"anonymous\",\"endpoint\":\"" + FIXTURE_ENDPOINT + "\"}}");
+        assertThat(client().performRequest(putDataSource).getStatusLine().getStatusCode(), equalTo(200));
+
+        final String signature = randomAlphaOfLength(40);
+        final String hostAndPath = "example-bucket.s3.amazonaws.com/data/sales.csv";
+        final Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        request.setJsonEntity(
+            "{\"data_source\":\"" + dataSourceName + "\",\"resource\":\"https://" + hostAndPath + "?X-Amz-Signature=" + signature + "\"}"
+        );
+        request.addParameter("ignore", "400");
+        var start = Instant.now();
+        final Response response = executeAndVerifyAudit(request, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+            assertThat(body, containsString("\"data_source\":\"" + dataSourceName + "\""));
+            assertThat(body, containsString("\"resource\""));
+            assertThat(body, containsString(hostAndPath));
+            assertThat(body, not(containsString(signature)));
+            assertThat(toJson(event), not(containsString(signature)));
+        });
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        assertPutDataset(
+            datasetName,
+            Map.of("name", datasetName, "resource", "https://" + hostAndPath, "data_source", dataSourceName),
+            start
+        );
+    }
+
+    public void testDatasetPutWithoutDatasourceReadEmitsAccessDenied() throws Exception {
+        var dataSourceName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        var datasetName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        var roleName = "dataset_admin_" + randomAlphaOfLength(4);
+        var username = "user_" + randomAlphaOfLength(10);
+
+        var putDataSource = new Request("PUT", "/_query/data_source/" + dataSourceName);
+        putDataSource.setJsonEntity("""
+            {
+              "type": "s3",
+              "settings": { "auth": "anonymous" }
+            }""");
+        assertOK(client().performRequest(putDataSource));
+
+        var putRole = new Request("PUT", "/_security/role/" + roleName);
+        putRole.setJsonEntity(Strings.format("""
+            {
+              "indices": [ { "names": ["%s"], "privileges": ["manage_dataset"] } ]
+            }""", datasetName));
+        assertOK(client().performRequest(putRole));
+
+        var putUser = new Request("PUT", "/_security/user/" + username);
+        putUser.setJsonEntity(Strings.format("""
+            { "password": "password", "roles": ["%s"] }""", roleName));
+        assertOK(client().performRequest(putUser));
+
+        var putDataset = new Request("PUT", "/_query/dataset/" + datasetName);
+        putDataset.setJsonEntity(Strings.format("""
+            { "data_source": "%s", "resource": "s3://example-bucket/cloudtrail/*.parquet" }""", dataSourceName));
+        putDataset.addParameter("ignore", "403");
+        putDataset.setOptions(
+            putDataset.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(username, new SecureString("password".toCharArray())))
+        );
+
+        var start = Instant.now();
+        var response = executeRequest(putDataset);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+        var error = asMap(responseAsMap(response).get("error"));
+        var reason = (String) error.get("reason");
+        assertThat(reason, containsString(EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME));
+
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findEvents(lines, AuditLevel.ACCESS_DENIED, e -> {
+                    if (username.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    var tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                    if (tstamp.isBefore(start)) {
+                        return false;
+                    }
+                    return EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(e.get(LoggingAuditTrail.ACTION_FIELD_NAME));
+                });
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "transport"));
+                assertThat(event, hasEntry(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, "rest"));
+                assertThat(event, hasEntry(LoggingAuditTrail.DATA_SOURCES_FIELD_NAME, List.of(dataSourceName)));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testAuditAuthenticationSuccessForStreamingRequest() throws Exception {
+        final Request request = new Request("POST", "/testindex/_bulk");
+        final String content = """
+            {"index":{}}
+            {}
+            """;
+        request.setEntity(new StringEntity(content, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        executeAndVerifyAudit(
+            request,
+            AuditLevel.AUTHENTICATION_SUCCESS,
+            event -> assertThat(
+                event,
+                allOf(
+                    hasEntry(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, "REALM"),
+                    hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, content)
+                )
+            )
+        );
+    }
+
+    public void testAuditSecondaryAuthenticationSuccess() throws Exception {
+        final Request request = new Request("POST", "/testindex/_bulk");
+        final String body = "{\"index\":{}}\n{}\n";
+        request.setEntity(new StringEntity(body, ContentType.create("application/x-ndjson", StandardCharsets.UTF_8)));
+        final String opaqueId = withSecondaryAuth(request, SECONDARY_PASSWORD);
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+            assertThat(primary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, body));
+            assertThat(secondary, hasEntry(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, body));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testAuditSecondaryAuthenticationFailure() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        final String opaqueId = withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "401");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            final Map<String, Object> primary = findRestEvent(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start);
+            final Map<String, Object> secondary = findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertCorrelated(primary, secondary, opaqueId);
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * The failure is audited, but must not turn the routing error into an authentication error.
+     */
+    public void testAuditSecondaryAuthenticationFailureWithoutHandler() throws Exception {
+        final Request request = new Request("DELETE", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.addParameter("ignore", "405");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(405));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_SUCCESS, API_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    public void testNoSecondaryAuthenticationWhenPrimaryAuthenticationFails() throws Exception {
+        final Request request = new Request("GET", "/_security/_authenticate");
+        withSecondaryAuth(request, "wrong-" + SECONDARY_PASSWORD);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(API_USER, new SecureString("wrong-password".toCharArray())))
+        );
+        request.addParameter("ignore", "401");
+        final Instant start = auditTimestampNow();
+        assertThat(executeRequest(request).getStatusLine().getStatusCode(), equalTo(401));
+
+        assertBusy(() -> {
+            findRestEvent(AuditLevel.AUTHENTICATION_FAILED, API_USER, request, start);
+            assertThat(findRestEvents(AuditLevel.AUTHENTICATION_FAILED, SECONDARY_USER, request, start), hasSize(0));
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private static String withSecondaryAuth(Request request, String secondaryPassword) {
+        final String opaqueId = randomAlphaOfLength(12);
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    basicAuthHeaderValue(SECONDARY_USER, new SecureString(secondaryPassword.toCharArray()))
+                )
+                .addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId)
+        );
+        return opaqueId;
+    }
+
+    /**
+     * Primary and secondary authentication have their own request ids, the opaque id links them.
+     */
+    private static void assertCorrelated(Map<String, Object> primary, Map<String, Object> secondary, String opaqueId) {
+        assertThat(primary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(secondary, hasEntry(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId));
+        assertThat(
+            secondary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME),
+            allOf(notNullValue(), not(equalTo(primary.get(LoggingAuditTrail.REQUEST_ID_FIELD_NAME))))
+        );
+    }
+
+    private Map<String, Object> findRestEvent(AuditLevel level, String principal, Request request, Instant start) throws IOException {
+        final List<Map<String, Object>> events = findRestEvents(level, principal, request, start);
+        assertThat("[" + level + "] events for [" + principal + "]", events, hasSize(1));
+        return events.get(0);
+    }
+
+    private List<Map<String, Object>> findRestEvents(AuditLevel level, String principal, Request request, Instant start)
+        throws IOException {
+        try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+            return findEvents(Streams.readAllLines(auditLog), level, e -> {
+                if (principal.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false
+                    || request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false
+                    || request.getMethod().equals(e.get(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME)) == false) {
+                    return false;
+                }
+                Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+                return tstamp.isBefore(start) == false;
+            });
+        }
+    }
+
+    public void testFilteringOfCloneApiKeyRequestBody() throws Exception {
+        final Request createRequest = new Request("POST", "/_security/api_key");
+        createRequest.setJsonEntity("{\"name\":\"source-key\"}");
+        final Response createResponse = client().performRequest(createRequest);
+        final Map<String, Object> createResponseMap = responseAsMap(createResponse);
+        final String encodedCredential = (String) createResponseMap.get("encoded");
+        assertThat(encodedCredential, notNullValue());
+
+        final Request cloneRequest = new Request("POST", "/_security/api_key/clone");
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject().field("api_key", encodedCredential).field("name", "cloned-key").endObject();
+            cloneRequest.setJsonEntity(Strings.toString(builder));
+        }
+        executeAndVerifyAudit(cloneRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+            String body = asInstanceOf(String.class, event.get("request.body"));
+            assertThat(body, equalTo("{\"name\":\"cloned-key\"}"));
+            final String eventJson = toJson(event);
+            assertThat(eventJson, not(containsString(encodedCredential)));
+        });
+    }
+
+    public void testFilteringOfUserManagedServiceAccountTokenRequestBody() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        client().performRequest(putAccountRequest);
+        try {
+            final Request createTokenRequest = new Request(
+                "POST",
+                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/exchange-token"
+            );
+            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
+            final String serviceAccountToken = (String) token.get("value");
+            assertThat(serviceAccountToken, notNullValue());
+
+            final Request exchangeRequest = new Request("POST", "/_security/oauth2/token");
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject()
+                    .field("grant_type", "_user_managed_service_account")
+                    .field("service_account_token", serviceAccountToken)
+                    .endObject();
+                exchangeRequest.setJsonEntity(Strings.toString(builder));
+            }
+            executeAndVerifyAudit(exchangeRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+                String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+                assertThat(body, equalTo("{\"grant_type\":\"_user_managed_service_account\"}"));
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
+            });
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("force", "true");
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
+    }
+
+    /**
+     * A grant API key request that carries a user-managed service account token produces two audit events. The REST
+     * event logs the request body, from which the token must have been removed, and the security config change event
+     * records that a token was presented without ever including its value.
+     */
+    public void testAuditGrantApiKeyWithUserManagedServiceAccountToken() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request putAccountRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putAccountRequest.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        client().performRequest(putAccountRequest);
+        try {
+            final Request createTokenRequest = new Request(
+                "POST",
+                "/_security/service/" + namespace + "/" + serviceName + "/credential/token/grant-token"
+            );
+            final Map<String, Object> token = asMap(responseAsMap(client().performRequest(createTokenRequest)).get("token"));
+            final String serviceAccountToken = (String) token.get("value");
+            assertThat(serviceAccountToken, notNullValue());
+
+            final String apiKeyName = "granted-" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+            final Request grantRequest = new Request("POST", "/_security/api_key/grant");
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject()
+                    .field("grant_type", "_user_managed_service_account")
+                    .field("service_account_token", serviceAccountToken)
+                    .startObject("api_key")
+                    .field("name", apiKeyName)
+                    .endObject()
+                    .endObject();
+                grantRequest.setJsonEntity(Strings.toString(builder));
+            }
+
+            final Instant start = auditTimestampNow();
+            executeAndVerifyAudit(grantRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {
+                final String body = asInstanceOf(String.class, event.get(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME));
+                assertThat(
+                    XContentHelper.convertToMap(XContentType.JSON.xContent(), body, false),
+                    equalTo(Map.of("grant_type", "_user_managed_service_account", "api_key", Map.of("name", apiKeyName)))
+                );
+                assertThat(toJson(event), not(containsString(serviceAccountToken)));
+            });
+
+            // The same request is also recorded as a security config change. Other tests create API keys too, so the
+            // event is picked out by the key's unique name rather than by time alone.
+            assertBusy(() -> {
+                try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                    final List<String> lines = Streams.readAllLines(auditLog);
+                    final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "create_apikey", start).stream()
+                        .filter(
+                            e -> apiKeyName.equals(
+                                asMap(asMap(e.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("apikey")).get("name")
+                            )
+                        )
+                        .toList();
+                    if (events.isEmpty()) {
+                        fail("Could not find a [create_apikey] security_config_change event for [" + apiKeyName + "]");
+                    }
+                    assertThat(events, hasSize(1));
+                    final Map<String, Object> event = events.get(0);
+                    final Map<String, Object> grant = asMap(asMap(event.get(LoggingAuditTrail.CREATE_CONFIG_FIELD_NAME)).get("grant"));
+                    assertThat(grant, hasEntry("type", "_user_managed_service_account"));
+                    assertThat(grant, hasEntry("has_service_account_token", true));
+                    assertThat(grant, not(hasKey("has_access_token")));
+                    assertThat(grant, not(hasKey("user")));
+                    assertThat(grant, not(hasKey("run_as")));
+                    assertThat(toJson(event), not(containsString(serviceAccountToken)));
+                }
+            }, 5, TimeUnit.SECONDS);
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("force", "true");
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
+    }
+
+    public void testAuditPutUserManagedServiceAccount() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final Request request = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        request.setJsonEntity("{\"roles\":[\"superuser\"],\"enabled\":true}");
+        try {
+            executeAndVerifySecurityConfigChange(request, "put_user_managed_service_account", event -> {
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change"));
+                assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+                assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+                Map<String, Object> putConfig = asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME));
+                Map<String, Object> account = asMap(putConfig.get("user_managed_service_account"));
+                assertThat(account, hasEntry("namespace", namespace));
+                assertThat(account, hasEntry("service", serviceName));
+                assertThat(account, hasEntry("enabled", true));
+                assertThat(account.get("roles"), equalTo(List.of("superuser")));
+            });
+        } finally {
+            final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+            deleteRequest.addParameter("ignore", "404");
+            client().performRequest(deleteRequest);
+        }
+    }
+
+    public void testAuditDeleteUserManagedServiceAccount() throws Exception {
+        final String namespace = "audit" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final String serviceName = "svc" + randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT);
+        final boolean force = randomBoolean();
+        final Request putRequest = new Request("PUT", "/_security/service/" + namespace + "/" + serviceName);
+        putRequest.setJsonEntity("{\"roles\":[\"superuser\"]}");
+        client().performRequest(putRequest);
+        final Request deleteRequest = new Request("DELETE", "/_security/service/" + namespace + "/" + serviceName);
+        deleteRequest.addParameter("force", Boolean.toString(force));
+        executeAndVerifySecurityConfigChange(deleteRequest, "delete_user_managed_service_account", event -> {
+            assertThat(event, hasEntry(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change"));
+            assertThat(event, hasKey(LoggingAuditTrail.REQUEST_ID_FIELD_NAME));
+            assertThat(event, hasKey(LoggingAuditTrail.NODE_ID_FIELD_NAME));
+            Map<String, Object> deleteConfig = asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME));
+            Map<String, Object> account = asMap(deleteConfig.get("user_managed_service_account"));
+            assertThat(account, hasEntry("namespace", namespace));
+            assertThat(account, hasEntry("service", serviceName));
+            assertThat(account, hasEntry("force", force));
+        });
+    }
+
+    private void executeAndVerifySecurityConfigChange(
+        Request request,
+        String eventAction,
+        CheckedConsumer<Map<String, Object>, Exception> assertions
+    ) throws Exception {
+        Instant start = auditTimestampNow();
         executeRequest(request);
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, eventAction, start);
+                if (events.isEmpty()) {
+                    fail("Could not find any [" + eventAction + "] security_config_change events in [" + String.join("\n", lines) + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                assertThat(event, hasEntry("type", "audit"));
+                assertThat(event, hasEntry(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, eventAction));
+                assertions.accept(event);
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private Response executeAndVerifyAudit(
+        Request request,
+        AuditLevel eventType,
+        CheckedConsumer<Map<String, Object>, Exception> assertions
+    ) throws Exception {
+        Instant start = auditTimestampNow();
+        Response response = executeRequest(request);
         assertBusy(() -> {
             try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
                 final List<String> lines = Streams.readAllLines(auditLog);
                 final List<Map<String, Object>> events = findEvents(lines, eventType, e -> {
                     if (API_USER.equals(e.get(LoggingAuditTrail.PRINCIPAL_FIELD_NAME)) == false) {
+                        return false;
+                    }
+                    // Match the request under test by path so a preceding setup call (same principal) that
+                    // flushes into this time window cannot make hasSize(1) fail spuriously.
+                    if (request.getEndpoint().equals(e.get(LoggingAuditTrail.URL_PATH_FIELD_NAME)) == false) {
                         return false;
                     }
                     Instant tstamp = ZonedDateTime.parse(String.valueOf(e.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
@@ -136,10 +901,46 @@ public class AuditIT extends ESRestTestCase {
 
             }
         }, 5, TimeUnit.SECONDS);
+        return response;
+    }
+
+    /**
+     * Audit timestamps have millisecond precision, so an event in the same millisecond would otherwise appear to precede the start.
+     */
+    private static Instant auditTimestampNow() {
+        return Instant.now().truncatedTo(ChronoUnit.MILLIS);
     }
 
     private static Response executeRequest(Request request) throws IOException {
         return client().performRequest(request);
+    }
+
+    private List<Map<String, Object>> findSecurityConfigChangeEvents(List<String> lines, String eventAction, Instant start) {
+        final List<Map<String, Object>> events = new ArrayList<>();
+        for (var line : lines) {
+            if (line.contains("security_config_change") == false) {
+                continue;
+            }
+            Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, true);
+            if (LoggingAuditTrail.SECURITY_CHANGE_ORIGIN_FIELD_VALUE.equals(event.get(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME)) == false) {
+                continue;
+            }
+            if (eventAction.equals(event.get(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME)) == false) {
+                continue;
+            }
+            Instant tstamp = ZonedDateTime.parse(String.valueOf(event.get(LoggingAuditTrail.TIMESTAMP)), TSTAMP_FORMATTER).toInstant();
+            if (tstamp.isBefore(start)) {
+                continue;
+            }
+            events.add(event);
+        }
+        return events;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> asMap(Object value) {
+        assertThat(value, notNullValue());
+        return (Map<String, Object>) value;
     }
 
     private List<Map<String, Object>> findEvents(List<String> lines, AuditLevel level, Predicate<Map<String, Object>> filter) {
@@ -162,4 +963,45 @@ public class AuditIT extends ESRestTestCase {
         return bytes.utf8ToString();
     }
 
+    private void assertPutDatasource(String dataSourceName, Map<String, String> details, Instant start) throws Exception {
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_data_source", start).stream()
+                    .filter(
+                        e -> dataSourceName.equals(
+                            asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source")).get("name")
+                        )
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_data_source] security_config_change event for [" + dataSourceName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("data_source"));
+                assertThat(dataSource, equalTo(details));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    private void assertPutDataset(String datasetName, Map<String, String> details, Instant start) throws Exception {
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<String> lines = Streams.readAllLines(auditLog);
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(lines, "put_dataset", start).stream()
+                    .filter(
+                        e -> datasetName.equals(asMap(asMap(e.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset")).get("name"))
+                    )
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [put_dataset] security_config_change event for [" + datasetName + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> event = events.get(0);
+                final Map<String, Object> dataSource = asMap(asMap(event.get(LoggingAuditTrail.PUT_CONFIG_FIELD_NAME)).get("dataset"));
+                assertThat(dataSource, equalTo(details));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
 }

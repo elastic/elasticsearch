@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.mockito.Mockito.spy;
 
 /**
  * A mock task manager that allows adding listeners for events
@@ -50,6 +51,13 @@ public class MockTaskManager extends TaskManager {
 
     public MockTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         super(settings, threadPool, taskHeaders, Tracer.NOOP);
+    }
+
+    public static TaskManager create(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+        var taskManager = MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)
+            ? new MockTaskManager(settings, threadPool, taskHeaders)
+            : new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
+        return MockTaskManager.SPY_TASK_MANAGER_SETTING.get(settings) ? spy(taskManager) : taskManager;
     }
 
     @Override

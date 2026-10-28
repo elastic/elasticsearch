@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+// This subproject verifies MDP continues to work with entitlements.
+
+restResources {
+  restApi {
+    include '_common', 'capabilities', 'index', 'indices', 'indices.create'
+  }
+}
+

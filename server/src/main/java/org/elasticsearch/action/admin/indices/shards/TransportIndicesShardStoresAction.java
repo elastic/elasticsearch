@@ -136,7 +136,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
         // for fetching shard stores info, that operates on a list of shards instead of a single shard
 
-        client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request, listener);
+        client.execute(TransportNodesListGatewayStartedShards.TYPE, request, listener);
     }
 
     private record ShardRequestContext(
@@ -238,7 +238,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             Iterator<ShardRequestContext> getShardRequestContexts() {
                 try (var shardListeners = new RefCountingListener(1, outerListener.acquire(ignored -> putResults()))) {
                     final var customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-                        metadata.index(indexRoutingTable.getIndex()).getSettings()
+                        metadata.indexMetadata(indexRoutingTable.getIndex()).getSettings()
                     );
                     final var shardRequestContexts = new ArrayList<ShardRequestContext>(indexRoutingTable.size());
                     for (int shardNum = 0; shardNum < indexRoutingTable.size(); shardNum++) {

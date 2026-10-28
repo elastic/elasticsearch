@@ -10,13 +10,17 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -25,14 +29,14 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLog mockLog;
 
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void captureMockLog() throws Exception {
         mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
-    public void tearDown() throws Exception {
+    @After
+    public void closeMockLog() throws Exception {
         mockLog.close();
-        super.tearDown();
     }
 
     @TestLogging(
@@ -96,12 +100,40 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 "close connection log",
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
-                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\].*"
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\]$"
             )
         );
 
         final String nodeName = internalCluster().startNode();
         internalCluster().stopNode(nodeName);
+
+        mockLog.assertAllExpectationsMatched();
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.transport.TcpTransport:DEBUG",
+        reason = "to ensure we log exception disconnect events on DEBUG level"
+    )
+    public void testExceptionalDisconnectLogging() throws Exception {
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
+                "exceptional close connection log",
+                TcpTransport.class.getCanonicalName(),
+                Level.DEBUG,
+                ".*closed transport connection \\[[1-9][0-9]*\\] to .* with age \\[[0-9]+ms\\], exception:.*"
+            ) {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getThrown() instanceof NodeDisconnectedException nodeDisconnectedException
+                        && nodeDisconnectedException.getMessage().contains("closed exceptionally: Netty4TcpChannel{")) {
+                        super.match(event);
+                    }
+                }
+            }
+        );
+
+        final String nodeName = internalCluster().startNode();
+        internalCluster().restartNode(nodeName);
 
         mockLog.assertAllExpectationsMatched();
     }

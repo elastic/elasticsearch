@@ -26,13 +26,14 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class IndexModeStatsActionType extends ActionType<IndexModeStatsActionType.StatsResponse> {
     public static final IndexModeStatsActionType TYPE = new IndexModeStatsActionType();
@@ -52,8 +53,11 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
     }
 
     public static final class StatsResponse extends BaseNodesResponse<NodeResponse> {
-        StatsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+        private final IndexMode[] availableModes;
+
+        StatsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures, IndexMode[] availableModes) {
             super(clusterName, nodes, failures);
+            this.availableModes = availableModes;
         }
 
         @Override
@@ -76,19 +80,22 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         public Map<IndexMode, IndexStats> stats() {
             final Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.values()) {
+            for (IndexMode mode : availableModes) {
                 stats.put(mode, new IndexStats());
             }
             for (NodeResponse node : getNodes()) {
                 for (Map.Entry<IndexMode, IndexStats> e : node.stats.entrySet()) {
-                    stats.get(e.getKey()).add(e.getValue());
+                    final IndexStats target = stats.get(e.getKey());
+                    if (target != null) {
+                        target.add(e.getValue());
+                    }
                 }
             }
             return stats;
         }
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends AbstractTransportRequest {
         NodeRequest() {
 
         }
@@ -114,7 +121,19 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(stats, (o, m) -> IndexMode.writeTo(m, o), (o, s) -> s.writeTo(o));
+            final var tv = out.getTransportVersion();
+            out.writeMap(
+                stats.entrySet()
+                    .stream()
+                    .filter(e -> e.getKey().supportsVersion(tv))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+                (o, m) -> IndexMode.writeTo(m, o),
+                (o, s) -> s.writeTo(o)
+            );
+        }
+
+        Map<IndexMode, IndexStats> stats() {
+            return stats;
         }
     }
 
@@ -141,7 +160,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected StatsResponse newResponse(StatsRequest request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
-            return new StatsResponse(ClusterName.DEFAULT, nodeResponses, failures);
+            return new StatsResponse(ClusterName.DEFAULT, nodeResponses, failures, IndexMode.availableModes());
         }
 
         @Override
@@ -156,7 +175,10 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-            return new NodeResponse(clusterService.localNode(), IndicesMetrics.getStatsWithoutCache(indicesService));
+            return new NodeResponse(
+                clusterService.localNode(),
+                IndicesMetrics.getStatsWithoutCache(indicesService, IndexMode.availableModes())
+            );
         }
     }
 }

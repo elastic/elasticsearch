@@ -97,7 +97,6 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
         }
 
         public Response(final StreamInput in) throws IOException {
-            super(in);
             this.autoscalingResources = new MlAutoscalingStats(in);
         }
 

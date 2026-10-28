@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "name": {
+          "type": "keyword"
+        }
+      }
+    },
+    "owner": {
+      "properties": {
+        "name": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:plugin:core')

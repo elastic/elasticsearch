@@ -15,7 +15,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +27,8 @@ import java.util.regex.Pattern;
  */
 final class JvmErgonomics {
 
+    static final double DIRECT_MEMORY_TO_HEAP_FACTOR = 0.5;
+
     private JvmErgonomics() {
         throw new AssertionError("No instances intended");
     }
@@ -35,16 +36,16 @@ final class JvmErgonomics {
     /**
      * Chooses additional JVM options for Elasticsearch.
      *
-     * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
+     * @param finalJvmOptions the final JVM options as determined by the JVM
+     * @param heapSize the effective max heap size in bytes
+     * @param nodeSettings the node settings
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions, Settings nodeSettings) throws InterruptedException, IOException {
+    static List<String> choose(final Map<String, JvmOption> finalJvmOptions, long heapSize, Settings nodeSettings) {
         final List<String> ergonomicChoices = new ArrayList<>();
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
-        final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = JvmOption.extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
-            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
+            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + (long) (DIRECT_MEMORY_TO_HEAP_FACTOR * heapSize));
         }
 
         final boolean tuneG1GCForSmallHeap = tuneG1GCForSmallHeap(heapSize);
@@ -56,7 +57,7 @@ final class JvmErgonomics {
             ergonomicChoices.add("-XX:G1HeapRegionSize=4m");
         }
         if (tuneG1GCInitiatingHeapOccupancyPercent) {
-            ergonomicChoices.add("-XX:InitiatingHeapOccupancyPercent=30");
+            ergonomicChoices.add("-XX:" + initiatingHeapOccupancyFlag(finalJvmOptions) + "=30");
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
@@ -98,7 +99,12 @@ final class JvmErgonomics {
     }
 
     static boolean tuneG1GCInitiatingHeapOccupancyPercent(final Map<String, JvmOption> finalJvmOptions) {
-        return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, "InitiatingHeapOccupancyPercent");
+        return usingG1GcWithoutCommandLineOriginOption(finalJvmOptions, initiatingHeapOccupancyFlag(finalJvmOptions));
+    }
+
+    // JDK 27 renamed InitiatingHeapOccupancyPercent to G1IHOP; the legacy alias no longer reports command-line origin
+    private static String initiatingHeapOccupancyFlag(final Map<String, JvmOption> finalJvmOptions) {
+        return finalJvmOptions.containsKey("G1IHOP") ? "G1IHOP" : "InitiatingHeapOccupancyPercent";
     }
 
     /**

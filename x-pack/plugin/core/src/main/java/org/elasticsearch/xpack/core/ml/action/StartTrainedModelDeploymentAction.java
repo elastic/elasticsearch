@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -17,6 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -27,7 +28,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
 import java.io.IOException;
@@ -154,6 +155,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
         private Priority priority = DEFAULT_PRIORITY;
 
+        private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Request.class);
+
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         }
@@ -169,31 +172,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             modelId = in.readString();
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                numberOfAllocations = in.readOptionalVInt();
-            } else {
-                numberOfAllocations = in.readVInt();
-            }
+            numberOfAllocations = in.readOptionalVInt();
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-            } else {
-                this.adaptiveAllocationsSettings = null;
-            }
+            this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.priority = in.readEnum(Priority.class);
+            this.deploymentId = in.readString();
+            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         }
 
         public final void setModelId(String modelId) {
@@ -297,25 +282,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeString(modelId);
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalVInt(numberOfAllocations);
-            } else {
-                out.writeVInt(numberOfAllocations);
-            }
+            out.writeOptionalVInt(numberOfAllocations);
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeOptionalWriteable(cacheSize);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-            }
+            out.writeOptionalWriteable(cacheSize);
+            out.writeEnum(priority);
+            out.writeString(deploymentId);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
 
         @Override
@@ -344,6 +317,26 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
+            // deployment_id is not exclusively user/REST-supplied: BaseElasticsearchInternalService builds this
+            // request internally using the inference endpoint's own id verbatim as deployment_id, and inference
+            // endpoint ids are not restricted to MlStrings.isValidId's lowercase-alphanumeric charset (e.g.
+            // "My-ELSER"). validate() runs on every client.execute call, not only REST requests, so enforcing the
+            // full isValidId charset here would break starting/re-deploying existing production inference
+            // endpoints. deployment_id only needs to be safe as a single filesystem path component - it shapes
+            // the isolated IPC directory path ($TMPDIR/ml-child-ipc/<deploymentId>/) when sandboxing is enabled.
+            // Values that fail MlStrings#isValidPathSafeId still start today; a deprecation warning is emitted
+            // (and usage telemetry is recorded on the master) so fleet impact can be measured before a future
+            // release rejects them. That predicate is a platform-independent superset of the node-local check
+            // applied as defense-in-depth where the path is actually constructed (NamedPipeHelper#validateChildId
+            // in the ml plugin) - see its javadoc for why the two are not byte-identical.
+            if (MlStrings.isValidPathSafeId(deploymentId) == false) {
+                String fieldName = Objects.equals(deploymentId, modelId) ? MODEL_ID.getPreferredName() : DEPLOYMENT_ID.getPreferredName();
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.API,
+                    "ml_path_unsafe_deployment_id/" + deploymentId,
+                    Messages.getMessage(Messages.INVALID_PATH_SAFE_ID, fieldName, deploymentId)
+                );
+            }
             if (waitForState.isAnyOf(VALID_WAIT_STATES) == false) {
                 validationException.addValidationError(
                     "invalid [wait_for] state ["
@@ -391,6 +384,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 }
                 if (threadsPerAllocation > 1) {
                     validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be 1 when [" + PRIORITY + "] is low");
+                }
+                if (adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                    && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                    validationException.addValidationError(
+                        "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                    );
                 }
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
@@ -445,16 +445,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static class TaskParams implements MlTaskParams, Writeable, ToXContentObject {
 
-        // TODO add support for other roles? If so, it may have to be an instance method...
-        // NOTE, whatever determines assignment should not be dynamically set on the node
-        // Otherwise assignment logic might fail
         public static boolean mayAssignToNode(@Nullable DiscoveryNode node) {
-            return node != null
-                && node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
-                && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
+            return node != null && node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
         }
-
-        public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;
 
         private static final ParseField MODEL_BYTES = new ParseField("model_bytes");
         public static final ParseField NUMBER_OF_ALLOCATIONS = new ParseField("number_of_allocations");
@@ -585,30 +578,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.threadsPerAllocation = in.readVInt();
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
-            } else {
-                this.cacheSize = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                this.priority = in.readEnum(Priority.class);
-            } else {
-                this.priority = Priority.NORMAL;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
-            }
+            this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.priority = in.readEnum(Priority.class);
+            this.deploymentId = in.readString();
 
-            if (in.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                // We store additional model usage per allocation in the task params.
-                this.perDeploymentMemoryBytes = in.readLong();
-                this.perAllocationMemoryBytes = in.readLong();
-            } else {
-                this.perDeploymentMemoryBytes = 0L;
-                this.perAllocationMemoryBytes = 0L;
-            }
+            // We store additional model usage per allocation in the task params.
+            this.perDeploymentMemoryBytes = in.readLong();
+            this.perAllocationMemoryBytes = in.readLong();
         }
 
         public String getModelId() {
@@ -646,10 +622,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             );
         }
 
-        public MlConfigVersion getMinimalSupportedVersion() {
-            return VERSION_INTRODUCED;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
@@ -657,19 +629,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-                out.writeOptionalWriteable(cacheSize);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
-                out.writeEnum(priority);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(deploymentId);
-            }
-            if (out.getTransportVersion().onOrAfter(TrainedModelConfig.VERSION_ALLOCATION_MEMORY_ADDED)) {
-                out.writeLong(perDeploymentMemoryBytes);
-                out.writeLong(perAllocationMemoryBytes);
-            }
+            out.writeOptionalWriteable(cacheSize);
+            out.writeEnum(priority);
+            out.writeString(deploymentId);
+            out.writeLong(perDeploymentMemoryBytes);
+            out.writeLong(perAllocationMemoryBytes);
         }
 
         @Override

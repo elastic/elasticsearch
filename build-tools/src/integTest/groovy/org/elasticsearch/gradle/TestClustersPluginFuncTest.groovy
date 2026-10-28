@@ -9,14 +9,16 @@
 
 package org.elasticsearch.gradle
 
+import spock.lang.IgnoreIf
+import spock.lang.TempDir
+import spock.lang.Unroll
+import spock.util.environment.RestoreSystemProperties
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
-import spock.lang.IgnoreIf
-import spock.lang.Unroll
 
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedClasspathMockedDistributionDownload
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedConfigMockedDistributionDownload
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
+import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.*
+import static org.elasticsearch.gradle.fixtures.JdkToolchainTestFixture.withMockedJdkDownload
 
 /**
  * We do not have coverage for the test cluster startup on windows yet.
@@ -25,9 +27,16 @@ import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.with
 @IgnoreIf({ os.isWindows() })
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
+    @TempDir
+    File gradleUserHome
+
+    @Override
+    protected File customGradleUserHome() {
+        return gradleUserHome
+    }
+
     def setup() {
-        // TestClusterPlugin with adding task listeners is not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("TestClustersPlugin with adding task listeners is not cc compatible")
         buildFile << """
             import org.elasticsearch.gradle.testclusters.TestClustersAware
             import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -88,6 +97,62 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertNoCustomDistro('myCluster')
     }
 
+    def "task succeeds and cluster stops via doLast when no leak is detected"() {
+        given:
+        // Guard against regressions in the new doLast stop-and-check path: the success
+        // case must stop the cluster without raising TestClustersException.
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.task(':myTask').outcome == org.gradle.testkit.runner.TaskOutcome.SUCCESS
+        assertEsOutputContains("myCluster", "Stopping node")
+        result.output.contains("Found resource leaks") == false
+    }
+
+    /**
+     * The test clusters hooks are applied per project. Every project registers the same task completion listener, which
+     * Gradle must turn into a single subscription. The listener only acts on failed tasks, so a failing task is needed to
+     * check that its cluster is stopped exactly once, while a successful task in another project is unaffected.
+     */
+    def "failure cleanup stops the cluster of a failed task once when several projects use test clusters"() {
+        given:
+        subProject(':alpha') << clusterAwareSubProject(false)
+        subProject(':beta') << clusterAwareSubProject(true)
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner(':alpha:myTask', ':beta:myTask', '--continue', '-i')) {
+            buildAndFail()
+        }
+
+        then:
+        result.task(':alpha:myTask').outcome == org.gradle.testkit.runner.TaskOutcome.SUCCESS
+        result.task(':beta:myTask').outcome == org.gradle.testkit.runner.TaskOutcome.FAILED
+        result.output.contains('Simulated failure in :beta:myTask')
+
+        // the successful task stops its cluster through the doLast action, not through the failure cleanup
+        countEsOutput('alpha', 'myCluster', 'Stopping node') == 1
+        countOccurrences(result.output, 'Stopping `node{:alpha:myCluster-0}', 'tailLogs: true') == 0
+
+        // the failed task's cluster is stopped by the task completion listener, exactly once
+        countEsOutput('beta', 'myCluster', 'Stopping node') == 1
+        countOccurrences(result.output, 'Stopping `node{:beta:myCluster-0}', 'tailLogs: true') == 1
+    }
+
     @Unroll
     def "test cluster #inputProperty change is detected"() {
         given:
@@ -108,8 +173,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         def runningClosure = { GradleRunner r -> r.build() }
         withMockedDistributionDownload(runner, runningClosure)
         def result = inputProperty == "distributionClasspath" ?
-                withChangedClasspathMockedDistributionDownload(runner, runningClosure) :
-                withChangedConfigMockedDistributionDownload(runner, runningClosure)
+            withChangedClasspathMockedDistributionDownload(runner, runningClosure) :
+            withChangedConfigMockedDistributionDownload(runner, runningClosure)
 
         then:
         result.output.contains("Task ':myTask' is not up-to-date because:\n  Input property 'clusters.myCluster\$0.nodes.\$0.$inputProperty'")
@@ -166,18 +231,24 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.output.contains("Task ':myTask' is not up-to-date because:\n" +
-                "  Input property 'clusters.myCluster\$0.$propertyName'")
+        result.output.contains(
+            "Task ':myTask' is not up-to-date because:\n" +
+                "  Input property 'clusters.myCluster\$0.$propertyName'"
+        )
         result.output.contains("elasticsearch-keystore script executed!")
         assertEsOutputContains("myCluster", "Starting Elasticsearch process")
         assertEsOutputContains("myCluster", "Stopping node")
 
         where:
         pluginType | propertyName         | fileChange
-        'module'   | "installedFiles"     | { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
-        'plugin'   | "installedFiles"     | { def testClazz -> testClazz.file("test-plugin/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
-        'module'   | "installedClasspath" | { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
-        'plugin'   | "installedClasspath" | { def testClazz -> testClazz.file("test-plugin/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        'module'   | "installedFiles"     |
+            { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'plugin'   | "installedFiles"     |
+            { def testClazz -> testClazz.file("test-plugin/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'module'   | "installedClasspath" |
+            { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        'plugin'   | "installedClasspath" |
+            { def testClazz -> testClazz.file("test-plugin/src/main/java/SomeClass.java") << "class SomeClass {}" }
     }
 
     def "can declare test cluster in lazy evaluated task configuration block"() {
@@ -232,10 +303,110 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertCustomDistro('myCluster')
     }
 
+    @RestoreSystemProperties
+    def "override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+                version = '8.10.4'
+              }
+            }
+
+            // Force linux platform to trigger jdk override
+            elasticsearch_distributions.forEach { d ->
+                d.platform = org.elasticsearch.gradle.ElasticsearchDistribution.Platform.LINUX
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+        when:
+        def runner = gradleRunner(
+            "myTask",
+            '-Dos.name=Linux',
+            '-Dos.version=6.14.0-1015-gcp',
+            '-i',
+            '-Dorg.gradle.java.installations.auto-detect=false'
+        )
+
+        def result = withMockedJdkDownload(runner, { GradleRunner r ->
+            withMockedDistributionDownload(
+                "8.10.4",
+                ElasticsearchDistribution.Platform.LINUX,
+                r,
+                { it.build() }
+            )
+        }, 17, "eclipse_adoptium")
+
+        then:
+        def output = result.output
+        assert output.contains("Running")
+        assert output.lines().anyMatch { line ->
+            line.contains("ES_JAVA_HOME=") && line.contains("eclipse_adoptium-17")
+        }
+    }
+
     boolean assertEsOutputContains(String testCluster, String expectedOutput) {
-        assert new File(testProjectDir.root,
-                "build/testclusters/${testCluster}-0/logs/es.out").text.contains(expectedOutput)
+        assert new File(
+            testProjectDir.root,
+            "build/testclusters/${testCluster}-0/logs/es.out"
+        ).text.contains(expectedOutput)
         true
+    }
+
+    private static String clusterAwareSubProject(boolean failing) {
+        return """
+            import org.elasticsearch.gradle.testclusters.TestClustersAware
+            import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+
+            plugins {
+                id 'elasticsearch.testclusters'
+            }
+
+            abstract class SubProjectClusterAwareTask extends DefaultTask implements TestClustersAware {
+                private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+
+                @Override
+                @Nested
+                public Collection<ElasticsearchCluster> getClusters() {
+                    return clusters;
+                }
+
+                @Input
+                abstract Property<Boolean> getFailing()
+
+                @TaskAction void doSomething() {
+                    if (failing.get()) {
+                        throw new GradleException("Simulated failure in " + path)
+                    }
+                    println "\${path} executed"
+                }
+            }
+
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SubProjectClusterAwareTask) {
+                failing = ${failing}
+                outputs.upToDateWhen { false }
+                useCluster testClusters.myCluster
+            }
+        """
+    }
+
+    int countEsOutput(String projectDir, String testCluster, String expectedOutput) {
+        def esOut = new File(testProjectDir.root, "${projectDir}/build/testclusters/${testCluster}-0/logs/es.out")
+        return esOut.readLines().count { it.contains(expectedOutput) }
+    }
+
+    private static int countOccurrences(String output, String... fragments) {
+        return output.readLines().count { line -> fragments.every { line.contains(it) } }
     }
 
     boolean assertCustomDistro(String clusterName) {

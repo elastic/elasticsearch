@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -69,6 +69,44 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(indexService, closedIndexService);
         assertNull(closedIndexService.getNodeMappingStats());
+    }
+
+    public void testCannotCreateSearchExecutionContextWithoutSearchInfrastructure() throws Exception {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        ensureGreen("test");
+
+        final Index index = indexService.index();
+        assertAcked(indicesAdmin().prepareClose(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNull(closedIndexService.mapperService());
+        assertNull(closedIndexService.cache());
+
+        final IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> closedIndexService.newSearchExecutionContext(
+                0,
+                0,
+                null,
+                System::currentTimeMillis,
+                null,
+                Collections.emptyMap(),
+                null,
+                null
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "cannot create a search execution context for index "
+                    + index
+                    + ": this IndexService was created for a closed index and therefore has no mapper service or caches "
+                    + "(current index state [CLOSE])"
+            )
+        );
     }
 
     public void testBaseAsyncTask() throws Exception {
@@ -289,7 +327,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(1, search.totalHits.value());
             }
         });
@@ -303,7 +341,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(2, search.totalHits.value());
             }
         });
@@ -311,7 +349,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, 10);
                 assertEquals(3, search.totalHits.value());
             }
         });
@@ -450,14 +488,19 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index("test");
         assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
 
         indicesAdmin().prepareClose("test").get();
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))
             .get();
-        indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
     }
 

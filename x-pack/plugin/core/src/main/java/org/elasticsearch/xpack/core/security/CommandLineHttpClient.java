@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
@@ -22,10 +22,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,9 +37,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -53,6 +52,7 @@ import java.util.Objects;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -135,7 +135,7 @@ public class CommandLineHttpClient {
         return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
     }
 
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    @SuppressForbidden(reason = "connect() and getInputStream() on URLConnection are needed for command-line HTTP client")
     private HttpResponse execute(
         String method,
         URL url,
@@ -148,22 +148,18 @@ public class CommandLineHttpClient {
         if ("https".equalsIgnoreCase(url.getProtocol())) {
             final SSLService sslService = new SSLService(env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                if (pinnedCaCertFingerprint != null) {
-                    final SSLContext sslContext = SSLContext.getInstance("TLS");
-                    sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
-                    httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
-                } else {
-                    final SslConfiguration sslConfiguration = sslService.getHttpTransportSSLConfiguration();
-                    // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslConfiguration));
-                    final boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-                    if (isHostnameVerificationEnabled == false) {
-                        httpsConn.setHostnameVerifier((hostname, session) -> true);
-                    }
+            if (pinnedCaCertFingerprint != null) {
+                final SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
+                httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            } else {
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
+                final boolean isHostnameVerificationEnabled = sslProfile.configuration().verificationMode().isHostnameVerificationEnabled();
+                if (isHostnameVerificationEnabled == false) {
+                    httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }
-                return null;
-            });
+            }
             conn = httpsConn;
         } else {
             conn = (HttpURLConnection) url.openConnection();
@@ -175,7 +171,7 @@ public class CommandLineHttpClient {
         conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
         String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
-        SocketAccess.doPrivileged(conn::connect);
+        conn.connect();
         if (bodyString != null) {
             try (OutputStream out = conn.getOutputStream()) {
                 out.write(bodyString.getBytes(StandardCharsets.UTF_8));
@@ -277,7 +273,7 @@ public class CommandLineHttpClient {
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 return;
             } else {
-                throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
+                throw new IllegalStateException("Failed to determine the health of the cluster.", e);
             }
         }
         final int responseStatus = response.getHttpStatus();
@@ -340,8 +336,8 @@ public class CommandLineHttpClient {
     }
 
     /**
-     * Returns a TrustManager to be used in a client SSLContext, which trusts all certificates that are signed
-     * by a specific CA certificate ( identified by its SHA256 fingerprint, {@code pinnedCaCertFingerPrint} )
+     * Returns a TrustManager for a client SSLContext that validates the server certificate chain using the CA identified
+     * by the SHA-256 fingerprint {@code caCertFingerprint} as its trust anchor.
      */
     private static TrustManager fingerprintTrustingTrustManager(String caCertFingerprint) {
         final TrustManager trustManager = new X509TrustManager() {
@@ -357,6 +353,14 @@ public class CommandLineHttpClient {
                 if (MessageDigests.toHexString(sha256.digest()).equals(caCertFingerprint) == false) {
                     throw new CertificateException();
                 }
+                // Use the fingerprint-matched CA as the trust anchor for certificate-chain validation.
+                final X509ExtendedTrustManager pkixTrustManager;
+                try {
+                    pkixTrustManager = KeyStoreUtil.createTrustManager(List.of(caCertFromChain));
+                } catch (GeneralSecurityException e) {
+                    throw new CertificateException("Failed to build trust manager for the pinned CA certificate", e);
+                }
+                pkixTrustManager.checkServerTrusted(chain, authType);
             }
 
             @Override

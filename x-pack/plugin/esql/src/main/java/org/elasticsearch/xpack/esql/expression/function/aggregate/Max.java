@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxBytesRefAggregatorFunctionSupplier;
@@ -16,8 +18,12 @@ import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxNonFiniteDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -25,28 +31,55 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression {
+public class Max extends UnaryAggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
+        AnyNullIsNull,
+        NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        // PromQL requires IEEE-754 semantics: NaN is skipped unless all inputs are NaN, and ±Inf are ordinary values.
+        .acrossSeries((source, field) -> new Max(source, field, true))
+        .description("Returns the maximum value across the input vector.")
+        .example("max(http_requests_total)")
+        .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .name("max");
 
-    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    /**
+     * When {@code true}, the {@code double} maximum uses Prometheus non-finite semantics (NaN skipped unless all inputs
+     * are NaN). Set only by the PromQL translation; native ES|QL {@code MAX} uses the default strict aggregator.
+     */
+    private final boolean allowNonFinite;
+
+    private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
@@ -54,12 +87,13 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, MaxBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the maximum value of a field.",
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -70,6 +104,18 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                     + "multiple values per row, and use the result with the `MAX` function",
                 file = "stats",
                 tag = "docsStatsMaxNestedExpression"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `exponential_histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "maxExpHistoForDocs"
+            ),
+            @Example(
+                description = "`MAX` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "returning the maximum of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "maxTDigestForDocs"
             ) }
     )
     public Max(
@@ -87,19 +133,47 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
                 "ip",
                 "keyword",
                 "text",
-                "long",
-                "version" }
+                "unsigned_long",
+                "version",
+                "exponential_histogram",
+                "tdigest" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, false);
     }
 
-    public Max(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    /**
+     * Builds a {@code Max} that uses Prometheus non-finite semantics when {@code allowNonFinite} is true. Used by the
+     * PromQL translation; native ES|QL {@code MAX} uses the strict form.
+     */
+    public Max(Source source, Expression field, boolean allowNonFinite) {
+        this(source, field, Literal.TRUE, NO_WINDOW, allowNonFinite);
+    }
+
+    public Max(Source source, Expression field, Expression filter, Expression window) {
+        this(source, field, filter, window, false);
+    }
+
+    public Max(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
+        super(source, field, filter, window, emptyList());
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Max(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_MAX_MIN);
+    }
+
+    @Override
+    public TransportVersion nonFiniteTransportVersion() {
+        return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_MAX_MIN;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -108,53 +182,90 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public Max withFilter(Expression filter) {
-        return new Max(source(), field(), filter);
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Max(source(), field(), filter(), window(), false);
     }
 
     @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field(), filter());
+        return NodeInfo.create(this, Max::new, field(), filter(), window(), allowNonFinite);
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0), newChildren.get(1));
+        return new Max(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
     }
 
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> SUPPLIERS.containsKey(dt)
+                || dt == DataType.AGGREGATE_METRIC_DOUBLE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
-            "representable except unsigned_long and spatial types"
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "version",
+            "aggregate_metric_double",
+            "exponential_histogram",
+            "tdigest",
+            "numeric except counter types"
         );
     }
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE
+            || field().dataType() == DataType.EXPONENTIAL_HISTOGRAM
+            || field().dataType() == DataType.TDIGEST) {
             return DataType.DOUBLE;
         }
         return field().dataType().noText();
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
+        // The PromQL value column is always a double, so only the double path has a non-finite variant.
+        if (allowNonFinite && type == DataType.DOUBLE) {
+            return new MaxNonFiniteDoubleAggregatorFunctionSupplier();
+        }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return SUPPLIERS.get(type).apply(inputChannels);
+        return SUPPLIERS.get(type).get();
     }
 
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Max(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX));
+            return new Max(
+                source(),
+                FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX),
+                filter(),
+                window(),
+                allowNonFinite
+            );
+        }
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return new Max(
+                source(),
+                ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX),
+                filter(),
+                window(),
+                allowNonFinite
+            );
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

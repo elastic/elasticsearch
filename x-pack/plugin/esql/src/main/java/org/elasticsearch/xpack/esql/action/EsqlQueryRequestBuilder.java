@@ -11,22 +11,30 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
     EsqlQueryRequest,
     EsqlQueryResponse> {
 
     public static EsqlQueryRequestBuilder newAsyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
-        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.asyncEsqlQueryRequest());
+        return new EsqlQueryRequestBuilder(client);
     }
 
     public static EsqlQueryRequestBuilder newSyncEsqlQueryRequestBuilder(ElasticsearchClient client) {
-        return new EsqlQueryRequestBuilder(client, EsqlQueryRequest.syncEsqlQueryRequest());
+        return new EsqlQueryRequestBuilder(client);
     }
 
-    private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {
-        super(client, EsqlQueryAction.INSTANCE, request);
+    private EsqlQueryRequestBuilder(ElasticsearchClient client) {
+        super(client, EsqlQueryAction.INSTANCE, EsqlQueryRequest.syncEsqlQueryRequest(null));
     }
 
     @Override
@@ -66,7 +74,43 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
         return this;
     }
 
+    @Override
+    public EsqlQueryRequestBuilder allowPartialResults(boolean allowPartialResults) {
+        request.allowPartialResults(allowPartialResults);
+        return this;
+    }
+
+    @Override
+    public org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> profile(boolean profile) {
+        request.profile(profile);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder projectRouting(String projectRouting) {
+        request.set(QuerySettings.PROJECT_ROUTING, projectRouting);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder params(List<EsqlQueryParam> params) {
+        List<QueryParam> queryParams = new ArrayList<>(params.size());
+        for (EsqlQueryParam param : params) {
+            ParserUtils.ParamClassification classification = switch (param.classification()) {
+                case VALUE -> ParserUtils.ParamClassification.VALUE;
+                case IDENTIFIER -> ParserUtils.ParamClassification.IDENTIFIER;
+                case PATTERN -> ParserUtils.ParamClassification.PATTERN;
+            };
+            DataType dataType = param.classification() == EsqlQueryParam.ParamClassification.VALUE
+                ? DataType.fromJava(param.value())
+                : DataType.NULL;
+            queryParams.add(new QueryParam(param.name(), param.value(), dataType, classification));
+        }
+        request.params(new QueryParams(queryParams));
+        return this;
+    }
+
     static { // plumb access from x-pack core
-        SharedSecrets.setEsqlQueryRequestBuilderAccess(EsqlQueryRequestBuilder::newSyncEsqlQueryRequestBuilder);
+        SharedSecrets.setEsqlQueryRequestBuilderAccess(EsqlQueryRequestBuilder::newAsyncEsqlQueryRequestBuilder);
     }
 }

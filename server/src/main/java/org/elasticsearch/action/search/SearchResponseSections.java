@@ -9,7 +9,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -17,6 +20,7 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,7 +36,10 @@ public class SearchResponseSections implements Releasable {
         false,
         null,
         null,
-        1
+        1,
+        null,
+        null,
+        null
     );
     public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
         SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
@@ -41,7 +48,10 @@ public class SearchResponseSections implements Releasable {
         false,
         null,
         null,
-        1
+        1,
+        null,
+        null,
+        null
     );
     protected final SearchHits hits;
     protected final InternalAggregations aggregations;
@@ -50,6 +60,14 @@ public class SearchResponseSections implements Releasable {
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
+    protected final Long timeRangeFilterFromMillis;
+    // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
+    private List<SearchHits> topHitsToRelease;
+    // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
+    private List<SearchHit> completionOptionHitsToRelease;
+    // Coordinator fetch-breaker charge for the hits above; cleared when transferred
+    @Nullable
+    private Releasable coordinatorFetchCharge;
 
     public SearchResponseSections(
         SearchHits hits,
@@ -58,16 +76,99 @@ public class SearchResponseSections implements Releasable {
         boolean timedOut,
         Boolean terminatedEarly,
         SearchProfileResults profileResults,
-        int numReducePhases
+        int numReducePhases,
+        Long timeRangeFilterFromMillis
+    ) {
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            timeRangeFilterFromMillis,
+            null,
+            null
+        );
+    }
+
+    public SearchResponseSections(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        Long timeRangeFilterFromMillis,
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
         this.hits = hits;
-        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
+        this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        this.topHitsToRelease = topHitsToRelease;
+        this.completionOptionHitsToRelease = completionOptionHitsToRelease;
+    }
+
+    /**
+     * Transfers ownership of the top-hits-to-release list to the caller. Call when building a SearchResponse so
+     * close() does not release the list. Returns null if the list was already transferred or was never set.
+     */
+    @Nullable
+    public final List<SearchHits> transferTopHitsToRelease() {
+        List<SearchHits> list = topHitsToRelease;
+        topHitsToRelease = null;
+        return list;
+    }
+
+    /**
+     * Transfers ownership of the completion-option-hits-to-release list to the caller. Call when building a
+     * SearchResponse from sections so close() does not release the list. Returns null if already transferred or never set.
+     */
+    @Nullable
+    public final List<SearchHit> transferCompletionOptionHitsToRelease() {
+        List<SearchHit> list = completionOptionHitsToRelease;
+        completionOptionHitsToRelease = null;
+        return list;
+    }
+
+    /**
+     * Takes a charge already made for these hits, released by {@link #close()} unless it is transferred first.
+     */
+    void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
+        assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
+        this.coordinatorFetchCharge = charge;
+    }
+
+    boolean hasCoordinatorFetchCharge() {
+        return coordinatorFetchCharge != null;
+    }
+
+    /**
+     * Adds a charge for hits attached after the fetch phase, so that the charge keeps covering all of the hits.
+     */
+    void addCoordinatorFetchCharge(Releasable charge) {
+        assert coordinatorFetchCharge != null : "only charged hits can take an extra charge";
+        coordinatorFetchCharge = Releasables.wrap(coordinatorFetchCharge, charge);
+    }
+
+    /**
+     * Hands the charge to the caller, who releases it in place of {@link #close()}.
+     *
+     * @return the charge, or {@code null} if there is none
+     */
+    @Nullable
+    public final Releasable transferCoordinatorFetchCharge() {
+        Releasable charge = coordinatorFetchCharge;
+        coordinatorFetchCharge = null;
+        return charge;
     }
 
     public final SearchHits hits() {
@@ -91,8 +192,32 @@ public class SearchResponseSections implements Releasable {
         return profileResults.getShardResults();
     }
 
+    /**
+     * The merged {@link SearchProfileResults} when profiling ran on the coordinator, including optional
+     * {@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()} metadata;
+     * otherwise {@code null}.
+     */
+    @Nullable
+    public final SearchProfileResults searchProfileResults() {
+        return profileResults;
+    }
+
     @Override
     public void close() {
+        if (topHitsToRelease != null) {
+            for (SearchHits h : topHitsToRelease) {
+                h.decRef();
+            }
+            topHitsToRelease = null;
+        }
+        if (completionOptionHitsToRelease != null) {
+            for (SearchHit h : completionOptionHitsToRelease) {
+                h.decRef();
+            }
+            completionOptionHitsToRelease = null;
+        }
         hits.decRef();
+        Releasables.closeExpectNoException(coordinatorFetchCharge);
+        coordinatorFetchCharge = null;
     }
 }

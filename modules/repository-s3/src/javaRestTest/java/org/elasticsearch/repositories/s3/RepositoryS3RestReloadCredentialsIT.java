@@ -9,12 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
-import io.netty.handler.codec.http.HttpMethod;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -25,21 +24,30 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
-    private static final String HASHED_SEED = Integer.toString(Murmur3HashFunction.hash(System.getProperty("tests.seed")));
-    private static final String BUCKET = "RepositoryS3RestReloadCredentialsIT-bucket-" + HASHED_SEED;
-    private static final String BASE_PATH = "RepositoryS3RestReloadCredentialsIT-base-path-" + HASHED_SEED;
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static volatile String repositoryAccessKey;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, mutableAccessKey(() -> repositoryAccessKey));
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        null,
+        bucketSupplier,
+        basePathSupplier,
+        S3ConsistencyModel::randomConsistencyModel,
+        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
@@ -64,7 +72,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
             repositoryName,
             S3Repository.TYPE,
             false,
-            Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).build()
+            Settings.builder().put("bucket", bucketSupplier.get()).put("base_path", basePathSupplier.get()).build()
         );
         final var verifyRequest = new Request("POST", "/_snapshot/" + repositoryName + "/_verify");
 
@@ -87,10 +95,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         // Ensure that initial credentials now invalid
         final var accessDeniedException2 = expectThrows(ResponseException.class, () -> client().performRequest(verifyRequest));
         assertThat(accessDeniedException2.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-        assertThat(
-            accessDeniedException2.getMessage(),
-            allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
-        );
+        assertThat(accessDeniedException2.getMessage(), allOf(containsString("Access denied"), containsString("Status Code: 403")));
 
         // Set up refreshed credentials
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
@@ -99,13 +104,5 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Check access using refreshed credentials
         assertOK(client().performRequest(verifyRequest));
-    }
-
-    private Request createReloadSecureSettingsRequest() throws IOException {
-        return newXContentRequest(
-            HttpMethod.POST,
-            "/_nodes/reload_secure_settings",
-            (b, p) -> inFipsJvm() ? b.field("secure_settings_password", "keystore-password") : b
-        );
     }
 }

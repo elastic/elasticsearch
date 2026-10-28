@@ -9,8 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -30,7 +31,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
+public class MappingMetadata implements SimpleDiffable<MappingMetadata>, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MappingMetadata.class);
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -42,6 +45,8 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     private final CompressedXContent source;
 
     private final boolean routingRequired;
+
+    private volatile long ramBytesUsed = -1;
 
     public MappingMetadata(DocumentMapper docMapper) {
         this.type = docMapper.type();
@@ -76,13 +81,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
     }
 
     public static void writeMappingMetadata(StreamOutput out, Map<String, MappingMetadata> mappings) throws IOException {
-        out.writeMap(mappings, out.getTransportVersion().before(TransportVersions.V_8_0_0) ? (o, v) -> {
-            o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
-            if (v != EMPTY_MAPPINGS) {
-                o.writeString(MapperService.SINGLE_MAPPING_NAME);
-                v.writeTo(o);
-            }
-        } : (o, v) -> {
+        out.writeMap(mappings, (o, v) -> {
             o.writeBoolean(v != EMPTY_MAPPINGS);
             if (v != EMPTY_MAPPINGS) {
                 v.writeTo(o);
@@ -119,6 +118,22 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
 
     public CompressedXContent source() {
         return this.source;
+    }
+
+    /**
+     * Returns an estimated heap footprint for this mapping metadata instance. The result is memoized because
+     * {@link MappingMetadata} is immutable.
+     */
+    @Override
+    public long ramBytesUsed() {
+        if (ramBytesUsed == -1L) {
+            ramBytesUsed = computeRamBytesUsed();
+        }
+        return ramBytesUsed;
+    }
+
+    private long computeRamBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(type) + source.ramBytesUsed();
     }
 
     /**

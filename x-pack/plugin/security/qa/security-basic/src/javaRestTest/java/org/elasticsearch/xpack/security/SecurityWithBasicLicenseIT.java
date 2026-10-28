@@ -39,7 +39,9 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final String apiKeyCredentials = getApiKeyCredentials();
         assertAuthenticateWithApiKey(apiKeyCredentials, true);
 
-        assertFailToGetToken();
+        // OAuth2 tokens are available at all license levels
+        final String accessToken = getAccessToken();
+        assertAuthenticateWithToken(accessToken);
         // Service account token works independently to oauth2 token service
         final String bearerString = createServiceAccountToken();
         assertAuthenticateWithServiceAccountToken(bearerString);
@@ -47,7 +49,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
 
-        assertUserProfileFeatures(false);
+        assertUserProfileFeatures();
         checkRemoteIndicesXPackUsage();
         assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
@@ -70,7 +72,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             checkIndexWrite();
             accessToken = getAccessToken();
             apiKeyCredentials1 = getApiKeyCredentials();
-            assertAuthenticateWithToken(accessToken, true);
+            assertAuthenticateWithToken(accessToken);
             assertAuthenticateWithApiKey(apiKeyCredentials1, true);
             assertAddRoleWithDLS(true);
             assertAddRoleWithFLS(true);
@@ -78,14 +80,15 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             apiKeyCredentials2 = tuple.v1();
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
-            assertUserProfileFeatures(true);
+            assertUserProfileFeatures();
             checkRemoteIndicesXPackUsage();
             assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
-            assertAuthenticateWithToken(accessToken, false);
+            // OAuth2 tokens issued under the trial license remain usable, and new tokens can be issued, on Basic
+            assertAuthenticateWithToken(accessToken);
+            assertAuthenticateWithToken(getAccessToken());
             assertAuthenticateWithApiKey(apiKeyCredentials1, true);
-            assertFailToGetToken();
             assertAddRoleWithDLS(false);
             assertAddRoleWithFLS(false);
             // Any indices with DLS/FLS cannot be searched with the API key when the license is on Basic
@@ -94,7 +97,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index41/_search", false == keyRoleHasDlsFls);
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
-            assertUserProfileFeatures(false);
+            assertUserProfileFeatures();
             checkRemoteIndicesXPackUsage();
             assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
@@ -145,7 +148,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
               "remote_indices": [
                 {
                   "names": ["index-*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote"]
                 }
               ]
@@ -239,30 +242,15 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         return ObjectPath.evaluate(apiKeyResponseMap, "encoded").toString();
     }
 
-    private void assertFailToGetToken() {
-        ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(buildGetTokenRequest()));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(e.getMessage(), containsString("current license is non-compliant for [security tokens]"));
-    }
-
-    private void assertAuthenticateWithToken(String accessToken, boolean shouldSucceed) throws IOException {
+    private void assertAuthenticateWithToken(String accessToken) throws IOException {
         assertNotNull("access token cannot be null", accessToken);
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
         request.setOptions(options);
-        if (shouldSucceed) {
-            Response authenticateResponse = client().performRequest(request);
-            assertOK(authenticateResponse);
-            assertEquals("security_test_user", entityAsMap(authenticateResponse).get("username"));
-        } else {
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(
-                e.getMessage(),
-                containsString("unable to authenticate with provided credentials and anonymous access is not allowed for this request")
-            );
-        }
+        Response authenticateResponse = client().performRequest(request);
+        assertOK(authenticateResponse);
+        assertEquals("security_test_user", entityAsMap(authenticateResponse).get("username"));
     }
 
     private void assertAuthenticateWithApiKey(String apiKeyCredentials, boolean shouldSucceed) throws IOException {
@@ -474,7 +462,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         }
     }
 
-    private void assertUserProfileFeatures(boolean clusterHasTrialLicense) throws IOException {
+    private void assertUserProfileFeatures() throws IOException {
         final RestClient client = client();
         final RequestOptions.Builder requestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray())));
@@ -525,18 +513,12 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         enableProfileRequest.setOptions(requestOptions);
         assertOK(client.performRequest(enableProfileRequest));
 
-        // Suggest profiles
+        // Suggest profiles - available on basic and above
         final Request suggestProfilesRequest = new Request("GET", "_security/profile/_suggest");
         suggestProfilesRequest.setOptions(requestOptions);
-        if (clusterHasTrialLicense) {
-            assertOK(client.performRequest(suggestProfilesRequest));
-        } else {
-            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(suggestProfilesRequest));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
-        }
+        assertOK(client.performRequest(suggestProfilesRequest));
 
-        // Profile hasPrivileges
+        // Profile hasPrivileges - available on basic and above
         final Request hasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
         hasPrivilegesRequest.setOptions(requestOptions);
         hasPrivilegesRequest.setJsonEntity(Strings.format("""
@@ -558,13 +540,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                 ]
               }
             }""", uid));
-        if (clusterHasTrialLicense) {
-            assertOK(client.performRequest(hasPrivilegesRequest));
-        } else {
-            final ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(hasPrivilegesRequest));
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
-        }
+        assertOK(client.performRequest(hasPrivilegesRequest));
     }
 
     private void assertFailToCreateAndUpdateCrossClusterApiKeys() {

@@ -13,7 +13,8 @@ public enum SettingsConfigurationFieldType {
     STRING("str"),
     INTEGER("int"),
     LIST("list"),
-    BOOLEAN("bool");
+    BOOLEAN("bool"),
+    MAP("map");
 
     private final String value;
 

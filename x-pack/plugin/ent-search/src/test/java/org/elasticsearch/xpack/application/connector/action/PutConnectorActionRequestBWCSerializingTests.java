@@ -33,7 +33,24 @@ public class PutConnectorActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected PutConnectorAction.Request mutateInstance(PutConnectorAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        String description = instance.getDescription();
+        String indexName = instance.getIndexName();
+        Boolean isNative = instance.getIsNative();
+        String language = instance.getLanguage();
+        String name = instance.getName();
+        String serviceType = instance.getServiceType();
+        switch (between(0, 6)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomAlphaOfLengthBetween(5, 15));
+            case 1 -> description = randomValueOtherThan(description, () -> randomAlphaOfLengthBetween(5, 15));
+            case 2 -> indexName = randomValueOtherThan(indexName, () -> randomAlphaOfLengthBetween(5, 15));
+            case 3 -> isNative = isNative == false;
+            case 4 -> language = randomValueOtherThan(language, () -> randomAlphaOfLengthBetween(5, 15));
+            case 5 -> name = randomValueOtherThan(name, () -> randomAlphaOfLengthBetween(5, 15));
+            case 6 -> serviceType = randomValueOtherThan(serviceType, () -> randomAlphaOfLengthBetween(5, 15));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PutConnectorAction.Request(originalConnectorId, description, indexName, isNative, language, name, serviceType);
     }
 
     @Override

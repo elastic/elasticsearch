@@ -1,0 +1,11 @@
+{
+  "service": "text_embedding_test_service",
+  "service_settings": {
+    "model": "my_model",
+    "api_key": "abc64",
+    "dimensions": 3,
+    "similarity": "l2_norm",
+    "element_type": "float"
+  },
+  "task_settings": { }
+}

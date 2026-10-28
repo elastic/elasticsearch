@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -23,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class CoordinatedInferenceAction extends ActionType<InferModelAction.Response> {
 
@@ -33,7 +37,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         public enum RequestModelType {
             INFERENCE_SERVICE_MODEL,
@@ -41,7 +45,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             BOOSTED_TREE_MODEL,
             NLP_MODEL,  // Either an inference service model or ml pytorch model but not a boosted tree model
             UNKNOWN
-        };
+        }
 
         public static Request forTextInput(
             String modelId,
@@ -136,9 +140,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             // The prefixType was added prior to TransportVersions.V_8_13_0 but we're serializing it now
             // as a safety measure. At the time of writing this it doesn't have to be serialized because this class is only used internally
             // and on a single node so it never actually gets serialized. But we'll do it just in case that changes in the future.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                this.prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            }
+            this.prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
         }
 
         public String getModelId() {
@@ -198,6 +200,11 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
         }
 
         @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("coordinated_inference[%s]", modelId), parentTaskId, headers);
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
@@ -209,9 +216,7 @@ public class CoordinatedInferenceAction extends ActionType<InferModelAction.Resp
             out.writeOptionalBoolean(previouslyLicensed);
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeBoolean(highPriority);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeEnum(prefixType);
-            }
+            out.writeEnum(prefixType);
         }
 
         @Override

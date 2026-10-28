@@ -14,40 +14,59 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -59,12 +78,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
@@ -80,7 +101,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static final WriteLoadForecaster TEST_WRITE_LOAD_FORECASTER = new WriteLoadForecaster() {
         @Override
-        public Metadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+        public ProjectMetadata.Builder withWriteLoadForecastForWriteIndex(String dataStreamName, ProjectMetadata.Builder metadata) {
             throw new AssertionError("Not required for testing");
         }
 
@@ -89,7 +110,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return indexMetadata.getForecastedWriteLoad();
         }
+
+        @Override
+        public void refreshLicense() {}
     };
+
+    public static final DesiredBalanceShardsAllocator.ShardAllocationExplainer TEST_ONLY_EXPLAINER = (
+        shard,
+        allocation) -> ShardAllocationDecision.NOT_TAKEN;
 
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.EMPTY);
@@ -127,26 +155,47 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
+        return createAllocationService(settings, gatewayAllocator, clusterInfoService, snapshotsInfoService, Collections.emptyList());
+    }
+
+    public static MockAllocationService createAllocationService(
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         return new MockAllocationService(
-            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings), clusterPlugins),
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
-            snapshotsInfoService
+            snapshotsInfoService,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return randomAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+    }
+
+    public static AllocationDeciders randomAllocationDeciders(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins)
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);
     }
 
-    protected static ShardsAllocator createShardsAllocator(Settings settings) {
+    public static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
+                Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
+            );
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };
@@ -160,7 +209,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
         var queue = new DeterministicTaskQueue();
-        var clusterSettings = createBuiltInClusterSettings(settings);
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder()
+                // disable thread watchdog (submits infinitely repeating task to threadpool) by default
+                .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+                .put(settings)
+                .build()
+        );
         var clusterService = ClusterServiceUtils.createClusterService(queue.getThreadPool(), clusterSettings);
         return new DesiredBalanceShardsAllocator(
             clusterSettings,
@@ -168,8 +223,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             queue.getThreadPool(),
             clusterService,
             null,
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            TEST_ONLY_EXPLAINER,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -295,6 +353,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      *
      * @return the cluster state after completing the reroute.
      */
+    @Deprecated(forRemoval = true)
     public static ClusterState startInitializingShardsAndReroute(
         AllocationService allocationService,
         ClusterState clusterState,
@@ -304,6 +363,24 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             allocationService,
             clusterState,
             clusterState.routingTable().index(index).shardsWithState(INITIALIZING)
+        );
+    }
+
+    /**
+     * Mark all initializing shards for the given index as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(
+        AllocationService allocationService,
+        ClusterState clusterState,
+        ProjectId projectId,
+        String index
+    ) {
+        return startShardsAndReroute(
+            allocationService,
+            clusterState,
+            clusterState.routingTable(projectId).index(index).shardsWithState(INITIALIZING)
         );
     }
 
@@ -318,6 +395,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ShardRouting... initializingShards
     ) {
         return startShardsAndReroute(allocationService, clusterState, Arrays.asList(initializingShards));
+    }
+
+    /**
+     * Start all shards that are in an initializing state.
+     *
+     * @return the cluster state with all initializing shards started
+     */
+    public static ClusterState startInitializingShards(AllocationService allocationService, ClusterState clusterState) {
+        return allocationService.applyStartedShards(
+            clusterState,
+            RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)
+        );
     }
 
     /**
@@ -340,6 +429,18 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return result;
     }
 
+    public static void assertDecisionMatches(String description, Decision decision, Decision.Type type, String explanationPattern) {
+        assertEquals(description, type, decision.type());
+        if (explanationPattern == null) {
+            assertNull(decision.getExplanation());
+        } else {
+            assertTrue(
+                org.elasticsearch.common.Strings.format("Expected: \"%s\", got \"%s\"", explanationPattern, decision.getExplanation()),
+                Regex.simpleMatch(explanationPattern, decision.getExplanation())
+            );
+        }
+    }
+
     public static class TestAllocateDecision extends AllocationDecider {
 
         private final Decision decision;
@@ -360,7 +461,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     /** A lock {@link AllocationService} allowing tests to override time */
-    protected static class MockAllocationService extends AllocationService {
+    public static class MockAllocationService extends AllocationService {
 
         private volatile long nanoTimeOverride = -1L;
 
@@ -372,7 +473,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             GatewayAllocator gatewayAllocator,
             ShardsAllocator shardsAllocator,
             ClusterInfoService clusterInfoService,
-            SnapshotsInfoService snapshotsInfoService
+            SnapshotsInfoService snapshotsInfoService,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy
         ) {
             super(
                 allocationDeciders,
@@ -380,7 +482,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 shardsAllocator,
                 clusterInfoService,
                 snapshotsInfoService,
-                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+                shardRoutingRoleStrategy
             );
             this.gatewayAllocator = gatewayAllocator;
             this.shardsAllocator = shardsAllocator;
@@ -438,15 +540,82 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS =
-        new NodeAllocationStatsAndWeightsCalculator(WriteLoadForecaster.DEFAULT, createBuiltInClusterSettings()) {
+        new NodeAllocationStatsAndWeightsCalculator(
+            WriteLoadForecaster.DEFAULT,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+        ) {
             @Override
             public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
                 Metadata metadata,
                 RoutingNodes routingNodes,
                 ClusterInfo clusterInfo,
+                Runnable ensureNotCancelled,
                 @Nullable DesiredBalance desiredBalance
             ) {
+                ensureNotCancelled.run();
                 return Map.of();
             }
         };
+
+    /**
+     * Builds a cluster state containing the given single-shard indices on {@code nodeNames}.
+     * Each shard is either started or left unassigned, chosen at random.
+     */
+    protected static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
+        return createStateWithIndices(nodeNames, shardAllocator, randomBoolean(), indexMetadataBuilders);
+    }
+
+    /**
+     * Builds a cluster state containing the given single-shard indices on {@code nodeNames}.
+     * When {@code allocateShards} is false, every shard is left unassigned.
+     * When it is true, shard 0 of each index is started on the node chosen by {@code shardAllocator}.
+     */
+    protected static ClusterState createStateWithIndices(
+        List<String> nodeNames,
+        Function<ShardId, String> shardAllocator,
+        boolean allocateShards,
+        IndexMetadata.Builder... indexMetadataBuilders
+    ) {
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        if (allocateShards == false) {
+            // leave every shard unassigned
+            for (var index : indexMetadataBuilders) {
+                var indexMetadata = index.build();
+                metadataBuilder.put(indexMetadata, false);
+                routingTableBuilder.addAsNew(indexMetadata);
+            }
+        } else {
+            // start shard 0 of each index on the node chosen by shardAllocator
+            for (var index : indexMetadataBuilders) {
+                var inSyncId = UUIDs.randomBase64UUID();
+                var indexMetadata = index.putInSyncAllocationIds(0, Set.of(inSyncId)).build();
+                metadataBuilder.put(indexMetadata, false);
+                ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
+                routingTableBuilder.add(
+                    IndexRoutingTable.builder(indexMetadata.getIndex())
+                        .addShard(
+                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
+                                AllocationId.newInitializing(inSyncId)
+                            ).build()
+                        )
+                );
+            }
+        }
+
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (String nodeName : nodeNames) {
+            discoveryNodesBuilder.add(newNode(nodeName));
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+    }
 }

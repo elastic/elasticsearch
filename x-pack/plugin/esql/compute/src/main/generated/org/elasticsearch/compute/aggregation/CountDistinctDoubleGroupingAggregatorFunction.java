@@ -16,7 +16,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -37,17 +38,12 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
 
   private final int precision;
 
-  public CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  CountDistinctDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int precision) {
     this.precision = precision;
-  }
-
-  public static CountDistinctDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int precision) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, CountDistinctDoubleAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    this.channels = channels;
+    this.state = CountDistinctDoubleAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,23 +56,35 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
-    DoubleVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+    DoubleBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
+    DoubleVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, vBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
@@ -86,13 +94,18 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
@@ -101,28 +114,64 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock vBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(v));
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int vStart = vBlock.getFirstValueIndex(valuesPosition);
+        int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+        for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+          double vValue = vBlock.getDouble(vOffset);
+          CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+        }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector vVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        double vValue = vVector.getDouble(valuesPosition);
+        CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+      }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -131,19 +180,70 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(v));
+        int valuesPosition = groupPosition + positionOffset;
+        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int vStart = vBlock.getFirstValueIndex(valuesPosition);
+        int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+        for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+          double vValue = vBlock.getDouble(vOffset);
+          CountDistinctDoubleAggregator.combine(state, groupId, vValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector vVector) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        double vValue = vVector.getDouble(valuesPosition);
+        CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+    BytesRef hllScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -152,8 +252,71 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+        int valuesPosition = groupPosition + positionOffset;
+        CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        double vValue = vBlock.getDouble(vOffset);
+        CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleVector vVector) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      int groupId = groups.getInt(groupPosition);
+      double vValue = vVector.getDouble(valuesPosition);
+      CountDistinctDoubleAggregator.combine(state, groupId, vValue);
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+    BytesRef hllScratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      int valuesPosition = groupPosition + positionOffset;
+      CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 
@@ -163,40 +326,24 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      CountDistinctDoubleAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
-    }
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    HllStates.GroupingState inState = ((CountDistinctDoubleGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    CountDistinctDoubleAggregator.combineStates(state, groupId, inState, position);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
+      GroupingAggregatorEvaluationContext ctx) {
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
   }
 
-  @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
-  }
-
-  @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selected, driverContext);
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

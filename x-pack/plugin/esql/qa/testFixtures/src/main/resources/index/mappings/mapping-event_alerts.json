@@ -1,0 +1,17 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "event_type": {
+            "type": "constant_keyword",
+            "value": "alert"
+        },
+        "severity": {
+            "type": "integer"
+        },
+        "label": {
+            "type": "keyword"
+        }
+    }
+}

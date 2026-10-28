@@ -294,7 +294,7 @@ public class MergingDigest extends AbstractTDigest {
         }
         if (unmergedWeight > 0) {
             // note that we run the merge in reverse every other merge to avoid left-to-right bias in merging
-            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort & mergeCount % 2 == 1, compression);
+            merge(tempMean, tempWeight, tempUsed, order, unmergedWeight, useAlternatingSort && (mergeCount % 2 == 1), compression);
             mergeCount++;
             tempUsed = 0;
             unmergedWeight = 0;
@@ -360,13 +360,14 @@ public class MergingDigest extends AbstractTDigest {
             if (addThis) {
                 // next point will fit
                 // so merge into existing centroid
-                weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
-                mean.set(
-                    lastUsedCell,
-                    mean.get(lastUsedCell) + (incomingMean.get(ix) - mean.get(lastUsedCell)) * incomingWeight.get(ix) / weight.get(
-                        lastUsedCell
-                    )
+                double newMean = weightedAverage(
+                    mean.get(lastUsedCell),
+                    weight.get(lastUsedCell),
+                    incomingMean.get(ix),
+                    incomingWeight.get(ix)
                 );
+                weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
+                mean.set(lastUsedCell, newMean);
                 incomingWeight.set(ix, 0);
             } else {
                 // didn't fit ... move to next output, copy out first centroid
@@ -455,18 +456,26 @@ public class MergingDigest extends AbstractTDigest {
                 return (size() - dw / 2.0) / size();
             }
 
-            // initially, we set left width equal to right width
-            double left = (mean.get(1) - mean.get(0)) / 2;
+            // The first centroid has the same interpolation width on both sides.
+            double leftWidth = (mean.get(1) - mean.get(0)) / 2;
+            if (x < mean.get(0)) {
+                double interpolationFactor = interpolate(x, mean.get(0) - leftWidth, mean.get(0) + leftWidth);
+                return Math.max(weight.get(0) * interpolationFactor / size(), 0.0);
+            }
+
             double weightSoFar = 0;
 
             for (int i = 0; i < lastUsedCell - 1; i++) {
-                double right = (mean.get(i + 1) - mean.get(i)) / 2;
-                if (x < mean.get(i) + right) {
-                    double value = (weightSoFar + weight.get(i) * interpolate(x, mean.get(i) - left, mean.get(i) + right)) / size();
-                    return Math.max(value, 0.0);
+                double leftMean = mean.get(i);
+                double rightMean = mean.get(i + 1);
+                if (leftMean <= x && x < rightMean) {
+                    double halfLeftWeight = weight.get(i) / 2.0;
+                    double halfRightWeight = weight.get(i + 1) / 2.0;
+                    double weightBetween = halfLeftWeight + halfRightWeight;
+                    double rank = weightSoFar + halfLeftWeight + weightBetween * interpolate(x, leftMean, rightMean);
+                    return rank / size();
                 }
                 weightSoFar += weight.get(i);
-                left = right;
             }
 
             // for the last element, assume right width is same as left

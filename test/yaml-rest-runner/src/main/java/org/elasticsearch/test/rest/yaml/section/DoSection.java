@@ -89,6 +89,7 @@ public class DoSection implements ExecutableSection {
         ApiCallSection apiCallSection = null;
         NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        String method = null;
         List<String> expectedWarnings = new ArrayList<>();
         List<Pattern> expectedWarningsRegex = new ArrayList<>();
         List<String> allowedWarnings = new ArrayList<>();
@@ -197,6 +198,8 @@ public class DoSection implements ExecutableSection {
                                         apiCallSection.addBody(bodyParser.mapOrdered());
                                     }
                                 }
+                            } else if ("method".equals(paramName)) {
+                                method = parser.text();
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
                             }
@@ -225,6 +228,7 @@ public class DoSection implements ExecutableSection {
             }
             apiCallSection.addHeaders(headers);
             apiCallSection.setNodeSelector(nodeSelector);
+            apiCallSection.setMethod(method);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
             doSection.setExpectedWarningHeadersRegex(unmodifiableList(expectedWarningsRegex));
@@ -349,6 +353,7 @@ public class DoSection implements ExecutableSection {
         try {
             ClientYamlTestResponse response = executionContext.callApi(
                 apiCallSection.getApi(),
+                apiCallSection.getMethod(),
                 apiCallSection.getParams(),
                 apiCallSection.getBodies(),
                 apiCallSection.getHeaders(),
@@ -360,10 +365,18 @@ public class DoSection implements ExecutableSection {
                 : null;
 
             checkElasticProductHeader(response.getHeaders("X-elastic-product"));
-            checkWarningHeaders(response.getWarningHeaders(), testPath);
+            checkWarningHeaders(response.getWarningHeaders(), testPath, apiCallSection);
         } catch (ClientYamlTestResponseException e) {
             checkResponseException(e, executionContext);
         }
+    }
+
+    private String getApiCallDescription(ApiCallSection apiCallSection) {
+        return apiCallSection.getApi()
+            + "["
+            + (apiCallSection.getMethod() != null ? apiCallSection.getMethod() + ", " : "")
+            + apiCallSection.getParams()
+            + "]";
     }
 
     public void failIfHasCatch(ClientYamlTestResponse response) {
@@ -407,13 +420,13 @@ public class DoSection implements ExecutableSection {
     }
 
     void checkWarningHeaders(final List<String> warningHeaders) {
-        checkWarningHeaders(warningHeaders, null);
+        checkWarningHeaders(warningHeaders, null, null);
     }
 
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    public void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
+    public void checkWarningHeaders(final List<String> warningHeaders, String testPath, ApiCallSection apiCallDescription) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -489,6 +502,9 @@ public class DoSection implements ExecutableSection {
             || missing.isEmpty() == false
             || missingRegex.isEmpty() == false) {
             final StringBuilder failureMessage = new StringBuilder();
+            if (apiCallDescription != null) {
+                failureMessage.append(getApiCallDescription(apiCallDescription)).append(": ");
+            }
             appendBadHeaders(failureMessage, unexpected, "got unexpected warning header" + (unexpected.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, unmatched, "got unmatched warning header" + (unmatched.size() > 1 ? "s" : ""));
             appendBadHeaders(failureMessage, missing, "did not get expected warning header" + (missing.size() > 1 ? "s" : ""));

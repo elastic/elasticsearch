@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,17 +47,17 @@ public final class TransformNodes {
      * Get node assignments for a given list of transforms.
      *
      * @param transformIds The transforms.
-     * @param clusterState State
+     * @param project The project metadata.
      * @return The {@link TransformNodeAssignments} for the given transforms.
      */
-    public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
+    public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ProjectMetadata project) {
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
         Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, project);
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
@@ -79,15 +80,15 @@ public final class TransformNodes {
      * Note: This only returns p-task assignments, stopped transforms are not reported. P-Tasks can be running or waiting for a node.
      *
      * @param transformId The transform or a wildcard pattern, including '_all' to match against transform tasks.
-     * @param clusterState State
+     * @param project The project metadata.
      * @return The {@link TransformNodeAssignments} for the given pattern.
      */
-    public static TransformNodeAssignments findPersistentTasks(String transformId, ClusterState clusterState) {
+    public static TransformNodeAssignments findPersistentTasks(String transformId, ProjectMetadata project) {
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, project);
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
@@ -104,11 +105,11 @@ public final class TransformNodes {
      * Get the assignment of a specific transform.
      *
      * @param transformId the transform id
-     * @param clusterState state
+     * @param project The project metadata.
      * @return {@link Assignment} of task
      */
-    public static Assignment getAssignment(String transformId, ClusterState clusterState) {
-        PersistentTask<?> task = TransformTask.getTransformTask(transformId, clusterState);
+    public static Assignment getAssignment(String transformId, ProjectMetadata project) {
+        PersistentTask<?> task = TransformTask.getTransformTask(transformId, project);
 
         if (task != null) {
             return task.getAssignment();
@@ -133,26 +134,32 @@ public final class TransformNodes {
      * Don't do this if a reset is in progress, because the feature reset API touches
      * all features even if they have never been used.
      *
-     * @param clusterState state
+     * @param project project metadata
+     * @param nodes cluster nodes
      */
-    public static void warnIfNoTransformNodes(ClusterState clusterState) {
-        if (TransformMetadata.getTransformMetadata(clusterState).resetMode() == false) {
-            if (hasAnyTransformNode(clusterState.getNodes()) == false) {
+    public static void warnIfNoTransformNodes(ProjectMetadata project, DiscoveryNodes nodes) {
+        if (TransformMetadata.transformMetadata(project).resetMode() == false) {
+            if (hasAnyTransformNode(nodes) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
     }
 
     /**
-     * Check if cluster has at least 1 transform nodes and throw an exception if not.
-     * To be used by transport actions only.
+     * Check if cluster has at least 1 transform nodes.
      *
-     * @param clusterState state
+     * @return {@code true} if the cluster has no node with the transform role.
      */
-    public static void throwIfNoTransformNodes(ClusterState clusterState) {
-        if (hasAnyTransformNode(clusterState.getNodes()) == false) {
-            throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
-        }
+    public static boolean hasNoTransformNodes(ClusterState clusterState) {
+        return hasAnyTransformNode(clusterState.getNodes()) == false;
+    }
+
+    /**
+     * Use after {@link #hasNoTransformNodes(ClusterState)} to complete the listener with an exception when there are no transform nodes
+     * available. To be used by transport actions only.
+     */
+    public static void completeWithNoTransformNodeException(ActionListener<?> listener) {
+        listener.onFailure(ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES));
     }
 
     public static <Request extends TransportRequest, Response extends TransportResponse> boolean redirectToAnotherNodeIfNeeded(

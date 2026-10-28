@@ -177,6 +177,10 @@ public class In extends ScalarFunction {
         return super.resolveType();
     }
 
+    public TypeResolution validateInTypes() {
+        return resolveType();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(value, list);

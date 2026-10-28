@@ -9,7 +9,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,11 +51,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         initialConnectionTimeout = input.readTimeValue();
         clusterAlias = input.readString();
         skipUnavailable = input.readBoolean();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            hasClusterCredentials = input.readBoolean();
-        } else {
-            hasClusterCredentials = false;
-        }
+        hasClusterCredentials = input.readBoolean();
     }
 
     public boolean isConnected() {
@@ -82,9 +77,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         out.writeTimeValue(initialConnectionTimeout);
         out.writeString(clusterAlias);
         out.writeBoolean(skipUnavailable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeBoolean(hasClusterCredentials);
-        }
+        out.writeBoolean(hasClusterCredentials);
     }
 
     @Override
@@ -119,6 +112,23 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     @Override
     public int hashCode() {
         return Objects.hash(modeInfo, initialConnectionTimeout, clusterAlias, skipUnavailable, hasClusterCredentials);
+    }
+
+    @Override
+    public String toString() {
+        return "RemoteConnectionInfo{"
+            + "modeInfo="
+            + modeInfo
+            + ", initialConnectionTimeout="
+            + initialConnectionTimeout
+            + ", clusterAlias='"
+            + clusterAlias
+            + '\''
+            + ", skipUnavailable="
+            + skipUnavailable
+            + ", hasClusterCredentials="
+            + hasClusterCredentials
+            + '}';
     }
 
     public interface ModeInfo extends ToXContentFragment, Writeable {

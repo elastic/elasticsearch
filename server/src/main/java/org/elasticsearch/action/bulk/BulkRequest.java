@@ -11,11 +11,12 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -31,10 +32,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -47,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
@@ -56,12 +63,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.internal.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest
+public class BulkRequest extends UntypedActionRequest
     implements
         CompositeIndicesRequest,
         WriteRequest<BulkRequest>,
         Accountable,
         RawIndexingDataTransportRequest {
+
+    private static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = TransportVersion.fromName(
+        "streams_endpoint_param_restrictions"
+    );
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
@@ -85,6 +96,8 @@ public class BulkRequest extends ActionRequest
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
     private boolean includeSourceOnError = true;
+    private Set<String> paramsUsed = emptySet();
+    private Map<String, SourceBatch> preBuiltBatches = Map.of();
 
     private long sizeInBytes = 0;
 
@@ -99,14 +112,11 @@ public class BulkRequest extends ActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState = new BulkRequest.IncrementalState(in);
-        } else {
-            incrementalState = BulkRequest.IncrementalState.EMPTY;
+        incrementalState = new BulkRequest.IncrementalState(in);
+        includeSourceOnError = in.readBoolean();
+        if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -134,16 +144,12 @@ public class BulkRequest extends ActionRequest
      * @return the current bulk request
      */
     public BulkRequest add(DocWriteRequest<?> request) {
-        if (request instanceof IndexRequest indexRequest) {
-            add(indexRequest);
-        } else if (request instanceof DeleteRequest deleteRequest) {
-            add(deleteRequest);
-        } else if (request instanceof UpdateRequest updateRequest) {
-            add(updateRequest);
-        } else {
-            throw new IllegalArgumentException("No support for request [" + request + "]");
+        switch (request) {
+            case IndexRequest indexRequest -> add(indexRequest);
+            case DeleteRequest deleteRequest -> add(deleteRequest);
+            case UpdateRequest updateRequest -> add(updateRequest);
+            case null, default -> throw new IllegalArgumentException("No support for request [" + request + "]");
         }
-        indices.add(request.index());
         return this;
     }
 
@@ -171,7 +177,7 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        sizeInBytes += request.indexSource().byteLength() + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }
@@ -189,10 +195,10 @@ public class BulkRequest extends ActionRequest
 
         requests.add(request);
         if (request.doc() != null) {
-            sizeInBytes += request.doc().source().length();
+            sizeInBytes += request.doc().indexSource().byteLength();
         }
         if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().source().length();
+            sizeInBytes += request.upsertRequest().indexSource().byteLength();
         }
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
@@ -215,7 +221,8 @@ public class BulkRequest extends ActionRequest
     }
 
     /**
-     * The list of requests in this bulk request.
+     * The list of requests in this bulk request. This list may contain null values: requests are removed from it
+     * ({@code requests.set(idx, null)}) when a request is marked as failure, so that it is not processed again.
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
@@ -278,6 +285,36 @@ public class BulkRequest extends ActionRequest
         XContentType xContentType,
         RestApiVersion restApiVersion
     ) throws IOException {
+        return add(
+            data,
+            defaultIndex,
+            defaultRouting,
+            false,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            restApiVersion
+        );
+    }
+
+    public BulkRequest add(
+        BytesReference data,
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        boolean defaultRoutingFromSlice,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
@@ -286,6 +323,7 @@ public class BulkRequest extends ActionRequest
             data,
             defaultIndex,
             routing,
+            defaultRoutingFromSlice,
             defaultFetchSourceContext,
             pipeline,
             requireAlias,
@@ -434,6 +472,45 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
+    /**
+     * Attaches pre-built ESCF batches to this request, keyed by the name its items target — index, alias, or
+     * data stream. The request owns the batches from here on until the bulk action takes them via
+     * {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
+     * action and the submitter release them if the request is rejected before that point. A {@link #shallowClone()}
+     * shares the batches with its original, so a request must not be cloned while it still owns them.
+     *
+     * <p>TODO: implement serialization for ingest-node forwarding.
+     */
+    public void setPreBuiltBatches(Map<String, SourceBatch> batches) {
+        this.preBuiltBatches = Objects.requireNonNull(batches);
+    }
+
+    public boolean hasPreBuiltBatches() {
+        return preBuiltBatches.isEmpty() == false;
+    }
+
+    /**
+     * Transfers ownership of the pre-built batches to the caller, which must release them. Afterwards the request
+     * holds none, so {@link #releasePreBuiltBatches()} releases nothing. Throws if there is nothing to take.
+     */
+    public Map<String, SourceBatch> takePreBuiltBatches() {
+        if (preBuiltBatches.isEmpty()) {
+            throw new IllegalStateException("no pre-built batches to take: none attached, already taken, or already released");
+        }
+        Map<String, SourceBatch> taken = preBuiltBatches;
+        preBuiltBatches = Map.of();
+        return taken;
+    }
+
+    /**
+     * Releases the pre-built batches this request still owns. Safe to call more than once; a no-op once the batches
+     * were taken or when none are attached.
+     */
+    public void releasePreBuiltBatches() {
+        Releasables.close(preBuiltBatches.values());
+        preBuiltBatches = Map.of();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -467,11 +544,10 @@ public class BulkRequest extends ActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState.writeTo(out);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeBoolean(includeSourceOnError);
+        incrementalState.writeTo(out);
+        out.writeBoolean(includeSourceOnError);
+        if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+            out.writeCollection(paramsUsed, StreamOutput::writeString);
         }
     }
 
@@ -500,7 +576,11 @@ public class BulkRequest extends ActionRequest
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
+        long ramBytesUsed = SHALLOW_SIZE;
+        for (final var request : requests) {
+            ramBytesUsed += request.ramBytesUsed();
+        }
+        return ramBytesUsed;
     }
 
     public Set<String> getIndices() {
@@ -513,6 +593,14 @@ public class BulkRequest extends ActionRequest
      */
     public boolean isSimulated() {
         return false; // Always false, but may be overridden by a subclass
+    }
+
+    public Set<String> requestParamsUsed() {
+        return paramsUsed;
+    }
+
+    public void requestParamsUsed(Set<String> paramsUsed) {
+        this.paramsUsed = paramsUsed;
     }
 
     /*
@@ -553,6 +641,14 @@ public class BulkRequest extends ActionRequest
         bulkRequest.routing(routing());
         bulkRequest.requireAlias(requireAlias());
         bulkRequest.requireDataStream(requireDataStream());
+        bulkRequest.requestParamsUsed(requestParamsUsed());
+        bulkRequest.preBuiltBatches = preBuiltBatches;
         return bulkRequest;
     }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
 }

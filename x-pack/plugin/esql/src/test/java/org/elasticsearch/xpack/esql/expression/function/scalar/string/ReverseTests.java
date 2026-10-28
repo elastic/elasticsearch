@@ -39,12 +39,18 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Reverse(source, args.get(0));
+    }
+
+    public void testReverseKeepsCarriageReturnLineFeedTogether() {
+        // "\r\n" is a single grapheme cluster. Even though the input is single-byte and would
+        // otherwise take the byte-reversal fast path, reversing must keep "\r\n" intact rather than flip it to "\n\r".
+        assertThat(Reverse.process(new BytesRef("foo\r\nbar")).utf8ToString(), equalTo("rab\r\noof"));
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

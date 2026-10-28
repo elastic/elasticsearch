@@ -12,16 +12,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -46,7 +48,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends LeafQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -60,31 +62,34 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+    static final int MAX_QUERY_LENGTH_IN_ERROR = 1024;
 
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
-    private static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
-    private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
-    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
-    private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
-    private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
-    private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
-    private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
-    private static final ParseField ESCAPE_FIELD = new ParseField("escape");
-    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
-    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
-    private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
-    private static final ParseField PHRASE_SLOP_FIELD = new ParseField("phrase_slop");
-    private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
-    private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
-    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
-    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
-    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
-    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
+    public static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
+    public static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
+    public static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+    public static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
+    public static final ParseField ESCAPE_FIELD = new ParseField("escape");
+    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzziness");
+    public static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
+    public static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
+    public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField PHRASE_SLOP_FIELD = new ParseField("phrase_slop");
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     private final String queryString;
 
@@ -865,6 +870,7 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
     }
 
     @Override
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
         if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
@@ -895,7 +901,8 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
                     context,
                     QueryParserHelper.parseFieldsAndWeights(defaultFields)
                 );
-                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
+                boolean forceLenient = lenient == null && context.hasAllFieldsWildcardDefaultField();
+                queryParser = new QueryStringQueryParser(context, resolvedFields, forceLenient || isLenient);
             }
         }
 
@@ -943,7 +950,20 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
         try {
             query = queryParser.parse(rewrittenQueryString);
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
-            throw new QueryShardException(context, "Failed to parse query [" + this.queryString + "]", e);
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]",
+                truncateParseException(e, rewrittenQueryString),
+                Strings.cleanTruncate(this.queryString, MAX_QUERY_LENGTH_IN_ERROR)
+            );
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(this.queryString, MAX_QUERY_LENGTH_IN_ERROR)
+            );
         }
 
         if (query == null) {
@@ -957,7 +977,7 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
             query = boostQuery.getQuery();
         }
 
-        query = Queries.fixNegativeQueryIfNeeded(query);
+        query = Queries.fixNegativeQueryIfNeeded(query, QueryVisitor.EMPTY_VISITOR);
         query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
 
         // restore the previous BoostQuery wrapping
@@ -968,8 +988,32 @@ public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStr
         return query;
     }
 
+    /**
+     * Shortens a long Lucene parse error. The error repeats the whole query, and a shard failure keeps it, so a large query is copied into
+     * every failed shard. Keeps the first {@link #MAX_QUERY_LENGTH_IN_ERROR} chars of the query and of the detail, with no marker, and
+     * drops the cause, which can repeat the query too. A short error is returned as is.
+     */
+    static org.apache.lucene.queryparser.classic.ParseException truncateParseException(
+        org.apache.lucene.queryparser.classic.ParseException e,
+        String query
+    ) {
+        if (e.getMessage() == null || e.getMessage().length() <= 2 * MAX_QUERY_LENGTH_IN_ERROR) {
+            return e;
+        }
+        // Lucene's message is "Cannot parse '<query>': " followed by the message of its cause
+        final Throwable detail = e.getCause() != null ? e.getCause() : e;
+        final var result = new org.apache.lucene.queryparser.classic.ParseException(
+            "Cannot parse '"
+                + Strings.cleanTruncate(query, MAX_QUERY_LENGTH_IN_ERROR)
+                + "': "
+                + Strings.cleanTruncate(detail.getMessage(), MAX_QUERY_LENGTH_IN_ERROR)
+        );
+        result.setStackTrace(e.getStackTrace());
+        return result;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

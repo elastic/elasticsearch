@@ -14,90 +14,96 @@ import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.time.Duration;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static java.util.Collections.emptyMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class AzureStorageService {
-    public static final ByteSizeValue MIN_CHUNK_SIZE = ByteSizeValue.ofBytes(1);
+    private static final Logger logger = LogManager.getLogger(AzureStorageService.class);
 
-    /**
-     * The maximum size of a BlockBlob block.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
+    private final int multipartUploadMaxConcurrency;
 
-    /**
-     * The maximum number of blocks.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final long MAX_BLOCK_NUMBER = 50000;
-
-    /**
-     * Default block size for multi-block uploads. The Azure repository will use the Put block and Put block list APIs to split the
-     * stream into several part, each of block_size length, and will upload each part in its own request.
-     */
-    private static final ByteSizeValue DEFAULT_BLOCK_SIZE = ByteSizeValue.ofBytes(
-        Math.max(
-            ByteSizeUnit.MB.toBytes(5), // minimum value
-            Math.min(MAX_BLOCK_SIZE.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        )
-    );
-
-    /**
-     * The maximum size of a Block Blob.
-     * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
-     */
-    public static final long MAX_BLOB_SIZE = MAX_BLOCK_NUMBER * DEFAULT_BLOCK_SIZE.getBytes();
-
-    /**
-     * Maximum allowed blob size in Azure blob store.
-     */
-    public static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.ofBytes(MAX_BLOB_SIZE);
-
-    private static final long DEFAULT_UPLOAD_BLOCK_SIZE = DEFAULT_BLOCK_SIZE.getBytes();
-
-    // 'package' for testing
-    volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final AzureClientProvider azureClientProvider;
     private final ClientLogger clientLogger = new ClientLogger(AzureStorageService.class);
+    private final AzureStorageClientsManager clientsManager;
     private final boolean stateless;
 
-    public AzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
-        // eagerly load client settings so that secure settings are read
-        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        refreshSettings(clientsSettings);
+    public AzureStorageService(
+        Settings settings,
+        AzureClientProvider azureClientProvider,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
+        this.clientsManager = new AzureStorageClientsManager(
+            settings,
+            clusterService.threadPool().generic(),
+            projectResolver.supportsMultipleProjects()
+        );
         this.azureClientProvider = azureClientProvider;
         this.stateless = DiscoveryNode.isStateless(settings);
-    }
-
-    public AzureBlobServiceClient client(String clientName, LocationMode locationMode, OperationPurpose purpose) {
-        return client(clientName, locationMode, purpose, null);
+        this.multipartUploadMaxConcurrency = azureClientProvider.getMultipartUploadMaxConcurrency();
+        if (projectResolver.supportsMultipleProjects()) {
+            clusterService.addHighPriorityApplier(this.clientsManager);
+        }
     }
 
     public AzureBlobServiceClient client(
+        @Nullable ProjectId projectId,
+        String clientName,
+        LocationMode locationMode,
+        OperationPurpose purpose
+    ) {
+        return client(projectId, clientName, locationMode, purpose, null);
+    }
+
+    public AzureBlobServiceClient client(
+        @Nullable ProjectId projectId,
         String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
         AzureClientProvider.RequestMetricsHandler requestMetricsHandler
     ) {
-        final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
+        return clientsManager.client(projectId, clientName, locationMode, purpose, requestMetricsHandler);
+    }
 
+    private AzureBlobServiceClient buildClient(
+        @Nullable ProjectId projectId,
+        String clientName,
+        LocationMode locationMode,
+        OperationPurpose purpose,
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler,
+        AzureStorageSettings azureStorageSettings
+    ) {
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(
+            projectId,
+            clientName,
             azureStorageSettings,
             locationMode,
             retryOptions,
@@ -105,14 +111,6 @@ public class AzureStorageService {
             requestMetricsHandler,
             purpose
         );
-    }
-
-    private AzureStorageSettings getClientSettings(String clientName) {
-        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-        if (azureStorageSettings == null) {
-            throw new SettingsException("Unable to find client with name [" + clientName + "]");
-        }
-        return azureStorageSettings;
     }
 
     private static ProxyOptions getProxyOptions(AzureStorageSettings settings) {
@@ -128,13 +126,8 @@ public class AzureStorageService {
         };
     }
 
-    // non-static, package private for testing
-    long getUploadBlockSize() {
-        return DEFAULT_UPLOAD_BLOCK_SIZE;
-    }
-
-    int getMaxReadRetries(String clientName) {
-        AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
+    int getMaxReadRetries(@Nullable ProjectId projectId, String clientName) {
+        AzureStorageSettings azureStorageSettings = clientsManager.getClientSettings(projectId, clientName);
         return azureStorageSettings.getMaxRetries();
     }
 
@@ -158,16 +151,14 @@ public class AzureStorageService {
             case SECONDARY_THEN_PRIMARY -> primaryUri;
         };
 
-        // The request retry policy uses seconds as the default time unit, since
-        // it's possible to configure a timeout < 1s we should ceil that value
-        // as RequestRetryOptions expects a value >= 1.
-        // See https://github.com/Azure/azure-sdk-for-java/issues/17590 for a proposal
-        // to fix this issue.
-        TimeValue configuredTimeout = azureStorageSettings.getTimeout();
-        int timeout = configuredTimeout.duration() == -1 ? Integer.MAX_VALUE : Math.max(1, Math.toIntExact(configuredTimeout.getSeconds()));
+        // The Azure client complains if you try to set timeout < 1s, round anything below that up
+        final TimeValue configuredTimeout = azureStorageSettings.getTimeout();
+        final Duration timeout = configuredTimeout.duration() == -1
+            ? Duration.ofSeconds(Integer.MAX_VALUE)
+            : Duration.ofMillis(Math.max(1_000, configuredTimeout.millis()));
         return new RequestRetryOptions(
             RetryPolicyType.EXPONENTIAL,
-            azureStorageSettings.getMaxRetries(),
+            azureStorageSettings.getMaxRetries() + 1,   // This is maximum "tries"
             timeout,
             null,
             null,
@@ -176,24 +167,242 @@ public class AzureStorageService {
     }
 
     /**
-     * Updates settings for building clients. Any client cache is cleared. Future
+     * Updates settings for building cluster level clients. Any client cache is cleared. Future
      * client requests will use the new refreshed settings.
      *
      * @param clientsSettings the settings for new clients
      */
-    public void refreshSettings(Map<String, AzureStorageSettings> clientsSettings) {
-        this.storageSettings = Map.copyOf(clientsSettings);
-        // clients are built lazily by {@link client(String, LocationMode)}
+    public void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
+        clientsManager.refreshClusterClientSettings(clientsSettings);
+    }
+
+    public void dropConnectionProviders(Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict) {
+        azureClientProvider.dropConnectionProviders(connectionProvidersToEvict);
+    }
+
+    // visible for testing
+    Map<AzureClientProvider.ConnectionProviderKey, AzureConnectionProviderReference> getConnectionProvidersCache() {
+        return azureClientProvider.getConnectionProvidersCache();
     }
 
     /**
      * For Azure repositories, we report the different kinds of credentials in use in the telemetry.
      */
-    public Set<String> getExtraUsageFeatures(String clientName) {
+    public Set<String> getExtraUsageFeatures(@Nullable ProjectId projectId, String clientName) {
         try {
-            return getClientSettings(clientName).credentialsUsageFeatures();
+            return clientsManager.getClientSettings(projectId, clientName).credentialsUsageFeatures();
         } catch (Exception e) {
             return Set.of();
+        }
+    }
+
+    public int getMultipartUploadMaxConcurrency() {
+        return multipartUploadMaxConcurrency;
+    }
+
+    // Package private for testing
+    Map<String, AzureStorageSettings> getStorageSettings() {
+        return clientsManager.clusterStorageSettings.get();
+    }
+
+    // Package private for testing
+    AzureStorageClientsManager getClientsManager() {
+        return clientsManager;
+    }
+
+    class AzureStorageClientsManager implements ClusterStateApplier {
+        private static final String AZURE_SETTING_PREFIX = "azure.";
+
+        private final Executor executor;
+
+        private final Settings nodeAzureSettings;
+        private final AtomicReference<Map<String, AzureStorageSettings>> clusterStorageSettings;
+        private final Map<ProjectId, Map<String, AzureStorageSettings>> perProjectStorageSettings;
+
+        AzureStorageClientsManager(Settings nodeSettings, Executor executor, boolean supportsMultipleProjects) {
+            // eagerly load client settings so that secure settings are read
+            final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(nodeSettings);
+            this.clusterStorageSettings = new AtomicReference<>(Map.of());
+            refreshClusterClientSettings(clientsSettings);
+
+            this.nodeAzureSettings = Settings.builder()
+                .put(nodeSettings.getByPrefix(AZURE_SETTING_PREFIX), false) // not rely on any cluster scoped secrets
+                .normalizePrefix(AZURE_SETTING_PREFIX)
+                .build();
+            this.executor = executor;
+            if (supportsMultipleProjects) {
+                this.perProjectStorageSettings = ConcurrentCollections.newConcurrentMap();
+            } else {
+                this.perProjectStorageSettings = null;
+            }
+        }
+
+        @Override
+        public void applyClusterState(ClusterChangedEvent event) {
+            assert perProjectStorageSettings != null;
+
+            if (!event.metadataChanged()) {
+                return;
+            }
+
+            final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
+
+            final var previousPerProjectStorageSettings = Map.copyOf(perProjectStorageSettings);
+
+            for (var project : currentProjects.values()) {
+                // Skip the default project, it is tracked separately with clusterStorageSettings and
+                // updated differently with the ReloadablePlugin interface
+                if (ProjectId.DEFAULT.equals(project.id())) {
+                    continue;
+                }
+                final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
+                // Project secrets can be null when node restarts. It may not have any azure credentials if azure is not in use.
+                if (projectSecrets == null
+                    || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith(AZURE_SETTING_PREFIX))) {
+                    // Most likely there won't be any existing client settings, but attempt to remove it anyway just in case
+                    perProjectStorageSettings.remove(project.id());
+                    continue;
+                }
+
+                final Settings currentSettings = Settings.builder()
+                    // merge with static settings such as max retries etc
+                    // TODO: https://elasticco.atlassian.net/browse/ES-11716 Consider change this to use per-project settings
+                    .put(nodeAzureSettings)
+                    .setSecureSettings(projectSecrets.getSettings())
+                    .build();
+                final var allClientSettings = AzureStorageSettings.load(currentSettings);
+                // Skip project client settings that have no credentials configured. This should not happen in serverless.
+                // But it is safer to skip them and is also a more consistent behaviour with the cases when
+                // project secrets are not present.
+                final Map<String, AzureStorageSettings> clientSettingsWithCredentials = allClientSettings.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue().hasCredentials())
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
+                // and avoid building the clientSettings
+                if (newOrUpdated(project.id(), clientSettingsWithCredentials)) {
+                    if (allClientSettings.size() != clientSettingsWithCredentials.size()) {
+                        logger.warn(
+                            "Project [{}] has [{}] azure client settings, but [{}] is usable due to missing credentials for clients {}",
+                            project.id(),
+                            allClientSettings.size(),
+                            clientSettingsWithCredentials.size(),
+                            Sets.difference(allClientSettings.keySet(), clientSettingsWithCredentials.keySet())
+                        );
+                    }
+                    perProjectStorageSettings.put(project.id(), clientSettingsWithCredentials);
+                }
+            }
+
+            // Removed projects
+            for (var projectId : perProjectStorageSettings.keySet()) {
+                if (currentProjects.containsKey(projectId) == false) {
+                    assert ProjectId.DEFAULT.equals(projectId) == false;
+
+                    perProjectStorageSettings.remove(projectId);
+                }
+            }
+
+            // get all the connection-provider keys we need to evict from the `connectionProvidersCache`
+            final Set<AzureClientProvider.ConnectionProviderKey> connectionProvidersToEvict = new HashSet<>();
+
+            for (var previousPerProjectSettingsEntry : previousPerProjectStorageSettings.entrySet()) {
+                final var projectId = previousPerProjectSettingsEntry.getKey();
+                final var previousProjectSettings = previousPerProjectSettingsEntry.getValue();
+                final var currentProjectSettings = perProjectStorageSettings.get(projectId);
+
+                connectionProvidersToEvict.addAll(
+                    AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(
+                        projectId,
+                        previousProjectSettings,
+                        currentProjectSettings
+                    )
+                );
+            }
+
+            if (!connectionProvidersToEvict.isEmpty()) {
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        dropConnectionProviders(connectionProvidersToEvict);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to drop connection providers", e);
+                    }
+                });
+            }
+        }
+
+        public AzureBlobServiceClient client(
+            @Nullable ProjectId projectId,
+            String clientName,
+            LocationMode locationMode,
+            OperationPurpose purpose,
+            AzureClientProvider.RequestMetricsHandler requestMetricsHandler
+        ) {
+            final var azureStorageSettings = getClientSettings(projectId, clientName); // ensure the client exists
+            return buildClient(projectId, clientName, locationMode, purpose, requestMetricsHandler, azureStorageSettings);
+        }
+
+        public AzureStorageSettings getClientSettings(@Nullable ProjectId projectId, String clientName) {
+            final var allClientSettings = getAllClientSettings(projectId);
+            final var azureStorageSettings = allClientSettings.get(clientName);
+            if (azureStorageSettings == null) {
+                throw new SettingsException(
+                    "Unable to find client with name ["
+                        + clientName
+                        + "]"
+                        + (isDefaultProjectIdOrNull(projectId) ? "" : " for project [" + projectId + "]")
+                );
+            }
+            return azureStorageSettings;
+        }
+
+        Map<String, AzureStorageSettings> getAllClientSettings(@Nullable ProjectId projectId) {
+            if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
+                return clusterStorageSettings.get();
+            }
+            final var projectClientSettings = perProjectStorageSettings.get(projectId);
+            if (projectClientSettings == null) {
+                throw new SettingsException("Unable to find any client for project [" + projectId + "]");
+            }
+            return projectClientSettings;
+        }
+
+        Map<ProjectId, Map<String, AzureStorageSettings>> getPerProjectStorageSettings() {
+            return perProjectStorageSettings == null ? null : Map.copyOf(perProjectStorageSettings);
+        }
+
+        private void refreshClusterClientSettings(Map<String, AzureStorageSettings> clientsSettings) {
+            // We do `getAndSet` here because we might have at least 2 parallel reloads and hence at least 2 refreshes.
+            // This way, we do not lose any previously-set settings that we need to remove from the connection-providers cache.
+            final var previousSettings = clusterStorageSettings.getAndSet(Map.copyOf(clientsSettings));
+            if (previousSettings.isEmpty()) {
+                // nothing to remove from the cache in this case
+                return;
+            }
+
+            final var connectionProvidersToEvict = AzureClientProvider.ConnectionProviderKey.connectionProvidersToEvict(
+                ProjectId.DEFAULT,
+                previousSettings,
+                clientsSettings
+            );
+            dropConnectionProviders(connectionProvidersToEvict);
+        }
+
+        private boolean newOrUpdated(ProjectId projectId, Map<String, AzureStorageSettings> currentClientSettings) {
+            final var old = perProjectStorageSettings.get(projectId);
+            if (old == null) {
+                return true;
+            }
+            return currentClientSettings.equals(old) == false;
+        }
+
+        private static boolean isDefaultProjectIdOrNull(@Nullable ProjectId projectId) {
+            return projectId == null || ProjectId.DEFAULT.equals(projectId);
         }
     }
 }

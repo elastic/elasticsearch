@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -23,7 +24,6 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.Featur
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackBuild;
 
 import java.util.HashSet;
 import java.util.List;
@@ -58,7 +58,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
         XPackInfoResponse.BuildInfo buildInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
-            buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT.shortHash(), XPackBuild.CURRENT.date());
+            buildInfo = new XPackInfoResponse.BuildInfo(Build.current().hash(), Build.current().date());
         }
 
         LicenseInfo licenseInfo = null;
@@ -80,11 +80,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
             var featureSets = new HashSet<FeatureSet>();
             for (var infoAction : infoActions) {
                 // local actions are executed directly, not on a separate thread, so no thread safe collection is necessary
-                client.executeLocally(
-                    infoAction,
-                    request,
-                    listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo()))
-                );
+                client.execute(infoAction, request, listener.delegateFailureAndWrap((l, response) -> featureSets.add(response.getInfo())));
             }
             featureSetsInfo = new FeatureSetsInfo(featureSets);
         }

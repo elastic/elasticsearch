@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,16 +76,6 @@ public final class CrossClusterAccessSubjectInfo {
 
     public void writeToContext(final ThreadContext ctx) throws IOException {
         ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encode());
-    }
-
-    public static CrossClusterAccessSubjectInfo readFromContext(final ThreadContext ctx) throws IOException {
-        final String header = ctx.getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY);
-        if (header == null) {
-            throw new IllegalArgumentException(
-                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY + "] is required"
-            );
-        }
-        return decode(header);
     }
 
     public Authentication getAuthentication() {
@@ -220,7 +212,7 @@ public final class CrossClusterAccessSubjectInfo {
         }
     }
 
-    public static final class RoleDescriptorsBytes implements Writeable {
+    public static final class RoleDescriptorsBytes implements Writeable, Accountable {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
 
@@ -228,6 +220,8 @@ public final class CrossClusterAccessSubjectInfo {
             .allowRestriction(true)
             .allowDescription(true)
             .build();
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(RoleDescriptorsBytes.class);
 
         private final BytesReference rawBytes;
 
@@ -242,6 +236,11 @@ public final class CrossClusterAccessSubjectInfo {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesReference(rawBytes);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + rawBytes.ramBytesUsed();
         }
 
         /**

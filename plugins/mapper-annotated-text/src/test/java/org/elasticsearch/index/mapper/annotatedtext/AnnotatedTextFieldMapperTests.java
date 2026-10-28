@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -53,6 +55,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -61,7 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,13 +89,13 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
-            b.field("search_analyzer", "keyword");
+            b.field("search_analyzer", "default");
             b.field("search_quote_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
@@ -104,7 +107,6 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
 
         checker.registerConflictCheck("position_increment_gap", b -> b.field("position_increment_gap", 10));
 
-        // norms can be set from true to false, but not vice versa
         checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", false);
@@ -112,13 +114,13 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.field("type", "annotated_text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", true);
-        }, b -> {
+        }), fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }));
     }
 
     @Override
@@ -292,7 +294,33 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testStoreParameterDefaults() throws IOException {
+    public void testStoreParameterDefaultsToFalse() throws IOException {
+        // given
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "annotated_text"); }));
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsToFalseWhenSyntheticSourceIsEnabled() throws IOException {
+        // given
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(b -> { b.field("type", "annotated_text"); }))
+            .documentMapper();
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsWhenIndexVersionIsNotLatest() throws IOException {
         var timeSeriesIndexMode = randomBoolean();
         var isStored = randomBoolean();
         var hasKeywordFieldForSyntheticSource = randomBoolean();
@@ -331,7 +359,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
         });
-        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, () -> true, mapping).documentMapper();
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
@@ -663,17 +693,14 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false);
+        // annotated_text uses stored fields for fallback (not binary doc values), so ignored values are not sorted
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false, false, false);
     }
 
     @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        assumeFalse("ignore_malformed not supported", ignoreMalformed);
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false, false, true);
     }
 
     @Override
@@ -684,5 +711,55 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    /**
+     * Regression for the synthetic-source idempotency bug: a {@code multi_value: false, on_failure: ignore} keyword sub-field
+     * redirected position-1+ values to its {@code ._on_failure} sidecar while the parent simultaneously wrote the same oversized values
+     * to its own fallback stored field, causing the composite loader to emit duplicates.
+     * <p>
+     * Fixed by disqualifying {@code multi_value: false} keyword sub-fields as synthetic-source delegates; the parent stores all values in
+     * its own fallback field via a single loader layer, producing stable round-trips.
+     */
+    public void testSyntheticSourceStableWithSingleValuedKeywordDelegateAndIgnoreAbove() throws IOException {
+        int ignoreAbove = between(10, 20);
+        // At least one short value (fits ignore_above) and one long value (exceeds it) are required to trigger both storage paths.
+        List<String> shortValues = randomList(1, 3, () -> randomAlphaOfLength(between(1, ignoreAbove)));
+        List<String> longValues = randomList(1, 3, () -> randomAlphaOfLength(ignoreAbove + between(1, 5)));
+        List<String> values = new ArrayList<>(shortValues);
+        values.addAll(longValues);
+        Collections.shuffle(values, random());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "annotated_text");
+                b.startObject("fields");
+                {
+                    b.startObject("kwd");
+                    {
+                        b.field("type", "keyword");
+                        b.field("ignore_above", ignoreAbove);
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        // All values must survive in encounter order; syntheticSource() asserts round-trip stability internally.
+        String expected = "{\"field\":" + values.stream().collect(Collectors.joining("\",\"", "[\"", "\"]")) + "}";
+        assertThat(syntheticSource(mapper, b -> b.array("field", values.toArray(new String[0]))), equalTo(expected));
     }
 }

@@ -28,6 +28,8 @@ import java.util.List;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -190,6 +192,30 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testHardBoundsWithOffset() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            w.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -5, 0, 5, 10, 15 })));
+
+            // The reported bucket key is Math.floor((value - offset) / interval) * interval + offset, so hard_bounds
+            // has to be matched against that key and not against the offset-less multiple of the interval.
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field(FIELD_NAME)
+                .interval(5)
+                .offset(3)
+                .hardBounds(new DoubleBounds(-2.0, 10.0));
+            try (IndexReader reader = w.getReader()) {
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, defaultFieldType(FIELD_NAME)));
+                assertThat(histogram.getBuckets(), hasSize(3));
+                assertThat((Double) histogram.getBuckets().get(0).getKey(), equalTo(-2.0));
+                assertThat(histogram.getBuckets().get(0).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(1).getKey(), equalTo(3.0));
+                assertThat(histogram.getBuckets().get(1).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(2).getKey(), equalTo(8.0));
+                assertThat(histogram.getBuckets().get(2).getDocCount(), equalTo(1L));
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
     /**
      * Test that sub-aggregations are not supported
      */
@@ -224,7 +250,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType(String fieldName) {
-        return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap());
+        return new HistogramFieldMapper.HistogramFieldType(fieldName, Collections.emptyMap(), null);
     }
 
 }

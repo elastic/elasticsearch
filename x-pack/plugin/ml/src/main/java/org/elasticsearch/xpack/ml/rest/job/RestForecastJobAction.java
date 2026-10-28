@@ -24,7 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestForecastJobAction extends BaseRestHandler {
 
     @Override

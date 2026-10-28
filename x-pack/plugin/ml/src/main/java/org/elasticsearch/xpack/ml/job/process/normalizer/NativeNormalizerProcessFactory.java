@@ -48,7 +48,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override
@@ -71,6 +71,7 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             false,
             true,
             true,
+            false,
             false,
             false
         );

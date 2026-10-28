@@ -9,9 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,6 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -242,7 +248,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
@@ -250,7 +256,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
             LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
-            assertSame(field2, field2Updated);
+            assertEquals(field2.typeName(), field2Updated.typeName());
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
@@ -313,13 +319,21 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionNonRuntimeType() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionHandlerNotFound() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: No handler for type [unknown] declared on runtime field [field]", e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
+                + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionMissingType() throws IOException {
@@ -360,6 +374,200 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testWithRootObjectMapperNamespaceValidator() throws Exception {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        String notNested = """
+            {
+                "_doc": {
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "<TYPE>"
+                        }
+                    }
+                }
+            }""";
+
+        // _project should fail, regardless of type
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed);
+
+            String keyword = json.replace("<TYPE>", "keyword");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(keyword, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String text = json.replace("<TYPE>", "text");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(text, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+
+            String object = json.replace("<TYPE>", "object");
+            e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(object, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.subfield should fail
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + ".subfield")
+                .replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // _projectx should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "x").replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _project_subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "_subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // _projectx.subfield should pass
+        {
+            String json = notNested.replace("<FIELD_NAME>", disallowed + "x.subfield");
+            json = json.replace("<TYPE>", randomFrom("text", "keyword", "object"));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        String nested = """
+            {
+              "_doc": {
+                "properties": {
+                  "<FIELD_NAME1>": {
+                    "type": "object",
+                    "properties": {
+                      "<FIELD_NAME1>": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+
+        // nested _project { my_field } should fail
+        {
+            String json = nested.replace("<FIELD_NAME1>", disallowed).replace("<FIELD_NAME2>", "my_field");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+
+        // nested my_field { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", "my_field").replace("<FIELD_NAME2>", disallowed);
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+
+        // nested _projectx { _project } should succeed
+        {
+            String json = nested.replace("<FIELD_NAME1>", disallowed + "x").replace("<FIELD_NAME2>", disallowed);
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+    }
+
+    public void testSubobjectsWithRootObjectMapperNamespaceValidator() throws Exception {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        // test with subobjects setting
+        String withSubobjects = """
+            {
+                "_doc": {
+                    "subobjects": "<SUBOBJECTS_SETTING>",
+                    "properties": {
+                        "<FIELD_NAME>": {
+                            "type": "object",
+                            "properties": {
+                                "my_field": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+                    }
+                }
+            }""";
+
+        final String[] validSubojectsValues = new String[] { "false", "true" };
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "false").replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", "true").replace("<FIELD_NAME>", "_project");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
+                .replace("<FIELD_NAME>", "_project.foo");
+            Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceWithNamespaceValidator(json, validator));
+            assertThat(e.getMessage(), equalTo(errorMessage));
+        }
+        {
+            String json = withSubobjects.replace("<SUBOBJECTS_SETTING>", randomFrom(validSubojectsValues))
+                .replace("<FIELD_NAME>", "project.foo");
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(json, validator);
+            assertNotNull(mapperService);
+        }
+    }
+
+    public void testRuntimeFieldInMappingWithNamespaceValidator() throws IOException {
+        String errorMessage = "error 1234";
+        String disallowed = "_project";
+        RootObjectMapperNamespaceValidator validator = new TestRootObjectMapperNamespaceValidator(disallowed, errorMessage);
+
+        // ensure that things close to the disallowed fields that are allowed
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject(disallowed + "_x").field("type", "ip").endObject();
+                builder.startObject(disallowed + "x").field("type", "date").endObject();
+                builder.startObject("field1." + disallowed).field("type", "double").endObject();
+            }));
+            MapperService mapperService = createMapperServiceWithNamespaceValidator(mapping, validator);
+            assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+            assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+        }
+
+        // _project is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject(disallowed).field("type", "date").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
+
+        // _project.my_sub_field is rejected
+        {
+            String mapping = Strings.toString(runtimeMapping(builder -> {
+                builder.startObject("field1").field("type", "double").endObject();
+                builder.startObject(disallowed + ".my_sub_field").field("type", "keyword").endObject();
+                builder.startObject("field3").field("type", "ip").endObject();
+            }));
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperServiceWithNamespaceValidator(mapping, validator));
+            Throwable cause = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), equalTo(errorMessage));
+        }
     }
 
     public void testSyntheticSourceKeepAllThrows() throws IOException {
@@ -422,4 +630,427 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         return mapper.mapping().getRoot();
     }
 
+    static class TestRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+        private final String disallowed;
+        private final String errorMessage;
+
+        TestRootObjectMapperNamespaceValidator(String disallowedNamespace, String errorMessage) {
+            this.disallowed = disallowedNamespace;
+            this.errorMessage = errorMessage;
+        }
+
+        @Override
+        public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {
+            if (name.equals(disallowed)) {
+                throw new IllegalArgumentException(errorMessage);
+            } else if (subobjects != ObjectMapper.Subobjects.ENABLED) {
+                // name here will be something like _project.my_field, rather than just _project
+                if (name.startsWith(disallowed + ".")) {
+                    throw new IllegalArgumentException(errorMessage);
+                }
+            }
+        }
+    }
+
+    public void testStrictColumnarModesAutoFlattenSubobjects() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("metrics");
+                {
+                    b.startObject("properties");
+                    {
+                        b.startObject("time").field("type", "long").endObject();
+                        b.startObject("count").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+            assertNotNull(mapperService.fieldType("metrics.time"));
+            assertNotNull(mapperService.fieldType("metrics.count"));
+            assertNull(mapperService.mappingLookup().objectMappers().get("metrics"));
+        }
+    }
+
+    public void testStrictColumnarModesDefaultToSubobjectsFalse() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+        }
+    }
+
+    public void testStrictColumnarModesRejectSubobjectsTrueAtRoot() {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("subobjects", true)))
+            );
+            assertThat(e.getMessage(), containsString("subobjects [true] is not supported in columnar mode"));
+        }
+    }
+
+    public void testStrictColumnarModesAcceptSubobjectsFalseAtRootAsNoOp() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            final MapperService mapperService = createMapperService(settings, topMapping(b -> b.field("subobjects", false)));
+            assertEquals(ObjectMapper.Subobjects.DISABLED, mapperService.documentMapper().mapping().getRoot().subobjects());
+        }
+    }
+
+    public void testStrictColumnarModesRejectRuntimeDynamic() {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("dynamic", "runtime")))
+            );
+            assertThat(e.getMessage(), containsString("dynamic [runtime] is not supported in strict columnar mode"));
+        }
+    }
+
+    private Settings sliceEnabledSettings() {
+        return Settings.builder()
+            .put(getIndexSettings())
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+
+            .build();
+    }
+
+    public void testSliceEnabledRejectsExplicitSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(sliceEnabledSettings(), mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledRejectsRuntimeSliceFieldName() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(sliceEnabledSettings(), topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("_slice").field("type", "keyword").endObject();
+                b.endObject();
+            }))
+        );
+        assertThat(e.getMessage(), containsString("_slice"));
+        assertThat(e.getMessage(), containsString(IndexSettings.SLICE_ENABLED.getKey()));
+    }
+
+    public void testSliceEnabledAllowsNestedSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(sliceEnabledSettings(), mapping(b -> {
+            b.startObject("obj");
+            b.field("type", "object");
+            b.startObject("properties");
+            b.startObject("_slice").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+    }
+
+    public void testSliceDisabledAllowsSliceFieldName() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createMapperService(mapping(b -> b.startObject("_slice").field("type", "keyword").endObject()));
+    }
+
+    public void testDynamicByPrefixSerializationRoundTrip() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Serialize the mapping to a string
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical (idempotence)
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties must survive round-trip serialization for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties in the expected prefix-keyed shape
+            assertThat(mappingJson1, containsString("prefix_properties"));
+            assertThat(mappingJson1, containsString("\"prefix_properties\":{\"attributes\":{"));
+            assertThat(mappingJson1, containsString("\"dynamic\":\"false\""));
+            assertThat(mappingJson1, containsString("\"dynamic\":\"strict\""));
+
+            // The prefixProperties map must be populated on re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root2.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root2.getPrefixProperties().get("resource").dynamic());
+        }
+    }
+
+    public void testDynamicByPrefixMergeAddNewPrefix() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Initial mapping: attributes dynamic=false
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Merge update: add resource dynamic=strict
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
+        }
+    }
+
+    public void testDynamicByPrefixMergeUpdateExistingPrefix() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Initial mapping: attributes dynamic=false
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Update: change attributes to strict
+            merge(mapperService, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "strict");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(
+                "dynamic update on a prefix should be allowed (consistent with object dynamic mutability)",
+                ObjectMapper.Dynamic.STRICT,
+                root.getPrefixProperties().get("attributes").dynamic()
+            );
+        }
+    }
+
+    /**
+     * Verifies that {@code prefix_properties} passthrough entries survive a serialization/deserialization
+     * round-trip so that {@link FieldTypeLookup} can reconstruct root-level aliases after index restart.
+     */
+    public void testPassthroughByPrefixSerializationRoundTrip() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("resource.attributes").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties passthrough must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties in the prefix-keyed shape
+            assertThat(mappingJson1, containsString("\"prefix_properties\""));
+            assertThat(mappingJson1, containsString("\"passthrough\""));
+            assertThat(mappingJson1, containsString("\"attributes\":{"));
+            assertThat(mappingJson1, containsString("\"resource.attributes\":{"));
+
+            // The map must be populated on the re-parsed root
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(Integer.valueOf(1), root2.getPrefixProperties().get("attributes").passthrough());
+            assertEquals(Integer.valueOf(2), root2.getPrefixProperties().get("resource.attributes").passthrough());
+        }
+    }
+
+    /**
+     * Verifies that a merge update adds a new passthrough prefix entry to {@code prefix_properties}.
+     */
+    public void testPassthroughByPrefixMergeAddsEntry() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("type", "passthrough").field("priority", 1).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("env").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            // Merge: add a second passthrough
+            merge(mapperService, mapping(b -> {
+                b.startObject("resource").field("type", "passthrough").field("priority", 2).field("dynamic", true);
+                {
+                    b.startObject("properties");
+                    b.startObject("service").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+            }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(Integer.valueOf(1), root.getPrefixProperties().get("attributes").passthrough());
+            assertEquals(Integer.valueOf(2), root.getPrefixProperties().get("resource").passthrough());
+        }
+    }
+
+    public void testEnabledByPrefixSerializationRoundTrip() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("enabled", false).endObject();
+                b.startObject("resource").field("enabled", false).endObject();
+            }));
+
+            String mappingJson1 = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Re-parse and re-serialize — must be identical (idempotence)
+            MapperService mapperService2 = createMapperService(settings, mappingJson1);
+            String mappingJson2 = Strings.toString(mapperService2.documentMapper().mapping());
+            assertEquals("prefix_properties.enabled must survive round-trip for " + indexMode, mappingJson1, mappingJson2);
+
+            // The stored mapping must contain prefix_properties with the enabled facet
+            assertThat(mappingJson1, containsString("\"prefix_properties\""));
+            assertThat(mappingJson1, containsString("\"attributes\":{"));
+            assertThat(mappingJson1, containsString("\"enabled\":false"));
+
+            // Re-parsed root must have the enabled entries
+            RootObjectMapper root2 = mapperService2.mappingLookup().getMapping().getRoot();
+            assertEquals(Boolean.FALSE, root2.getPrefixProperties().get("attributes").enabled());
+            assertEquals(Boolean.FALSE, root2.getPrefixProperties().get("resource").enabled());
+        }
+    }
+
+    public void testEnabledByPrefixMergeAddsEntry() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes").field("enabled", false).endObject();
+            }));
+
+            merge(mapperService, mapping(b -> { b.startObject("resource").field("enabled", false).endObject(); }));
+
+            RootObjectMapper root = mapperService.documentMapper().mapping().getRoot();
+            assertEquals(Boolean.FALSE, root.getPrefixProperties().get("attributes").enabled());
+            assertEquals(Boolean.FALSE, root.getPrefixProperties().get("resource").enabled());
+        }
+    }
+
+    public void testEnabledAndDynamicCoexistInPrefixProperties() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("attributes");
+                {
+                    b.field("dynamic", "false");
+                    b.startObject("properties");
+                    b.startObject("host").field("type", "keyword").endObject();
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject("disabled").field("enabled", false).endObject();
+            }));
+
+            String mappingJson = Strings.toString(mapperService.documentMapper().mapping());
+
+            // Round-trip must be identical
+            MapperService mapperService2 = createMapperService(settings, mappingJson);
+            assertEquals(mappingJson, Strings.toString(mapperService2.documentMapper().mapping()));
+
+            RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
+            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(Boolean.FALSE, root.getPrefixProperties().get("disabled").enabled());
+            // Facets are independent — dynamic prefix has no enabled entry, disabled prefix has no dynamic entry
+            assertNull(root.getPrefixProperties().get("attributes").enabled());
+            assertNull(root.getPrefixProperties().get("disabled").dynamic());
+        }
+    }
+
+    public void testPrefixPropertiesEnabledParseValidation() throws Exception {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            // Non-boolean value for prefix.enabled must be rejected
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, topMapping(b -> {
+                b.startObject("prefix_properties");
+                b.startObject("attributes");
+                b.field("enabled", "notaboolean");
+                b.endObject();
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("prefix_properties.attributes.enabled"));
+        }
+    }
+
+    public void testColumnarRejectsRootEnabledFalse() {
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, topMapping(b -> b.field("enabled", false)))
+            );
+            assertThat(e.getMessage(), containsString("[enabled] cannot be set to [false] on the root object"));
+            assertThat(e.getMessage(), containsString("strict columnar index modes"));
+        }
+    }
+
+    public void testNonColumnarAllowsRootEnabledFalse() throws Exception {
+        // Ensure the new guard does not affect non-columnar indices.
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("enabled", false)));
+        assertFalse(mapperService.documentMapper().mapping().getRoot().isEnabled());
+    }
 }

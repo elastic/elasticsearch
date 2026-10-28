@@ -105,7 +105,7 @@ public class SqlSession implements Session {
     }
 
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
-        return new SqlParser().createStatement(sql, params, configuration.zoneId());
+        return new SqlParser().createStatement(sql, params, configuration.zoneId(), configuration.maxQueryLength());
     }
 
     public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
@@ -166,6 +166,8 @@ public class SqlSession implements Session {
                 IndexResolver.ALL_FIELDS,
                 includeFrozen,
                 configuration.runtimeMappings(),
+                configuration.crossProject(),
+                configuration.projectRouting(),
                 listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult)))
             );
         } else {

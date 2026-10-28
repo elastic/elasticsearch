@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
@@ -22,6 +22,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
+import static org.elasticsearch.action.termvectors.EnsureDocsSearchableAction.ENSURE_DOCS_SEARCHABLE_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
@@ -29,9 +30,11 @@ import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_O
 import static org.elasticsearch.xpack.core.ClientHelper.APM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_RECOVERY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ESQL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -41,6 +44,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROFILING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.PROMETHEUS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -49,6 +53,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 public final class AuthorizationUtils {
 
@@ -87,8 +92,11 @@ public final class AuthorizationUtils {
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
-        final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
-        if (originatingAction != null && isInternalAction(originatingAction) == false) {
+        final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadContext);
+        final String effectiveOriginatingAction = (originatingAction != null && TransportActionProxy.isProxyAction(originatingAction))
+            ? TransportActionProxy.unwrapAction(originatingAction)
+            : originatingAction;
+        if (effectiveOriginatingAction != null && isInternalAction(effectiveOriginatingAction) == false) {
             return true;
         }
 
@@ -131,6 +139,7 @@ public final class AuthorizationUtils {
             case SECURITY_PROFILE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.SECURITY_PROFILE_USER, version, consumer);
                 break;
+            case ENSURE_DOCS_SEARCHABLE_ORIGIN:
             case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.STORAGE_USER, version, consumer);
                 break;
@@ -143,6 +152,14 @@ public final class AuthorizationUtils {
             case LAZY_ROLLOVER_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.LAZY_ROLLOVER_USER, version, consumer);
                 break;
+            case ENRICH_ORIGIN:
+                // _enrich was introduced in SECURITY_ENRICH_INTERNAL_USER; fall back to _xpack for older nodes
+                securityContext.executeAsInternalUser(
+                    version.supports(Authentication.SECURITY_ENRICH_INTERNAL_USER) ? InternalUsers.ENRICH_USER : InternalUsers.XPACK_USER,
+                    version,
+                    consumer
+                );
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -151,12 +168,12 @@ public final class AuthorizationUtils {
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
-            case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case PROFILING_ORIGIN:
             case APM_ORIGIN:
             case OTEL_ORIGIN:
+            case PROMETHEUS_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:
@@ -164,6 +181,8 @@ public final class AuthorizationUtils {
             case ENT_SEARCH_ORIGIN:
             case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
+            case ESQL_ORIGIN:
+            case DATA_RECOVERY_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);
                 break;

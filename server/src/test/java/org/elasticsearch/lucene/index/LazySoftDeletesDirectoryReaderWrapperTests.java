@@ -23,10 +23,10 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.test.GraalVMThreadsFilter;
@@ -44,7 +44,7 @@ public class LazySoftDeletesDirectoryReaderWrapperTests extends LuceneTestCase {
         String softDeletesField = "soft_delete";
         indexWriterConfig.setSoftDeletesField(softDeletesField);
         indexWriterConfig.setMergePolicy(
-            new SoftDeletesRetentionMergePolicy(softDeletesField, MatchAllDocsQuery::new, NoMergePolicy.INSTANCE)
+            new SoftDeletesRetentionMergePolicy(softDeletesField, () -> Queries.ALL_DOCS_INSTANCE, NoMergePolicy.INSTANCE)
         );
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, indexWriterConfig)) {
 

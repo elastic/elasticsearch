@@ -13,14 +13,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
@@ -52,7 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numClientNodes = 1, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class RestControllerIT extends ESIntegTestCase {
     @Override
     protected boolean addMockHttpTransport() {
@@ -192,13 +186,7 @@ public class RestControllerIT extends ESIntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
@@ -245,13 +233,7 @@ public class RestControllerIT extends ESIntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
@@ -301,13 +283,7 @@ public class RestControllerIT extends ESIntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {

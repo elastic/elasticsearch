@@ -39,11 +39,8 @@ import java.lang.annotation.Target;
  * <p>
  *     The generation code also looks for the optional methods {@code combineIntermediate}
  *     and {@code evaluateFinal} which are used to combine intermediate states and
- *     produce the final output. If the first is missing then the generated code will
- *     call the {@code combine} method to combine intermediate states. If the second
- *     is missing the generated code will make a block containing the primitive from
- *     the state. If either of those don't have sensible interpretations then the code
- *     generation code will throw an error, aborting the compilation.
+ *     produce the final output. Please note, those are auto-generated when aggregating
+ *     primitive types such as boolean, int, long, float, double.
  * </p>
  */
 @Target(ElementType.TYPE)
@@ -53,9 +50,19 @@ public @interface Aggregator {
     IntermediateState[] value() default {};
 
     /**
+     * When {@code false} (the default), the generated {@code addRawInputNotMasked} and
+     * {@code addRawInputMasked} methods will return early when all values in an input
+     * block are null, because there is nothing to aggregate.
+     * <p>
+     *     Set to {@code true} for aggregations like {@code FIRST} and {@code LAST} that
+     *     need to process null values to correctly track position-based semantics.
+     * </p>
+     */
+    boolean processNulls() default false;
+
+    /**
      * Exceptions thrown by the `combine*(...)` methods to catch and convert
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
-
 }

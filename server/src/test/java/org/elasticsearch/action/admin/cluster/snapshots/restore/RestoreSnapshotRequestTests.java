@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -80,14 +81,9 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
             instance.indicesOptions(
                 IndicesOptions.builder()
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
-                    .wildcardOptions(
-                        new IndicesOptions.WildcardOptions(
-                            randomBoolean(),
-                            randomBoolean(),
-                            randomBoolean(),
-                            instance.indicesOptions().ignoreAliases() == false,
-                            randomBoolean()
-                        )
+                    .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
+                    .indexAbstractionOptions(
+                        new IndicesOptions.IndexAbstractionOptions(instance.indicesOptions().ignoreAliases() == false, false, false)
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()
@@ -103,6 +99,8 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
         }
+
+        instance.restoreOverExisting(randomBoolean());
 
         return instance;
     }
@@ -174,6 +172,59 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testToStringWillIncludeSkipOperatorOnlyState() {
         RestoreSnapshotRequest original = createTestInstance();
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
+    }
+
+    public void testRenameReplacementNameTooLong() {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.indices("b".repeat(255));
+        request.renamePattern("b");
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
+
+        ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("rename_replacement"));
+    }
+
+    public void testRestoreOverExistingRejectedWithRename() {
+        // restore_over_existing on its own is valid
+        assertNull(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true).validate());
+
+        // combined with a rename it must be rejected: restoring over a destination matches it by its final name, which renaming changes
+        final RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true);
+        request.renamePattern("(.+)");
+        if (randomBoolean()) {
+            request.renameReplacement("restored-$1");
+        }
+
+        final ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with rename"));
+    }
+
+    public void testRestoreOverExistingRejectedWithIncludeGlobalState() {
+        // restore_over_existing on its own is valid
+        assertNull(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true).validate());
+
+        // combined with include_global_state it must be rejected: the interaction with the snapshot's restored templates is unspecified
+        final ActionRequestValidationException validation = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .restoreOverExisting(true)
+            .includeGlobalState(true)
+            .validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with include_global_state"));
+    }
+
+    public void testRestoreOverExistingRejectedWithPartial() {
+        // restore_over_existing on its own is valid
+        assertNull(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap").restoreOverExisting(true).validate());
+
+        // combined with partial it must be rejected: overwriting a live destination with a possibly-incomplete snapshot risks data loss
+        final ActionRequestValidationException validation = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .restoreOverExisting(true)
+            .partial(true)
+            .validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("restore_over_existing is not supported together with partial"));
     }
 
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {

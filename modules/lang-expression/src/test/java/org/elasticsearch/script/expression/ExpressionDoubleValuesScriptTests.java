@@ -13,6 +13,7 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.Script;
@@ -21,6 +22,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -34,12 +36,17 @@ public class ExpressionDoubleValuesScriptTests extends ESTestCase {
     private ExpressionScriptEngine engine;
     private ScriptService scriptService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initEngine() throws Exception {
 
         engine = new ExpressionScriptEngine();
-        scriptService = new ScriptService(Settings.EMPTY, Map.of("expression", engine), ScriptModule.CORE_CONTEXTS, () -> 1L);
+        scriptService = new ScriptService(
+            Settings.EMPTY,
+            Map.of("expression", engine),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @SuppressWarnings("unchecked")

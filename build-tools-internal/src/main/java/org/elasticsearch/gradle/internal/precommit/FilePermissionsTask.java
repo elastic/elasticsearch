@@ -54,11 +54,12 @@ public abstract class FilePermissionsTask extends DefaultTask {
         // exclude sh files that might have the executable bit set
         .exclude("**/*.sh");
 
-    private File outputMarker = new File(getProject().getBuildDir(), "markers/filePermissions");
+    private File outputMarker;
 
     @Inject
     public FilePermissionsTask(ProjectLayout projectLayout) {
         this.projectLayout = projectLayout;
+        this.outputMarker = new File(projectLayout.getBuildDirectory().getAsFile().get(), "markers/filePermissions");
         setDescription("Checks java source files for correct file permissions");
     }
 
@@ -106,7 +107,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
         }
 
         outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes("UTF-8"));
+        Files.writeString(outputMarker.toPath(), "done");
     }
 
     @OutputFile

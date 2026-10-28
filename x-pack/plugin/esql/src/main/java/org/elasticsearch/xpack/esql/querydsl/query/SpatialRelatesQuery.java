@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -46,7 +47,7 @@ public class SpatialRelatesQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
@@ -86,6 +87,11 @@ public class SpatialRelatesQuery extends Query {
         };
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     /**
      * This class is a minimal implementation of the QueryBuilder interface.
      * We only need the toQuery method, but ESQL makes extensive use of QueryBuilder and trimming that interface down for ESQL only would
@@ -93,6 +99,8 @@ public class SpatialRelatesQuery extends Query {
      * Note that this class is only public for testing in PhysicalPlanOptimizerTests.
      */
     public abstract class ShapeQueryBuilder implements QueryBuilder {
+
+        private float boost = 0.0f;
 
         protected void doToXContent(String queryName, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -125,6 +133,16 @@ public class SpatialRelatesQuery extends Query {
             return buildShapeQuery(context, fieldType);
         }
 
+        @Override
+        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor)
+            throws IOException {
+            org.apache.lucene.search.Query query = toQuery(context);
+            if (query != null) {
+                query.visit(visitor);
+            }
+            return query;
+        }
+
         abstract org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
 
         @Override
@@ -139,12 +157,13 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         public float boost() {
-            return 0;
+            return boost;
         }
 
         @Override
         public QueryBuilder boost(float boost) {
-            throw new UnsupportedOperationException("Unimplemented: float");
+            this.boost = boost;
+            return this;
         }
 
         @Override
@@ -223,7 +242,7 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYPointQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -241,7 +260,7 @@ public class SpatialRelatesQuery extends Query {
             }
             final MappedFieldType fieldType = context.getFieldType(fieldName);
             try {
-                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.isIndexed(), fieldType.hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(geometry, fieldName, relation, fieldType.indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }

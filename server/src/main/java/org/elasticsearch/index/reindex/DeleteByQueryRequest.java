@@ -24,23 +24,23 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Creates a new {@link DeleteByQueryRequest} that uses scrolling and bulk requests to delete all documents matching
+ * Creates a new {@link DeleteByQueryRequest} that uses paginated search and bulk requests to delete all documents matching
  * the query. This can have performance as well as visibility implications.
  *
  * Delete-by-query now has the following semantics:
  * <ul>
  *     <li>it's {@code non-atomic}, a delete-by-query may fail at any time while some documents matching the query have already been
  *     deleted</li>
- *     <li>it's {@code syntactic sugar}, a delete-by-query is equivalent to a scroll search and corresponding bulk-deletes by ID</li>
+ *     <li>it's {@code syntactic sugar}, a delete-by-query is equivalent to a paginated search and corresponding bulk-deletes by ID</li>
  *     <li>it's executed on a {@code point-in-time} snapshot, a delete-by-query will only delete the documents that are visible at the
- *     point in time the delete-by-query was started, equivalent to the scroll API</li>
+ *     point in time the delete-by-query was started</li>
  *     <li>it's {@code consistent}, a delete-by-query will yield consistent results across all replicas of a shard</li>
  *     <li>it's {@code forward-compatible}, a delete-by-query will only send IDs to the shards as deletes such that no queries are
  *     stored in the transaction logs that might not be supported in the future.</li>
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
  */
-public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
+public class DeleteByQueryRequest extends AbstractBulkByPaginatedSearchRequest<DeleteByQueryRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
@@ -90,7 +90,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     /**
-     * The scroll size to control number of documents processed per batch
+     * The batch size to control number of documents processed per paginated search batch
      */
     public DeleteByQueryRequest setBatchSize(int size) {
         getSearchRequest().source().size(size);
@@ -144,8 +144,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
-    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices);
+    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
     }
 
     @Override

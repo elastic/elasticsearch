@@ -8,12 +8,20 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
+import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
 import java.io.IOException;
-import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
+
+/**
+ * Outbound cross-cluster access headers, written by the originating cluster when sending a request to a remote cluster.
+ * The receiving side reads them back with {@link CrossClusterAccessRequestHeaders}, which deliberately keeps the subject info
+ * encoded until the API key has been authenticated.
+ */
 public final class CrossClusterAccessHeaders {
 
     public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY = "_cross_cluster_access_credentials";
@@ -26,61 +34,14 @@ public final class CrossClusterAccessHeaders {
         this.crossClusterAccessSubjectInfo = crossClusterAccessSubjectInfo;
     }
 
-    public void writeToContext(final ThreadContext ctx) throws IOException {
+    public void writeToContext(final ThreadContext ctx, @Nullable CrossClusterApiKeySignatureManager.Signer signer) throws IOException {
+        var encodedSubjectInfo = crossClusterAccessSubjectInfo.encode();
+        if (signer != null) {
+            var signature = signer.sign(encodedSubjectInfo, credentialsHeader);
+            X509CertificateSignature.writeToContext(ctx, signature);
+        }
+
+        ctx.putHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY, encodedSubjectInfo);
         ctx.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, credentialsHeader);
-        crossClusterAccessSubjectInfo.writeToContext(ctx);
-    }
-
-    public static CrossClusterAccessHeaders readFromContext(final ThreadContext ctx) throws IOException {
-        final String credentialsHeader = ctx.getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
-        if (credentialsHeader == null) {
-            throw new IllegalArgumentException(
-                "cross cluster access header [" + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY + "] is required"
-            );
-        }
-        // Invoke parsing logic to validate that the header decodes to a valid API key credential
-        // Call `close` since the returned value is an auto-closable
-        parseCredentialsHeader(credentialsHeader).close();
-        return new CrossClusterAccessHeaders(credentialsHeader, CrossClusterAccessSubjectInfo.readFromContext(ctx));
-    }
-
-    public ApiKeyService.ApiKeyCredentials credentials() {
-        return parseCredentialsHeader(credentialsHeader);
-    }
-
-    static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
-        try {
-            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header, ApiKey.Type.CROSS_CLUSTER));
-        } catch (Exception ex) {
-            throw new IllegalArgumentException(
-                "cross cluster access header ["
-                    + CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY
-                    + "] value must be a valid API key credential",
-                ex
-            );
-        }
-    }
-
-    public CrossClusterAccessSubjectInfo getCleanAndValidatedSubjectInfo() {
-        return crossClusterAccessSubjectInfo.cleanAndValidate();
-    }
-
-    // package-private for testing
-    CrossClusterAccessSubjectInfo getSubjectInfo() {
-        return crossClusterAccessSubjectInfo;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (CrossClusterAccessHeaders) obj;
-        return Objects.equals(this.credentialsHeader, that.credentialsHeader)
-            && Objects.equals(this.crossClusterAccessSubjectInfo, that.crossClusterAccessSubjectInfo);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(credentialsHeader, crossClusterAccessSubjectInfo);
     }
 }

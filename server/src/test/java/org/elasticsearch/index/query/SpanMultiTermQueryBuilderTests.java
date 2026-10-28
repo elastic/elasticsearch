@@ -28,13 +28,13 @@ import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -122,6 +122,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
 
         @Override
+        public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+            return toQuery(context);
+        }
+
+        @Override
         public QueryBuilder queryName(String queryName) {
             return this;
         }
@@ -168,7 +173,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 

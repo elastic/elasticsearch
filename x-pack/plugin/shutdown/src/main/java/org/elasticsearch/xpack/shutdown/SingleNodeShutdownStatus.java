@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardSnapshotsStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -35,23 +36,27 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
     private final ShutdownShardMigrationStatus shardMigrationStatus;
     private final ShutdownPersistentTasksStatus persistentTasksStatus;
     private final ShutdownPluginsStatus pluginsStatus;
+    private final ShutdownShardSnapshotsStatus shardSnapshotsStatus;
 
     private static final ParseField STATUS = new ParseField("status");
     private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
     private static final ParseField PERSISTENT_TASKS_FIELD = new ParseField("persistent_tasks");
     private static final ParseField PLUGINS_STATUS = new ParseField("plugins");
+    private static final ParseField SHARD_SNAPSHOTS_FIELD = new ParseField("shard_snapshots");
     private static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
 
     public SingleNodeShutdownStatus(
         SingleNodeShutdownMetadata metadata,
         ShutdownShardMigrationStatus shardMigrationStatus,
         ShutdownPersistentTasksStatus persistentTasksStatus,
-        ShutdownPluginsStatus pluginsStatus
+        ShutdownPluginsStatus pluginsStatus,
+        ShutdownShardSnapshotsStatus shardSnapshotsStatus
     ) {
         this.metadata = Objects.requireNonNull(metadata, "metadata must not be null");
         this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
         this.persistentTasksStatus = Objects.requireNonNull(persistentTasksStatus, "persistent task status must not be null");
         this.pluginsStatus = Objects.requireNonNull(pluginsStatus, "plugin status must not be null");
+        this.shardSnapshotsStatus = Objects.requireNonNull(shardSnapshotsStatus, "shard snapshots status must not be null");
     }
 
     public SingleNodeShutdownStatus(StreamInput in) throws IOException {
@@ -59,6 +64,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         this.shardMigrationStatus = new ShutdownShardMigrationStatus(in);
         this.persistentTasksStatus = new ShutdownPersistentTasksStatus(in);
         this.pluginsStatus = new ShutdownPluginsStatus(in);
+        this.shardSnapshotsStatus = ShutdownShardSnapshotsStatus.readFrom(in);
     }
 
     @Override
@@ -67,13 +73,15 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         this.shardMigrationStatus.writeTo(out);
         this.persistentTasksStatus.writeTo(out);
         this.pluginsStatus.writeTo(out);
+        this.shardSnapshotsStatus.writeTo(out);
     }
 
     public SingleNodeShutdownMetadata.Status overallStatus() {
         return SingleNodeShutdownMetadata.Status.combine(
             migrationStatus().getStatus(),
             pluginsStatus().getStatus(),
-            persistentTasksStatus().getStatus()
+            persistentTasksStatus().getStatus(),
+            shardSnapshotsStatus().status()
         );
     }
 
@@ -89,9 +97,13 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         return this.pluginsStatus;
     }
 
+    public ShutdownShardSnapshotsStatus shardSnapshotsStatus() {
+        return this.shardSnapshotsStatus;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(metadata, shardMigrationStatus, persistentTasksStatus, pluginsStatus);
+        return Objects.hash(metadata, shardMigrationStatus, persistentTasksStatus, pluginsStatus, shardSnapshotsStatus);
     }
 
     @Override
@@ -106,12 +118,13 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         return metadata.equals(other.metadata)
             && shardMigrationStatus.equals(other.shardMigrationStatus)
             && persistentTasksStatus.equals(other.persistentTasksStatus)
-            && pluginsStatus.equals(other.pluginsStatus);
+            && pluginsStatus.equals(other.pluginsStatus)
+            && shardSnapshotsStatus.equals(other.shardSnapshotsStatus);
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override
@@ -137,6 +150,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
         }), ChunkedToXContentHelper.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus, params), chunk((builder, p) -> {
             builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
             builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
+            builder.field(SHARD_SNAPSHOTS_FIELD.getPreferredName(), shardSnapshotsStatus);
             if (metadata.getTargetNodeName() != null) {
                 builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
             }

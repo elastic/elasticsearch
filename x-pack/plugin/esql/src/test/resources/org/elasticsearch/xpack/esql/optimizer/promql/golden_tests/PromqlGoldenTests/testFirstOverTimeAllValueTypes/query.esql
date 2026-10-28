@@ -1,0 +1,1 @@
+PROMQL index=k8s step=10m events=(sum by (pod) (first_over_time(events_received[10m])))

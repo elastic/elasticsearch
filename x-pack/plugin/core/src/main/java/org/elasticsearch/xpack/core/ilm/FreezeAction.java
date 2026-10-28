@@ -25,7 +25,7 @@ import java.util.List;
  * state of indices.
  */
 @Deprecated
-@UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+@UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
 public class FreezeAction implements LifecycleAction {
 
     public static final String NAME = "freeze";

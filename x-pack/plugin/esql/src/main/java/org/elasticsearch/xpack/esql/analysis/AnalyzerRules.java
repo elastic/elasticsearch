@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -16,7 +17,9 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -45,7 +48,7 @@ public final class AnalyzerRules {
 
         // transformUp (post-order) - that is first children and then the node
         // but with a twist; only if the tree is not resolved or analyzed
-        public final LogicalPlan apply(LogicalPlan plan, P context) {
+        public LogicalPlan apply(LogicalPlan plan, P context) {
             return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t, context));
         }
 
@@ -56,23 +59,10 @@ public final class AnalyzerRules {
         }
     }
 
-    public abstract static class BaseAnalyzerRule extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan.childrenResolved() == false) {
-                return plan;
-            }
-            return doRule(plan);
-        }
-
-        protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
         Collection<Attribute> attrList,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
+        Function<Attribute, Attribute> fieldInspector
     ) {
         final String name = u.name();
 
@@ -85,7 +75,7 @@ public final class AnalyzerRules {
         Supplier<UnresolvedAttribute> unresolved,
         Collection<Attribute> attrList,
         boolean isPattern,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
+        Function<Attribute, Attribute> fieldInspector
     ) {
         List<Attribute> matches = new ArrayList<>();
 
@@ -98,6 +88,28 @@ public final class AnalyzerRules {
             }
         }
 
+        return resolveCollectedMatches(matches, unresolved, isPattern, fieldInspector);
+    }
+
+    // Exact-name resolution via a prebuilt name index (O(1) lookup) instead of the linear scan above; the index
+    // must already exclude synthetic attributes so results match the scanning overload.
+    public static List<Attribute> maybeResolveAgainstList(
+        UnresolvedAttribute u,
+        Map<String, List<Attribute>> nameIndex,
+        Function<Attribute, Attribute> fieldInspector
+    ) {
+        List<Attribute> candidates = nameIndex.get(u.name());
+        // copy: resolveCollectedMatches mutates the list in place while the index entry is shared across lookups
+        List<Attribute> matches = candidates == null ? new ArrayList<>() : new ArrayList<>(candidates);
+        return resolveCollectedMatches(matches, () -> u, false, fieldInspector);
+    }
+
+    private static List<Attribute> resolveCollectedMatches(
+        List<Attribute> matches,
+        Supplier<UnresolvedAttribute> unresolved,
+        boolean isPattern,
+        Function<Attribute, Attribute> fieldInspector
+    ) {
         if (matches.isEmpty()) {
             return matches;
         }
@@ -116,7 +128,6 @@ public final class AnalyzerRules {
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
         }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
-
-        throw new IllegalStateException("Reference [" + ua.name() + "] is ambiguous; " + "matches any of " + refs);
+        throw new VerificationException("Found ambiguous reference to [" + ua.name() + "]; " + "matches any of " + refs);
     }
 }

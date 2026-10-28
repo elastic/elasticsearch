@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -14,22 +15,29 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -50,7 +58,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
     }
 
     private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(randomAlphaOfLength(10));
+        return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(
+            randomAlphaOfLength(10),
+            randomBoolean() ? randomAlphaOfLengthBetween(10, 50) : null
+        );
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
@@ -74,7 +85,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             stepNull ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+            randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+            randomBoolean(),
+            // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+            null
         );
     }
 
@@ -101,20 +115,50 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : randomAlphaOfLength(10),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
-                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
+                randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
     }
 
-    public void testIndexAges() {
+    public void testUnmanagedReasonXContent() throws IOException {
+        String reason = randomAlphaOfLength(20);
+        assertThat(toMap(IndexLifecycleExplainResponse.newUnmanagedIndexResponse("index", reason)), hasEntry("unmanaged_reason", reason));
+        assertThat(toMap(IndexLifecycleExplainResponse.newUnmanagedIndexResponse("index", null)), not(hasKey("unmanaged_reason")));
+        assertThat(toMap(randomManagedIndexExplainResponse()), not(hasKey("unmanaged_reason")));
+    }
+
+    public void testUnmanagedReasonSerialization() throws IOException {
+        IndexLifecycleExplainResponse unmanaged = IndexLifecycleExplainResponse.newUnmanagedIndexResponse("index", randomAlphaOfLength(20));
+        assertThat(copyInstance(unmanaged).getUnmanagedReason(), equalTo(unmanaged.getUnmanagedReason()));
+
+        IndexLifecycleExplainResponse oldVersion = copyInstance(
+            unmanaged,
+            TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("explain_index_unmanaged_reason"))
+        );
+        assertThat(oldVersion.managedByILM(), is(false));
+        assertThat(oldVersion.getUnmanagedReason(), is(nullValue()));
+    }
+
+    private static Map<String, Object> toMap(IndexLifecycleExplainResponse response) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            response.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        }
+    }
+
+    public void testIndexAges() throws IOException {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
         assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
 
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
+
+        assertAgeInMillisXContentAbsentForUnmanagedResponse(unmanagedExplainResponse);
 
         IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
             "indexName",
@@ -135,6 +179,8 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
+            null,
+            false,
             null
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
@@ -152,6 +198,46 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
         assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
+
+        long expectedAgeInMillisForThisCase = Math.max(0L, now - managedExplainResponse.getLifecycleDate());
+        assertAgeInMillisXContent(managedExplainResponse, expectedAgeInMillisForThisCase, now);
+    }
+
+    protected void assertAgeInMillisXContent(
+        final IndexLifecycleExplainResponse managedExplainResponse,
+        final long expectedAgeInMillis,
+        final long now
+    ) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        managedExplainResponse.nowSupplier = () -> now;
+        try (builder) {
+            managedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, hasKey("age_in_millis"));
+            final long actualParsedAgeInMillis = ((Number) parsedMap.get("age_in_millis")).longValue();
+            assertThat(actualParsedAgeInMillis, equalTo((Number) expectedAgeInMillis));
+        }
+    }
+
+    protected void assertAgeInMillisXContentAbsentForUnmanagedResponse(final IndexLifecycleExplainResponse unmanagedExplainResponse)
+        throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        try (builder) {
+            unmanagedExplainResponse.toXContent(builder, ToXContentObject.EMPTY_PARAMS);
+        }
+        final String json = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(builder.contentType().xContent(), json)) {
+            Map<String, Object> parsedMap = parser.map();
+
+            assertThat(parsedMap, not(hasKey("age_in_millis")));
+        }
+
     }
 
     @Override
@@ -196,9 +282,10 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
         BytesReference stepInfo = instance.getStepInfo();
         BytesReference previousStepInfo = instance.getPreviousStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
+        boolean skip = instance.getSkip();
 
         if (managed) {
-            switch (between(0, 15)) {
+            switch (between(0, 16)) {
                 case 0 -> index += randomAlphaOfLengthBetween(1, 5);
                 case 1 -> policy += randomAlphaOfLengthBetween(1, 5);
                 case 2 -> {
@@ -248,7 +335,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                     () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo("")
                 );
                 case 11 -> {
-                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
+                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index, randomAlphaOfLength(10));
                 }
                 case 12 -> {
                     isAutoRetryableError = true;
@@ -257,6 +344,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 case 13 -> repositoryName = randomValueOtherThan(repositoryName, () -> randomAlphaOfLengthBetween(5, 10));
                 case 14 -> snapshotName = randomValueOtherThan(snapshotName, () -> randomAlphaOfLengthBetween(5, 10));
                 case 15 -> shrinkIndexName = randomValueOtherThan(shrinkIndexName, () -> randomAlphaOfLengthBetween(5, 10));
+                case 16 -> skip = skip == false;
                 default -> throw new AssertionError("Illegal randomisation branch");
             }
 
@@ -279,11 +367,17 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 shrinkIndexName,
                 stepInfo,
                 previousStepInfo,
-                phaseExecutionInfo
+                phaseExecutionInfo,
+                skip,
+                // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
+                instance.getForceMergeCloneIndexName()
             );
         } else {
             return switch (between(0, 1)) {
-                case 0 -> IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
+                case 0 -> IndexLifecycleExplainResponse.newUnmanagedIndexResponse(
+                    index + randomAlphaOfLengthBetween(1, 5),
+                    randomBoolean() ? randomAlphaOfLength(10) : null
+                );
                 case 1 -> randomManagedIndexExplainResponse();
                 default -> throw new AssertionError("Illegal randomisation branch");
             };

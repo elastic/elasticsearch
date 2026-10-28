@@ -12,7 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -28,20 +33,23 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
-import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,6 +62,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -62,6 +71,7 @@ import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -69,8 +79,8 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -85,10 +95,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
@@ -104,6 +116,7 @@ import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycle
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,6 +129,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleServiceIT.class);
+    private static final String DEFAULT_REPO = "my-repo";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -133,7 +147,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
         settings.put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         // we'll test DSL errors reach the health node, so we're lowering the threshold over which we report errors
-        settings.put(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.getKey(), "3");
+        settings.put(DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.getKey(), "3");
         return settings.build();
     }
 
@@ -145,7 +159,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testRolloverLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -158,26 +172,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 1);
 
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndex = backingIndices.get(0).getName();
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = backingIndices.get(1).getName();
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(0).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.ZERO).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -192,19 +196,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
             assertThat(backingIndices.size(), equalTo(1));
             // we expect the data stream to have only one backing index, the write one, with generation 2
             // as generation 1 would've been deleted by the data stream lifecycle given the configuration
-            String writeIndex = backingIndices.get(0).getName();
+            String writeIndex = backingIndices.get(0);
             assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
         });
     }
@@ -230,23 +226,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
                 indexDocs(SYSTEM_DATA_STREAM_NAME, 1);
                 now.addAndGet(TimeValue.timeValueSeconds(30).millis());
-                assertBusy(() -> {
-                    GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                        TEST_REQUEST_TIMEOUT,
-                        new String[] { SYSTEM_DATA_STREAM_NAME }
-                    );
-                    GetDataStreamAction.Response getDataStreamResponse = client().execute(
-                        GetDataStreamAction.INSTANCE,
-                        getDataStreamRequest
-                    ).actionGet();
-                    assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                    assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
-                    List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-                    assertThat(backingIndices.size(), equalTo(2)); // global retention is ignored
-                    // we expect the data stream to have two backing indices since the effective retention is 100 days
-                    String writeIndex = backingIndices.get(1).getName();
-                    assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
-                });
+                List<Index> backingIndices = waitForDataStreamBackingIndices(SYSTEM_DATA_STREAM_NAME, 2);
+                // we expect the data stream to have two backing indices since the effective retention is 100 days
+                String writeIndex = backingIndices.get(1).getName();
+                assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
 
                 // Now we advance the time to well beyond the configured retention. We expect that the older index will have been deleted.
                 now.addAndGet(TimeValue.timeValueDays(3 * TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
@@ -261,12 +244,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     ).actionGet();
                     assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
                     assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(SYSTEM_DATA_STREAM_NAME));
-                    List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-                    assertThat(backingIndices.size(), equalTo(1)); // global retention is ignored
+                    List<Index> currentBackingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                    assertThat(currentBackingIndices.size(), equalTo(1)); // global retention is ignored
                     // we expect the data stream to have only one backing index, the write one, with generation 2
                     // as generation 1 would've been deleted by the data stream lifecycle given the configuration
-                    String writeIndex = backingIndices.get(0).getName();
-                    assertThat(writeIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
+                    String currentWriteIndex = currentBackingIndices.get(0).getName();
+                    assertThat(currentWriteIndex, backingIndexEqualTo(SYSTEM_DATA_STREAM_NAME, 2));
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         builder.humanReadable(true);
                         ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(
@@ -278,7 +261,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                                 builder,
                                 withEffectiveRetention,
                                 getDataStreamResponse.getRolloverConfiguration(),
-                                getDataStreamResponse.getGlobalRetention()
+                                getDataStreamResponse.getDataGlobalRetention(),
+                                getDataStreamResponse.getFailuresGlobalRetention()
                             );
                         String serialized = Strings.toString(builder);
                         Map<String, Object> resultMap = XContentHelper.convertToMap(
@@ -320,7 +304,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
          * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueDays(7))
+            .buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -376,23 +362,14 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ).get();
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            Set<String> indexNames = backingIndices.stream().map(Index::getName).collect(Collectors.toSet());
-            assertTrue(indexNames.contains("index_new"));
-            assertFalse(indexNames.contains("index_old"));
+            List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
+            assertTrue(backingIndices.contains("index_new"));
+            assertFalse(backingIndices.contains("index_old"));
         });
     }
 
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -410,21 +387,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // Update the lifecycle of the data stream
         updateLifecycle(dataStreamName, TimeValue.timeValueMillis(1));
         // Verify that the retention has changed for all backing indices
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-            assertThat(dataStream.getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = dataStream.getIndices();
-            assertThat(backingIndices.size(), equalTo(1));
-            String writeIndex = dataStream.getWriteIndex().getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, finalGeneration));
-        });
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 1);
+        assertThat(backingIndices.getFirst().getName(), backingIndexEqualTo(dataStreamName, finalGeneration));
     }
 
     public void testAutomaticForceMerge() throws Exception {
@@ -436,14 +400,17 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * because all necessary merging has already happened automatically. So in order to detect whether forcemerge has been called, we
          * use a SendRequestBehavior in the MockTransportService to detect it.
          */
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         disableDataStreamLifecycle();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1") // This allows merging to succeed in a single node test
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
@@ -474,7 +441,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         int finalGeneration = randomIntBetween(3, 4);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
             // This is currently the write index, but it will be rolled over as soon as data stream lifecycle runs:
-            final String toBeRolledOverIndex = getBackingIndices(dataStreamName).get(currentGeneration - 1);
+            final var backingIndexNames = waitForDataStreamBackingIndices(dataStreamName, currentGeneration);
+            final String toBeRolledOverIndex = backingIndexNames.get(currentGeneration - 1).getName();
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
                 // Make sure the segments get written:
@@ -486,7 +454,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             if (currentGeneration == 1) {
                 toBeForceMergedIndex = null; // Not going to be used
             } else {
-                toBeForceMergedIndex = getBackingIndices(dataStreamName).get(currentGeneration - 2);
+                toBeForceMergedIndex = backingIndexNames.get(currentGeneration - 2).getName();
             }
             int currentBackingIndexCount = currentGeneration;
             DataStreamLifecycleService dataStreamLifecycleService = internalCluster().getInstance(
@@ -497,19 +465,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             // run data stream lifecycle once
             dataStreamLifecycleService.run(clusterService.state());
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    new String[] { dataStreamName }
-                );
-                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                    .actionGet();
-                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-                assertThat(dataStream.getName(), equalTo(dataStreamName));
-                List<Index> backingIndices = dataStream.getIndices();
+                List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
                 assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
-                String writeIndex = dataStream.getWriteIndex().getName();
-                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+                assertThat(backingIndices.getLast(), backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
                 /*
                  * We only expect forcemerge to happen on the 2nd data stream lifecycle run and later, since on the first there's only the
                  *  single write index to be rolled over.
@@ -520,6 +478,19 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         forceMergedIndices.contains(toBeForceMergedIndex),
                         equalTo(true)
                     );
+                    ExplainDataStreamLifecycleAction.Request request = new ExplainDataStreamLifecycleAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        new String[] { dataStreamName }
+                    );
+                    ExplainDataStreamLifecycleAction.Response response = safeGet(
+                        client().execute(ExplainDataStreamLifecycleAction.INSTANCE, request)
+                    );
+                    Optional<ExplainIndexDataStreamLifecycle> lifecycleExplain = response.getIndices()
+                        .stream()
+                        .filter(r -> r.getIndex().equals(toBeForceMergedIndex))
+                        .findFirst();
+                    assertThat(lifecycleExplain.isPresent(), equalTo(true));
+                    assertThat(lifecycleExplain.get().getTailMergeDate(), notNullValue());
                 }
                 // We want to assert that when data stream lifecycle rolls over the write index it, it doesn't forcemerge it on that
                 // iteration:
@@ -538,7 +509,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
          * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
@@ -565,40 +536,18 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        var backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
 
         // prevent new indices from being created (ie. future rollovers)
         updateClusterSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1));
 
         indexDocs(dataStreamName, 1);
 
-        String writeIndexName = getBackingIndices(dataStreamName).get(1);
+        Index secondWriteIndex = backingIndices.get(1);
+        String secondWriteIndexName = secondWriteIndex.getName();
         assertBusy(() -> {
-            ErrorEntry writeIndexRolloverError = null;
-            Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-
-            for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                writeIndexRolloverError = lifecycleService.getErrorStore().getError(writeIndexName);
-                if (writeIndexRolloverError != null) {
-                    break;
-                }
-            }
-
+            DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
+            ErrorEntry writeIndexRolloverError = lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, secondWriteIndex);
             assertThat(writeIndexRolloverError, is(notNullValue()));
             assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
 
@@ -618,6 +567,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertTrue(found);
         }, 30, TimeUnit.SECONDS);
 
+        // Ensure data stream did not roll over yet.
+        assertEquals(2, getDataStreamBackingIndexNames(dataStreamName).size());
+
         // DSL should signal to the health node that there's an error in the store that's been retried at least 3 times
         assertBusy(() -> {
             FetchHealthInfoCacheAction.Response healthNodeResponse = client().execute(
@@ -629,7 +581,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(1));
             DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
 
-            assertThat(errorInfo.indexName(), is(writeIndexName));
+            assertThat(errorInfo.indexName(), is(secondWriteIndexName));
             assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
@@ -651,27 +603,23 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
             Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
             assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-            assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(writeIndexName));
+            assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(secondWriteIndexName));
         }
 
         // let's reset the cluster max shards per node limit to allow rollover to proceed and check the error store is empty
         updateClusterSettings(Settings.builder().putNull("*"));
 
         assertBusy(() -> {
-            List<String> backingIndices = getBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(3));
-            String writeIndex = backingIndices.get(2);
+            List<String> currentBackingIndices = getDataStreamBackingIndexNames(dataStreamName);
+            assertThat(currentBackingIndices.size(), equalTo(3));
+            String thirdWriteIndexName = currentBackingIndices.get(2);
             // rollover was successful and we got to generation 3
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 3));
+            assertThat(thirdWriteIndexName, backingIndexEqualTo(dataStreamName, 3));
 
             // we recorded the error against the previous write index (generation 2)
             // let's check there's no error recorded against it anymore
-            String previousWriteInddex = backingIndices.get(1);
-            Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-
-            for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
-            }
+            DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
+            assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, secondWriteIndex), nullValue());
         });
 
         // the error has been fixed so the health information shouldn't be reported anymore
@@ -696,7 +644,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testErrorRecordingOnRetention() throws Exception {
         // starting with a lifecycle without retention so we can rollover the data stream and manipulate the second generation index such
         // that its retention execution fails
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
@@ -723,57 +671,28 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
-
-        List<String> dsBackingIndices = getBackingIndices(dataStreamName);
-        String firstGenerationIndex = dsBackingIndices.get(0);
-        String secondGenerationIndex = dsBackingIndices.get(1);
+        List<Index> dsBackingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        Index firstGenIndex = dsBackingIndices.getFirst();
+        String firstGenIndexName = firstGenIndex.getName();
 
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
-        updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
+        updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenIndexName);
         try {
             updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    new String[] { dataStreamName }
-                );
-                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                    .actionGet();
-                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-                List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
                 assertThat(backingIndices.size(), equalTo(2));
-                String writeIndex = backingIndices.get(1).getName();
-                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
+                assertThat(backingIndices.getLast(), backingIndexEqualTo(dataStreamName, 2));
 
-                ErrorEntry recordedRetentionExecutionError = null;
-                Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
+                DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(
+                    DataStreamLifecycleService.class
+                );
 
-                for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                    recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
-                    if (recordedRetentionExecutionError != null && recordedRetentionExecutionError.retryCount() > 3) {
-                        break;
-                    }
-                }
-
+                ErrorEntry recordedRetentionExecutionError = lifecycleService.getErrorStore()
+                    .getError(Metadata.DEFAULT_PROJECT_ID, firstGenIndex);
                 assertThat(recordedRetentionExecutionError, is(notNullValue()));
+                assertThat(recordedRetentionExecutionError.retryCount(), greaterThanOrEqualTo(3));
                 assertThat(recordedRetentionExecutionError.error(), containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
             });
 
@@ -785,14 +704,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 ).get();
                 DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
                 assertThat(dslHealthInfoOnHealthNode, is(not(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS)));
-                // perhaps surprisingly rollover and delete are error-ing due to the read_only block on the first generation
-                // index which prevents metadata updates so rolling over the data stream is also blocked (note that both indices error at
-                // the same time so they'll have an equal retry count - the order becomes of the results, usually ordered by retry count,
-                // becomes non deterministic, hence the dynamic matching of index name)
-                assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(2));
+                assertThat(dslHealthInfoOnHealthNode.dslErrorsInfo().size(), is(1));
                 DslErrorInfo errorInfo = dslHealthInfoOnHealthNode.dslErrorsInfo().get(0);
                 assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
-                assertThat(List.of(firstGenerationIndex, secondGenerationIndex).contains(errorInfo.indexName()), is(true));
+                assertThat(errorInfo.indexName(), equalTo(firstGenIndexName));
             });
 
             GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
@@ -808,38 +723,33 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(dslIndicator.impacts(), is(STAGNATING_INDEX_IMPACT));
                 assertThat(
                     dslIndicator.symptom(),
-                    is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle")
+                    is("A backing index has repeatedly encountered errors whilst trying to advance in its lifecycle")
                 );
 
                 Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
                 assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
-                assertThat(
-                    diagnosis.affectedResources().get(0).getValues(),
-                    containsInAnyOrder(firstGenerationIndex, secondGenerationIndex)
-                );
+                assertThat(diagnosis.affectedResources().get(0).getValues(), contains(firstGenIndexName));
             }
 
             // let's mark the index as writeable and make sure it's deleted and the error store is empty
-            updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
+            updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenIndexName);
 
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    new String[] { dataStreamName }
-                );
-                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                    .actionGet();
-                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-                List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+                List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
                 // data stream only has one index now
                 assertThat(backingIndices.size(), equalTo(1));
 
-                // error stores don't contain anything for the first generation index anymore
-                Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
-                for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                    assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
-                }
+                // error store doesn't contain anything for the first generation index anymore
+                DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(
+                    DataStreamLifecycleService.class
+                );
+                assertThat(
+                    lifecycleService.getErrorStore()
+                        .getAllIndices(Metadata.DEFAULT_PROJECT_ID)
+                        .stream()
+                        .noneMatch(idx -> idx.getName().equals(firstGenIndexName)),
+                    is(true)
+                );
             });
 
             // health info for DSL should be EMPTY as everything's healthy
@@ -869,7 +779,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             // when the test executes successfully this will not be needed however, otherwise we need to make sure the index is
             // "delete-able" for test cleanup
             try {
-                updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
+                updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenIndexName);
             } catch (Exception e) {
                 // index would be deleted if the test is successful
             }
@@ -877,7 +787,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testDataLifecycleServiceConfiguresTheMergePolicy() throws Exception {
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
 
         putComposableIndexTemplate(
             "id1",
@@ -899,24 +809,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(2));
-            String backingIndex = backingIndices.get(0).getName();
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = backingIndices.get(1).getName();
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<Index> backingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String firstGenerationIndex = backingIndices.get(0).getName();
+        assertThat(firstGenerationIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = backingIndices.get(1).getName();
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
 
-        String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
             new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
@@ -927,7 +825,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
 
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex)
+                .includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
                 getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
@@ -953,15 +852,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
-        assertBusy(() -> {
-            List<String> backingIndices = getBackingIndices(dataStreamName);
-            assertThat(backingIndices.size(), equalTo(3));
-        });
+        backingIndices = waitForDataStreamBackingIndices(dataStreamName, 3);
+        String secondGenerationIndex = backingIndices.get(1).getName();
 
-        String secondGenerationIndex = getBackingIndices(dataStreamName).get(1);
         // check the 2nd generation index picked up the new setting values
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(secondGenerationIndex).includeDefaults(true);
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(secondGenerationIndex)
+                .includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
                 getSettingsResponse.getSetting(secondGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
@@ -976,7 +873,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(null, null, false);
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -988,7 +885,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 10);
-        List<String> backingIndices = getBackingIndices(dataStreamName);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStreamName);
         {
             // backing index should not be managed
             String writeIndex = backingIndices.get(0);
@@ -1023,31 +920,17 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             )
         );
 
-        assertBusy(() -> {
-            List<String> currentBackingIndices = getBackingIndices(dataStreamName);
-            assertThat(currentBackingIndices.size(), equalTo(2));
-            String backingIndex = currentBackingIndices.get(0);
-            assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
-            String writeIndex = currentBackingIndices.get(1);
-            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
-        });
+        List<Index> currentBackingIndices = waitForDataStreamBackingIndices(dataStreamName, 2);
+        String backingIndex = currentBackingIndices.get(0).getName();
+        assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
+        String writeIndex = currentBackingIndices.get(1).getName();
+        assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
     }
 
     public void testLifecycleAppliedToFailureStore() throws Exception {
-        // We configure a lifecycle with downsampling to ensure it doesn't fail
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .dataRetention(20_000)
-            .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
-                    )
-                )
-            )
-            .build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .dataRetention(TimeValue.timeValueMinutes(20))
+            .buildTemplate();
 
         putComposableIndexTemplate("id1", """
             {
@@ -1060,7 +943,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                    "type": "boolean"
                  }
              }
-            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, lifecycle, true);
+            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, null, lifecycle, true);
 
         String dataStreamName = "metrics-fs";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
@@ -1073,24 +956,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indexInvalidFlagDocs(dataStreamName, 1);
 
         // Let's verify the rollover
-        assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new String[] { dataStreamName }
-            );
-            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
-            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
-            assertThat(failureIndices.size(), equalTo(2));
-        });
-
-        List<String> indices = getFailureIndices(dataStreamName);
-        String firstGenerationIndex = indices.get(0);
-        String secondGenerationIndex = indices.get(1);
+        List<Index> failureIndices = waitForDataStreamIndices(dataStreamName, 2, true);
+        Index firstGenerationIndex = failureIndices.get(0);
+        Index secondGenerationIndex = failureIndices.get(1);
 
         // Let's verify the merge settings
         ClusterGetSettingsAction.Response response = client().execute(
@@ -1103,19 +971,30 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
 
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
-            GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
-            assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
-                is(targetFactor.toString())
-            );
-            assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
-                is(targetFloor.getStringRep())
-            );
+            try {
+                GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex.getName())
+                    .includeDefaults(true);
+                GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
+                assertThat(
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex.getName(),
+                        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()
+                    ),
+                    is(targetFactor.toString())
+                );
+                assertThat(
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex.getName(),
+                        MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()
+                    ),
+                    is(targetFloor.getStringRep())
+                );
+            } catch (IndexNotFoundException e) {
+                fail("expected index " + firstGenerationIndex + " to exist but it did not.");
+            }
         });
 
-        updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
+        updateFailureStoreConfiguration(dataStreamName, true, TimeValue.timeValueSeconds(1));
 
         // And finally apply retention
         assertBusy(() -> {
@@ -1129,34 +1008,86 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
-            assertThat(failureIndices.size(), equalTo(1));
-            assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
-        });
+            List<Index> retrievedFailureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
+            assertThat(retrievedFailureIndices.size(), equalTo(1));
+            assertThat(retrievedFailureIndices.get(0), equalTo(secondGenerationIndex));
+        }, 30, TimeUnit.SECONDS);
     }
 
-    private static List<String> getBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            new String[] { dataStreamName }
+    public void testCollectAndMarkIndicesForFrozen() throws Exception {
+        client().execute(
+            TransportPutRepositoryAction.TYPE,
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DEFAULT_REPO).name(DEFAULT_REPO)
+                .type("fs")
+                .settings(Settings.builder().put("location", DEFAULT_REPO))
+        ).get();
+        updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), DEFAULT_REPO));
+
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueDays(1))
+            .buildTemplate();
+
+        Iterable<DataStreamLifecycleService> dataStreamLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
+        Clock clock = Clock.systemUTC();
+        AtomicLong now = new AtomicLong(clock.millis());
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
+
+        putComposableIndexTemplate(
+            "mytemplate",
+            null,
+            List.of("foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle,
+            null,
+            false
         );
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+
+        String dataStream = "foo-ds";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStream
+        );
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStream, randomIntBetween(10, 50));
+
+        // Let's verify the rollover
+        List<Index> backingIndices = waitForDataStreamIndices(dataStream, 2, false);
+        Index candidateIndex = backingIndices.get(0);
+        String candidateIndexName = candidateIndex.getName();
+
+        AtomicLong twoDaysLater = new AtomicLong(clock.millis() + TimeValue.timeValueDays(2).millis());
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(twoDaysLater::get));
+
+        assertBusy(() -> {
+            logger.info("--> checking to see if index has been marked for frozen");
+            ClusterStateResponse resp = client().execute(ClusterStateAction.INSTANCE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get();
+            ClusterState state = resp.getState();
+            String setRepo = Optional.ofNullable(state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID))
+                .map(pm -> pm.index(candidateIndexName))
+                .map(peek(im -> logger.info("--> found index {}", candidateIndexName)))
+                .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+                .map(peek(custom -> logger.info("--> index {} has custom metadata: {}", candidateIndexName, custom)))
+                .map(meta -> meta.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
+                .map(peek(repo -> logger.info("--> index {} has repo {} configured", candidateIndexName, repo)))
+                .orElse("_unset_");
+            logger.info("--> repository set to: {}", setRepo);
+            assertThat(setRepo, equalTo(DEFAULT_REPO));
+        }, 30, TimeUnit.SECONDS);
+
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));
     }
 
-    private static List<String> getFailureIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            new String[] { dataStreamName }
-        );
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().stream().map(Index::getName).toList();
+    /**
+     * Helper for peeking Optionals
+     */
+    <T> UnaryOperator<T> peek(Consumer<T> c) {
+        return x -> {
+            c.accept(x);
+            return x;
+        };
     }
 
     static void indexDocs(String dataStream, int numDocs) {
@@ -1208,7 +1139,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle.Template dataLifecycle,
+        boolean withFailureStore
+    ) throws IOException {
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, dataLifecycle, null, withFailureStore);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamLifecycle.Template dataLifecycle,
+        @Nullable DataStreamLifecycle.Template failuresLifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
@@ -1219,8 +1163,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     Template.builder()
                         .settings(settings)
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
-                        .lifecycle(lifecycle)
-                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(withFailureStore))
+                        .lifecycle(dataLifecycle)
+                        .dataStreamOptions(
+                            new DataStreamOptions.Template(new DataStreamFailureStore.Template(withFailureStore, failuresLifecycle))
+                        )
                 )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -1237,6 +1183,16 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             dataRetention
         );
         assertAcked(client().execute(PutDataStreamLifecycleAction.INSTANCE, putDataLifecycleRequest));
+    }
+
+    static void updateFailureStoreConfiguration(String dataStreamName, boolean enabled, TimeValue retention) {
+        PutDataStreamOptionsAction.Request putDataOptionsRequest = new PutDataStreamOptionsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName },
+            new DataStreamFailureStore(enabled, DataStreamLifecycle.failuresLifecycleBuilder().dataRetention(retention).build())
+        );
+        assertAcked(client().execute(PutDataStreamOptionsAction.INSTANCE, putDataOptionsRequest));
     }
 
     /*
@@ -1271,13 +1227,14 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                             Template.builder()
                                 .settings(Settings.EMPTY)
                                 .lifecycle(
-                                    DataStreamLifecycle.newBuilder()
+                                    DataStreamLifecycle.dataLifecycleBuilder()
                                         .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
                                 )
                         )
                         .build(),
                     Map.of(),
                     List.of(),
+                    "test",
                     ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS
                 )
             );

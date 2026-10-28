@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -30,7 +30,7 @@ public class AlibabaCloudSearchEmbeddingsModelTests extends ESTestCase {
             DefaultSecretSettingsTests.createRandom()
         );
 
-        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, Map.of(), taskSettings.getInputType());
+        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 

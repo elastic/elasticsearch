@@ -1,8 +1,0 @@
-@defaultMessage DocumentBuilderFactory should not be used directly. Use SamlUtils#getHardenedDocumentBuilder(java.lang.String[]) instead.
-javax.xml.parsers.DocumentBuilderFactory#newInstance()
-javax.xml.parsers.DocumentBuilderFactory#newInstance(java.lang.String, java.lang.ClassLoader)
-
-@defaultMessage TransformerFactory should not be used directly. Use SamlUtils#getHardenedXMLTransformer() instead.
-javax.xml.transform.TransformerFactory#newInstance()
-javax.xml.transform.TransformerFactory#newInstance(java.lang.String, java.lang.ClassLoader)
-

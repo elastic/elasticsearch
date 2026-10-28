@@ -1,0 +1,236 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.common.io.stream;
+
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.core.Nullable;
+
+import java.io.IOException;
+import java.io.OutputStream;
+
+/**
+ * Utilities for implementing a {@link StreamOutput}, for cases where performance is not a concern.
+ */
+public enum StreamOutputHelper {
+    ;
+
+    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[1024]);
+
+    /**
+     * @return a thread-local {@code byte[]} that can be used to collect some data which is then passed to {@link StreamOutput#write}.
+     *         <p>
+     *         This is almost certainly more efficient than calling {@link StreamOutput#writeByte} repeatedly, but accessing a thread-local
+     *         is not super-cheap so it is typically less efficient than writing the bytes directly into the buffer underneath the
+     *         {@link StreamOutput} if it has such a buffer.
+     */
+    public static byte[] getThreadLocalScratchBuffer() {
+        return scratch.get();
+    }
+
+    /**
+     * Write string using the default thread-local scratch buffer, as described in {@link StreamOutput#writeString}.
+     * <p>
+     * This is almost certainly more efficient than calling {@link StreamOutput#writeByte} repeatedly, but accessing a thread-local is not
+     * super-cheap so it is typically less efficient than writing the bytes directly into the buffer underneath the {@link StreamOutput} if
+     * it has such a buffer.
+     *
+     * @param str string to write
+     * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeString(String str, OutputStream outputStream) throws IOException {
+        return writeString(str, getThreadLocalScratchBuffer(), 0, outputStream);
+    }
+
+    /**
+     * Maximum number of bytes in a UTF-8 character.
+     */
+    static final int MAX_CHAR_BYTES = 3;
+
+    /**
+     * Maximum number of bytes in a UTF-8 code point, which is more than {@link #MAX_CHAR_BYTES} because a code point outside the basic
+     * multilingual plane is made up of two chars.
+     */
+    static final int MAX_CODE_POINT_BYTES = 4;
+
+    /**
+     * Write string prefixed by some number of bytes (possibly zero) from the beginning of the given {@code buffer}. The given
+     * {@code buffer} will also be used when encoding the given string. This is almost certainly more efficient than calling
+     * {@link StreamOutput#writeByte} repeatedly, but less efficient than writing the bytes directly into the buffer underneath the
+     * {@link StreamOutput} if it has such a buffer.
+     *
+     * @param str string to write
+     * @param buffer buffer that may hold some bytes to write
+     * @param prefixLength how many bytes in {code buffer} to write
+     * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeString(String str, byte[] buffer, int prefixLength, OutputStream outputStream) throws IOException {
+        final int charCount = str.length();
+        int offset = putVInt(buffer, charCount, prefixLength);
+        int total = 0;
+        for (int i = 0; i < charCount; i++) {
+            final int c = str.charAt(i);
+            offset = putCharUtf8(buffer, c, offset);
+            // make sure any possible char can fit into the buffer in any possible iteration
+            // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
+            // left before we start another iteration
+            if (offset > buffer.length - MAX_CHAR_BYTES) {
+                outputStream.write(buffer, 0, offset);
+                total += offset;
+                offset = 0;
+            }
+        }
+        outputStream.write(buffer, 0, offset);
+        return total + offset;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character, starting at the given position in the buffer, and return the updated position.
+     * Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
+     */
+    static int putCharUtf8(byte[] buffer, int c, int position) {
+        if (c <= 0x7F) {
+            buffer[position++] = ((byte) c);
+        } else if (c > 0x07FF) {
+            buffer[position++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+            buffer[position++] = ((byte) (0x80 | c >> 6 & 0x3F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            buffer[position++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        }
+        return position;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character to the given {@link StreamOutput}.
+     */
+    static void writeCharUtf8(StreamOutput out, int c) throws IOException {
+        if (c <= 0x7F) {
+            out.writeByte((byte) c);
+        } else if (c > 0x07FF) {
+            out.writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+            out.writeByte((byte) (0x80 | c >> 6 & 0x3F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            out.writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        }
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given string with no length prefix, using the default thread-local scratch buffer. Unpaired
+     * surrogates are encoded as the replacement character U+FFFD, exactly as {@link UnicodeUtil#UTF16toUTF8} does, so the result is always
+     * {@link UnicodeUtil#calcUTF16toUTF8Length} bytes long, which is what {@link StreamOutput#writeText} writes as its length prefix.
+     *
+     * @param str string to write
+     * @param outputStream the stream to which to write the data.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeUtf8Chars(String str, OutputStream outputStream) throws IOException {
+        final byte[] buffer = getThreadLocalScratchBuffer();
+        // three bytes per char is the bound even though a code point may need four, because such a code point spends them on two chars
+        final int maxCharsPerChunk = buffer.length / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
+        assert maxCharsPerChunk > 0 : buffer.length + " is too short to hold a single char";
+        final int charCount = str.length();
+        int written = 0;
+        int charOffset = 0;
+        while (charOffset < charCount) {
+            int chunkChars = Math.min(maxCharsPerChunk, charCount - charOffset);
+            if (charOffset + chunkChars < charCount && Character.isHighSurrogate(str.charAt(charOffset + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next chunk, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            final int chunkBytes = UnicodeUtil.UTF16toUTF8(str, charOffset, chunkChars, buffer, 0);
+            outputStream.write(buffer, 0, chunkBytes);
+            written += chunkBytes;
+            charOffset += chunkChars;
+        }
+        return written;
+    }
+
+    /**
+     * Write possibly-null string using the default thread-local scratch buffer, as described in {@link StreamOutput#writeOptionalString}.
+     * <p>
+     * This is almost certainly more efficient than calling {@link StreamOutput#writeByte} repeatedly, but accessing a thread-local is not
+     * super-cheap so it is typically less efficient than writing the bytes directly into the buffer underneath the {@link StreamOutput} if
+     * it has such a buffer.
+     *
+     * @param str string to write
+     * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeOptionalString(@Nullable String str, OutputStream outputStream) throws IOException {
+        if (str == null) {
+            outputStream.write((byte) 0);
+            return 1;
+        } else {
+            byte[] buffer = getThreadLocalScratchBuffer();
+            // put the true byte into the buffer instead of writing it outright to do fewer flushes
+            buffer[0] = (byte) 1;
+            return StreamOutputHelper.writeString(str, buffer, 1, outputStream);
+        }
+    }
+
+    /**
+     * Write generic string using the default thread-local scratch buffer, as described in {@link StreamOutput#writeGenericString}.
+     * <p>
+     * This is almost certainly more efficient than calling {@link StreamOutput#writeByte} repeatedly, but accessing a thread-local is not
+     * super-cheap so it is typically less efficient than writing the bytes directly into the buffer underneath the {@link StreamOutput} if
+     * it has such a buffer.
+     *
+     * @param value string to write
+     * @param outputStream the stream to which to write the data after buffering.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeGenericString(String value, OutputStream outputStream) throws IOException {
+        byte[] buffer = StreamOutputHelper.getThreadLocalScratchBuffer();
+        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
+        buffer[0] = 0;
+        return StreamOutputHelper.writeString(value, buffer, 1, outputStream);
+    }
+
+    /**
+     * Put the integer {@code i} into the given {@code buffer} starting at the given {@code offset}, formatted as per
+     * {@link StreamOutput#writeVInt}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
+     *
+     * @return updated offset (original offset plus number of bytes written)
+     */
+    public static int putVInt(byte[] buffer, int i, int offset) {
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            buffer[offset] = (byte) i;
+            return offset + 1;
+        }
+        return putMultiByteVInt(buffer, i, offset);
+    }
+
+    /**
+     * Put the integer {@code i} into the given {@code buffer} starting at the given {@code offset}, formatted as per
+     * {@link StreamOutput#writeVInt}. Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
+     *
+     * @return updated offset (original offset plus number of bytes written)
+     */
+    // extracted from putVInt() to allow the hot single-byte path to be inlined
+    public static int putMultiByteVInt(byte[] buffer, int i, int offset) {
+        do {
+            buffer[offset++] = ((byte) ((i & 0x7f) | 0x80));
+            i >>>= 7;
+        } while ((i & ~0x7F) != 0);
+        buffer[offset++] = (byte) i;
+        return offset;
+    }
+
+}

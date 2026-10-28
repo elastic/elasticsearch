@@ -12,7 +12,8 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
 
 import java.util.List;
 import java.util.Objects;
@@ -37,6 +38,8 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
     /** Used to determine whether an index name matches the {@link #indexPattern} */
     private final CharacterRunAutomaton indexPatternAutomaton;
+
+    private final Automaton automaton;
 
     /**
      * Create a descriptor for an index associated with a feature
@@ -66,7 +69,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
         this.indexPattern = indexPattern;
 
-        final Automaton automaton = buildAutomaton(indexPattern);
+        this.automaton = buildAutomaton(indexPattern);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
 
         this.description = description;
@@ -103,12 +106,12 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
      * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
      *
-     * @param metadata The current metadata to get the list of matching indices from
+     * @param project The current project metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
     @Override
-    public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
+    public List<String> getMatchingIndices(ProjectMetadata project) {
+        return project.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**
@@ -132,5 +135,9 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
             + ", indexPatternAutomaton="
             + indexPatternAutomaton
             + '}';
+    }
+
+    public Automaton getIndexPatternAutomaton() {
+        return this.automaton;
     }
 }

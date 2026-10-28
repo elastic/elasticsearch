@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -276,7 +277,7 @@ public class InferenceProcessor extends AbstractProcessor {
             request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
             return request;
         } else {
-            Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
+            Map<String, Object> fields = new HashMap<>(ingestDocument.getCtxMap());
             // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
             if (ingestDocument.getIngestMetadata().isEmpty() == false) {
                 fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
@@ -415,7 +416,8 @@ public class InferenceProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             final var currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(clusterState);
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
@@ -496,6 +498,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 // If multiple inference processors are in the same pipeline, it is wise to tag them
                 // The tag will keep default value entries from stepping on each other
                 String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD, defaultTargetField);
+                validateTargetField(tag, targetField);
                 Map<String, String> fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAP);
                 if (fieldMap == null) {
                     fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
@@ -682,6 +685,30 @@ public class InferenceProcessor extends AbstractProcessor {
 
         private ElasticsearchException duplicatedFieldNameError(String property, String fieldName, String tag) {
             return newConfigurationException(TYPE, tag, property, "names must be unique but [" + fieldName + "] is repeated");
+        }
+
+        private static void validateTargetField(String tag, String targetField) {
+            if (targetField.isEmpty()) {
+                throw invalidTargetFieldException(tag);
+            }
+            for (String segment : targetField.split("\\.", -1)) {
+                if (segment.isEmpty()) {
+                    throw invalidTargetFieldException(tag);
+                }
+            }
+        }
+
+        private static ElasticsearchException invalidTargetFieldException(String tag) {
+            return newConfigurationException(
+                TYPE,
+                tag,
+                TARGET_FIELD,
+                "must be a non-empty, dot-delimited field path; to write results to the document root use the ["
+                    + INPUT_OUTPUT
+                    + "] configuration with an ["
+                    + OUTPUT_FIELD
+                    + "]"
+            );
         }
 
         /**

@@ -539,7 +539,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Move.NO, moveDecision.getExplanation());
         assertFalse(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNull(moveDecision.getClusterRebalanceDecision());
         assertNull(moveDecision.getTargetNode());
@@ -592,7 +592,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals(AllocationDecision.NO.toString(), parser.text());
             parser.nextToken();
             assertEquals("can_remain_decisions", parser.currentName());
-            verifyDeciders(parser, AllocationDecision.NO);
+            assertTrue(verifyDeciders(parser, AllocationDecision.NO));
             parser.nextToken();
             assertEquals("can_move_to_other_node", parser.currentName());
             parser.nextToken();
@@ -652,7 +652,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -692,6 +692,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("can_remain_on_current_node", parser.currentName());
             parser.nextToken();
             assertEquals(AllocationDecision.YES.toString(), parser.text());
+            if (includeYesDecisions) {
+                parser.nextToken();
+                assertEquals("can_remain_decisions", parser.currentName());
+                assertTrue(verifyDeciders(parser, AllocationDecision.YES));
+            }
             parser.nextToken();
             assertEquals("can_rebalance_cluster", parser.currentName());
             parser.nextToken();
@@ -758,7 +763,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -793,6 +798,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("can_remain_on_current_node", parser.currentName());
             parser.nextToken();
             assertEquals(AllocationDecision.YES.toString(), parser.text());
+            if (includeYesDecisions) {
+                parser.nextToken();
+                assertEquals("can_remain_decisions", parser.currentName());
+                assertTrue(verifyDeciders(parser, AllocationDecision.YES));
+            }
             parser.nextToken();
             assertEquals("can_rebalance_cluster", parser.currentName());
             parser.nextToken();
@@ -856,7 +866,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.ALREADY_BALANCED, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertTrue(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -899,6 +909,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("can_remain_on_current_node", parser.currentName());
             parser.nextToken();
             assertEquals(AllocationDecision.YES.toString(), parser.text());
+            if (includeYesDecisions) {
+                parser.nextToken();
+                assertEquals("can_remain_decisions", parser.currentName());
+                assertTrue(verifyDeciders(parser, AllocationDecision.YES));
+            }
             parser.nextToken();
             assertEquals("can_rebalance_cluster", parser.currentName());
             parser.nextToken();
@@ -964,7 +979,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
         assertEquals(Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE, moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
-        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.cannotRemainAndCanMove());
         assertFalse(moveDecision.canRebalanceCluster());
         assertNotNull(moveDecision.getCanRemainDecision());
         assertNull(moveDecision.getTargetNode());
@@ -997,6 +1012,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("can_remain_on_current_node", parser.currentName());
             parser.nextToken();
             assertEquals(AllocationDecision.YES.toString(), parser.text());
+            if (includeYesDecisions) {
+                parser.nextToken();
+                assertEquals("can_remain_decisions", parser.currentName());
+                assertTrue(verifyDeciders(parser, AllocationDecision.YES));
+            }
             parser.nextToken();
             assertEquals("can_rebalance_cluster", parser.currentName());
             parser.nextToken();
@@ -1225,7 +1245,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         request.includeDiskInfo(includeDiskInfo);
         final var explanation = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation();
         if (logger.isDebugEnabled()) {
-            logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
+            logger.debug("--> explain json output: \n{}", Strings.toTruncatedString(explanation, true, true));
         }
         return explanation;
     }
@@ -1501,8 +1521,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("decision", parser.currentName());
             parser.nextToken();
             String decisionText = parser.text();
-            if ((allocationDecision == AllocationDecision.NO && decisionText.equals("NO")
-                || (allocationDecision == AllocationDecision.THROTTLED && decisionText.equals("THROTTLE")))) {
+            if ((allocationDecision == AllocationDecision.NO && decisionText.equals("NO"))
+                || (allocationDecision == AllocationDecision.THROTTLED && decisionText.equals("THROTTLE"))
+                || (allocationDecision == AllocationDecision.YES && decisionText.equals("YES"))) {
                 atLeastOneMatchingDecisionFound = true;
             }
             assertNotNull(decisionText);

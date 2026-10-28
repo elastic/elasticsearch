@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -51,9 +50,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            waitForCompletion = in.readBoolean();
-        }
+        waitForCompletion = in.readBoolean();
     }
 
     @Override
@@ -61,11 +58,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(waitForCompletion);
-        } else {
-            assert waitForCompletion : "Using wait_for_completion parameter when it should have been disallowed";
-        }
+        out.writeBoolean(waitForCompletion);
     }
 
     @Override

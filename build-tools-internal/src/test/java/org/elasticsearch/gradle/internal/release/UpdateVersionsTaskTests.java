@@ -189,7 +189,7 @@ public class UpdateVersionsTaskTests {
 
         // write out & parse back in again
         StringWriter writer = new StringWriter();
-        LexicalPreservingPrinter.print(unit, writer);
+        writer.append(LexicalPreservingPrinter.print(unit));
         unit = StaticJavaParser.parse(writer.toString());
 
         // a field has been added
@@ -229,7 +229,7 @@ public class UpdateVersionsTaskTests {
 
         // write out & parse back in again
         StringWriter writer = new StringWriter();
-        LexicalPreservingPrinter.print(unit, writer);
+        writer.append(LexicalPreservingPrinter.print(unit));
         unit = StaticJavaParser.parse(writer.toString());
 
         // a field has been removed

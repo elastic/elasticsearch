@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -58,6 +59,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -93,6 +95,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     @Override
@@ -395,9 +398,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             assertHitCount(q, numDocsToKeep);
         }
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getPrimary() == false)
             .findFirst()
             .get();
@@ -499,9 +503,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
 
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).setActiveOnly(false).get();
-        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryStates()
+        final RecoveryState replicaRecoveryState = recoveryResponse.shardRecoveryInfos()
             .get(indexName)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getPrimary() == false)
             .findFirst()
             .get();

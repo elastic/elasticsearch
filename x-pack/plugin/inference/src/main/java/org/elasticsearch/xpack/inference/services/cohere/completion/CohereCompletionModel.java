@@ -9,61 +9,43 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
-public class CohereCompletionModel extends CohereModel {
+public class CohereCompletionModel extends CohereModel<CohereCompletionServiceSettings> {
 
     public CohereCompletionModel(
         String modelId,
-        TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
+        this(modelId, CohereCompletionServiceSettings.fromMap(serviceSettings, context), DefaultSecretSettings.fromMap(secrets, context));
+    }
+
+    CohereCompletionModel(String modelId, CohereCompletionServiceSettings serviceSettings, @Nullable DefaultSecretSettings secretSettings) {
         this(
-            modelId,
-            taskType,
-            service,
-            CohereCompletionServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
+            new ModelSecrets(secretSettings)
         );
     }
 
-    // should only be used for testing
-    CohereCompletionModel(
-        String modelId,
-        TaskType taskType,
-        String service,
-        CohereCompletionServiceSettings serviceSettings,
-        TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
+    public CohereCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            modelConfigurations,
+            modelSecrets,
+            ((CohereCompletionServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
-    }
-
-    @Override
-    public CohereCompletionServiceSettings getServiceSettings() {
-        return (CohereCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -77,12 +59,7 @@ public class CohereCompletionModel extends CohereModel {
     }
 
     @Override
-    public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
-    }
-
-    @Override
-    public URI uri() {
-        return getServiceSettings().uri();
     }
 }

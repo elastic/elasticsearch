@@ -239,6 +239,54 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(lessThanAssertion.getExpectedValue(), equalTo(10));
     }
 
+    public void testParseTestSectionWithAllNodesTrue() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "First test section":\s
+              - skip:
+                  cluster_features:  ["A","B"]
+                  all_nodes: true
+                  reason:   "skip when all nodes have feature"
+              - do :
+                  catch: missing
+                  indices.get_warmer:
+                      index: test_index
+                      name: test_warmer""");
+
+        ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
+
+        assertThat(testSection, notNullValue());
+        assertThat(testSection.getName(), equalTo("First test section"));
+        assertThat(testSection.getPrerequisiteSection(), notNullValue());
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(testSection.getPrerequisiteSection().skipReason, equalTo("skip when all nodes have feature"));
+        assertThat(testSection.getPrerequisiteSection().skipOnAllNodes, equalTo(true));
+        assertThat(testSection.getExecutableSections().size(), equalTo(1));
+    }
+
+    public void testParseTestSectionWithAllNodesFalse() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "First test section":\s
+              - skip:
+                  cluster_features:  ["A","B"]
+                  all_nodes: false
+                  reason:   "skip when any node has feature"
+              - do :
+                  catch: missing
+                  indices.get_warmer:
+                      index: test_index
+                      name: test_warmer""");
+
+        ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
+
+        assertThat(testSection, notNullValue());
+        assertThat(testSection.getName(), equalTo("First test section"));
+        assertThat(testSection.getPrerequisiteSection(), notNullValue());
+        assertThat(testSection.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(testSection.getPrerequisiteSection().skipReason, equalTo("skip when any node has feature"));
+        assertThat(testSection.getPrerequisiteSection().skipOnAllNodes, equalTo(false));
+        assertThat(testSection.getExecutableSections().size(), equalTo(1));
+    }
+
     public void testSmallSection() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             "node_info test":

@@ -194,3 +194,33 @@ setup:
   - match: { aggregations.courses.highpass_filter.unnest.department.buckets.0.doc_count: 1 }
   - match: { aggregations.courses.highpass_filter.unnest.department.buckets.1.key: math }
   - match: { aggregations.courses.highpass_filter.unnest.department.buckets.1.doc_count: 1 }
+---
+"Illegal reverse nested aggregation to a child nested object":
+  - requires:
+        capabilities:
+          - method: POST
+            path: /_search
+            capabilities: [ reject_invalid_reverse_nesting ]
+        test_runner_features: [ capabilities ]
+        reason: "search does not yet reject invalid reverse nesting paths"
+  - do:
+      catch: /Reverse nested path \[courses.sessions\] is not a parent of the current nested scope \[courses\]/
+      search:
+        index: test
+        body:
+          {
+            "aggs": {
+              "parent_nested": {
+                "nested": {
+                  "path": "courses"
+                },
+                "aggs": {
+                  "invalid_reverse_nested": {
+                    "reverse_nested": {
+                      "path": "courses.sessions"
+                    }
+                  }
+                }
+              }
+            }
+          }

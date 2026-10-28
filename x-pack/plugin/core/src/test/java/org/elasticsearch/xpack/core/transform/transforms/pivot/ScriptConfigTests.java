@@ -27,12 +27,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ScriptConfigTests extends AbstractSerializingTransformTestCase<ScriptConfig> {
+
+    private static final Set<String> SCRIPT_FIELD_NAMES = Set.of("source", "inline", "id", "stored", "lang", "options", "params");
 
     private boolean lenient;
 
@@ -41,8 +44,6 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
         String lang = randomBoolean() ? Script.DEFAULT_SCRIPT_LANG : randomAlphaOfLengthBetween(1, 20);
         String idOrCode = randomAlphaOfLengthBetween(1, 20);
         Map<String, Object> params = Collections.emptyMap();
-
-        type = ScriptType.STORED;
 
         Script script = new Script(type, type == ScriptType.STORED ? null : lang, idOrCode, params);
         LinkedHashMap<String, Object> source = null;
@@ -59,9 +60,13 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
     }
 
     public static ScriptConfig randomInvalidScriptConfig() {
-        // create something broken but with a source
+        // create something broken but with a source — keys must not be valid Script field names,
+        // otherwise Script.parse() would succeed and the round-trip would produce a non-null script
         LinkedHashMap<String, Object> source = new LinkedHashMap<>();
-        for (String key : randomUnique(() -> randomAlphaOfLengthBetween(1, 20), randomIntBetween(1, 10))) {
+        for (String key : randomUnique(
+            () -> randomValueOtherThanMany(SCRIPT_FIELD_NAMES::contains, () -> randomAlphaOfLengthBetween(1, 20)),
+            randomIntBetween(1, 10)
+        )) {
             source.put(key, randomAlphaOfLengthBetween(1, 20));
         }
 

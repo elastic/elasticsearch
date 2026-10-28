@@ -34,7 +34,6 @@ public abstract class BaseNodeResponse extends TransportResponse {
      * @param node the expected remote node, or {@code null} if not known.
      */
     protected BaseNodeResponse(StreamInput in, @Nullable DiscoveryNode node) throws IOException {
-        super(in);
         final DiscoveryNode remoteNode = new DiscoveryNode(in);
         if (node == null) {
             this.node = remoteNode;

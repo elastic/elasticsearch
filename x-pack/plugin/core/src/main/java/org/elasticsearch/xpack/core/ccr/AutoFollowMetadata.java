@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -40,9 +39,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
+ * ProjectCustom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
-public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ccr_auto_follow";
 
@@ -138,7 +137,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.MINIMUM_COMPATIBLE;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -280,11 +279,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
             this.active = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
-            } else {
-                this.leaderIndexExclusionPatterns = Collections.emptyList();
-            }
+            this.leaderIndexExclusionPatterns = in.readStringCollectionAsList();
         }
 
         public boolean match(IndexAbstraction indexAbstraction) {
@@ -306,6 +301,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
                 final DataStream parentDataStream = indexAbstraction.getParentDataStream();
                 return parentDataStream != null
                     && parentDataStream.isSystem() == false
+                    && parentDataStream.isFailureStoreIndex(indexAbstraction.getName()) == false
                     && Regex.simpleMatch(leaderIndexExclusionPatterns, indexAbstraction.getParentDataStream().getName()) == false
                     && Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
             }
@@ -343,9 +339,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             settings.writeTo(out);
             super.writeTo(out);
             out.writeBoolean(active);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                out.writeStringCollection(leaderIndexExclusionPatterns);
-            }
+            out.writeStringCollection(leaderIndexExclusionPatterns);
         }
 
         @Override

@@ -7,19 +7,23 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
@@ -30,10 +34,10 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -42,13 +46,18 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new UnsignedLongMapperPlugin());
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
     }
 
     @Override
@@ -69,9 +78,14 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     public void testDefaults() throws Exception {
@@ -103,14 +117,27 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }
     }
 
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+    public void testIndexingOversizedStringIsRejected() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", oversized))));
+    }
+
+    public void testRangeTermsRejectOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm(oversized, true)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseUpperRangeTerm(oversized, true)
+        );
+    }
+
+    public void testTermRejectsOversizedString() {
+        String oversized = "1." + "0".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH);
+        expectThrows(IllegalArgumentException.class, () -> UnsignedLongFieldMapper.UnsignedLongFieldType.parseTerm(oversized));
     }
 
     public void testNoDocValues() throws Exception {
@@ -228,6 +255,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
         assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
         assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testDimensionIndexedAndDocvalues() {
@@ -236,30 +265,14 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 minimalMapping(b);
                 b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
             })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
-        }
-        {
-            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("time_series_dimension", true).field("index", false).field("doc_values", true);
-            })));
-            assertThat(
-                e.getCause().getMessage(),
-                containsString("Field [time_series_dimension] requires that [index] and [doc_values] are true")
-            );
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
         }
     }
 
@@ -351,7 +364,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         }));
         var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     @Override
@@ -379,7 +392,29 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new NumberSyntheticSourceSupport(ignoreMalformed);
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportColumnar(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, true);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed, false) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
     }
 
     @Override
@@ -414,29 +449,36 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
     }
 
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> {
-            // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.
-            if (v instanceof BigInteger ul) {
-                if (ul.bitLength() < Long.SIZE) {
-                    return ul.longValue() ^ Long.MIN_VALUE;
-                }
-                return ul.subtract(BigInteger.ONE.shiftLeft(Long.SIZE - 1)).longValue();
-            }
-            return ((Long) v).longValue() ^ Long.MIN_VALUE;
-        };
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "unsigned_long").endObject())
+        ).documentMapper();
+        // Stay in the signed-long range so JSON emits a plain number and Java's Long.toString matches the synthetic-source format.
+        long v1 = randomNonNegativeLong();
+        long v2 = randomNonNegativeLong();
+        long v3 = randomNonNegativeLong();
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 
-    final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
         private final boolean ignoreMalformedEnabled;
+        private final boolean isColumnar;
 
-        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled, boolean isColumnar) {
             this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+            this.isColumnar = isColumnar;
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -446,25 +488,25 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 if (v.malformedOutput == null) {
                     return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
-                return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
             }
             List<Value> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Value::input).toList();
 
-            List<BigInteger> outputFromDocValues = values.stream()
-                .filter(v -> v.malformedOutput == null)
-                .map(Value::output)
-                .sorted()
-                .toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            Stream<BigInteger> nonMalformedOutputs = values.stream().filter(v -> v.malformedOutput == null).map(Value::output);
+            List<BigInteger> outputFromDocValues = (isColumnar ? nonMalformedOutputs : nonMalformedOutputs.sorted()).toList();
+            // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+            // non-columnar indices use the SORTED ._ignore_malformed column.
+            Stream<Object> malformedStream = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            List<Object> malformedOutput = (isColumnar
+                ? malformedStream
+                : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
 
             // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            Object outBlock = outputFromDocValues.size() == 1 ? outputFromDocValues.get(0) : outputFromDocValues;
-
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            return new SyntheticSourceExample(in, out, this::mapping);
         }
 
         private record Value(Object input, BigInteger output, Object malformedOutput) {}
@@ -506,5 +548,22 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         public List<SyntheticSourceInvalidExample> invalidExample() {
             return List.of();
         }
+    }
+
+    @Override
+    protected Object[] getThreeEncodedSampleValues() {
+        return Arrays.stream(super.getThreeEncodedSampleValues())
+            .map(v -> UnsignedLongFieldMapper.sortableSignedLongToUnsigned((Long) v))
+            .toArray();
+    }
+
+    @Override
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

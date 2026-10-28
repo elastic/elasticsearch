@@ -7,15 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant long value.
  * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
-final class ConstantLongVector extends AbstractVector implements LongVector {
+public final class ConstantLongVector extends AbstractVector implements LongVector {
 
     static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
@@ -32,13 +38,23 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public LongBlock asBlock() {
         return new LongVectorBlock(this);
     }
 
     @Override
-    public LongVector filter(int... positions) {
-        return blockFactory().newConstantLongVector(value, positions.length);
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantLongVector(value, length);
     }
 
     @Override
@@ -90,6 +106,15 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantLongVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }
@@ -97,6 +122,11 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public LongVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantLongVector(value, getPositionCount());
     }
 
     @Override

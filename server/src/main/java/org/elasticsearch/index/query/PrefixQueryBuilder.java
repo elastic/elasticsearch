@@ -14,7 +14,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +34,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents containing terms with a specified prefix.
  */
-public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
+public class PrefixQueryBuilder extends LeafQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
 
     private static final ParseField PREFIX_FIELD = new ParseField("value");
@@ -259,6 +258,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

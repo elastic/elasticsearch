@@ -493,9 +493,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             int detectorIndex = 0;
             List<Detector> sequentialIndexDetectors = new ArrayList<>(detectors.size());
             for (Detector origDetector : detectors) {
-                Detector.Builder builder = new Detector.Builder(origDetector);
-                builder.setDetectorIndex(detectorIndex++);
-                sequentialIndexDetectors.add(builder.build());
+                sequentialIndexDetectors.add(new Detector.Builder(true, origDetector).setDetectorIndex(detectorIndex++).build());
             }
             this.detectors = sequentialIndexDetectors;
             return this;

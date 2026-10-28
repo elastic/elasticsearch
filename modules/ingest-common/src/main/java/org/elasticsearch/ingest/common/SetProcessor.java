@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -83,7 +85,7 @@ public final class SetProcessor extends AbstractProcessor {
         if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);
-                document.setFieldValue(path, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
+                document.setFieldValue(path, CollectionUtils.deepCopy(fieldValue), ignoreEmptyValue);
             } else {
                 document.setFieldValue(path, value, ignoreEmptyValue);
             }
@@ -109,7 +111,8 @@ public final class SetProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");

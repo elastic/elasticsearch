@@ -91,6 +91,46 @@ public class MustacheTests extends ESTestCase {
             }""", result.execute());
     }
 
+    public void testScopeStackFallback() {
+        // A variable from an outer scope is accessible from inside a section.
+        assertScript("{{#inner}}{{outer}}{{/inner}}", Map.of("inner", Map.of("x", 1), "outer", "hello"), equalTo("hello"));
+
+        // When the same key appears in both inner and outer scope, the inner value wins.
+        assertScript("{{#inner}}{{x}}{{/inner}}", Map.of("inner", Map.of("x", "inner_val"), "x", "outer_val"), equalTo("inner_val"));
+    }
+
+    public void testNullIntermediateInDotPath() {
+        // A null intermediate in a dot path can't be traversed and renders as empty string.
+        Map<String, Object> params = new HashMap<>();
+        params.put("foo", null);
+        assertScript("{{foo.bar}}", params, equalTo(""));
+    }
+
+    public void testFlatDottedKeyLookup() {
+        // a dotted name that matches a literal flat key in the scope map should resolve to that
+        // key's value, even though it looks like a nested path. this is the behavior used by the
+        // security role-mapping model, which stores metadata as flat keys like "metadata.uid".
+        Map<String, Object> params = Map.of("metadata.uid", "hhornblo");
+        assertScript("{{metadata.uid}}", params, equalTo("hhornblo"));
+
+        // a flat key takes priority over the nested path when both exist
+        Map<String, Object> both = Map.ofEntries(
+            Map.entry("metadata.uid", "flat_val"), //
+            Map.entry("metadata", Map.of("uid", "nested_val")) //
+        );
+        assertScript("{{metadata.uid}}", both, equalTo("flat_val"));
+
+        // a flat dotted key nested inside a regular key is NOT reachable via dot-path notation:
+        // resolving {{foo.bar.baz}} navigates foo -> inner map, then looks for "bar" (not "bar.baz")
+        // in the inner map, finds nothing, and renders as "".
+        Map<String, Object> mixed = Map.of("foo", Map.of("bar.baz", "quux"));
+        assertScript("{{foo.bar.baz}}", mixed, equalTo("")); // miss!
+
+        // but it IS reachable via a section that pushes the inner map onto the scope stack, where
+        // the literal-key lookup can then match "bar.baz" directly.
+        assertScript("{{#foo}}{{bar.baz}}{{/foo}}", mixed, equalTo("quux"));
+    }
+
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
@@ -139,6 +179,26 @@ public class MustacheTests extends ESTestCase {
         vars.put("data", setData);
         String output = factory.newInstance(vars).execute();
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
+    }
+
+    public void testMapInArrayBadAccess() throws Exception {
+        String template = "{{data.0.key}} {{data.2.key}}";
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("data", new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") });
+        // assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        vars.put("data", Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
+        factory.newInstance(vars);
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        // HashSet iteration order isn't fixed
+        Set<Object> setData = new HashSet<>();
+        setData.add(singletonMap("key", "foo"));
+        setData.add(singletonMap("key", "bar"));
+        vars.put("data", setData);
+        String output = factory.newInstance(vars).execute();
+        assertThat(output, both(containsString("foo")).and(not(containsString("bar"))));
     }
 
     public void testSizeAccessForCollectionsAndArrays() throws Exception {
@@ -425,7 +485,7 @@ public class MustacheTests extends ESTestCase {
         assertScript(
             "{{#url}}prefix_{{s}}{{/url}}",
             singletonMap("s", random),
-            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name()))
+            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8))
         );
     }
 
@@ -453,6 +513,18 @@ public class MustacheTests extends ESTestCase {
             params,
             equalTo("1%2B1%2B2%2B3%2B5%2B8%2B13%2B21%2B34%2B55")
         );
+    }
+
+    public void testsUnsupportedPartials() {
+        ScriptException e;
+
+        final String script1 = "{{>foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script1));
+        assertThat(e.getMessage(), equalTo("Cannot expand 'foobar' because partial templates are not supported"));
+
+        final String script2 = "{{>*foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script2));
+        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because dynamic partial templates are not supported"));
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

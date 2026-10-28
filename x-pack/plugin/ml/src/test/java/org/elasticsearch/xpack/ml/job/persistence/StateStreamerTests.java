@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
+import org.elasticsearch.xpack.ml.test.SearchHitTestUtil;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
@@ -71,7 +72,7 @@ public class StateStreamerTests extends ESTestCase {
         );
 
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPattern(), builder1, builder2, builder3, builder4);
+            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPatterns(), builder1, builder2, builder3, builder4);
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
 
@@ -80,7 +81,7 @@ public class StateStreamerTests extends ESTestCase {
         StateStreamer stateStreamer = new StateStreamer(clientBuilder.build());
         stateStreamer.restoreStateToStream(JOB_ID, modelSnapshot, stream);
 
-        String[] restoreData = stream.toString(StandardCharsets.UTF_8.name()).split("\0");
+        String[] restoreData = stream.toString(StandardCharsets.UTF_8).split("\0");
         assertEquals(3, restoreData.length);
         assertEquals("{\"modName1\":\"modVal1\"}", restoreData[0]);
         assertEquals("{\"modName2\":\"modVal2\"}", restoreData[1]);
@@ -107,8 +108,8 @@ public class StateStreamerTests extends ESTestCase {
             hits[i++] = hit;
         }
         SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
-        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        searchHits.decRef();
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        SearchHitTestUtil.stubSearchResponseDecRefsHits(searchResponse, searchHits);
         return searchResponse;
     }
 

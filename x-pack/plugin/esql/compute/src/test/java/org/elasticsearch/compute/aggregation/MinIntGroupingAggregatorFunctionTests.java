@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -21,10 +21,10 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MinIntGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinIntAggregatorFunctionSupplier();
     }
 
     @Override

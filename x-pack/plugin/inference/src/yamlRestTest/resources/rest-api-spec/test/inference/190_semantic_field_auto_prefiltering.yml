@@ -1,0 +1,93 @@
+setup:
+  - requires:
+      cluster_features: [ "semantic_field.semantic_field_mapper", "semantic.exists_query_auto_prefilter_fix" ]
+      reason: auto prefiltering tracks the nested level a prefilter was collected at
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              semantic_field_1:
+                type: semantic
+                inference_id: embedding-inference-id
+              semantic_field_2:
+                type: semantic
+                inference_id: embedding-inference-id
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          {"index": {"_id": "1"}}
+          {"id": "1", "semantic_field_1": "violins", "semantic_field_2": "cats"}
+          {"index": {"_id": "2"}}
+          {"id": "2", "semantic_field_1": "violins"}
+          {"index": {"_id": "3"}}
+          {"id": "3", "semantic_field_1": "pianos", "semantic_field_2": "cats"}
+
+---
+"Test exists on a semantic field is used as a prefilter to a semantic match on the same field":
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  { "match": { "semantic_field_2": { "query": "cats" } } },
+                  { "exists": { "field": "semantic_field_2" } }
+                ]
+              }
+            },
+            "sort": [ { "id": "asc" } ]
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  { "match": { "semantic_field_2": { "query": "cats" } } }
+                ],
+                "filter": [
+                  { "exists": { "field": "semantic_field_2" } }
+                ]
+              }
+            },
+            "sort": [ { "id": "asc" } ]
+          }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }

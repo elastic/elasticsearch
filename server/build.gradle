@@ -10,7 +10,12 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.test-build-info'
+apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.foreign-api'
 
 publishing {
   publications {
@@ -28,15 +33,22 @@ dependencies {
 
   api project(':libs:core')
   api project(':libs:logging')
-  api project(':libs:secure-sm')
   api project(':libs:x-content')
   api project(":libs:geo")
   api project(":libs:lz4")
   api project(":libs:plugin-api")
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
+  api project(':libs:user-agent-api')
+  api project(':libs:ip-location-api')
   api project(":libs:tdigest")
+  api project(":libs:exponential-histogram")
+  implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
+  implementation project(":libs:simdjson")
+  // On the api surface rather than implementation: FieldMapper#columnarStringOptions returns one of its
+  // types, so a mapper outside the server has to be able to name it.
+  api project(":libs:columnar")
   implementation project(":libs:entitlement")
 
   // lucene
@@ -57,16 +69,18 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
-
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
   implementation project(':libs:native')
+  implementation project(':libs:zstd')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -75,11 +89,42 @@ dependencies {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(testArtifact(project(":libs:exponential-histogram"))) {
+    // The test framework is manually included with excludes above
+    exclude group: 'org.elasticsearch.test', module: 'framework'
+  }
+
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
+  internalClusterTestImplementation(project(':modules:data-streams'))
+  internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
+  // The pausable field the heap pressure tests use to hold requests in flight.
+  clusterModules project(':test:external-modules:test-pausable-field')
+  // Mapping-level keyword runtime fields need a script engine.
+  clusterModules project(':modules:lang-painless')
+}
+
+// Captured at configuration time: the onlyIf spec runs at execution time, where the
+// configuration cache detaches the closure from the build script and `buildParams` is unresolvable.
+def isSnapshotBuild = buildParams.snapshotBuild
+tasks.named('heapPressureTest') {
+  // test-pausable-field is a test-* module, which release builds refuse to load
+  it.onlyIf("snapshot build") { isSnapshotBuild }
+}
+
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
 }
 
 spotless {
@@ -131,31 +176,17 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        systemProperty 'es.failure_store_feature_flag_enabled', 'true'
     }
 }
 
 tasks.named("test").configure {
   systemProperty 'es.insecure_network_trace_enabled', 'true'
-  excludes << '**/IndexSettingsOverrideTests.class'
-}
-
-TaskProvider<Test> indexSettingsOverrideTest = tasks.register("indexSettingsOverrideTest", Test) {
-  include '**/IndexSettingsOverrideTests.class'
-  systemProperty 'es.stateless.allow.index.refresh_interval.override', 'true'
-  classpath = sourceSets.test.runtimeClasspath
-  testClassesDirs = sourceSets.test.output.classesDirs
-}
-
-tasks.named("check").configure {
-  dependsOn(indexSettingsOverrideTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -165,10 +196,12 @@ tasks.named("thirdPartyAudit").configure {
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.io.IOContext',
             'com.fasterxml.jackson.core.JsonGenerator',
             'com.fasterxml.jackson.core.JsonParser',
             'com.fasterxml.jackson.core.JsonParser$Feature',
             'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.ObjectCodec',
             'com.fasterxml.jackson.core.PrettyPrinter',
             'com.fasterxml.jackson.core.type.TypeReference',
             'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
@@ -189,12 +222,14 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
             'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
             'com.fasterxml.jackson.databind.ser.std.StdSerializer',
+            'com.fasterxml.jackson.databind.util.ClassUtil',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
+            'com.fasterxml.jackson.dataformat.xml.XmlFactory',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
+            'com.fasterxml.jackson.dataformat.xml.XmlNameProcessor',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'org.fusesource.jansi.Ansi',
-            'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventHandler',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
             'com.lmax.disruptor.EventTranslatorVararg',
@@ -232,8 +267,10 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.commons.csv.CSVFormat',
             'org.apache.commons.csv.QuoteMode',
             'org.apache.kafka.clients.producer.Producer',
-            'org.apache.kafka.clients.producer.RecordMetadata',
+            'org.apache.kafka.common.serialization.ByteArraySerializer',
             'org.codehaus.stax2.XMLStreamWriter2',
+            'org.codehaus.stax2.ri.Stax2WriterAdapter',
+            'org.codehaus.stax2.util.StreamWriter2Delegate',
             'org.jctools.queues.MpscArrayQueue',
             'org.osgi.framework.Bundle',
             'org.osgi.framework.BundleActivator',
@@ -241,16 +278,26 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
-            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleRevision',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
+            'org.zeromq.SocketType',
+            'org.zeromq.ZContext',
+            'org.zeromq.ZMonitor',
+            'org.zeromq.ZMonitor$Event',
+            'org.zeromq.ZMonitor$ZEvent',
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+
+    ignoreViolations(
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil',
+        'org.apache.logging.log4j.core.util.internal.UnsafeUtil$1',
+    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -273,3 +320,10 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
+
+tasks.named("generateTestBuildInfo").configure {
+  t -> {
+    t.getComponentName().set("server")
+    t.getOutputFile().set(project.getLayout().getBuildDirectory().file("generated-build-info/server-test-build-info.json"))
+  }
+}

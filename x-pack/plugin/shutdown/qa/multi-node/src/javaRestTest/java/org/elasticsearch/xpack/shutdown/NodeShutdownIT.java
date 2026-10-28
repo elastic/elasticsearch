@@ -17,11 +17,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +42,28 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NodeShutdownIT extends ESRestTestCase {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(4)
+        .module("x-pack-shutdown")
+        .module("analysis-common")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        // The legacy Gradle cluster enabled the readiness listener on an ephemeral port. No test here
+        // queries it, but keep the node configuration equivalent to the pre-migration setup.
+        .setting("readiness.port", "0")
+        .systemProperty("es.queryable_built_in_roles_enabled", "false")
+        .user(USER, PASS)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null, null);
@@ -89,6 +113,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("allocation_delay"), equalsOptionalTimeValue(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
             assertThat(nodesArray.get(0).get("grace_period"), equalsOptionalTimeValue(grace));
+            assertThat(
+                nodesArray.getFirst().get("shard_snapshots"),
+                equalTo(Map.of("completed_shards", 0, "paused_shards", 0, "running_shards", 0, "status", "COMPLETE"))
+            );
         }
 
         if (delete) {
@@ -325,7 +353,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Mark the node for shutdown
         putNodeShutdown(nodeIdToShutdown, "remove");
-        {
+        assertBusy(() -> {
             // Now check the shard migration status
             Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
             Response statusResponse = client().performRequest(getStatusRequest);
@@ -340,7 +368,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 )
             );
             assertThat(ObjectPath.eval("nodes.0.shard_migration.node_allocation_decision", status), notNullValue());
-        }
+        });
 
         // Now update the allocation requirements to unblock shard relocation
         Request updateSettingsRequest = new Request("PUT", indexName + "/_settings");
@@ -495,10 +523,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(
-            System.getProperty("tests.rest.cluster.username"),
-            new SecureString(System.getProperty("tests.rest.cluster.password").toCharArray())
-        );
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

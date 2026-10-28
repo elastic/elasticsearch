@@ -32,7 +32,13 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
         final int numberOfShards = randomIntBetween(1, 10);
         final var indexWriteLoad = IndexWriteLoad.builder(numberOfShards);
         for (int i = 0; i < numberOfShards; i++) {
-            indexWriteLoad.withShardWriteLoad(i, randomDoubleBetween(1, 10, true), randomLongBetween(1, 1000));
+            indexWriteLoad.withShardWriteLoad(
+                i,
+                randomDoubleBetween(1, 10, true),
+                randomDoubleBetween(1, 10, true),
+                randomLongBetween(1, 1000),
+                randomLongBetween(1, 1000)
+            );
         }
         return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }
@@ -53,10 +59,16 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
             double shardLoad = existingShard && randomBoolean()
                 ? originalWriteLoad.getWriteLoadForShard(i).getAsDouble()
                 : randomDoubleBetween(0, 128, true);
+            double recentShardLoad = existingShard && randomBoolean()
+                ? originalWriteLoad.getRecentWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
+            double peakShardLoad = existingShard && randomBoolean()
+                ? originalWriteLoad.getPeakWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
             long uptimeInMillis = existingShard && randomBoolean()
                 ? originalWriteLoad.getUptimeInMillisForShard(i).getAsLong()
                 : randomNonNegativeLong();
-            indexWriteLoad.withShardWriteLoad(i, shardLoad, uptimeInMillis);
+            indexWriteLoad.withShardWriteLoad(i, shardLoad, recentShardLoad, peakShardLoad, uptimeInMillis);
         }
         return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }

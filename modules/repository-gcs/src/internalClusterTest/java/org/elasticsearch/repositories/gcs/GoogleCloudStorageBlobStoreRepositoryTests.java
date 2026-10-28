@@ -13,23 +13,30 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
 
-import com.google.api.gax.retrying.RetrySettings;
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
+import com.google.api.gax.rpc.HeaderProvider;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
@@ -45,30 +52,54 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.Streams.readFully;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.RESUMABLE_WRITE_BUFFER_SIZE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
+@TestIssueLogging(
+    value = "fixture.gcs.GoogleCloudStorageHttpHandler:DEBUG",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/151474"
+)
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
+
+    private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
+
+    private static final ByteSizeValue CHUNK_SIZE_1_MB = ByteSizeValue.ofMb(1);
+    private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
 
     @Override
     protected String repositoryType() {
@@ -92,19 +123,25 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         return Collections.singletonList(TestGoogleCloudStoragePlugin.class);
     }
 
-    @Override
-    protected Map<String, HttpHandler> createHttpHandlers() {
-        return Map.of(
-            "/",
-            new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleCloudStorageBlobStoreHttpHandler("bucket")),
-            "/token",
-            new FakeOAuth2HttpHandler()
-        );
-    }
+    private ChunkRecordingHttpHandler chunkRecordingHandler;
 
     @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        final GoogleCloudStorageBlobStoreHttpHandler blobHandler = new GoogleCloudStorageBlobStoreHttpHandler("bucket");
+        chunkRecordingHandler = new ChunkRecordingHttpHandler(blobHandler);
+        return Map.of("/", new GoogleCloudStorageStatsCollectorHttpHandler(chunkRecordingHandler), "/token", new FakeOAuth2HttpHandler());
+    }
+
+    // GCP Oauth2 client uses own retries: 1-second initial delay, 3-tries, 2x multiplier
+    // it can take long time to pass through(>10s) from multiple nodes, and trip tests with timeouts
+    // https://github.com/googleapis/google-auth-library-java/blob/main/oauth2_http/java/com/google/auth/oauth2/OAuth2Utils.java#L115-L118
+    @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        if (delegate instanceof FakeOAuth2HttpHandler) {
+            return new GoogleErroneousHttpHandler(delegate, 1);
+        } else {
+            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+        }
     }
 
     @Override
@@ -113,6 +150,12 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         settings.put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl());
         settings.put(TOKEN_URI_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl() + "/token");
+        settings.put(MAX_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), 6);
+        // multiple nodes (6 for nightly) with multiple failures per request (2) and with only 2 threads for the HTTP mock GCS server,
+        // might lead to timeouts when reading the response after writing (or draining) large buffers (16 MB)
+        settings.put(READ_TIMEOUT_SETTING.getConcreteSettingForNamespace("test").getKey(), "60s");
+        // fixed 1mb buffer to allow testResumableWriteBufferInAction to verify chunk sizes
+        settings.put(RESUMABLE_WRITE_BUFFER_SIZE_SETTING.getConcreteSettingForNamespace("test").getKey(), CHUNK_SIZE_1_MB);
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
@@ -121,13 +164,30 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         return settings.build();
     }
 
-    public void testDeleteSingleItem() throws IOException {
-        final String repoName = createRepository(randomRepositoryName());
-        final RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        repository.blobStore()
-            .blobContainer(repository.basePath())
-            .deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single("foo"));
+    public void testDeleteItems() throws IOException {
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final var blobStore = repository.blobStore();
+        final var container = blobStore.blobContainer(repository.basePath());
+
+        final var purpose = randomPurpose();
+        final var blobNamePrefix = "delete-blob-";
+        final int numberOfBlobs = between(1, GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH * 10);
+        final List<String> blobNames = IntStream.range(0, numberOfBlobs).mapToObj(n -> blobNamePrefix + n).toList();
+
+        // randomly skips blob creation to exercise deletion if blob not exists
+        int created = 0;
+        for (var blob : blobNames) {
+            if (randomBoolean()) {
+                container.writeBlob(purpose, blob, randomBytesReference(between(1, 10)), false);
+                created += 1;
+            }
+        }
+        assertEquals("should write all blobs", created, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
+
+        container.deleteBlobsIgnoringIfNotExists(purpose, blobNames.iterator());
+        assertEquals("should delete all blobs", 0, container.listBlobsByPrefix(purpose, blobNamePrefix).size());
     }
 
     public void testChunkSize() {
@@ -180,6 +240,32 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
+    public void testResumableWriteBufferInAction() throws Exception {
+        // buffer size is fixed at 1mb by nodeSettings() for the "test" client
+        final int bufferSizeBytes = Math.toIntExact(CHUNK_SIZE_1_MB.getBytes());
+        final int numFullChunks = randomIntBetween(2, 4);
+        // lastChunkSize < bufferSizeBytes to guarantee numFullChunks non-final chunks
+        final int lastChunkSize = randomIntBetween(1, bufferSizeBytes - 1);
+        final int blobSize = bufferSizeBytes * numFullChunks + lastChunkSize;
+
+        final String repoName = createRepository(randomRepositoryName(), false);
+
+        chunkRecordingHandler.recording = true;
+        try (BlobStore store = newBlobStore(repoName)) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            container.writeBlob(randomPurpose(), "test-resumable-write-buffer", new BytesArray(randomByteArrayOfLength(blobSize)), true);
+            // Verify chunk sizes before deleting
+            final List<Integer> sizes = new ArrayList<>(chunkRecordingHandler.recordedNonFinalChunkSizes);
+            assertTrue("expected at least " + numFullChunks + " non-final chunks, got " + sizes, sizes.size() >= numFullChunks);
+            for (final int size : sizes) {
+                assertEquals("each non-final chunk must be exactly " + bufferSizeBytes + " bytes", bufferSizeBytes, size);
+            }
+            container.delete(randomPurpose());
+        } finally {
+            chunkRecordingHandler.recording = false;
+        }
+    }
+
     public void testWriteReadLarge() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
@@ -190,7 +276,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 random().nextBytes(data);
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob(randomPurpose(), "foobar")) {
+            try (InputStream stream = container.readBlob(randomRetryingPurpose(), "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -205,6 +291,70 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests:INFO",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/152286"
+    )
+    public void testWriteFileMultipleOfChunkSize() throws IOException {
+        final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * CHUNK_SIZE_1_MB.getBytes());
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String key = randomIdentifier();
+            byte[] initialValue = randomByteArrayOfLength(uploadSize);
+            container.writeBlob(randomPurpose(), key, new BytesArray(initialValue), true);
+
+            BytesReference reference = readFully(container.readBlob(randomRetryingPurpose(), key));
+            assertThat(reference, equalBytes(new BytesArray(initialValue)));
+
+            container.deleteBlobsIgnoringIfNotExists(randomPurpose(), Iterators.single(key));
+        }
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBlobName = randomIdentifier();
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var destinationBlobName = randomIdentifier();
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final var blobStore = repository.blobStore();
+        final var sourceBlobContainer = blobStore.blobContainer(repository.basePath());
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
+        sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+        assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
+
+        final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+        destinationBlobContainer.copyBlob(
+            randomPurpose(),
+            sourceBlobContainer,
+            sourceBlobName,
+            destinationBlobName,
+            blobBytes.length(),
+            null
+        );
+        assertThat(readFully(destinationBlobContainer.readBlob(randomRetryingPurpose(), destinationBlobName)), equalBytes(blobBytes));
+
+        sourceBlobContainer.delete(randomPurpose());
+        destinationBlobContainer.delete(randomPurpose());
+    }
+
+    @Override
+    public void testRequestStats() throws Exception {
+        super.testRequestStats();
+    }
+
+    // todo(szybia): remove once problem is solved. issue #152286: SocketTimeoutException on GCP request.
+    // so adding thread dump to identify why GCP mock threadpool of 2 threads is not responding within 60 seconds.
+    private static void dumpThreadsOnReadTimeout(Throwable cause, boolean willRetry) {
+        final StringBuilder b = new StringBuilder(
+            "\n==== thread dump on GCS SocketTimeoutException (#152286), willRetry=" + willRetry + " ====\n"
+        );
+        for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+            b.append(ti);
+        }
+        b.append("^^==============================================\n");
+        gcpTestLogger.warn(b.toString(), cause);
+    }
+
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -212,8 +362,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService() {
-            return new GoogleCloudStorageService() {
+        protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            // We generate the client ID here, otherwise it gets generated on each nodes' snapshot thread(s)
+            // and the chance of collision is greatly increased because of deterministic randomness
+            final String clientId = randomUUID();
+            return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -221,22 +374,40 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
-                        .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
-                        .setHost(options.getHost())
-                        .setCredentials(options.getCredentials())
+                        .setStorageRetryStrategy(
+                            ShouldRetryDecorator.decorate(
+                                StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+                                (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                                    final boolean willRetry = delegate.shouldRetry(prevThrowable, prevResponse);
+                                    gcpTestLogger.info(
+                                        () -> "GCS storage retry decision willRetry=" + willRetry + " cause=[" + prevThrowable + "]"
+                                    );
+                                    if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
+                                        dumpThreadsOnReadTimeout(prevThrowable, willRetry);
+                                    }
+                                    return willRetry;
+                                }
+                            )
+                        )
                         .setRetrySettings(
-                            RetrySettings.newBuilder()
-                                .setTotalTimeout(options.getRetrySettings().getTotalTimeout())
+                            options.getRetrySettings()
+                                .toBuilder()
                                 .setInitialRetryDelay(Duration.ofMillis(10L))
-                                .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                                 .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setMaxAttempts(0)
                                 .setJittered(false)
-                                .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
-                                .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
-                                .setMaxRpcTimeout(options.getRetrySettings().getMaxRpcTimeout())
                                 .build()
                         )
+                        .setHeaderProvider(new HeaderProvider() {
+                            /**
+                             * GCS client doesn't implement any way of identifying the client making the request.
+                             * Adding this header makes it easier for us to know how many times it's safe to fail
+                             * a request without exceeding the configured max retries.
+                             */
+                            @Override
+                            public Map<String, String> getHeaders() {
+                                return Map.of(CLIENT_ID_HEADER, clientId);
+                            }
+                        })
                         .build();
                 }
             };
@@ -249,34 +420,39 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(
+                (projectId, metadata) -> new GoogleCloudStorageRepository(
+                    projectId,
                     metadata,
                     registry,
-                    this.storageService,
+                    this.storageService.get(),
                     clusterService,
                     bigArrays,
-                    recoverySettings
+                    recoverySettings,
+                    new GcsRepositoryStatsCollector(),
+                    snapshotMetrics
                 ) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
+                            getProjectId(),
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),
-                            storageService,
+                            storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
-                            BackoffPolicy.noBackoff()
-                        ) {
-                            @Override
-                            long getLargeBlobThresholdInBytes() {
-                                return ByteSizeUnit.MB.toBytes(1);
-                            }
-                        };
+                            ByteSizeUnit.MB.toBytes(1),
+                            ByteSizeValue.ofMb(1).getBytes(),
+                            BackoffPolicy.noBackoff(),
+                            this.statsCollector(),
+                            null,
+                            null
+                        );
                     }
                 }
             );
@@ -289,6 +465,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         GoogleCloudStorageBlobStoreHttpHandler(final String bucket) {
             super(bucket);
         }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
+        }
     }
 
     /**
@@ -298,7 +479,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
      * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
-    private static class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
+    private class GoogleErroneousHttpHandler extends ErroneousHttpHandler {
+
+        private static final Logger logger = LogManager.getLogger(GoogleErroneousHttpHandler.class);
+        private static final String IDEMPOTENCY_TOKEN = "x-goog-gcs-idempotency-token";
 
         GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
@@ -315,17 +499,41 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 }
             }
 
+            if (exchange.getRequestHeaders().containsKey(IDEMPOTENCY_TOKEN)) {
+                String idempotencyToken = exchange.getRequestHeaders().getFirst(IDEMPOTENCY_TOKEN);
+                // In the event of a resumable retry, the GCS client uses the same idempotency token for
+                // the retry status check and the subsequent retries.
+                // Including the range header allows us to disambiguate between the requests
+                // see https://github.com/googleapis/java-storage/issues/3040
+                if (exchange.getRequestHeaders().containsKey("Content-Range")) {
+                    idempotencyToken += " " + exchange.getRequestHeaders().getFirst("Content-Range");
+                }
+                return idempotencyToken;
+            }
+
+            String clientId = exchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
+            if (clientId == null) {
+                if (exchange.getRequestURI().toString().startsWith("/batch/") == false) {
+                    final String message = Strings.format(
+                        "Missing %s on non-batch request, this may cause issues with fault injection: %s",
+                        CLIENT_ID_HEADER,
+                        exchange.getRequestURI()
+                    );
+                    ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
+                }
+                clientId = exchange.getRemoteAddress().toString();
+            }
             final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-            return exchange.getRemoteAddress().getHostString()
-                + " "
-                + exchange.getRequestMethod()
-                + " "
-                + exchange.getRequestURI()
-                + (range != null ? " " + range : "");
+            return clientId + " " + exchange.getRequestMethod() + " " + exchange.getRequestURI() + (range != null ? " " + range : "");
         }
 
         @Override
         protected boolean canFailRequest(final HttpExchange exchange) {
+            // Suppress error injection while recording chunk sizes so the GCS SDK never
+            // needs to issue a resumable-upload status check against the mock server.
+            if (chunkRecordingHandler != null && chunkRecordingHandler.recording) {
+                return false;
+            }
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
@@ -338,43 +546,55 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
     private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
-        public static final Pattern contentRangeMatcher = Pattern.compile("bytes \\d+-(\\d+)/(\\d+)");
-
         GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
-            super(delegate);
+            super(delegate, Arrays.stream(StorageOperation.values()).map(StorageOperation::key).toArray(String[]::new));
         }
 
         @Override
-        public void maybeTrack(final String request, Headers requestHeaders) {
-            if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
-                trackRequest("GetObject");
+        public void maybeTrack(HttpExchange exchange) {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+            if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
+                trackRequest(StorageOperation.GET.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("ListObjects");
-            } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
-                trackRequest("GetObject");
-            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
-                // Resumable uploads are billed as a single operation, that's the reason we're tracking
-                // the request only when it's the last part.
-                // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
-                trackRequest("InsertObject");
+                trackRequest(StorageOperation.LIST.key());
+            } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=resumable*", request)) {
+                trackRequest(StorageOperation.INSERT.key());
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request)) {
+                trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest("InsertObject");
+                trackRequest(StorageOperation.INSERT.key());
+            } else if (Regex.simpleMatch("POST /storage/v1/b/*/o/*/rewriteTo/b/*/o/*", request)) {
+                trackRequest(StorageOperation.COPY.key());
             }
         }
+    }
 
-        boolean isLastPart(Headers requestHeaders) {
-            if (requestHeaders.containsKey("Content-range") == false) return false;
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
+    private static class ChunkRecordingHttpHandler implements DelegatingHttpHandler {
+        private final HttpHandler delegate;
+        private volatile boolean recording = false;
+        final Queue<Integer> recordedNonFinalChunkSizes = new ConcurrentLinkedQueue<>();
 
-            // https://cloud.google.com/storage/docs/json_api/v1/parameters#contentrange
-            final String contentRange = requestHeaders.getFirst("Content-range");
+        ChunkRecordingHttpHandler(HttpHandler delegate) {
+            this.delegate = delegate;
+        }
 
-            final Matcher matcher = contentRangeMatcher.matcher(contentRange);
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (recording && "PUT".equals(exchange.getRequestMethod())) {
+                final String contentRange = exchange.getRequestHeaders().getFirst("Content-Range");
+                if (contentRange != null && contentRange.endsWith("/*")) {
+                    // "bytes start-end/*", split on '-' and '/'
+                    final String[] parts = contentRange.substring("bytes ".length()).split("[-/]");
+                    recordedNonFinalChunkSizes.add(Integer.parseInt(parts[1]) - Integer.parseInt(parts[0]) + 1);
+                }
+            }
+            delegate.handle(exchange);
+        }
 
-            if (matcher.matches() == false) return false;
-
-            String upperBound = matcher.group(1);
-            String totalLength = matcher.group(2);
-            return Integer.parseInt(upperBound) == Integer.parseInt(totalLength) - 1;
+        @Override
+        public HttpHandler getDelegate() {
+            return delegate;
         }
     }
 }

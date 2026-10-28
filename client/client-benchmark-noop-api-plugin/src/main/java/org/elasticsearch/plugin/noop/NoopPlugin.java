@@ -8,18 +8,10 @@
  */
 package org.elasticsearch.plugin.noop;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugin.noop.action.bulk.RestNoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction;
@@ -27,7 +19,6 @@ import org.elasticsearch.plugin.noop.action.search.RestNoopSearchAction;
 import org.elasticsearch.plugin.noop.action.search.TransportNoopSearchAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.util.Arrays;
@@ -41,22 +32,16 @@ public class NoopPlugin extends Plugin implements ActionPlugin {
     public static final ActionType<BulkResponse> NOOP_BULK_ACTION = new ActionType<>("mock:data/write/bulk");
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
-            new ActionHandler<>(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
+            new ActionHandler(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
+            new ActionHandler(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

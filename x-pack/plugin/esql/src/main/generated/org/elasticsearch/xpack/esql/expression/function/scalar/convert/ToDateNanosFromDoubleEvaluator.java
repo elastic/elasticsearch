@@ -7,29 +7,36 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDateNanos}.
+ * {@link ExpressionEvaluator} implementation for {@link ToDateNanos}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDateNanosFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDateNanosFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDateNanosFromDoubleEvaluator.class);
+
+  private final ExpressionEvaluator in;
+
+  public ToDateNanosFromDoubleEvaluator(Source source, ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "ToDateNanosFromDouble";
+  public ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -57,7 +64,7 @@ public final class ToDateNanosFromDoubleEvaluator extends AbstractConvertFunctio
     }
   }
 
-  private static long evalValue(DoubleVector container, int index) {
+  private long evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToDateNanos.fromDouble(value);
   }
@@ -96,29 +103,46 @@ public final class ToDateNanosFromDoubleEvaluator extends AbstractConvertFunctio
     }
   }
 
-  private static long evalValue(DoubleBlock container, int index) {
+  private long evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToDateNanos.fromDouble(value);
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToDateNanosFromDoubleEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public ToDateNanosFromDoubleEvaluator get(DriverContext context) {
-      return new ToDateNanosFromDoubleEvaluator(field.get(context), source, context);
+      return new ToDateNanosFromDoubleEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDateNanosFromDoubleEvaluator[field=" + field + "]";
+      return "ToDateNanosFromDoubleEvaluator[" + "in=" + in + "]";
     }
   }
 }

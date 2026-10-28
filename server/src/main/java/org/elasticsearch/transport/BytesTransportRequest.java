@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +20,7 @@ import java.io.IOException;
  * A specialized, bytes only request, that can potentially be optimized on the network
  * layer, specifically for the same large buffer send to several nodes.
  */
-public class BytesTransportRequest extends TransportRequest {
+public class BytesTransportRequest extends AbstractTransportRequest implements BytesTransportMessage {
 
     final ReleasableBytesReference bytes;
     private final TransportVersion version;
@@ -41,23 +40,21 @@ public class BytesTransportRequest extends TransportRequest {
         return this.version;
     }
 
-    public BytesReference bytes() {
+    @Override
+    public ReleasableBytesReference bytes() {
         return this.bytes;
     }
 
-    /**
-     * Writes the data in a "thin" manner, without the actual bytes, assumes
-     * the actual bytes will be appended right after this content.
-     */
+    @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(bytes.length());
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBytesReference(bytes);
+    public final void writeTo(StreamOutput out) {
+        assert false : "should not be called";
+        throw new UnsupportedOperationException("writeTo() should not be used");
     }
 
     @Override

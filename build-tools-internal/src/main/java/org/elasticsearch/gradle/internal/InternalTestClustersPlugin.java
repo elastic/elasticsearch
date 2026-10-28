@@ -10,13 +10,11 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class InternalTestClustersPlugin implements Plugin<Project> {
@@ -24,25 +22,14 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
-        project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
+        project.getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
         testClustersPlugin.setRuntimeJava(buildParams.getRuntimeJavaHome());
         testClustersPlugin.setIsReleasedVersion(
-            version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.isSnapshotBuild() == false)
+            version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.getSnapshotBuild() == false)
                 || buildParams.getBwcVersions().unreleasedInfo(version) == null
         );
-
-        if (shouldConfigureTestClustersWithOneProcessor()) {
-            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", "1"));
-        }
-    }
-
-    private boolean shouldConfigureTestClustersWithOneProcessor() {
-        return Boolean.parseBoolean(System.getProperty("tests.configure_test_clusters_with_one_processor", "false"));
     }
 }

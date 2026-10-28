@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsR
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,14 +36,14 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
     private static final Logger logger = LogManager.getLogger(TransportGetRoleMappingsAction.class);
 
     private final NativeRoleMappingStore roleMappingStore;
-    private final ClusterStateRoleMapper clusterStateRoleMapper;
+    private final ProjectStateRoleMapper projectStateRoleMapper;
 
     @Inject
     public TransportGetRoleMappingsAction(
         ActionFilters actionFilters,
         TransportService transportService,
         NativeRoleMappingStore nativeRoleMappingStore,
-        ClusterStateRoleMapper clusterStateRoleMapper
+        ProjectStateRoleMapper projectStateRoleMapper
     ) {
         super(
             GetRoleMappingsAction.NAME,
@@ -53,7 +53,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.roleMappingStore = nativeRoleMappingStore;
-        this.clusterStateRoleMapper = clusterStateRoleMapper;
+        this.projectStateRoleMapper = projectStateRoleMapper;
     }
 
     @Override
@@ -65,7 +65,7 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
         roleMappingStore.getRoleMappings(names, ActionListener.wrap(nativeRoleMappings -> {
-            final Collection<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(
+            final Collection<ExpressionRoleMapping> clusterStateRoleMappings = projectStateRoleMapper.getMappings(
                 // if the API was queried with a reserved suffix for any of the names, we need to remove it because role mappings are
                 // stored without it in cluster-state
                 removeReadOnlySuffixIfPresent(names)

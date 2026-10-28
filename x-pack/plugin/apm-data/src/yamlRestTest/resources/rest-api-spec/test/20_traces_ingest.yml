@@ -80,7 +80,35 @@ setup:
           - '{"@timestamp": "2017-06-22", "event": {"outcome": "unknown"}}'
 
           - create: {}
-          - '{"@timestamp": "2017-06-22", "event": {"outcome": "success"}}'
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "transaction"},
+            "event": {"outcome": "success"},
+            "transaction": {"representative_count": 2}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "span"},
+            "event": {"outcome": "success"},
+            "span": {"representative_count": 3}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "span"},
+            "event": {"outcome": "success"},
+            "span": {"representative_count": null}
+          }'
+
+          - create: {}
+          - '{
+            "@timestamp": "2017-06-22",
+            "processor": {"event": "transaction"},
+            "event": {"outcome": "success"}
+          }'
 
           - create: {}
           - '{"@timestamp": "2017-06-22", "event": {"outcome": "failure"}}'
@@ -92,8 +120,11 @@ setup:
         index: traces-apm-testing
         body:
           fields: ["event.success_count"]
-  - length: { hits.hits: 4 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0.fields: null }
   - match: { hits.hits.1.fields: null }
-  - match: { hits.hits.2.fields: {"event.success_count": [1]} }
-  - match: { hits.hits.3.fields: {"event.success_count": [0]} }
+  - match: { hits.hits.2.fields: {"event.success_count": [2]} }
+  - match: { hits.hits.3.fields: {"event.success_count": [3]} }
+  - match: { hits.hits.4.fields: {"event.success_count": [1]} }
+  - match: { hits.hits.5.fields: {"event.success_count": [1]} }
+  - match: { hits.hits.6.fields: {"event.success_count": [0]} }

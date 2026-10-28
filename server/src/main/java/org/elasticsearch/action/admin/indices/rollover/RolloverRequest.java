@@ -8,19 +8,17 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -91,14 +89,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            lazy = in.readBoolean();
-        } else {
-            lazy = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        }
+        lazy = in.readBoolean();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
     RolloverRequest() {
@@ -126,14 +118,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
+        // Ensure we have a valid selector in the request
         if (rolloverTarget != null) {
-            ResolvedExpression resolvedExpression = SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
-            IndexComponentSelector selector = resolvedExpression.selector();
-            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                validationException = addValidationError(
-                    "rollover cannot be applied to both regular and failure indices at the same time",
-                    validationException
-                );
+            try {
+                SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            } catch (InvalidIndexNameException exception) {
+                validationException = addValidationError(exception.getMessage(), validationException);
             }
         }
 
@@ -148,12 +138,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         conditions.writeTo(out);
         createIndexRequest.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(lazy);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            indicesOptions.writeIndicesOptions(out);
-        }
+        out.writeBoolean(lazy);
+        indicesOptions.writeIndicesOptions(out);
     }
 
     @Override

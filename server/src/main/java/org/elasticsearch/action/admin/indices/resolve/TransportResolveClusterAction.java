@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -174,7 +175,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 resolveClusterTask.ensureNotCancelled();
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
+                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true);
                 RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
                     searchCoordinationExecutor,
@@ -383,11 +384,12 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         ResolveIndexAction.TransportAction.resolveIndices(
             localIndices.indices(),
             indicesOptions,
-            clusterState,
+            clusterState.projectState(),
             indexNameExpressionResolver,
             indices,
             aliases,
-            dataStreams
+            dataStreams,
+            Set.of()
         );
 
         /*

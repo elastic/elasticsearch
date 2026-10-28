@@ -142,6 +142,24 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
         assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
     }
 
+    public void testExcludedRemoteClusterAlias() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*:remote-index1", "-remote-cluster1:*");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster2"));
+    }
+
+    public void testExcludedAllRemoteClusterAliases() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*:remote-index1", "-remote-cluster1:*", "-remote-cluster2:*");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), empty());
+    }
+
+    public void testExcludedRemoteClusterAliasWithWildcard() {
+        final Set<String> remoteClusters = Sets.newHashSet("remote-cluster1", "remote-cluster2");
+        final List<String> indices = Arrays.asList("*:remote-index1", "-*1:*");
+        assertThat(RemoteClusterLicenseChecker.remoteClusterAliases(remoteClusters, indices), contains("remote-cluster2"));
+    }
+
     public void testCheckRemoteClusterLicensesGivenCompatibleLicenses() {
         final AtomicInteger index = new AtomicInteger();
         final List<XPackInfoResponse> responses = new ArrayList<>();

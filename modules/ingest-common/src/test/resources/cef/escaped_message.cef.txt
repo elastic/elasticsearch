@@ -1,0 +1,1 @@
+CEF:0|security\\compliance|threat\|->manager|1.0|100|message contains escapes|10|spt=1232 msg=Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\\=. dpt=4432

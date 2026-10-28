@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -18,18 +19,28 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +60,14 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
-    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {}
+    /** Computed on first use: it inspects the segments of every shard. */
+    private Boolean mayHoldUnmappedFields;
+
+    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
+        FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
+            this(exists, hasExactSubfield, indexed, hasDocValues, null);
+        }
+    }
 
     private static class FieldStats {
         private Long count;
@@ -80,11 +98,6 @@ public class SearchContextStats implements SearchStats {
         assert contexts != null && contexts.isEmpty() == false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.exists;
-    }
-
     private FieldStats makeFieldStats(String field) {
         var stat = new FieldStats();
         stat.config = makeFieldConfig(field);
@@ -96,199 +109,432 @@ public class SearchContextStats implements SearchStats {
         boolean hasExactSubfield = true;
         boolean indexed = true;
         boolean hasDocValues = true;
+        boolean mixedFieldType = false;
+        MappedFieldType fieldType = null; // Extract the field type, it will be used by min/max later.
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
-            if (context.isFieldMapped(field)) {
-                exists = exists || true;
+            if (isExtractableMappedField(context, field)) {
                 MappedFieldType type = context.getFieldType(field);
-                indexed = indexed && type.isIndexed();
-                hasDocValues = hasDocValues && type.hasDocValues();
-                if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
-                } else {
-                    hasExactSubfield = false;
+                if (fieldType == null) {
+                    fieldType = type;
+                } else if (mixedFieldType == false && fieldType.typeName().equals(type.typeName()) == false) {
+                    mixedFieldType = true;
                 }
+                exists |= true;
+                indexed &= type.indexType().hasDenseIndex();
+                hasDocValues &= type.hasDocValues();
+                hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
                 indexed = false;
                 hasDocValues = false;
                 hasExactSubfield = false;
+            }
+            if (exists && indexed == false && hasDocValues == false && hasExactSubfield == false) {
+                break;
             }
         }
         if (exists == false) {
             // if it does not exist on any context, no other settings are valid
             return new FieldConfig(false, false, false, false);
         } else {
-            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues);
+            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues, mixedFieldType ? null : fieldType);
         }
     }
 
-    public boolean isIndexed(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.indexed;
-    }
-
-    public boolean hasDocValues(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasDocValues;
-    }
-
-    public boolean hasExactSubfield(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasExactSubfield;
-    }
-
-    public long count() {
-        var count = new long[] { 0 };
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.numDocs();
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
-    }
-
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        if (stat.count == null) {
-            var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field);
+    private boolean fastNoCacheFieldExists(String field) {
+        for (SearchExecutionContext context : contexts) {
+            if (isExtractableMappedField(context, field)) {
                 return true;
-            }, false);
-            stat.count = completed ? count[0] : -1;
-        }
-        return stat.count;
-    }
-
-    public long count(String field, BytesRef value) {
-        var count = new long[] { 0 };
-        Term term = new Term(field, value);
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.docFreq(term);
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
-    }
-
-    public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        if (stat.min == null) {
-            var min = new byte[][] { null };
-            doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
-                // TODO: how to compare with the previous min
-                if (localMin != null) {
-                    if (min[0] == null) {
-                        min[0] = localMin;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
-                    }
-                }
-                return true;
-            }, true);
-            stat.min = min[0];
-        }
-        // return stat.min;
-        return null;
-    }
-
-    public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        if (stat.max == null) {
-            var max = new byte[][] { null };
-            doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
-                // TODO: how to compare with the previous max
-                if (localMax != null) {
-                    if (max[0] == null) {
-                        max[0] = localMax;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
-                    }
-                }
-                return true;
-            }, true);
-            stat.max = max[0];
-        }
-        // return stat.max;
-        return null;
-    }
-
-    public boolean isSingleValue(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        if (stat.singleValue == null) {
-            // there's no such field so no need to worry about multi-value fields
-            if (exists(field) == false) {
-                stat.singleValue = true;
-            } else {
-                // fields are MV per default
-                var sv = new boolean[] { false };
-                for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(field) ? context.getFieldType(field) : null;
-                    if (mappedType != null) {
-                        sv[0] = true;
-                        doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, field);
-                            return sv[0];
-                        }, true);
-                        break;
-                    }
-                }
-                stat.singleValue = sv[0];
             }
+        }
+        return false;
+    }
+
+    /**
+     * A field ES|QL can extract from this shard: present in the mapping and not under a nested
+     * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
+     * on the field-caps request, so treating nested subfields as present here would make
+     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
+     */
+    public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
+    }
+
+    private static boolean isNestedSubfield(SearchExecutionContext context, String field) {
+        return context.nestedLookup().hasNestedParent(field);
+    }
+
+    @Override
+    public boolean mayHoldUnmappedFields() {
+        if (mayHoldUnmappedFields == null) {
+            boolean mayHold = false;
+            for (SearchExecutionContext context : contexts) {
+                if (context.unmappedFields().mayExist()) {
+                    mayHold = true;
+                    break;
+                }
+            }
+            mayHoldUnmappedFields = mayHold;
+        }
+        return mayHoldUnmappedFields;
+    }
+
+    @Override
+    public boolean mayHoldUnmappedField(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.unmappedFields().mayExist(field.string())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean exists(FieldName field) {
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
+    }
+
+    @Override
+    public boolean isIndexed(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
+    }
+
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean supportsLoaderConfig(
+        FieldName name,
+        BlockLoaderFunctionConfig config,
+        MappedFieldType.FieldExtractPreference preference
+    ) {
+        if (config == null) {
+            throw new UnsupportedOperationException("config must be provided");
+        }
+        for (SearchExecutionContext context : contexts) {
+            if (isNestedSubfield(context, name.string())) {
+                return false;
+            }
+            MappedFieldType ft = context.getFieldType(name.string());
+            if (ft == null) {
+                /*
+                 * Missing fields are always null no matter what we try to push so they
+                 * should work, but we need this check here to prevent actually pushing
+                 * to a LOOKUP JOIN. If the field comes from a LOOKUP JOIN  then it'll
+                 * show up as missing here. And we can't push to those fields. Yet.
+                 */
+                return false;
+            }
+            if (ft.supportsBlockLoaderConfig(config, preference) == false) {
+                // If any one field doesn't support the loader config we'll disable pushing the expression to the field
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
+    }
+
+    @Override
+    public long count() {
+        long count = 0;
+        for (SearchExecutionContext context : contexts) {
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                LeafReader reader = leafContext.reader();
+                if (reader.hasDeletions()) {
+                    return -1L;
+                }
+                count += reader.numDocs();
+            }
+        }
+        return count;
+    }
+
+    @Override
+    public long count(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        if (stat.count != null) {
+            return stat.count;
+        }
+        long count = 0;
+        for (SearchExecutionContext context : contexts) {
+            // Skip shards where this field is a dynamic flattened sub-key (terms exist in Lucene
+            // but field caps does not report it — see #154508) or a nested subfield (IndexResolver
+            // applies -nested on the field-caps request; counting nested Lucene docs would disagree
+            // with extraction — #154011).
+            if (isExtractableMappedField(context, field.string()) == false) {
+                continue;
+            }
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                LeafReader reader = leafContext.reader();
+                if (reader.hasDeletions()) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                long c = countEntries(reader, field.string());
+                if (c < 0) {
+                    // Can't use the count
+                    return stat.count = -1L;
+                }
+                count += c;
+            }
+        }
+        return stat.count = count;
+    }
+
+    @Override
+    public long count(FieldName field, BytesRef value) {
+        Term term = new Term(field.string(), value);
+        long count = 0;
+        try {
+            for (SearchExecutionContext context : contexts) {
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    if (reader.hasDeletions()) {
+                        return -1L;
+                    }
+                    count += reader.docFreq(term);
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return count;
+    }
+
+    @Override
+    public Object min(FieldName field) {
+        final var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        final MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType instanceof DateFieldType == false) {
+            return null;
+        }
+        if (stat.min == null) {
+            final Long[] result = new Long[] { null };
+            doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
+                final Long minValue = ctxFieldType.indexType().hasDocValuesSkipper()
+                    ? docValuesSkipperMinValue(reader, field.string())
+                    : pointMinValue(reader, field.string());
+                result[0] = nullableMin(result[0], minValue);
+                return true;
+            });
+            stat.min = result[0];
+        }
+        return stat.min;
+    }
+
+    @Override
+    public Object max(FieldName field) {
+        final var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        final MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType instanceof DateFieldType == false) {
+            return null;
+        }
+        if (stat.max == null) {
+            final Long[] result = new Long[] { null };
+            doWithFieldLeafReaders(field.string(), (ctxFieldType, reader) -> {
+                final Long maxValue = ctxFieldType.indexType().hasDocValuesSkipper()
+                    ? docValuesSkipperMaxValue(reader, field.string())
+                    : pointMaxValue(reader, field.string());
+                result[0] = nullableMax(result[0], maxValue);
+                return true;
+            });
+            stat.max = result[0];
+        }
+        return stat.max;
+    }
+
+    private static Long nullableMin(final Long a, final Long b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return Math.min(a, b);
+    }
+
+    private static Long nullableMax(final Long a, final Long b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return Math.max(a, b);
+    }
+
+    // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
+    private static Long docValuesSkipperMinValue(final LeafReader reader, final String field) throws IOException {
+        long value = DocValuesSkipper.globalMinValue(reader, field);
+        return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
+    }
+
+    private static Long docValuesSkipperMaxValue(final LeafReader reader, final String field) throws IOException {
+        long value = DocValuesSkipper.globalMaxValue(reader, field);
+        return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;
+    }
+
+    private static Long pointMinValue(final LeafReader reader, final String field) throws IOException {
+        final byte[] minPackedValue = PointValues.getMinPackedValue(reader, field);
+        return (minPackedValue != null && minPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(minPackedValue, 0) : null;
+    }
+
+    private static Long pointMaxValue(final LeafReader reader, final String field) throws IOException {
+        final byte[] maxPackedValue = PointValues.getMaxPackedValue(reader, field);
+        return (maxPackedValue != null && maxPackedValue.length == 8) ? NumericUtils.sortableBytesToLong(maxPackedValue, 0) : null;
+    }
+
+    @Override
+    public boolean isSingleValue(FieldName field) {
+        String fieldName = field.string();
+        var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
+        if (stat.singleValue == null) {
+            // a missing field is trivially single-valued; otherwise every leaf must prove it
+            stat.singleValue = stat.config.exists == false
+                || doWithFieldLeafReaders(fieldName, (fieldType, reader) -> isSingleValueLeaf(fieldType, reader, fieldName));
         }
         return stat.singleValue;
     }
 
-    private boolean detectSingleValue(IndexReader r, MappedFieldType fieldType, String name) throws IOException {
+    private boolean isSingleValueLeaf(MappedFieldType fieldType, LeafReader reader, String name) throws IOException {
         // types that are always single value (and are accessible through instanceof)
         if (fieldType instanceof ConstantFieldType || fieldType instanceof DocCountFieldType || fieldType instanceof TimestampFieldType) {
             return true;
         }
 
-        var typeName = fieldType.typeName();
-
-        // non-visible fields, check their names
-        boolean found = switch (typeName) {
-            case IdFieldMapper.NAME, SeqNoFieldMapper.NAME -> true;
-            default -> false;
-        };
-
-        if (found) {
+        final String typeName = fieldType.typeName();
+        if (typeName.equals(IdFieldMapper.NAME) || typeName.equals(SeqNoFieldMapper.NAME)) {
             return true;
         }
 
-        // check against doc size
-        DocCountTester tester = null;
         if (fieldType instanceof DateFieldType || fieldType instanceof NumberFieldType) {
-            tester = lr -> {
-                PointValues values = lr.getPointValues(name);
+            if (fieldType.indexType().hasPoints()) {
+                final PointValues values = reader.getPointValues(name);
                 return values == null || values.size() == values.getDocCount();
-            };
-        } else if (fieldType instanceof KeywordFieldType) {
-            tester = lr -> {
-                Terms terms = lr.terms(name);
-                return terms == null || terms.size() == terms.getDocCount();
-            };
+            }
+            if (fieldType.indexType().hasDocValuesSkipper()) {
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(name);
+                return skipper == null || skipper.maxValueCount() == 1;
+            }
+            return false;
         }
 
-        if (tester != null) {
-            // check each leaf
-            for (LeafReaderContext context : r.leaves()) {
-                if (tester.test(context.reader()) == false) {
-                    return false;
-                }
+        if (fieldType instanceof KeywordFieldType keywordFieldType) {
+            if (keywordFieldType.usesMultivaluedBinaryDocValues()) {
+                // NOTE: The binary multivalued format can store duplicate values per doc (e.g. ["A", "A", "B"]).
+                // The terms index deduplicates per doc, so sumDocFreq would undercount and cannot prove SV.
+                return false;
             }
-            // field is missing or single value
-            return true;
+            if (keywordFieldType.indexType().hasDocValuesSkipper()) {
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(name);
+                return skipper == null || skipper.maxValueCount() == 1;
+            }
+            if (keywordFieldType.indexType().hasTerms()) {
+                final Terms terms = reader.terms(name);
+                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
+            }
+            return false;
         }
 
         // unsupported type - default to MV
         return false;
     }
 
-    private interface DocCountTester {
-        Boolean test(LeafReader leafReader) throws IOException;
+    @Override
+    public boolean hasValueQueries(FieldAttribute.FieldName name) {
+        for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return false;
+            }
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type instanceof TextFamilyFieldType textFamily) {
+                if (textFamily.valueQueries() == null) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return contexts.isEmpty() == false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return false;
+            }
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public String constantValue(FieldAttribute.FieldName name) {
+        String val = null;
+        for (SearchExecutionContext ctx : contexts) {
+            if (isNestedSubfield(ctx, name.string())) {
+                return null;
+            }
+            MappedFieldType f = ctx.getFieldType(name.string());
+            if (f == null) {
+                return null;
+            }
+            if (f instanceof ConstantFieldType cf) {
+                var fetcher = cf.valueFetcher(ctx, null);
+                String thisVal = null;
+                try {
+                    // since the value is a constant, the doc _should_ be irrelevant
+                    List<Object> vals = fetcher.fetchValues(null, -1, null);
+                    Object objVal = vals.size() == 1 ? vals.get(0) : null;
+                    // we are considering only string values for now, since this can return "strange" things,
+                    // see IndexModeFieldType
+                    thisVal = objVal instanceof String ? (String) objVal : null;
+                } catch (IOException iox) {}
+
+                if (thisVal == null) {
+                    // Value not yet set
+                    return null;
+                }
+                if (val == null) {
+                    val = thisVal;
+                } else if (thisVal.equals(val) == false) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return val;
+    }
+
+    @Override
+    public MappedFieldType fieldType(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
     }
 
     //
@@ -328,23 +574,25 @@ public class SearchContextStats implements SearchStats {
         return count;
     }
 
-    private interface IndexReaderConsumer {
+    @FunctionalInterface
+    private interface FieldLeafReaderTester {
         /**
-         * Returns true if the consumer should keep on going, false otherwise.
+         * Returns true if iteration should continue, false to stop early. The field type is the one
+         * mapped by the context the leaf belongs to, so a decision is always made against the field
+         * type of the shard that produced the leaf.
          */
-        boolean consume(IndexReader reader) throws IOException;
+        boolean test(MappedFieldType fieldType, LeafReader reader) throws IOException;
     }
 
-    private boolean doWithContexts(IndexReaderConsumer consumer, boolean acceptsDeletions) {
+    private boolean doWithFieldLeafReaders(String field, FieldLeafReaderTester tester) {
         try {
             for (SearchExecutionContext context : contexts) {
+                if (isExtractableMappedField(context, field) == false) {
+                    continue;
+                }
+                MappedFieldType fieldType = context.getFieldType(field);
                 for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
-                    var reader = leafContext.reader();
-                    if (acceptsDeletions == false && reader.hasDeletions()) {
-                        return false;
-                    }
-                    // check if the looping continues or not
-                    if (consumer.consume(reader) == false) {
+                    if (tester.test(fieldType, leafContext.reader()) == false) {
                         return false;
                     }
                 }
@@ -353,5 +601,30 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
+    }
+
+    @Override
+    public Map<ShardId, IndexMetadata> targetShards() {
+        Map<ShardId, IndexMetadata> shards = Maps.newHashMapWithExpectedSize(contexts.size());
+        for (SearchExecutionContext context : contexts) {
+            IndexMetadata indexMetadata = context.getIndexSettings().getIndexMetadata();
+            ShardId shardId = new ShardId(context.index(), context.getShardId());
+            shards.putIfAbsent(shardId, indexMetadata);
+        }
+        return shards;
+    }
+
+    @Override
+    public boolean canPartitionByTsidPrefix() {
+        try {
+            for (SearchExecutionContext context : contexts) {
+                if (PartitionedDocValues.canPartitionByTsidPrefix(context.searcher()) == false) {
+                    return false;
+                }
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException("failed to read time-series partition", ex);
+        }
+        return true;
     }
 }

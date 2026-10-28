@@ -31,9 +31,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
-    private static final String OPEN_AI_EMBEDDINGS_ADDED = "8.12.0";
-    private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED = "8.13.0";
-    private static final String OPEN_AI_COMPLETIONS_ADDED = "8.14.0";
+    // TODO: replace with proper test features
+    private static final String OPEN_AI_EMBEDDINGS_TEST_FEATURE = "gte_v8.12.0";
+    private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED_TEST_FEATURE = "gte_v8.13.0";
+    private static final String OPEN_AI_COMPLETIONS_TEST_FEATURE = "gte_v8.14.0";
 
     private static MockWebServer openAiEmbeddingsServer;
     private static MockWebServer openAiChatCompletionsServer;
@@ -59,10 +60,9 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     public void testOpenAiEmbeddings() throws IOException {
-        var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_EMBEDDINGS_ADDED);
-        // `gte_v` indicates that the cluster version is Greater Than or Equal to MODELS_RENAMED_TO_ENDPOINTS
-        String oldClusterEndpointIdentifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
+        var openAiEmbeddingsSupported = oldClusterHasFeature(OPEN_AI_EMBEDDINGS_TEST_FEATURE);
+        String oldClusterEndpointIdentifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("OpenAI embedding service supported", openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-embeddings";
         final String upgradedClusterId = "upgraded-cluster-embeddings";
@@ -71,14 +71,15 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
 
         if (isOldCluster()) {
             String inferenceConfig = oldClusterVersionCompatibleEmbeddingConfig();
-            // queue a response as PUT will call the service
-            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
+            // queue a response as PUT will call the service. Old nodes here predate the adaptive
+            // parser, so we serve the legacy JSON-array shape they know how to decode.
+            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseJsonArray()));
             put(oldClusterId, inferenceConfig, testTaskType);
 
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get(oldClusterEndpointIdentifier);
             assertThat(configs, hasSize(1));
 
-            assertEmbeddingInference(oldClusterId);
+            assertEmbeddingInference(oldClusterId, false);
         } else if (isMixedCluster()) {
             var configs = getConfigsWithBreakingChangeHandling(testTaskType, oldClusterId);
 
@@ -86,10 +87,13 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
             var modelIdFound = serviceSettings.containsKey("model_id")
-                || (taskSettings.containsKey("model") && getOldClusterTestVersion().onOrBefore(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED));
+                || (taskSettings.containsKey("model")
+                    && (oldClusterHasFeature(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED_TEST_FEATURE) == false));
             assertTrue("model_id not found in config: " + configs, modelIdFound);
 
-            assertEmbeddingInference(oldClusterId);
+            // Inference may be coordinated by either an old or a new node in a mixed
+            // cluster, so stay on the JSON-array shape that both versions can parse.
+            assertEmbeddingInference(oldClusterId, false);
         } else if (isUpgradedCluster()) {
             // check old cluster model
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
@@ -99,34 +103,41 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
             assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
-            // Inference on old cluster model
-            assertEmbeddingInference(oldClusterId);
+            // Inference on old cluster model: all nodes now run the adaptive
+            // parser, so we serve the production wire shape (base64).
+            assertEmbeddingInference(oldClusterId, true);
 
             String inferenceConfig = embeddingConfigWithModelInServiceSettings(getUrl(openAiEmbeddingsServer));
-            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
+            openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseBase64()));
             put(upgradedClusterId, inferenceConfig, testTaskType);
 
             configs = (List<Map<String, Object>>) get(testTaskType, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
-            assertEmbeddingInference(upgradedClusterId);
+            assertEmbeddingInference(upgradedClusterId, true);
 
             delete(oldClusterId);
             delete(upgradedClusterId);
         }
     }
 
-    void assertEmbeddingInference(String inferenceId) throws IOException {
-        openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
+    /**
+     * Queue a mock embedding response in whichever wire shape the consumer
+     * can parse. New nodes (post-upgrade) get base64, the production shape.
+     * Old / mixed-cluster paths get the legacy JSON-array shape.
+     */
+    void assertEmbeddingInference(String inferenceId, boolean useBase64) throws IOException {
+        var body = useBase64 ? embeddingResponseBase64() : embeddingResponseJsonArray();
+        openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(body));
         var inferenceMap = inference(inferenceId, TaskType.TEXT_EMBEDDING, "some text");
         assertThat(inferenceMap.entrySet(), not(empty()));
     }
 
     @SuppressWarnings("unchecked")
     public void testOpenAiCompletions() throws IOException {
-        var openAiEmbeddingsSupported = getOldClusterTestVersion().onOrAfter(OPEN_AI_COMPLETIONS_ADDED);
-        String old_cluster_endpoint_identifier = oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) ? "endpoints" : "models";
-        assumeTrue("OpenAI completions service added in " + OPEN_AI_COMPLETIONS_ADDED, openAiEmbeddingsSupported);
+        var openAiEmbeddingsSupported = oldClusterHasFeature(OPEN_AI_COMPLETIONS_TEST_FEATURE);
+        String old_cluster_endpoint_identifier = oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) ? "endpoints" : "models";
+        assumeTrue("OpenAI completions service supported" + OPEN_AI_COMPLETIONS_TEST_FEATURE, openAiEmbeddingsSupported);
 
         final String oldClusterId = "old-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";
@@ -145,7 +156,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             List<Map<String, Object>> configs = new LinkedList<>();
             var request = get(testTaskType, oldClusterId);
             configs.addAll((Collection<? extends Map<String, Object>>) request.getOrDefault("endpoints", List.of()));
-            if (oldClusterHasFeature("gte_v" + MODELS_RENAMED_TO_ENDPOINTS) == false) {
+            if (oldClusterHasFeature(MODELS_RENAMED_TO_ENDPOINTS_FEATURE) == false) {
                 configs.addAll((List<Map<String, Object>>) request.getOrDefault(old_cluster_endpoint_identifier, List.of()));
                 // in version 8.15, there was a breaking change where "models" was renamed to "endpoints"
             }
@@ -186,7 +197,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     private String oldClusterVersionCompatibleEmbeddingConfig() {
-        if (getOldClusterTestVersion().before(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED)) {
+        if (oldClusterHasFeature(OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED_TEST_FEATURE) == false) {
             return embeddingConfigWithModelInTaskSettings(getUrl(openAiEmbeddingsServer));
         } else {
             return embeddingConfigWithModelInServiceSettings(getUrl(openAiEmbeddingsServer));
@@ -234,7 +245,11 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             """, url);
     }
 
-    static String embeddingResponse() {
+    /**
+     * Legacy JSON-array embedding shape. Required for old / mixed-cluster
+     * paths whose parser predates {@code encoding_format=base64} support.
+     */
+    static String embeddingResponseJsonArray() {
         return """
             {
               "object": "list",
@@ -246,6 +261,35 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
                           0.0123,
                           -0.0123
                       ]
+                  }
+              ],
+              "model": "text-embedding-ada-002",
+              "usage": {
+                  "prompt_tokens": 8,
+                  "total_tokens": 8
+              }
+            }
+            """;
+    }
+
+    /**
+     * Production wire shape returned by OpenAI when the request carries
+     * {@code encoding_format=base64}. Encodes
+     * {@code [0.0123F, -0.0123F]} as packed little-endian {@code float32}
+     * then base64. Pre-computed to avoid pulling extra deps into the IT
+     * classpath.
+     */
+    static String embeddingResponseBase64() {
+        // [0.0123F, -0.0123F] => LE float32 hex 0xF0,0x85,0x49,0x3C, 0xF0,0x85,0x49,0xBC
+        // => base64 "8IVJPPCFSbw="
+        return """
+            {
+              "object": "list",
+              "data": [
+                  {
+                      "object": "embedding",
+                      "index": 0,
+                      "embedding": "8IVJPPCFSbw="
                   }
               ],
               "model": "text-embedding-ada-002",

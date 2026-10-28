@@ -16,11 +16,17 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.async.AsyncResultsTestUtils;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+@TestLogging(
+    reason = "testing debug log output to identify race condition",
+    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
+)
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class SearchUsageStatsIT extends ESIntegTestCase {
 
@@ -32,6 +38,12 @@ public class SearchUsageStatsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(AsyncSearch.class);
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        AsyncResultsTestUtils.awaitAsyncTasksAndDeleteResultsIndex();
+        super.beforeIndexDeletion();
     }
 
     public void testSearchUsageStats() throws IOException {

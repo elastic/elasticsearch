@@ -11,20 +11,21 @@ package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Base plugin for building internal plugins or modules. This plugin should only be directly applied by internal test-only plugins or
@@ -39,12 +40,20 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
-        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).isCi();
+        project.getPluginManager().apply(TransportVersionReferencesPlugin.class);
+        boolean isCi = loadBuildParams(project).get().getCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
         project.getConfigurations().getByName("compileOnly").getDependencies().clear();
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
+        project.getDependencies()
+            .add("compileOnly", internalDependency(project, ":server", "org.elasticsearch:server:" + VersionProperties.getElasticsearch()));
+        project.getDependencies()
+            .add(
+                "testImplementation",
+                internalDependency(project, ":test:framework", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch())
+            );
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into
@@ -81,29 +90,13 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         if (isModule == false || isXPackModule) {
             addNoticeGeneration(project, extension);
         }
-        project.afterEvaluate(p -> {
-            @SuppressWarnings("unchecked")
-            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add any dependent modules
-                findModulePath(project, pluginName).ifPresent(
-                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
-                );
-            });
-        });
     }
 
-    Optional<String> findModulePath(Project project, String pluginName) {
-        return project.getRootProject()
-            .getAllprojects()
-            .stream()
-            .filter(p -> GradleUtils.isModuleProject(p.getPath()))
-            .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
-            .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))
-            .findFirst()
-            .map(Project::getPath);
+    private static Object internalDependency(Project project, String projectPath, String moduleCoordinate) {
+        if (project.findProject(projectPath) != null) {
+            return project.getDependencies().project(Map.of("path", projectPath));
+        }
+        return moduleCoordinate;
     }
 
     /**

@@ -745,7 +745,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(localIndex).aliases(localAlias);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(LOCAL_CLUSTER).admin().indices().aliases(aliasesAddRequest));
@@ -773,7 +773,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(remoteIndex1).aliases(remoteAlias1);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(REMOTE_CLUSTER_1).admin().indices().aliases(aliasesAddRequest));
@@ -811,7 +811,7 @@ public class ResolveClusterIT extends AbstractMultiClustersTestCase {
             IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(
                 IndicesAliasesRequest.AliasActions.Type.ADD
             ).index(remoteIndex2).aliases(remoteAlias2);
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(addAction);
 
             assertAcked(client(REMOTE_CLUSTER_2).admin().indices().aliases(aliasesAddRequest));

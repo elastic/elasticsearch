@@ -91,7 +91,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomNonNegativeInt(),
             randomDouble(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomDouble()
         );
     }
 
@@ -283,7 +284,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     "undesired_shard_allocation_count",
                     "forecast_write_load",
                     "forecast_disk_usage_bytes",
-                    "actual_disk_usage_bytes"
+                    "actual_disk_usage_bytes",
+                    "node_weight"
                 )
             );
             assertEquals(nodesStats.get("node_id"), entry.getValue().nodeId());
@@ -293,6 +295,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
             assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
             assertEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());
+            assertEquals(nodesStats.get("node_weight"), entry.getValue().nodeWeight());
         }
 
         // routing table

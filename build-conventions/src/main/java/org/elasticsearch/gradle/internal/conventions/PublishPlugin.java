@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.conventions;
 
 import groovy.util.Node;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
@@ -27,6 +26,7 @@ import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -38,11 +38,12 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.plugins.signing.SigningExtension;
+import org.gradle.plugins.signing.SigningPlugin;
 import org.w3c.dom.Element;
 
 import java.io.File;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -65,6 +66,10 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
+        // nmcp 1.x no longer exposes a public plugin class (the implementation moved to an
+        // internal Gratatouille-generated type), so apply the publishing plugin by its id.
+        project.getPluginManager().apply("com.gradleup.nmcp");
+        project.getPluginManager().apply(SigningPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -75,12 +80,24 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        Provider<String> signingKey = project.getProviders().gradleProperty("signingKey");
+        if (signingKey.isPresent()) {
+            SigningExtension signing = project.getExtensions().getByType(SigningExtension.class);
+            signing.useInMemoryPgpKeys(signingKey.get(), project.getProviders().gradleProperty("signingPassword").get());
+            signing.sign(publication);
+        }
+
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
             } else if (project1.getPlugins().hasPlugin(JavaPlugin.class)) {
                 publication.from(project.getComponents().getByName("java"));
             }
+        });
+        project.getPlugins().withType(JavaPlugin.class, plugin -> {
+            var javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            javaPluginExtension.withJavadocJar();
+            javaPluginExtension.withSourcesJar();
         });
         @SuppressWarnings("unchecked")
         var projectLicenses = (MapProperty<String, Provider<String>>) project.getExtensions().getExtraProperties().get("projectLicenses");
@@ -112,23 +129,21 @@ public class PublishPlugin implements Plugin<Project> {
      * Configuration generation of maven poms.
      */
     private void configurePomGeneration(Project project) {
-        var gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+        var gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         var extensions = project.getExtensions();
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
         var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
-        generateMavenPoms.configureEach(pomTask -> {
-            pomTask.setDestination(
-                (Callable<String>) () -> String.format(
-                    "%s/distributions/%s-%s.pom",
-                    projectLayout.getBuildDirectory().get().getAsFile().getPath(),
-                    archivesBaseName.get(),
-                    projectVersion.get()
-                )
-            );
-        });
+        // Use the lazy destinationFile property rather than the eager setDestination(Object) bridge. The eager
+        // variant resolves its value at an unspecified point relative to afterEvaluate, so projects overriding
+        // base.archivesName ended up with a pom whose file name did not match the configured archives name.
+        var pomFile = archivesBaseName.zip(
+            projectVersion,
+            (baseName, version) -> String.format("distributions/%s-%s.pom", baseName, version)
+        );
+        generateMavenPoms.configureEach(pomTask -> pomTask.getDestinationFile().set(projectLayout.getBuildDirectory().file(pomFile)));
 
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
@@ -155,8 +170,9 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        var shadow = project.getExtensions().getByType(ShadowExtension.class);
-        shadow.component(publication);
+        publication.from(project.getComponents().getByName("shadow"));
+        publication.artifact(project.getTasks().named("javadocJar"));
+        publication.artifact(project.getTasks().named("sourcesJar"));
     }
 
     private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {

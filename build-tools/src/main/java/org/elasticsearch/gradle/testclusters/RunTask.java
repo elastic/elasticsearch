@@ -14,6 +14,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.UntrackedTask;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.BufferedReader;
@@ -24,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@UntrackedTask(because = "When we wanna run a cluster, we wanna run a cluster.")
 public abstract class RunTask extends DefaultTestClustersTask {
 
     public static final String CUSTOM_SETTINGS_PREFIX = "tests.es.";
@@ -42,8 +45,12 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
     private Boolean cliDebug = false;
-    private Boolean entitlementsEnabled = false;
+
     private Boolean apmServerEnabled = false;
+
+    private String apmServerMetrics = null;
+
+    private List<String> plugins;
 
     private Boolean preserveData = false;
 
@@ -54,6 +61,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private Boolean useHttps = false;
 
     private Boolean useTransportTls = false;
+
+    private Integer nodeCount = null;
 
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
@@ -70,13 +79,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
-    @Option(
-        option = "entitlements",
-        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
-    )
-    public void setEntitlementsEnabled(boolean enabled) {
-        this.entitlementsEnabled = enabled;
-    }
+    @Option(option = "entitlements", description = "Use the Entitlements agent system to enforce sandbox policies.")
+    public void setEntitlementsEnabled(boolean enabled) {}
 
     @Input
     public Boolean getDebug() {
@@ -90,7 +94,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Input
     public Boolean getEntitlementsEnabled() {
-        return entitlementsEnabled;
+        return true;
     }
 
     @Input
@@ -98,9 +102,41 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return apmServerEnabled;
     }
 
-    @Option(option = "with-apm-server", description = "Run simple logging http server to accept apm requests")
+    @Input
+    @Optional
+    public String getApmServerMetrics() {
+        return apmServerMetrics;
+    }
+
+    @Option(option = "with-apm-server", description = "Run a mock OTLP/gRPC server that logs the telemetry the node exports")
     public void setApmServerEnabled(Boolean apmServerEnabled) {
         this.apmServerEnabled = apmServerEnabled;
+    }
+
+    @Option(option = "apm-metrics", description = "Metric wildcard filter for APM server")
+    public void setApmServerMetrics(String apmServerMetrics) {
+        this.apmServerMetrics = apmServerMetrics;
+    }
+
+    @Option(option = "with-plugins", description = "Run distribution with plugins installed")
+    public void setPlugins(String plugins) {
+        this.plugins = Arrays.asList(plugins.split(","));
+        for (var cluster : getClusters()) {
+            for (String plugin : this.plugins) {
+                cluster.plugin(":plugins:" + plugin);
+            }
+            dependsOn(cluster.getPluginAndModuleConfigurations());
+        }
+    }
+
+    public void setPlugins(List<String> plugins) {
+        this.plugins = plugins;
+    }
+
+    @Input
+    @Optional
+    public List<String> getPlugins() {
+        return plugins;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -160,6 +196,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
         return useTransportTls;
     }
 
+    @Option(option = "nodes", description = "Number of nodes to start in the cluster (default: 1)")
+    public void setNodeCount(String nodeCount) {
+        this.nodeCount = Integer.parseInt(nodeCount);
+    }
+
+    @Input
+    @Optional
+    public Integer getNodeCount() {
+        return nodeCount;
+    }
+
     @Override
     public void beforeStart() {
         int httpPort = 9200;
@@ -174,12 +221,26 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     entry -> entry.getValue().toString()
                 )
             );
+        if (nodeCount != null) {
+            for (ElasticsearchCluster cluster : getClusters()) {
+                cluster.setNumberOfNodes(nodeCount);
+            }
+        }
         boolean singleNode = getClusters().stream().mapToLong(c -> c.getNodes().size()).sum() == 1;
         final Function<ElasticsearchNode, Path> getDataPath;
         if (singleNode) {
             getDataPath = n -> dataDir;
         } else {
             getDataPath = n -> dataDir.resolve(n.getName());
+        }
+
+        if (apmServerEnabled) {
+            try {
+                mockServer = new MockApmServer(apmServerMetrics);
+                mockServer.start();
+            } catch (IOException e) {
+                throw new GradleException("Unable to start APM server: " + e.getMessage(), e);
+            }
         }
 
         for (ElasticsearchCluster cluster : getClusters()) {
@@ -210,19 +271,13 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
-
-                if (apmServerEnabled) {
-                    mockServer = new MockApmServer(9999);
-                    try {
-                        mockServer.start();
-                        node.setting("telemetry.metrics.enabled", "true");
-                        node.setting("telemetry.tracing.enabled", "true");
-                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
-                        node.setting("telemetry.agent.metrics_interval", "10s");
-                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
-                    } catch (IOException e) {
-                        logger.warn("Unable to start APM server", e);
-                    }
+                if (mockServer != null) {
+                    node.setting("telemetry.metrics.enabled", "true");
+                    node.setting("telemetry.tracing.enabled", "true");
+                    node.setting("telemetry.export.endpoint", "http://127.0.0.1:" + mockServer.getGrpcPort());
+                    // Sample everything so spans are actually emitted; the default is 0.001.
+                    node.setting("telemetry.tracing.sample_rate", "1.0");
+                    node.setting("telemetry.tracing.max_depth", "10");
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them
@@ -239,9 +294,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
         }
         if (cliDebug) {
             enableCliDebug();
-        }
-        if (entitlementsEnabled) {
-            enableEntitlements();
         }
     }
 

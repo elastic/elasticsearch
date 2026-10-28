@@ -15,20 +15,35 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class StdDevFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
+  private final boolean stdDev;
 
-  public StdDevFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  private final boolean allowNonFinite;
+
+  public StdDevFloatAggregatorFunctionSupplier(boolean stdDev, boolean allowNonFinite) {
+    this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
   }
 
   @Override
-  public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext) {
-    return StdDevFloatAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return StdDevFloatAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public StdDevFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return StdDevFloatGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return StdDevFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new StdDevFloatAggregatorFunction(driverContext, channels, stdDev, allowNonFinite);
+  }
+
+  @Override
+  public StdDevFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new StdDevFloatGroupingAggregatorFunction(channels, driverContext, stdDev, allowNonFinite);
   }
 
   @Override

@@ -20,7 +20,7 @@ esplugin {
 }
 
 versions << [
-  'azureReactorNetty': '1.0.45',
+  'azureReactorNetty': '1.2.18',
 ]
 
 dependencies {
@@ -40,7 +40,7 @@ dependencies {
   // Jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
@@ -55,7 +55,7 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.4.38"
+  api "io.projectreactor:reactor-core:3.8.7"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   // Others
@@ -63,31 +63,32 @@ dependencies {
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
+  api("com.nimbusds:nimbus-jose-jwt:10.0.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
-  api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
+  api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.minidev:accessors-smart:2.5.0"
-  api "net.minidev:json-smart:2.5.0"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.3"
+  api "org.ow2.asm:asm:9.10.1"
 
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
-//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+  // TODO reinstate this logging, see https://github.com/elastic/elasticsearch/pull/139729
+  // runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
+  yamlRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 restResources {
@@ -104,6 +105,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /stax-.*/, to: 'stax'
   mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
+  mapping from: /log4j.*/, to: 'log4j'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -130,19 +132,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.micrometer.core.instrument.Gauge$Builder',
     'io.micrometer.context.ContextAccessor',
 
-    // from reactor-core kotlin extensions (to be deprecated from the library at some point on 3.3.x release)
-    'kotlin.collections.ArraysKt',
-    'kotlin.jvm.JvmClassMappingKt',
-    'kotlin.jvm.functions.Function0',
-    'kotlin.jvm.functions.Function1',
-    'kotlin.jvm.internal.FunctionReference',
-    'kotlin.jvm.internal.Intrinsics',
-    'kotlin.jvm.internal.Reflection',
-    'kotlin.jvm.internal.markers.KMappedMarker',
-    'kotlin.reflect.KClass',
-    'kotlin.reflect.KDeclarationContainer',
-    'kotlin.sequences.Sequence',
-
     // from io.netty.util.internal.Hidden (netty-common optional dependency)
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration',
@@ -167,14 +156,58 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.codec.haproxy.HAProxyMessage',
     'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
 
+    // from reactor-netty HTTP/3 support (optional QUIC/HTTP3 incubator, not bundled)
+    'io.netty.incubator.codec.http3.Http3',
+    'io.netty.incubator.codec.http3.Http3ClientConnectionHandler',
+    'io.netty.incubator.codec.http3.Http3DataFrame',
+    'io.netty.incubator.codec.http3.Http3Headers',
+    'io.netty.incubator.codec.http3.Http3HeadersFrame',
+    'io.netty.incubator.codec.quic.QuicChannel',
+    'io.netty.incubator.codec.quic.QuicChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicClientCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicServerCodecBuilder',
+    'io.netty.incubator.codec.quic.QuicSslContext',
+    'io.netty.incubator.codec.quic.QuicSslContextBuilder',
+    'io.netty.incubator.codec.quic.QuicStreamChannel',
+    'io.netty.incubator.codec.quic.QuicStreamChannelBootstrap',
+    'io.netty.incubator.codec.quic.QuicTokenHandler',
+
+    // from reactor-netty Micrometer Observation support (optional, not bundled)
+    'io.micrometer.common.docs.KeyName',
+    'io.micrometer.common.KeyValue',
+    'io.micrometer.common.KeyValues',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
+    'io.micrometer.context.ContextSnapshotFactory',
+    'io.micrometer.context.ContextSnapshotFactory$Builder',
+    'io.micrometer.context.ThreadLocalAccessor',
+    'io.micrometer.core.instrument.docs.MeterDocumentation',
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.observation.Observation',
+    'io.micrometer.observation.Observation$Context',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.observation.docs.ObservationDocumentation',
+    'io.micrometer.observation.transport.ReceiverContext',
+    'io.micrometer.observation.transport.RequestReplyReceiverContext',
+    'io.micrometer.observation.transport.RequestReplySenderContext',
+    'io.micrometer.observation.transport.SenderContext',
+    'io.micrometer.tracing.docs.SpanDocumentation',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
+    'io.micrometer.tracing.propagation.Propagator',
+    'io.micrometer.tracing.Span',
+    'io.micrometer.tracing.Tracer',
+
     // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
 
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
-    // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // Optional dependency of tink
     'com.google.crypto.tink.subtle.Ed25519Sign',
@@ -190,11 +223,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.cert.X509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.openssl.PEMKeyPair',
     'org.bouncycastle.openssl.PEMParser',
     'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
@@ -252,7 +280,8 @@ tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
-    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory',
+    'reactor.core.publisher.CallSiteSupplierFactory$SharedSecretsCallSiteSupplierFactory$TracingException',
   )
 }
 
@@ -319,12 +348,6 @@ tasks.register("workloadIdentityYamlRestTest", RestIntegTestTask) {
   systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
   systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
   // omitting key and sas_token so that we use a bearer token from workload identity
-}
-
-if (buildParams.inFipsJvm) {
-  // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
-  tasks.named("managedIdentityYamlRestTest").configure { enabled = false }
-  tasks.named("workloadIdentityYamlRestTest").configure { enabled = false }
 }
 
 tasks.register("azureThirdPartyUnitTest", Test) {

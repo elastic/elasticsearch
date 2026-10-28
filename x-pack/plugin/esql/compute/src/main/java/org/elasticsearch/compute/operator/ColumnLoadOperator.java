@@ -9,12 +9,14 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link Block#lookup Looks up} values from a provided {@link Block} and
- * mergeds them into each {@link Page}.
+ * merged them into each {@link Page}.
  */
 public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     public record Values(String name, Block block) {
@@ -25,13 +27,14 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     }
 
     /**
-     * Factory for {@link ColumnLoadOperator}. It's received {@link Block}s
-     * are never closed, so we need to build them from a non-tracking factory.
+     * Factory for {@link ColumnLoadOperator}. The {@link Block} inside {@link Values}
+     * is never closed by this factory; each operator instance deep-copies it into its
+     * own {@link BlockFactory} on construction.
      */
     public record Factory(Values values, int positionsOrd) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnLoadOperator(values, positionsOrd);
+            return new ColumnLoadOperator(new Values(values.name, values.block.deepCopy(driverContext.blockFactory())), positionsOrd);
         }
 
         @Override
@@ -44,8 +47,8 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     private final int positionsOrd;
 
     public ColumnLoadOperator(Values values, int positionsOrd) {
-        this.values = values;
         this.positionsOrd = positionsOrd;
+        this.values = values;
     }
 
     /**
@@ -56,15 +59,12 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        // TODO tracking is complex for values
-        /*
-         * values is likely shared across many threads so tracking it is complex.
-         * Lookup will incRef it on the way in and decrement the ref on the way
-         * out but it's not really clear what the right way to get all that thread
-         * safe is. For now we can ignore this because we're not actually tracking
-         * the memory of the block.
-         */
         return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(values.block, super::close);
     }
 
     @Override

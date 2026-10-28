@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 154638
+summary: Track Painless def lambda/method-reference and bound-reference allocations
+type: enhancement

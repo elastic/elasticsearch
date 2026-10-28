@@ -9,9 +9,10 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,39 +41,64 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends UntypedActionRequest {
         private final String synonymsSetId;
         private final SynonymRule[] synonymRules;
+        private final boolean refresh;
+        private final boolean append;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
-        private static final ConstructingObjectParser<SynonymRule[], Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
-            @SuppressWarnings("unchecked")
-            final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];
-            return synonyms.toArray(new SynonymRule[synonyms.size()]);
-        });
+
+        private static final ConstructingObjectParser<List<SynonymRule>, Void> PARSER = new ConstructingObjectParser<>(
+            "synonyms_set",
+            args -> {
+                @SuppressWarnings("unchecked")
+                List<SynonymRule> rules = (List<SynonymRule>) args[0];
+                return rules;
+            }
+        );
 
         static {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);
         }
 
+        private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+        static final TransportVersion SYNONYMS_APPEND_PARAM = TransportVersion.fromName("synonyms_append_param");
+
         public Request(StreamInput in) throws IOException {
             super(in);
             this.synonymsSetId = in.readString();
             this.synonymRules = in.readArray(SynonymRule::new, SynonymRule[]::new);
+            if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
+                this.refresh = in.readBoolean();
+            } else {
+                this.refresh = false;
+            }
+            if (in.getTransportVersion().supports(SYNONYMS_APPEND_PARAM)) {
+                this.append = in.readBoolean();
+            } else {
+                this.append = false;
+            }
         }
 
-        public Request(String synonymsSetId, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, boolean refresh, boolean append, BytesReference content, XContentType contentType)
+            throws IOException {
             this.synonymsSetId = synonymsSetId;
+            this.refresh = refresh;
+            this.append = append;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
-                this.synonymRules = PARSER.apply(parser, null);
+                List<SynonymRule> rules = PARSER.apply(parser, null);
+                this.synonymRules = rules.toArray(new SynonymRule[0]);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse: " + content.utf8ToString(), e);
             }
         }
 
-        Request(String synonymsSetId, SynonymRule[] synonymRules) {
+        Request(String synonymsSetId, SynonymRule[] synonymRules, boolean refresh, boolean append) {
             this.synonymsSetId = synonymsSetId;
             this.synonymRules = synonymRules;
+            this.refresh = refresh;
+            this.append = append;
         }
 
         @Override
@@ -95,10 +121,28 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             super.writeTo(out);
             out.writeString(synonymsSetId);
             out.writeArray(synonymRules);
+            if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
+                out.writeBoolean(refresh);
+            }
+            if (out.getTransportVersion().supports(SYNONYMS_APPEND_PARAM)) {
+                out.writeBoolean(append);
+            } else if (append) {
+                throw new IllegalArgumentException(
+                    "cannot serialize append=true to a node that does not support it (transport version " + out.getTransportVersion() + ")"
+                );
+            }
         }
 
         public String synonymsSetId() {
             return synonymsSetId;
+        }
+
+        public boolean refresh() {
+            return refresh;
+        }
+
+        public boolean append() {
+            return append;
         }
 
         public SynonymRule[] synonymRules() {
@@ -110,12 +154,15 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(synonymsSetId, request.synonymsSetId) && Arrays.equals(synonymRules, request.synonymRules);
+            return refresh == request.refresh
+                && append == request.append
+                && Objects.equals(synonymsSetId, request.synonymsSetId)
+                && Arrays.equals(synonymRules, request.synonymRules);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules));
+            return Objects.hash(synonymsSetId, Arrays.hashCode(synonymRules), refresh, append);
         }
     }
 }

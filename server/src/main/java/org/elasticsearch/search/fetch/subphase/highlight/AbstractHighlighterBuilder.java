@@ -11,12 +11,13 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -64,6 +65,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FRAGMENTER_FIELD = new ParseField("fragmenter");
     public static final ParseField NO_MATCH_SIZE_FIELD = new ParseField("no_match_size");
+    public static final ParseField FORCE_SOURCE_FIELD = new ParseField("force_source").withAllDeprecated()
+        .forRestApiVersion(restApiVersion -> restApiVersion == RestApiVersion.V_8);
     public static final ParseField PHRASE_LIMIT_FIELD = new ParseField("phrase_limit");
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
@@ -141,9 +144,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            encoder(in.readOptionalString());
-        }
+        encoder(in.readOptionalString());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
@@ -177,9 +178,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalString(encoder);
-        }
+        out.writeOptionalString(encoder);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
         boolean hasQuery = highlightQuery != null;
@@ -264,7 +263,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}. Negative values are
+     * rejected when parsing a request; the upper bound is enforced per index at request time, see
+     * {@link IndexSettings#MAX_NUMBER_OF_FRAGMENTS_SETTING}.
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -655,7 +656,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareString(HB::order, ORDER_FIELD);
         parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
         parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
-        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareInt((HB hb, Integer numOfFragments) -> {
+            if (numOfFragments < 0) {
+                throw new IllegalArgumentException("[" + NUMBER_OF_FRAGMENTS_FIELD + "] must not be negative");
+            }
+            hb.numOfFragments(numOfFragments);
+        }, NUMBER_OF_FRAGMENTS_FIELD);
         parser.declareString(HB::encoder, ENCODER_FIELD);
         parser.declareString(HB::tagsSchema, TAGS_SCHEMA_FIELD);
         parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
@@ -666,6 +672,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareString(HB::highlighterType, TYPE_FIELD);
         parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
+        parser.declareBoolean((builder, value) -> {}, FORCE_SOURCE_FIELD);  // force_source is ignored
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
         parser.declareInt(HB::maxAnalyzedOffset, MAX_ANALYZED_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {

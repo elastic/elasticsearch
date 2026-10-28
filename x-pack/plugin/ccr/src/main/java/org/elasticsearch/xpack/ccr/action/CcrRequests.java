@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.RemoteClusterClient;
@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.util.Arrays;
@@ -33,8 +32,8 @@ public final class CcrRequests {
 
     private CcrRequests() {}
 
-    public static ClusterStateRequest metadataRequest(String leaderIndex) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TimeValue.MAX_VALUE);
+    public static RemoteClusterStateRequest metadataRequest(String leaderIndex) {
+        RemoteClusterStateRequest clusterStateRequest = new RemoteClusterStateRequest(TimeValue.MAX_VALUE);
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
         clusterStateRequest.indices(leaderIndex);
@@ -44,7 +43,7 @@ public final class CcrRequests {
     public static PutMappingRequest putMappingRequest(String followerIndex, MappingMetadata mappingMetadata) {
         PutMappingRequest putMappingRequest = new PutMappingRequest(followerIndex);
         putMappingRequest.origin("ccr");
-        putMappingRequest.source(mappingMetadata.source().string(), XContentType.JSON);
+        putMappingRequest.source(mappingMetadata.source().string());
         putMappingRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         return putMappingRequest;
     }
@@ -61,7 +60,7 @@ public final class CcrRequests {
         Supplier<TimeValue> timeoutSupplier,
         ActionListener<IndexMetadata> listener
     ) {
-        final ClusterStateRequest request = CcrRequests.metadataRequest(index.getName());
+        final RemoteClusterStateRequest request = CcrRequests.metadataRequest(index.getName());
         if (metadataVersion > 0) {
             request.waitForMetadataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
         }
@@ -84,7 +83,7 @@ public final class CcrRequests {
                 }
             } else {
                 final Metadata metadata = response.getState().metadata();
-                final IndexMetadata indexMetadata = metadata.getIndexSafe(index);
+                final IndexMetadata indexMetadata = metadata.getProject().getIndexSafe(index);
                 if (indexMetadata.getMappingVersion() >= mappingVersion) {
                     delegate.onResponse(indexMetadata);
                     return;
@@ -103,13 +102,13 @@ public final class CcrRequests {
 
     public static final RequestValidators.RequestValidator<PutMappingRequest> CCR_PUT_MAPPING_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // a put-mapping-request on old versions does not have origin.
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
@@ -125,13 +124,13 @@ public final class CcrRequests {
 
     public static final RequestValidators.RequestValidator<IndicesAliasesRequest> CCR_INDICES_ALIASES_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // an indices aliases request on old versions does not have origin
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {

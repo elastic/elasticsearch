@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -43,6 +42,8 @@ import java.util.stream.Collectors;
 public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<MultiTermsAggregationBuilder> {
     public static final String NAME = "multi_terms";
     public static final ParseField TERMS_FIELD = new ParseField("terms");
+    /** Hard cap on the number of fields/scripts in a multi_terms aggregation. */
+    public static final int MAX_TERMS_SIZE = 128;
     public static final ParseField ORDER_FIELD = new ParseField("order");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
     public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
@@ -183,6 +184,17 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
                     + "] must be present and have at least "
                     + "2 fields or scripts."
                     + (terms.size() == 1 ? " For a single field user terms aggregation." : "")
+            );
+        }
+        if (terms.size() > MAX_TERMS_SIZE) {
+            throw new IllegalArgumentException(
+                "The [terms] parameter in the aggregation ["
+                    + name
+                    + "] cannot have more than "
+                    + MAX_TERMS_SIZE
+                    + " fields or scripts. Found ["
+                    + terms.size()
+                    + "]."
             );
         }
         this.terms = terms;
@@ -394,6 +406,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_12_0;
+        return TransportVersion.zero();
     }
 }

@@ -1,0 +1,176 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.azure;
+
+import com.azure.identity.CredentialUnavailableException;
+import com.azure.storage.blob.models.BlobStorageException;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
+
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Unit tests for AzureDataSourcePlugin.
+ * Tests that the plugin correctly registers storage provider factories for wasbs:// and wasb:// schemes.
+ * <p>
+ * Azure registration is gated on the {@code esql_external_azure} sub-flag (snapshot-on, release-off).
+ * The provider-shape tests below assume the gate is on; a dedicated test asserts nothing is
+ * registered when it is off. Across the snapshot and {@code elasticsearch.esql-release} build
+ * variants both branches get exercised.
+ */
+public class AzureDataSourcePluginTests extends ESTestCase {
+
+    private static boolean azureEnabled() {
+        return AzureDataSourcePlugin.ESQL_EXTERNAL_AZURE_FEATURE_FLAG.isEnabled();
+    }
+
+    public void testStorageProvidersRegistersWasbsAndWasbSchemes() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
+
+        assertTrue("Should register wasbs scheme", providers.containsKey("wasbs"));
+        assertTrue("Should register wasb scheme", providers.containsKey("wasb"));
+        assertEquals("Should register exactly 2 schemes", 2, providers.size());
+    }
+
+    public void testSupportedSchemes() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        assertEquals(2, plugin.supportedSchemes().size());
+        assertTrue(plugin.supportedSchemes().contains("wasbs"));
+        assertTrue(plugin.supportedSchemes().contains("wasb"));
+    }
+
+    public void testDatasourceValidatorRegisteredWhenEnabled() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        Map<String, DataSourceValidator> validators = plugin.datasourceValidators(Settings.EMPTY);
+
+        assertTrue("should register the azure validator", validators.containsKey("azure"));
+        assertEquals("should register exactly 1 validator", 1, validators.size());
+    }
+
+    public void testSchemeFoldAgreesWithTypeId() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        String typeId = plugin.datasourceValidators(Settings.EMPTY).keySet().iterator().next();
+        for (String scheme : plugin.supportedSchemes()) {
+            assertSame(Type.fromTypeId(typeId), Type.fromScheme(scheme));
+        }
+    }
+
+    public void testDisabledWhenFeatureFlagOff() {
+        assumeFalse("only when Azure feature flag is off", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        assertTrue("no schemes when disabled", plugin.supportedSchemes().isEmpty());
+        assertTrue(
+            "no storage providers when disabled",
+            plugin.storageProviders(new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)).isEmpty()
+        );
+        assertTrue("no datasource validators when disabled", plugin.datasourceValidators(Settings.EMPTY).isEmpty());
+    }
+
+    public void testStorageProviderFactoryCreateWithNullConfigDelegatesToDefault() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
+
+        StorageProviderFactory factory = providers.get("wasbs");
+        assertNotNull("wasbs factory should not be null", factory);
+
+        var provider = factory.create(Settings.EMPTY, null);
+        assertNotNull(provider);
+    }
+
+    public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
+
+        StorageProviderFactory factory = providers.get("wasbs");
+        assertNotNull("wasbs factory should not be null", factory);
+
+        var provider = factory.create(Settings.EMPTY, Map.of());
+        assertNotNull(provider);
+    }
+
+    public void testWasbsAndWasbShareSameFactory() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(
+            new StorageProviderServices(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE, null, null)
+        );
+
+        StorageProviderFactory wasbsFactory = providers.get("wasbs");
+        StorageProviderFactory wasbFactory = providers.get("wasb");
+        assertNotNull(wasbsFactory);
+        assertNotNull(wasbFactory);
+        assertEquals(wasbsFactory, wasbFactory);
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("wasbs://account.blob.core.windows.net/container/file.parquet"));
+        assertFalse(ExternalFailures.safeForUserMessage("wasb://account.blob.core.windows.net/container/file.parquet"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the tenant and identity it was refused) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(new BlobStorageException("AuthorizationPermissionMismatch", null, null)));
+        assertTrue(ExternalFailures.composedByStorageClient(new CredentialUnavailableException("no managed identity")));
+    }
+
+    /**
+     * The credential policy the node threads through {@link StorageProviderServices} is what refuses a federated
+     * configuration at provider build; the plugin has to hand it to the factory for that to happen. With federated
+     * identity off, a config naming a tenant and client is refused with the validator's message and no Azure client
+     * is built.
+     */
+    public void testFederatedIdentityRefusedByThePolicyTheServicesCarry() {
+        assumeTrue("requires Azure feature flag", azureEnabled());
+        AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
+        StorageProviderFactory factory = plugin.storageProviders(
+            new StorageProviderServices(
+                Settings.EMPTY,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                null,
+                null,
+                CredentialPolicy.of(() -> true, () -> false)
+            )
+        ).get("wasbs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(
+                Settings.EMPTY,
+                Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "account", "acct")
+            )
+        );
+        assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
+    }
+}

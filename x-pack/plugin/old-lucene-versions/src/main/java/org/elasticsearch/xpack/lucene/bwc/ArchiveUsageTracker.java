@@ -33,7 +33,7 @@ final class ArchiveUsageTracker implements Runnable {
     }
 
     private static boolean hasArchiveIndices(ClusterState state) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 return true;
             }

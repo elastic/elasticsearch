@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +15,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -33,8 +33,14 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         FieldExtractExec::new
     );
 
-    private final List<Attribute> attributesToExtract;
-    private final @Nullable Attribute sourceAttribute;
+    protected final List<Attribute> attributesToExtract;
+    protected final @Nullable Attribute sourceAttribute;
+
+    /**
+     * The default for {@link #fieldExtractPreference} if the plan doesn't require
+     * a preference.
+     */
+    protected final MappedFieldType.FieldExtractPreference defaultPreference;
 
     /**
      * Attributes that may be extracted as doc values even if that makes them
@@ -42,46 +48,65 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      * precision in their doc values, but in some cases doc values provides
      * <strong>enough</strong> precision to do the job.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> docValuesAttributes;
+    protected final Set<Attribute> docValuesAttributes;
 
     /**
      * Attributes of a shape whose extent can be extracted directly from the doc-values encoded geometry.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> boundsAttributes;
+    protected final Set<Attribute> boundsAttributes;
+
+    /**
+     * Attributes of a shape whose centroid can be extracted directly from the doc-values encoded geometry.
+     * <p>
+     * This is never serialized between nodes and only used locally.
+     * </p>
+     */
+    protected final Set<Attribute> centroidAttributes;
 
     private List<Attribute> lazyOutput;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
-        this(source, child, attributesToExtract, Set.of(), Set.of());
-    }
-
-    private FieldExtractExec(
+    public FieldExtractExec(
         Source source,
         PhysicalPlan child,
         List<Attribute> attributesToExtract,
+        MappedFieldType.FieldExtractPreference defaultPreference
+    ) {
+        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of(), Set.of());
+    }
+
+    protected FieldExtractExec(
+        Source source,
+        PhysicalPlan child,
+        List<Attribute> attributesToExtract,
+        MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
-        Set<Attribute> boundsAttributes
+        Set<Attribute> boundsAttributes,
+        Set<Attribute> centroidAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
         this.docValuesAttributes = docValuesAttributes;
         this.boundsAttributes = boundsAttributes;
+        this.centroidAttributes = centroidAttributes;
+        this.defaultPreference = defaultPreference;
     }
 
     private FieldExtractExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            MappedFieldType.FieldExtractPreference.NONE
         );
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // defaultPreference is only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -89,7 +114,8 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // defaultPreference is only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -99,7 +125,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public static @Nullable Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
         for (Attribute attribute : plan.outputSet()) {
-            if (EsQueryExec.isSourceAttribute(attribute)) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
                 return attribute;
             }
         }
@@ -108,25 +134,73 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return sourceAttribute != null ? new AttributeSet(sourceAttribute) : AttributeSet.EMPTY;
+        return sourceAttribute != null ? AttributeSet.of(sourceAttribute) : AttributeSet.EMPTY;
     }
 
     @Override
-    protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
+    protected NodeInfo<? extends FieldExtractExec> info() {
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, defaultPreference);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            newChild,
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            centroidAttributes
+        );
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            centroidAttributes
+        );
     }
 
     public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            centroidAttributes
+        );
+    }
+
+    public FieldExtractExec withCentroidAttributes(Set<Attribute> centroidAttributes) {
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            centroidAttributes
+        );
+    }
+
+    public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
+        return new FieldExtractExec(
+            source(),
+            child(),
+            attributesToExtract,
+            defaultPreference,
+            docValuesAttributes,
+            boundsAttributes,
+            centroidAttributes
+        );
     }
 
     public List<Attribute> attributesToExtract() {
@@ -143,6 +217,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public Set<Attribute> boundsAttributes() {
         return boundsAttributes;
+    }
+
+    public Set<Attribute> centroidAttributes() {
+        return centroidAttributes;
     }
 
     @Override
@@ -165,7 +243,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, docValuesAttributes, boundsAttributes, child());
+        return Objects.hash(attributesToExtract, docValuesAttributes, boundsAttributes, centroidAttributes, child());
     }
 
     @Override
@@ -182,26 +260,43 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return Objects.equals(attributesToExtract, other.attributesToExtract)
             && Objects.equals(docValuesAttributes, other.docValuesAttributes)
             && Objects.equals(boundsAttributes, other.boundsAttributes)
+            && Objects.equals(centroidAttributes, other.centroidAttributes)
             && Objects.equals(child(), other.child());
     }
 
     @Override
-    public String nodeString() {
-        return Strings.format(
-            "%s<%s,%s>",
-            nodeName() + NodeUtils.limitedToString(attributesToExtract),
-            docValuesAttributes,
-            boundsAttributes
-        );
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName());
+        sb.append("[");
+        NodeUtils.toString(sb, attributesToExtract, format, mapper);
+        // Route the doc-values / bounds / centroid attribute sets through the mapper too — a raw
+        // append would call Attribute.toString (identity) and leak the field names under anonymization.
+        sb.append("<");
+        NodeUtils.toString(sb, docValuesAttributes, format, mapper);
+        sb.append(",");
+        NodeUtils.toString(sb, boundsAttributes, format, mapper);
+        sb.append(",");
+        NodeUtils.toString(sb, centroidAttributes, format, mapper);
+        sb.append(">,");
+        NodeUtils.toString(sb, sourceAttribute, format, mapper);
+        sb.append("]");
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {
-        if (boundsAttributes.contains(attr)) {
+        boolean hasCentroid = centroidAttributes.contains(attr);
+        boolean hasBounds = boundsAttributes.contains(attr);
+        if (hasCentroid && hasBounds) {
+            return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID;
+        }
+        if (hasCentroid) {
+            return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
+        }
+        if (hasBounds) {
             return MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
         }
         if (docValuesAttributes.contains(attr)) {
             return MappedFieldType.FieldExtractPreference.DOC_VALUES;
         }
-        return MappedFieldType.FieldExtractPreference.NONE;
+        return defaultPreference;
     }
 }

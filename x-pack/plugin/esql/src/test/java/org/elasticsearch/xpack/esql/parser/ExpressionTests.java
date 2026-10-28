@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Lambda;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
 import java.time.Duration;
 import java.time.Period;
@@ -42,21 +47,24 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ExpressionTests extends ESTestCase {
-    private final EsqlParser parser = new EsqlParser();
 
     public void testBooleanLiterals() {
         assertEquals(Literal.TRUE, whereExpression("true"));
@@ -209,15 +217,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and limit");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
+            Expression expr = whereExpression("from and " + commandName);
+            assertThat(expr, instanceOf(And.class));
+            And and = (And) expr;
 
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+            assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
+            assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.right()).name(), equalTo(commandName));
+        }
     }
 
     public void testIdentifiersCaseSensitive() {
@@ -322,52 +332,116 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testOperatorsPrecedenceExpressionsEquality() {
-        assertThat(whereExpression("a-1>2 or b>=5 and c-1>=5"), equalTo(whereExpression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
+        assertThat(whereExpression("a-1>2 or b>=5 and c-1>=5"), equalToIgnoringIds(whereExpression("((a-1)>2 or (b>=5 and (c-1)>=5))")));
         assertThat(
             whereExpression("a*5==25 and b>5 and c%4>=1 or true or false"),
-            equalTo(whereExpression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
+            equalToIgnoringIds(whereExpression("(((((a*5)==25) and (b>5) and ((c%4)>=1)) or true) or false)"))
         );
         assertThat(
             whereExpression("a*4-b*5<100 and b/2+c*6>=50 or c%5+x>=5"),
-            equalTo(whereExpression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
+            equalToIgnoringIds(whereExpression("((((a*4)-(b*5))<100) and (((b/2)+(c*6))>=50)) or (((c%5)+x)>=5)"))
         );
         assertThat(
             whereExpression("true and false or true and c/12+x*5-y%2>=50"),
-            equalTo(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
+            equalToIgnoringIds(whereExpression("((true and false) or (true and (((c/12)+(x*5)-(y%2))>=50)))"))
         );
         assertThat(
             whereExpression("10 days > 5 hours and 1/5 minutes > 8 seconds * 3 and -1 minutes > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
+            equalToIgnoringIds(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
         assertThat(
             whereExpression("10 DAYS > 5 HOURS and 1/5 MINUTES > 8 SECONDS * 3 and -1 MINUTES > foo"),
-            equalTo(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
+            equalToIgnoringIds(whereExpression("((10 days) > (5 hours)) and ((1/(5 minutes) > ((8 seconds) * 3))) and (-1 minute > foo)"))
         );
     }
 
     public void testFunctionExpressions() {
-        assertEquals(new UnresolvedFunction(EMPTY, "fn", DEFAULT, new ArrayList<>()), whereExpression("fn()"));
-        assertEquals(
+        assertEquals(new UnresolvedFunction(EMPTY, "fn", new ArrayList<>()), whereExpression("fn()"));
+        assertEqualsIgnoringIds(
             new UnresolvedFunction(
                 EMPTY,
                 "invoke",
-                DEFAULT,
                 new ArrayList<>(
                     List.of(
                         new UnresolvedAttribute(EMPTY, "a"),
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "b"), new UnresolvedAttribute(EMPTY, "c"))
+                        new Add(
+                            EMPTY,
+                            new UnresolvedAttribute(EMPTY, "b"),
+                            new UnresolvedAttribute(EMPTY, "c"),
+                            ConfigurationAware.CONFIGURATION_MARKER
+                        )
                     )
                 )
             ),
             whereExpression("invoke(a, b + c)")
         );
-        assertEquals(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
-        assertEquals(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+        assertEqualsIgnoringIds(whereExpression("(invoke((a + b)))"), whereExpression("invoke(a+b)"));
+        assertEqualsIgnoringIds(whereExpression("((fn()) + fn(fn()))"), whereExpression("fn() + fn(fn())"));
+    }
+
+    public void testLambdaExpressions() {
+        assumeTrue("Requires lambda syntax", EsqlCapabilities.Cap.LAMBDA_SYNTAX.isEnabled());
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, x -> x)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(
+                            EMPTY,
+                            List.of(
+                                new UnresolvedAttribute(EMPTY, "x"),
+                                new UnresolvedAttribute(EMPTY, "y"),
+                                new Add(
+                                    EMPTY,
+                                    new UnresolvedAttribute(EMPTY, "x"),
+                                    new UnresolvedAttribute(EMPTY, "y"),
+                                    ConfigurationAware.CONFIGURATION_MARKER
+                                )
+                            )
+                        )
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x, y) -> x + y)")
+        );
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(EMPTY, "invoke", new ArrayList<>(List.of(new Lambda(EMPTY, List.of(Literal.TRUE))))),
+            whereExpression("invoke(() -> true)")
+        );
+        // (x) -> body: single parenthesized param is ambiguous with a parenthesized expression; resolved by the -> lookahead
+        assertEqualsIgnoringIds(
+            new UnresolvedFunction(
+                EMPTY,
+                "invoke",
+                new ArrayList<>(
+                    List.of(
+                        new UnresolvedAttribute(EMPTY, "a"),
+                        new Lambda(EMPTY, List.of(new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "x")))
+                    )
+                )
+            ),
+            whereExpression("invoke(a, (x) -> x)")
+        );
     }
 
     public void testUnquotedIdentifiers() {
         for (String identifier : List.of("a", "_a", "a_b", "a9", "abc123", "a_____9", "__a_b", "@a", "_1", "@2")) {
-            assertEquals(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
+            assertEqualsIgnoringIds(new UnresolvedAttribute(EMPTY, identifier), whereExpression(identifier));
         }
     }
 
@@ -388,6 +462,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + "minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " minutes"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " min"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " m"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
@@ -500,8 +575,51 @@ public class ExpressionTests extends ESTestCase {
             assertThat("Projection [" + e + "] has an unexpected type", projections.get(0), instanceOf(UnresolvedNamePattern.class));
             UnresolvedNamePattern ua = (UnresolvedNamePattern) projections.get(0);
             assertThat(ua.name(), equalTo(e));
+            assertThat(ua.glob(), equalTo(e));
             assertThat(ua.unresolvedMessage(), equalTo("Unresolved pattern [" + e + "]"));
         }
+    }
+
+    public void testProjectKeepPatternGlobTakesBackquotedLegsLiterally() {
+        assertThat(keepPatternGlob("`tags`*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`tags`.n*"), equalTo("tags.n*"));
+        assertThat(keepPatternGlob("t`ag`s*"), equalTo("tags*"));
+        assertThat(keepPatternGlob("`a*b`*"), equalTo("a\\*b*"));
+        assertThat(keepPatternGlob("`a``b`*"), equalTo("a`b*"));
+        assertThat(keepPatternGlob("`a\\b`*"), equalTo("a\\\\b*"));
+        assertThat(keepPatternGlob("*`x*y`*`z*`"), equalTo("*x\\*y*z\\*"));
+    }
+
+    public void testProjectKeepPatternGlobMatchesWhatTheAutomatonMatches() {
+        for (int i = 0; i < 200; i++) {
+            String e = String.join(".", randomList(1, 2, () -> String.join("", randomList(1, 3, ExpressionTests::randomNamePatternPiece))));
+            if (singleValue(projectExpression(e).projections()) instanceof UnresolvedNamePattern unp) {
+                UnmappedFieldsPattern glob = UnmappedFieldsPattern.includes(List.of(unp.glob()));
+                for (int j = 0; j < 50; j++) {
+                    String name = randomCandidateName();
+                    assertThat("[" + e + "] against [" + name + "]", glob.matches(name), equalTo(unp.match(name)));
+                    if (glob.matches(name)) {
+                        for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1)) {
+                            assertTrue(
+                                "[" + e + "] must ship [" + name.substring(0, dot) + "]",
+                                glob.objectSubfieldsCouldMatch(name.substring(0, dot))
+                            );
+                        }
+                        assertTrue("[" + e + "] must ship [" + name + "]", glob.objectSubfieldsCouldMatch(name));
+                    }
+                }
+            }
+        }
+    }
+
+    private static String randomNamePatternPiece() {
+        return randomBoolean()
+            ? randomFrom("*", "a", "b", "a*", "*b", "a*b")
+            : "`" + String.join("", randomList(1, 3, () -> randomFrom("a", "*", "\\", ".", "``"))) + "`";
+    }
+
+    private static String randomCandidateName() {
+        return String.join("", randomList(0, 7, () -> randomFrom("a", "b", "*", "\\", "`", ".")));
     }
 
     public void testWildcardProjectKeep() {
@@ -583,7 +701,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Rename r = renameExpression(oldName[i] + " AS " + newName[i]);
+            Rename r = renameExpression(randomBoolean() ? (oldName[i] + " AS " + newName[i]) : (newName[i] + " = " + oldName[i]));
             renamings = r.renamings();
             assertThat(renamings.size(), equalTo(1));
             assertThat(renamings.get(0), instanceOf(Alias.class));
@@ -610,6 +728,7 @@ public class ExpressionTests extends ESTestCase {
 
     public void testForbidWildcardProjectRename() {
         assertParsingException(() -> renameExpression("b* AS a*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("a* = b*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [a* = b*]");
     }
 
     public void testSimplifyInWithSingleElementList() {
@@ -653,11 +772,18 @@ public class ExpressionTests extends ESTestCase {
         return (Project) parse("from a | keep " + e);
     }
 
+    private String keepPatternGlob(String e) {
+        return as(singleValue(projectExpression(e).projections()), UnresolvedNamePattern.class).glob();
+    }
+
     private LogicalPlan parse(String s) {
-        return parser.createStatement(s);
+        return TEST_PARSER.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {
+        if (value instanceof String && (type == TEXT || type == KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(null, value, type);
     }
 

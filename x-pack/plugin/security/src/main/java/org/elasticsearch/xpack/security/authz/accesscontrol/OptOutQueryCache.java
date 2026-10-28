@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -37,7 +35,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        IndicesAccessControl indicesAccessControl = context.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(context);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache for index [{}]. current request doesn't hold indices permissions", index);
             return weight;
@@ -59,37 +57,12 @@ public final class OptOutQueryCache extends IndexQueryCache {
     }
 
     /**
-     * Returns true if its safe to use the query cache for this query.
+     * Returns true if it's safe to use the query cache for this query. Queries with leaves that do not report a field are not cacheable.
      */
     static boolean cachingIsSafe(Weight weight, IndicesAccessControl.IndexAccessControl permissions) {
         // support caching for common queries, by inspecting the field
-        try {
-            weight.getQuery().visit(new QueryVisitor() {
-                @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, org.apache.lucene.search.Query parent) {
-                    return this; // we want to use the same visitor for must_not clauses too
-                }
-
-                @Override
-                public boolean acceptField(String field) {
-                    // don't cache any internal fields (e.g. _field_names), these are complicated.
-                    if (field.startsWith("_") || permissions.getFieldPermissions().grantsAccessTo(field) == false) {
-                        throw new FLSQueryNotCacheable("Query field has FLS permissions");
-                    }
-                    return super.acceptField(field);
-                }
-            });
-        } catch (FLSQueryNotCacheable e) {
-            return false;
-        }
-        // we can cache, all fields are ok
-        return true;
-    }
-
-    private static class FLSQueryNotCacheable extends RuntimeException {
-        FLSQueryNotCacheable(String message) {
-            // don't waste time filling in the stacktrace
-            super(message, null, false, false);
-        }
+        FieldCheckingVisitor visitor = new FieldCheckingVisitor(permissions);
+        weight.getQuery().visit(visitor);
+        return visitor.isCacheable();
     }
 }

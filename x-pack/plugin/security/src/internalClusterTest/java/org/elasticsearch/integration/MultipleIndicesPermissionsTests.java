@@ -201,7 +201,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_monitor", USERS_PASSWD))
         );
 
-        final GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(randomFrom("*", "_all", "foo*")).get();
+        final GetSettingsResponse getSettingsResponse = client.admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, randomFrom("*", "_all", "foo*"))
+            .get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), is(3));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foo"), is(true));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobar"), is(true));
@@ -225,8 +228,8 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesSegmentResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
         final RecoveryResponse indicesRecoveryResponse = client.admin().indices().prepareRecoveries("*").get();
-        assertThat(indicesRecoveryResponse.shardRecoveryStates().size(), is(3));
-        assertThat(indicesRecoveryResponse.shardRecoveryStates().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
+        assertThat(indicesRecoveryResponse.shardRecoveryInfos().size(), is(3));
+        assertThat(indicesRecoveryResponse.shardRecoveryInfos().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
         // test _cat/indices with wildcards that cover unauthorized indices (".security" in this case)
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();

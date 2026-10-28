@@ -12,12 +12,14 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -29,25 +31,42 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.ReadDimsExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
+public abstract class AbstractPhysicalOperationProviders {
 
-public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
-
-    private final AggregateMapper aggregateMapper = new AggregateMapper();
     private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
 
@@ -56,10 +75,29 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         this.analysisRegistry = analysisRegistry;
     }
 
-    @Override
+    public abstract PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
+
+    public abstract PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    );
+
+    public abstract PhysicalOperation readDimsPhysicalOperation(
+        ReadDimsExec readDimsExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    );
+
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
+    }
+
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
+        HashAggregationOperator.ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput,
         LocalExecutionPlannerContext context
     ) {
         // The layout this operation will produce.
@@ -70,32 +108,21 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
         var sourceLayout = source.layout;
 
-        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
-            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
-        }
-        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
-            // the reducer step at data node (local) level
-            aggregatorMode = AggregatorMode.INTERMEDIATE;
-        }
-
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
             List<Aggregator.Factory> aggregatorFactories = new ArrayList<>();
 
-            // append channels to the layout
-            if (aggregatorMode == AggregatorMode.FINAL) {
-                layout.append(aggregates);
-            } else {
-                layout.append(aggregateMapper.mapNonGrouping(aggregates));
-            }
+            layout.append(aggregateExec.output());
 
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -105,6 +132,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             // grouping
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
+            // Look once for a transient Top-N grouping hint pushed onto an ExternalSourceExec by
+            // PushTopNIntoExternalSource. The hint may cover one or more grouping keys.
+            BlockHash.TopNDef pushedTopN = extractPushedTopN(aggregateExec.child());
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
@@ -150,45 +180,62 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, pushedTopN));
             }
 
-            if (aggregatorMode == AggregatorMode.FINAL) {
+            if (aggregatorMode.isOutputPartial()) {
+                List<Attribute> output = aggregateExec.output();
+                for (int i = aggregateExec.groupings().size(); i < output.size(); i++) {
+                    layout.append(output.get(i));
+                }
+            } else {
                 for (var agg : aggregates) {
                     if (Alias.unwrap(agg) instanceof AggregateFunction) {
                         layout.append(agg);
                     }
                 }
-            } else {
-                layout.append(aggregateMapper.mapGrouping(aggregates));
             }
-
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                context
             );
-
-            if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
-                operatorFactory = ordinalGroupingOperatorFactory(
-                    source,
-                    aggregateExec,
-                    aggregatorFactories,
-                    groupSpecs.get(0).attribute,
-                    groupSpecs.get(0).elementType(),
-                    context
-                );
-            } else {
-                operatorFactory = new HashAggregationOperatorFactory(
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+            int maxPageSize = context.pageSize(aggregateExec, aggregateExec.estimatedRowSize());
+            int aggregationBatchSize = maxPageSize; // TODO pick a more sensible number
+            // time-series aggregation
+            if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
+                operatorFactory = timeSeriesAggregatorOperatorFactory(
+                    ts,
                     aggregatorMode,
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
-                    analysisRegistry
+                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
+                    context,
+                    aggregationBatchSize
                 );
+            } else {
+                QueryPragmas pragmas = context.queryPragmas();
+                var builder = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                    .mode(aggregatorMode)
+                    .aggregators(aggregatorFactories)
+                    .partialEmit(
+                        pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                        pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
+                    )
+                    .maxPageSize(maxPageSize)
+                    .aggregationBatchSize(aggregationBatchSize)
+                    .parallelConfig(parallelConfig)
+                    .analysisRegistry(analysisRegistry)
+                    .allowPartitionedOutput(allowPartitionedOutput);
+                HashAggregationOperator.TopAggregation topAggregation = extractTopAggregation(aggregateExec, context);
+                if (topAggregation != null) {
+                    builder.topAggregation(topAggregation);
+                }
+                operatorFactory = builder.build();
             }
         }
         if (operatorFactory != null) {
@@ -208,13 +255,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         // TODO: This should take CATEGORIZE into account:
         // it currently works because the CATEGORIZE intermediate state is just 1 block with the same type as the function return,
         // so the attribute generated here is the expected one
-        var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();
 
         // no groups
         if (groupings.isEmpty()) {
-            attrs = Expressions.asAttributes(aggregateMapper.mapNonGrouping(aggregates));
+            attrs = Expressions.asAttributes(AggregateMapper.mapNonGrouping(aggregates));
         }
         // groups
         else {
@@ -246,91 +292,153 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 attrs.add(groupAttribute);
             }
 
-            attrs.addAll(Expressions.asAttributes(aggregateMapper.mapGrouping(aggregates)));
+            attrs.addAll(Expressions.asAttributes(AggregateMapper.mapGrouping(aggregates)));
         }
         return attrs;
     }
 
-    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode) {}
+    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
+
+    private static class IntermediateInputs {
+        private final List<Attribute> inputAttributes;
+        private final boolean grouping;
+        private final Map<AggregateFunction, Integer> offsets = new HashMap<>();
+
+        IntermediateInputs(AggregateExec aggregateExec, boolean grouping) {
+            this.inputAttributes = aggregateExec.child().output();
+            this.grouping = grouping;
+            int nextOffset = aggregateExec.groupings().size(); // skip grouping attributes
+            for (NamedExpression ne : aggregateExec.aggregates()) {
+                if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction af && offsets.containsKey(af) == false) {
+                    offsets.put(af, nextOffset);
+                    nextOffset += AggregateMapper.intermediateStateDesc(af, grouping).size();
+                }
+            }
+        }
+
+        List<Attribute> inputAttributes(AggregateFunction af) {
+            Integer offset = offsets.get(af);
+            if (offset == null) {
+                throw new EsqlIllegalArgumentException("no intermediate state for aggregate function [{}]", af);
+            }
+            int intermediateStateSize = AggregateMapper.intermediateStateDesc(af, grouping).size();
+            return inputAttributes.subList(offset, offset + intermediateStateSize);
+        }
+    }
 
     private void aggregatesToFactory(
-
+        AggregateExec aggregateExec,
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
         boolean grouping,
-        Consumer<AggFunctionSupplierContext> consumer
+        Consumer<AggFunctionSupplierContext> consumer,
+        LocalExecutionPlannerContext context
     ) {
+        IntermediateInputs intermediateInputs = mode.isInputPartial() ? new IntermediateInputs(aggregateExec, grouping) : null;
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
             // a filter can only appear on aggregate function, not on the grouping columns
-
             if (ne instanceof Alias alias) {
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
-                    List<NamedExpression> sourceAttr = new ArrayList<>();
-
-                    if (mode == AggregatorMode.INITIAL) {
-                        // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        Expression field = aggregateFunction.field();
-                        // Only count can now support literals - all the other aggs should be optimized away
-                        if (field.foldable()) {
-                            if (aggregateFunction instanceof Count) {
-                                sourceAttr = emptyList();
-                            } else {
-                                throw new InvalidArgumentException(
-                                    "Does not support yet aggregations over constants - [{}]",
-                                    aggregateFunction.sourceText()
-                                );
-                            }
-                        } else {
-                            // extra dependencies like TS ones (that require a timestamp)
-                            for (Expression input : aggregateFunction.references()) {
-                                Attribute attr = Expressions.attribute(input);
-                                if (attr == null) {
-                                    throw new EsqlIllegalArgumentException(
-                                        "Cannot work with target field [{}] for agg [{}]",
-                                        input.sourceText(),
-                                        aggregateFunction.sourceText()
-                                    );
-                                }
-                                sourceAttr.add(attr);
-                            }
-                        }
-                    }
-                    // coordinator/exchange phase
-                    else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
-                        if (grouping) {
-                            sourceAttr = aggregateMapper.mapGrouping(ne);
-                        } else {
-                            sourceAttr = aggregateMapper.mapNonGrouping(ne);
-                        }
+                    final List<Attribute> sourceAttr;
+                    if (mode.isInputPartial()) {
+                        sourceAttr = intermediateInputs.inputAttributes(aggregateFunction);
                     } else {
-                        throw new EsqlIllegalArgumentException("illegal aggregation mode");
+                        // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
+                        // count supports literals, and first/last support literals in the sort field.
+                        boolean constantInputAllowed = aggregateFunction instanceof Count
+                            || aggregateFunction instanceof CountApproximate
+                            || (aggregateFunction instanceof First first && first.field().foldable() == false)
+                            || (aggregateFunction instanceof Last last && last.field().foldable() == false)
+                            || aggregateFunction.fields().stream().noneMatch(Expression::foldable);
+                        if (constantInputAllowed == false) {
+                            throw new InvalidArgumentException(
+                                "Does not support yet aggregations over constants - [{}]",
+                                aggregateFunction.sourceText()
+                            );
+                        }
+                        sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                     }
+
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction, inputChannels);
-
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
+                    AggregatorFunctionSupplier aggSupplier;
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
-                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                        ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
-                            layout
+                            layout,
+                            context.shardContexts(),
+                            analysisRegistry
                         );
-                        aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
+                        // A filtered ToPartial must filter the rows folded into its intermediate state, i.e. wrap the
+                        // inner aggregate's supplier rather than ToPartial itself (ToPartial drives the aggregator only
+                        // through the mode-aware *Factory methods, which the plain filter wrapper does not implement).
+                        aggSupplier = aggregateFunction instanceof ToPartial toPartial
+                            ? toPartial.supplierWithInnerFilter(evalFactory)
+                            : new FilteredAggregatorFunctionSupplier(supplier(aggregateFunction), evalFactory);
+                    } else {
+                        aggSupplier = supplier(aggregateFunction);
                     }
-                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, mode));
+                    // apply the window only in the phase that emits final values: it merges the per-bucket states of
+                    // the buckets the window covers. A window that is not an exact multiple of the bucket also merges
+                    // the boundary bucket's state from its partial sibling aggregate - see InsertPartialWindowAggregates.
+                    if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
+                        Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
+                        Duration remainder = aggregateExec instanceof TimeSeriesAggregateExec ts
+                            ? InsertPartialWindowAggregates.windowRemainder(aggregateFunction, ts.timeBucket(), foldContext)
+                            : null;
+                        if (remainder == null) {
+                            aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        } else {
+                            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                                aggregates,
+                                aggregateFunction,
+                                remainder,
+                                foldContext
+                            );
+                            if (sibling == null) {
+                                // InsertPartialWindowAggregates plants the sibling on the coordinator before local
+                                // execution planning. A time-series aggregate always maps to the FINAL-over-fragment
+                                // shape the rule matches, so a missing sibling is a planner bug. Failing beats the
+                                // plain-window merge, which would silently truncate the window to whole buckets.
+                                throw new EsqlIllegalArgumentException(
+                                    "no partial aggregate planned for window [{}] over a non-multiple time bucket in [{}]",
+                                    aggregateFunction.window().sourceText(),
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                            AggregatorFunctionSupplier partialSupplier;
+                            if (mode.isInputPartial()) {
+                                // full state channels followed by the sibling's state channels. The sibling's state
+                                // arrives pre-filtered to the trailing remainder of each bucket
+                                List<Attribute> partialAttrs = intermediateInputs.inputAttributes(sibling);
+                                List<Integer> partialChannels = partialAttrs.stream().map(attr -> layout.get(attr.id()).channel()).toList();
+                                inputChannels = Stream.concat(inputChannels.stream(), partialChannels.stream()).toList();
+                                partialSupplier = supplier(aggregateFunction);
+                            } else {
+                                // raw input (single phase): the partial side filters the trailing remainder rows itself
+                                partialSupplier = new FilteredAggregatorFunctionSupplier(
+                                    supplier(aggregateFunction),
+                                    EvalMapper.toEvaluator(foldContext, sibling.filter(), layout, context.shardContexts(), analysisRegistry)
+                                );
+                            }
+                            aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, partialSupplier, windowInterval, remainder);
+                        }
+                    }
+                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }
             }
         }
     }
 
-    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction, List<Integer> inputChannels) {
+    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof ToAggregator delegate) {
-            return delegate.supplier(inputChannels);
+            return delegate.supplier();
         }
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }
@@ -342,13 +450,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, @Nullable BlockHash.TopNDef topNDef) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-
-            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize);
+            return new BlockHash.GroupSpec(
+                channel,
+                elementType(),
+                Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
+                topNDef
+            );
         }
 
         ElementType elementType() {
@@ -357,14 +469,83 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     }
 
     /**
-     * Build a grouping operator that operates on ordinals if possible.
+     * Walks down the child subtree of an {@link AggregateExec} looking for an {@link ExternalSourceExec}
+     * whose transient {@link ExternalSourceExec#pushedTopN()} hint is set. Delegates the wrapper-shape
+     * traversal to {@link ExternalSourceAggregatePushdown#findExternalSource(PhysicalPlan)} so the local
+     * execution plan honours the same rewrites the optimizer already validated against.
+     * Returns {@code null} when no external source (or no Top-N hint) is found.
      */
-    public abstract Operator.OperatorFactory ordinalGroupingOperatorFactory(
-        PhysicalOperation source,
+    @Nullable
+    private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
+        ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
+        return ext == null ? null : ext.pushedTopN();
+    }
+
+    /**
+     * Extract the TopN that follows the aggregation, for example: {@code FROM .. | STATS c=COUNT(*), AVG(f) BY k | SORT c | LIMIT 10}.
+     * It's hard for the current optimization rules to keep these two nodes, {@link TopNExec} and {@link AggregateExec}, in sync as they
+     * can be rewritten independently; hence we detect the relation here instead, at the last step, when creating operators.
+     */
+    private static HashAggregationOperator.TopAggregation extractTopAggregation(
         AggregateExec aggregateExec,
-        List<GroupingAggregator.Factory> aggregatorFactories,
-        Attribute attrSource,
-        ElementType groupType,
         LocalExecutionPlannerContext context
+    ) {
+        if (aggregateExec.getMode().isOutputPartial()) {
+            return null;
+        }
+        TopNExec topN = context.lastVisitedTopN().get();
+        if (topN == null || topN.order().size() != 1) {
+            return null;
+        }
+        PhysicalPlan child = topN.child();
+        while (child != aggregateExec) {
+            if (child instanceof EvalExec eval) {
+                child = eval.child();
+            } else if (child instanceof ProjectExec project) {
+                child = project.child();
+            } else {
+                return null;
+            }
+        }
+        int limit = -1;
+        if (topN.limit().fold(context.foldCtx()) instanceof Number number) {
+            try {
+                limit = Math.toIntExact(number.longValue());
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        if (limit < 0) {
+            return null;
+        }
+        Order order = topN.order().getFirst();
+        if (topN.limit().foldable() == false) {
+            return null;
+        }
+        Attribute sortAttribute = Expressions.attribute(order.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        int aggregatorIndex = 0;
+        for (NamedExpression aggregate : aggregateExec.aggregates()) {
+            Expression unwrapped = Alias.unwrap(aggregate);
+            if (unwrapped instanceof AggregateFunction == false) {
+                continue;
+            }
+            if (aggregate.toAttribute().semanticEquals(sortAttribute)) {
+                return new HashAggregationOperator.TopAggregation(aggregatorIndex, order.direction() == Order.OrderDirection.ASC, limit);
+            }
+            aggregatorIndex++;
+        }
+        return null;
+    }
+
+    public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(
+        TimeSeriesAggregateExec ts,
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        List<BlockHash.GroupSpec> groupSpecs,
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     );
 }

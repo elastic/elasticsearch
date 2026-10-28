@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -23,10 +25,11 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -37,19 +40,24 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -60,6 +68,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
@@ -68,8 +78,8 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -92,14 +102,21 @@ public class FoldNullTests extends ESTestCase {
         return new FoldNull().rule(e, unboundLogicalOptimizerContext());
     }
 
+    /**
+     * Applies the rule bottom-up, like the optimizer does, so folded children are visible to their parents.
+     */
+    private Expression foldNullUp(Expression e) {
+        return e.transformUp(this::foldNull);
+    }
+
     public void testBasicNullFolding() {
-        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), Literal.NULL)));
-        assertNullLiteral(foldNull(new Round(EMPTY, Literal.NULL, null)));
-        assertNullLiteral(foldNull(new Pow(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateFormat(EMPTY, Literal.NULL, Literal.NULL, null)));
-        assertNullLiteral(foldNull(new DateParse(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new DateTrunc(EMPTY, Literal.NULL, Literal.NULL)));
-        assertNullLiteral(foldNull(new Substring(EMPTY, Literal.NULL, Literal.NULL, Literal.NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
+        assertNullLiteral(foldNull(new Pow(EMPTY, NULL, NULL)));
+        assertNullLiteral(foldNull(new DateFormat(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateParse(EMPTY, NULL, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateTrunc(EMPTY, NULL, NULL, TEST_CFG)));
+        assertNullLiteral(foldNull(new Substring(EMPTY, NULL, NULL, NULL)));
     }
 
     public void testNullFoldingIsNotNull() {
@@ -107,17 +124,15 @@ public class FoldNullTests extends ESTestCase {
         assertEquals(false, foldNull(new IsNotNull(EMPTY, NULL)).fold(FoldContext.small()));
     }
 
-    @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAbstractMultivalueFunction() throws Exception {
-        List<Class<? extends AbstractMultivalueFunction>> items = List.of(
-            MvDedupe.class,
-            MvFirst.class,
-            MvLast.class,
-            MvMax.class,
-            MvMedian.class,
-            MvMin.class,
-            MvSum.class
-        );
+        List<Class<? extends AbstractMultivalueFunction>> items = new EsqlFunctionRegistry().listFunctions()
+            .stream()
+            .map(FunctionDefinition::clazz)
+            .distinct()
+            .filter(AbstractMultivalueFunction.class::isAssignableFrom)
+            .filter(c -> c != MvAvg.class && c != MvCount.class) // fixed return type; pinned separately below
+            .<Class<? extends AbstractMultivalueFunction>>map(c -> c.asSubclass(AbstractMultivalueFunction.class))
+            .toList();
         for (Class<? extends AbstractMultivalueFunction> clazz : items) {
             Constructor<? extends AbstractMultivalueFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AbstractMultivalueFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
@@ -147,23 +162,21 @@ public class FoldNullTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // arithmetic
-        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL)));
+        assertNullLiteral(foldNull(new Add(EMPTY, getFieldAttribute("a"), NULL, TEST_CFG)));
         // comparison
         assertNullLiteral(foldNull(greaterThanOf(getFieldAttribute("a"), NULL)));
         // regex
         assertNullLiteral(foldNull(new RLike(EMPTY, NULL, new RLikePattern("123"))));
         // date functions
-        assertNullLiteral(foldNull(new DateExtract(EMPTY, NULL, NULL, configuration(""))));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, NULL, NULL, TEST_CFG)));
         // math functions
         assertNullLiteral(foldNull(new Cos(EMPTY, NULL)));
         // string functions
         assertNullLiteral(foldNull(new LTrim(EMPTY, NULL)));
-        // spatial
-        assertNullLiteral(foldNull(new SpatialCentroid(EMPTY, NULL)));
         // ip
         assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
-        assertNullLiteral(foldNull(new ToString(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, NULL, TEST_CFG)));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
@@ -180,60 +193,44 @@ public class FoldNullTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNullFoldingDoesNotApplyOnAggregate() throws Exception {
-        List<Class<? extends AggregateFunction>> items = List.of(Max.class, Min.class);
+        List<Class<? extends AggregateFunction>> items = List.of(
+            Avg.class,
+            Count.class,
+            Max.class,
+            Median.class,
+            MedianAbsoluteDeviation.class,
+            Min.class,
+            Sum.class,
+            Values.class
+        );
         for (Class<? extends AggregateFunction> clazz : items) {
             Constructor<? extends AggregateFunction> ctor = clazz.getConstructor(Source.class, Expression.class);
             AggregateFunction conditionalFunction = ctor.newInstance(EMPTY, getFieldAttribute("a"));
             assertEquals(conditionalFunction, foldNull(conditionalFunction));
 
             conditionalFunction = ctor.newInstance(EMPTY, NULL);
-            assertEquals(NULL, foldNull(conditionalFunction));
+            assertEquals(conditionalFunction, foldNull(conditionalFunction));
         }
-
-        Avg avg = new Avg(EMPTY, getFieldAttribute("a"));
-        assertEquals(avg, foldNull(avg));
-        avg = new Avg(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(avg));
-
-        Count count = new Count(EMPTY, getFieldAttribute("a"));
-        assertEquals(count, foldNull(count));
-        count = new Count(EMPTY, NULL);
-        assertEquals(count, foldNull(count));
 
         CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
         assertEquals(countd, foldNull(countd));
         countd = new CountDistinct(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, LONG), foldNull(countd));
-
-        Median median = new Median(EMPTY, getFieldAttribute("a"));
-        assertEquals(median, foldNull(median));
-        median = new Median(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(median));
-
-        MedianAbsoluteDeviation medianad = new MedianAbsoluteDeviation(EMPTY, getFieldAttribute("a"));
-        assertEquals(medianad, foldNull(medianad));
-        medianad = new MedianAbsoluteDeviation(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(medianad));
+        assertEquals(countd, foldNull(countd));
 
         Percentile percentile = new Percentile(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
         assertEquals(percentile, foldNull(percentile));
         percentile = new Percentile(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(percentile));
-
-        Sum sum = new Sum(EMPTY, getFieldAttribute("a"));
-        assertEquals(sum, foldNull(sum));
-        sum = new Sum(EMPTY, NULL);
-        assertEquals(new Literal(EMPTY, null, DOUBLE), foldNull(sum));
+        assertEquals(percentile, foldNull(percentile));
     }
 
     public void testNullFoldableDoesNotApplyToIsNullAndNotNull() {
         DataType numericType = randomFrom(INTEGER, LONG, DOUBLE);
         DataType genericType = randomFrom(INTEGER, LONG, DOUBLE, UNSIGNED_LONG, KEYWORD, TEXT, GEO_POINT, GEO_SHAPE, VERSION, IP);
         List<Expression> items = List.of(
-            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
-            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
-            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
+            new Add(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Add(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
+            new Sub(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType), TEST_CFG),
+            new Sub(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER), TEST_CFG),
             new Mul(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
             new Mul(EMPTY, new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, List.of(1, 2, 3), INTEGER)),
             new Div(EMPTY, getFieldAttribute("a", numericType), getFieldAttribute("b", numericType)),
@@ -265,12 +262,144 @@ public class FoldNullTests extends ESTestCase {
     }
 
     public void testNullBucketGetsFolded() {
-        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL)));
+        assertEquals(NULL, foldNull(new Bucket(EMPTY, NULL, NULL, NULL, NULL, NULL, TEST_CFG)));
     }
 
     public void testNullCategorizeGroupingNotFolded() {
-        Categorize categorize = new Categorize(EMPTY, NULL);
+        Categorize categorize = new Categorize(EMPTY, NULL, NULL);
         assertEquals(categorize, foldNull(categorize));
+    }
+
+    public void testNestedCoalesce() {
+        MvAppend append = new MvAppend(
+            EMPTY,
+            Literal.keyword(EMPTY, "foo"),
+            new Coalesce(EMPTY, NULL, List.of(Literal.keyword(EMPTY, "bar")))
+        );
+        assertEquals(append, foldNull(append));
+    }
+
+    // A null condition means that branch is not taken, not that the whole CASE is null.
+    public void testNullFoldingDoesNotApplyOnCase() {
+        Case caseExpr = new Case(EMPTY, NULL, List.of(getFieldAttribute("a"), getFieldAttribute("b")));
+        assertEquals(caseExpr, foldNull(caseExpr));
+    }
+
+    public void testMultivalueFunctionsWithDefaultNullabilityGetFolded() {
+        assertNullLiteral(foldNull(new MvConcat(EMPTY, NULL, Literal.keyword(EMPTY, ","))));
+        assertNullLiteral(foldNull(new MvSort(EMPTY, NULL, Literal.keyword(EMPTY, "ASC"))));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, NULL, L(0), L(1))));
+        assertNullLiteral(foldNull(new MvIntersection(EMPTY, NULL, getFieldAttribute("a"))));
+    }
+
+    // These treat a null argument as data (empty set / absent side), so folding the whole expression would be wrong.
+    public void testMultivalueFunctionsWithNullAsDataNotFolded() {
+        MvContains contains = new MvContains(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(contains, foldNull(contains));
+
+        MvIntersects intersects = new MvIntersects(EMPTY, getFieldAttribute("a"), NULL);
+        assertEquals(intersects, foldNull(intersects));
+
+        MvUnion union = new MvUnion(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(union, foldNull(union));
+
+        MvDifference difference = new MvDifference(EMPTY, NULL, getFieldAttribute("a"));
+        assertEquals(difference, foldNull(difference));
+
+        MvZip zip = new MvZip(EMPTY, NULL, getFieldAttribute("a", KEYWORD), Literal.keyword(EMPTY, ","));
+        assertEquals(zip, foldNull(zip));
+    }
+
+    // Under nullify, downstream consumers still see the expression's type; folding must not erase it to NULL.
+    public void testFoldedNullLiteralKeepsExpressionType() {
+        Add add = new Add(EMPTY, L(randomInt()), NULL, TEST_CFG);
+        Literal folded = as(foldNull(add), Literal.class);
+        assertNull(folded.value());
+        assertEquals(add.dataType(), folded.dataType());
+    }
+
+    // A null-propagating function over a NULL-typed COALESCE, CASE or MV_UNION must fold to null: its evaluator has no
+    // NULL branch, so leaving it in the plan throws once any rule folds it.
+    public void testNullPropagatingFunctionOverNullTypedCoalesceIsFolded() {
+        Coalesce coalesce = nullTypedCoalesce();
+        assertNullLiteral(foldNull(new Mul(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Div(EMPTY, coalesce, L(2))));
+        assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new DateExtract(EMPTY, Literal.keyword(EMPTY, "year"), coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, coalesce, TEST_CFG)));
+        assertNullLiteral(foldNull(new MvSlice(EMPTY, coalesce, L(0), L(1))));
+        assertNullLiteral(foldNull(new Bucket(EMPTY, coalesce, NULL, NULL, NULL, NULL, TEST_CFG)));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCaseIsFolded() {
+        Case caseExpr = new Case(EMPTY, TRUE, List.of(NULL, NULL));
+        assertNullLiteral(foldNull(new Mul(EMPTY, caseExpr, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedMvUnionIsFolded() {
+        MvUnion union = new MvUnion(EMPTY, NULL, NULL);
+        assertNullLiteral(foldNull(new Mul(EMPTY, union, L(2))));
+    }
+
+    public void testNullPropagatingFunctionOverNullTypedCoalesceKeepsExpressionType() {
+        Mul mul = new Mul(EMPTY, nullTypedCoalesce(), L(2));
+        Literal folded = as(foldNull(mul), Literal.class);
+        assertNull(folded.value());
+        assertEquals(INTEGER, folded.dataType());
+    }
+
+    // Only a NULL-typed argument proves the result is null; a COALESCE with a typed branch can still produce a value.
+    public void testNullPropagatingFunctionOverTypedCoalesceIsNotFolded() {
+        Mul mul = new Mul(EMPTY, new Coalesce(EMPTY, NULL, List.of(getFieldAttribute("a", INTEGER))), L(2));
+        assertEquals(mul, foldNull(mul));
+    }
+
+    public void testNullTypedCoalesceDoesNotFoldAggregateOrCategorize() {
+        Max max = new Max(EMPTY, nullTypedCoalesce());
+        assertEquals(max, foldNull(max));
+        Categorize categorize = new Categorize(EMPTY, nullTypedCoalesce(), NULL);
+        assertEquals(categorize, foldNull(categorize));
+    }
+
+    private static Coalesce nullTypedCoalesce() {
+        return new Coalesce(EMPTY, NULL, List.of(NULL));
+    }
+
+    public void testEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 19, "emp_no"));
+        Equals equals = new Equals(new Source(1, 19, "emp_no == NULL"), field, NULL);
+        assertNullLiteral(foldNull(equals));
+        assertEquals("emp_no IS NULL", equals.nullMisuseAlternative());
+    }
+
+    public void testInsensitiveEqualsNullSuggestsIsNull() {
+        var field = getFieldAttribute("name", KEYWORD).withLocation(new Source(1, 12, "name"));
+        InsensitiveEquals insensitiveEquals = new InsensitiveEquals(new Source(1, 12, "name =~ NULL"), field, NULL);
+        assertNullLiteral(foldNull(insensitiveEquals));
+        assertEquals("name IS NULL", insensitiveEquals.nullMisuseAlternative());
+    }
+
+    public void testNotSuggestsIsNotNullWhenChildIsEquals() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
+        Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
+        Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
+        assertNullLiteral(foldNullUp(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testNotInAllNullListSuggestsIsNotNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
+        // FoldNull leaves the all-NULL IN to ConstantFolding (see ConstantFoldingTests#testInAllNullListSuggestsIsNull),
+        // so on its own it does not fold the NOT either.
+        assertSame(not, foldNullUp(not));
+        assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
+    }
+
+    public void testArithmeticNullHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        assertNullLiteral(foldNull(new Add(new Source(1, 16, "emp_no + NULL"), field, NULL, TEST_CFG)));
     }
 
     private void assertNullLiteral(Expression expression) {

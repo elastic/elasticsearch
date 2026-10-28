@@ -53,6 +53,13 @@ public interface TaskAwareRequest {
     }
 
     /**
+     * Returns the task object that should be used to keep track of the processing of the request, with an extra local node ID.
+     */
+    default Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return createTask(taskId.getId(), type, action, parentTaskId, headers);
+    }
+
+    /**
      * Returns optional description of the request to be displayed by the task manager
      */
     default String getDescription() {

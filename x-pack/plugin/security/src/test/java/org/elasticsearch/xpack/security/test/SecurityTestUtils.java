@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.test;
 
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
@@ -73,7 +73,8 @@ public class SecurityTestUtils {
             true,
             ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         return RoutingTable.builder()
@@ -94,11 +95,11 @@ public class SecurityTestUtils {
     /**
      * Adds the index alias {@code .security} to the underlying concrete index.
      */
-    public static Metadata addAliasToMetadata(Metadata metadata, String indexName) {
+    public static ProjectMetadata addAliasToMetadata(ProjectMetadata project, String indexName) {
         AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadataBuilder(SECURITY_MAIN_ALIAS).build();
-        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
-        IndexMetadata indexMetadata = metadata.index(indexName);
-        metadataBuilder.put(IndexMetadata.builder(indexMetadata).putAlias(aliasMetadata));
-        return metadataBuilder.build();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
+        IndexMetadata indexMetadata = project.index(indexName);
+        builder.put(IndexMetadata.builder(indexMetadata).putAlias(aliasMetadata));
+        return builder.build();
     }
 }

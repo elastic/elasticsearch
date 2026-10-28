@@ -42,8 +42,6 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
@@ -54,7 +52,7 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();

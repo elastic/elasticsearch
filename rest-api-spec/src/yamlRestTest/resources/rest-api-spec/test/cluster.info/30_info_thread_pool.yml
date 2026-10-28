@@ -95,13 +95,6 @@
   - gte: { thread_pool.search_coordination.largest: 0 }
   - gte: { thread_pool.search_coordination.completed: 0 }
 
-  - gte: { thread_pool.search_throttled.threads: 0 }
-  - gte: { thread_pool.search_throttled.queue: 0 }
-  - gte: { thread_pool.search_throttled.active: 0 }
-  - gte: { thread_pool.search_throttled.rejected: 0 }
-  - gte: { thread_pool.search_throttled.largest: 0 }
-  - gte: { thread_pool.search_throttled.completed: 0 }
-
   - gte: { thread_pool.snapshot.threads: 0 }
   - gte: { thread_pool.snapshot.queue: 0 }
   - gte: { thread_pool.snapshot.active: 0 }

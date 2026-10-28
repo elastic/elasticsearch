@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -18,8 +19,10 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,12 +36,16 @@ import java.util.stream.Stream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -83,7 +90,14 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders("foo", "ctx.foo", "missing")) {
+        try (
+            ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(
+                randomFrom(ThreadContext.HeadersFor.values()),
+                "foo",
+                "ctx.foo",
+                "missing"
+            )
+        ) {
             assertEquals("bar", threadContext.getHeader("foo"));
             // only request headers preserved, not transient
             assertNull(threadContext.getTransient("ctx.foo"));
@@ -98,15 +112,28 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
-    public void testStashContextPreservingHeadersWithDefaultHeadersToCopy() {
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopyInLocalCluster() {
+        doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(ThreadContext.HeadersFor.LOCAL_CLUSTER);
+    }
+
+    public void testStashContextPreservingHeadersWithDefaultHeadersToCopyForRemoteCluster() {
+        doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(ThreadContext.HeadersFor.REMOTE_CLUSTER);
+    }
+
+    private static void doTestStashContextPreservingHeadersWithDefaultHeadersToCopy(final ThreadContext.HeadersFor headersFor) {
         for (String header : HEADERS_TO_COPY) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(header, "bar");
-            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders()) {
-                assertEquals("bar", threadContext.getHeader(header));
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(headersFor)) {
+                if (headersFor == ThreadContext.HeadersFor.REMOTE_CLUSTER && header.equals(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)) {
+                    assertNull(threadContext.getHeader(header));
+                } else {
+                    assertEquals("bar", threadContext.getHeader(header));
+                }
             }
             // Also works if we pass it explicitly
-            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(header)) {
+            try (ThreadContext.StoredContext ignored = threadContext.stashContextPreservingRequestHeaders(headersFor, header)) {
+                // If we pass it explicitly, then we expect it to be preserved even if it's not normally included in `HeadersFor`
                 assertEquals("bar", threadContext.getHeader(header));
             }
         }
@@ -468,14 +495,25 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.putHeader("foo", "bar");
         }
 
+        final Matcher<? super String> matchesProjectId;
+        if (randomBoolean()) {
+            final String projectId = randomUUID();
+            matchesProjectId = equalTo(projectId);
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        } else {
+            matchesProjectId = nullValue();
+        }
+
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
         try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
+            assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER), matchesProjectId);
 
         if (setOtherValues) {
             assertEquals("bar", threadContext.getTransient("foo"));
@@ -639,7 +677,97 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112256")
+    public void testTakeResponseHeaders() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // taking from an empty context returns empty
+        assertThat(threadContext.takeResponseHeaders("Warning"), empty());
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+        // add two warnings; take removes and returns them both
+        threadContext.addResponseHeader("Warning", "w1");
+        threadContext.addResponseHeader("Warning", "w2");
+        threadContext.addResponseHeader("Other", "o1");
+
+        List<String> taken = threadContext.takeResponseHeaders("Warning");
+        assertThat(taken, containsInAnyOrder("w1", "w2"));
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        // other headers are unaffected
+        assertThat(threadContext.getResponseHeaders().get("Other"), contains("o1"));
+
+        // second take returns empty
+        assertThat(threadContext.takeResponseHeaders("Warning"), empty());
+
+        // values added after a take accumulate normally
+        threadContext.addResponseHeader("Warning", "w3");
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("w3"));
+    }
+
+    public void testTakeResponseHeadersInsideStashContext() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // add a warning before the stash (simulates coordinator planning warning)
+        threadContext.addResponseHeader("Warning", "planning");
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            // inside the stash the context is empty
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+            // simulates old data-node response header deposited by transport layer
+            threadContext.addResponseHeader("Warning", "data-node-raw");
+
+            List<String> taken = threadContext.takeResponseHeaders("Warning");
+            assertThat(taken, contains("data-node-raw"));
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        }
+
+        // overwriting restore brings back the pre-stash state: planning warning is present, data-node-raw is not
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+    }
+
+    public void testTakeResponseHeadersInsidePreservingResponseHeaders() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        // add a warning before the scope (simulates coordinator planning warning)
+        threadContext.addResponseHeader("Warning", "planning");
+
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
+            // scope inherits the planning warning
+            assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+
+            // simulates old data-node response header deposited by transport layer
+            threadContext.addResponseHeader("Warning", "data-node-raw");
+            assertThat(threadContext.getResponseHeaders().get("Warning"), containsInAnyOrder("planning", "data-node-raw"));
+
+            // take removes both
+            List<String> taken = threadContext.takeResponseHeaders("Warning");
+            assertThat(taken, containsInAnyOrder("planning", "data-node-raw"));
+            assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+        }
+
+        // merging restore: found.responseHeaders has no Warning key, so putResponseHeaders doesn't touch it.
+        // The originalContext still had "planning", so it is preserved. "data-node-raw" does not reappear.
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("planning"));
+    }
+
+    public void testTakeResponseHeadersWarningsSizeReset() {
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey(), "1000b").build();
+        final ThreadContext threadContext = new ThreadContext(settings);
+
+        // fill some warning headers
+        threadContext.addResponseHeader("Warning", "first warning");
+        threadContext.addResponseHeader("Warning", "second warning");
+
+        // take drains them and resets the size counter
+        List<String> taken = threadContext.takeResponseHeaders("Warning");
+        assertThat(taken, containsInAnyOrder("first warning", "second warning"));
+        assertThat(threadContext.getResponseHeaders().get("Warning"), nullValue());
+
+        // after a take, new warnings can be added freely (the size budget has been reset)
+        threadContext.addResponseHeader("Warning", "fresh warning");
+        assertThat(threadContext.getResponseHeaders().get("Warning"), contains("fresh warning"));
+    }
+
     public void testDropWarningsExceedingMaxSettings() {
         Settings settings = Settings.builder()
             .put(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey(), 1)
@@ -1091,7 +1219,8 @@ public class ThreadContextTests extends ESTestCase {
             final String authorizationHeader = randomCase("authorization");
             final String authorizationHeader2 = randomCase("es-secondary-authorization");
             final String authorizationHeader3 = randomCase("ES-Client-Authentication");
-            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3);
+            final String authorizationHeader4 = randomCase("X-Client-Authentication");
+            Set<String> possibleHeaders = Set.of(authorizationHeader, authorizationHeader2, authorizationHeader3, authorizationHeader4);
             Set<String> headers = randomizeHeaders
                 ? randomSet(0, possibleHeaders.size(), () -> randomFrom(possibleHeaders))
                 : possibleHeaders;
@@ -1150,6 +1279,81 @@ public class ThreadContextTests extends ESTestCase {
         assertNotNull(threadContext.getHeader(header));
     }
 
+    public void testNewTraceContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var rootTraceContext = Map.of(Task.TRACE_PARENT_HTTP_HEADER, randomIdentifier(), Task.TRACE_STATE, randomIdentifier());
+        var apmTraceContext = new Object();
+        var traceStartTime = Instant.now();
+        var responseKey = randomIdentifier();
+        var responseValue = randomAlphaOfLength(10);
+
+        threadContext.putHeader(rootTraceContext);
+        threadContext.putTransient(Task.TRACE_START_TIME, traceStartTime);
+        threadContext.putTransient(Task.APM_TRACE_CONTEXT, apmTraceContext);
+
+        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
+
+        try (var ignored = threadContext.newTraceContext()) {
+            assertThat(threadContext.hasApmTraceContext(), equalTo(false)); // no trace started yet
+            assertThat(threadContext.hasParentApmTraceContext(), equalTo(true));
+
+            assertThat(threadContext.getHeaders(), is(anEmptyMap()));
+            // trace start time is not propagated
+            assertThat(
+                threadContext.getTransientHeaders(),
+                equalTo(
+                    Map.of(
+                        Task.PARENT_TRACE_PARENT_HEADER,
+                        rootTraceContext.get(Task.TRACE_PARENT_HTTP_HEADER),
+                        Task.PARENT_TRACE_STATE,
+                        rootTraceContext.get(Task.TRACE_STATE),
+                        Task.PARENT_APM_TRACE_CONTEXT,
+                        apmTraceContext
+                    )
+                )
+            );
+            // response headers shall be propagated
+            threadContext.addResponseHeader(responseKey, responseValue);
+        }
+
+        assertThat(threadContext.hasApmTraceContext(), equalTo(true));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
+
+        assertThat(threadContext.getHeaders(), equalTo(rootTraceContext));
+        assertThat(
+            threadContext.getTransientHeaders(),
+            equalTo(Map.of(Task.APM_TRACE_CONTEXT, apmTraceContext, Task.TRACE_START_TIME, traceStartTime))
+        );
+        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+    }
+
+    public void testNewTraceContextWithoutParentTrace() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+
+        var responseKey = randomIdentifier();
+        var responseValue = randomAlphaOfLength(10);
+
+        assertThat(threadContext.hasApmTraceContext(), equalTo(false));
+        assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
+
+        try (var ignored = threadContext.newTraceContext()) {
+            assertTrue(threadContext.isDefaultContext());
+            assertThat(threadContext.hasApmTraceContext(), equalTo(false));
+            assertThat(threadContext.hasParentApmTraceContext(), equalTo(false));
+
+            // discared, just making sure the context is isolated
+            threadContext.putTransient(randomIdentifier(), randomAlphaOfLength(10));
+            // response headers shall be propagated
+            threadContext.addResponseHeader(responseKey, responseValue);
+        }
+
+        assertThat(threadContext.getHeaders(), is(anEmptyMap()));
+        assertThat(threadContext.getTransientHeaders(), is(anEmptyMap()));
+        assertThat(threadContext.getResponseHeaders(), equalTo(Map.of(responseKey, List.of(responseValue))));
+    }
+
     public void testRestoreExistingContext() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var header = randomIdentifier();
@@ -1198,5 +1402,53 @@ public class ThreadContextTests extends ESTestCase {
                 r.run();
             }
         };
+    }
+
+    public void testEstimatedRequestContextBytes() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final long emptyContextBytes = threadContext.estimatedRequestContextBytes();
+
+        // header keys and values are retained as (Latin-1) strings for the lifetime of the context
+        final String headerValue = randomAlphaOfLengthBetween(100, 1000);
+        threadContext.putHeader("large-header", headerValue);
+        final long withHeaderBytes = threadContext.estimatedRequestContextBytes();
+        assertThat(withHeaderBytes, greaterThanOrEqualTo(emptyContextBytes + "large-header".length() + headerValue.length()));
+
+        // transient values that cannot report their size are not counted
+        threadContext.putTransient("opaque", new Object());
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes));
+
+        // accountable transient values, such as the security authentication, contribute their own estimate
+        final long accountableBytes = randomLongBetween(1, 1 << 20);
+        threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes + accountableBytes));
+
+        // a stashed context starts over, and the original estimate is restored with the original context
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            assertThat(threadContext.estimatedRequestContextBytes(), equalTo(emptyContextBytes));
+        }
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(withHeaderBytes + accountableBytes));
+    }
+
+    public void testEstimatedRequestContextBytesToleratesNulls() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final long emptyContextBytes = threadContext.estimatedRequestContextBytes();
+
+        // a null header value and a null transient are accepted by the context, so the estimate must not fail on them
+        threadContext.putHeader("null-header", (String) null);
+        threadContext.putTransient("null-transient", null);
+        assertThat(threadContext.estimatedRequestContextBytes(), greaterThanOrEqualTo(emptyContextBytes));
+    }
+
+    public void testEstimatedRequestContextBytesToleratesFailingAccountable() {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("header", randomAlphaOfLengthBetween(10, 100));
+        final long headerBytes = threadContext.estimatedRequestContextBytes();
+        final long healthyBytes = randomLongBetween(1, 1 << 20);
+        threadContext.putTransient("failing", (Accountable) () -> { throw new IllegalStateException("cannot size this value"); });
+        threadContext.putTransient("healthy", (Accountable) () -> healthyBytes);
+
+        // a value that cannot report its size counts as zero and does not discard what the other values contribute
+        assertThat(threadContext.estimatedRequestContextBytes(), equalTo(headerBytes + healthyBytes));
     }
 }

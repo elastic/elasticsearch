@@ -28,6 +28,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,8 +40,30 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        var suppliers = new ArrayList<TestCaseSupplier>();
+        List<TestCaseSupplier> suppliers = suppliers();
 
+        // Add some extra cases with TSID
+        MultiRowTestCaseSupplier.tsidCases(1, 1000).forEach(fieldCaseSupplier -> suppliers.add(makeSupplier(fieldCaseSupplier)));
+
+        suppliers.add(
+            makeSupplier(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "No rows (" + DataType.TSID_DATA_TYPE + ")",
+                    List::of,
+                    DataType.TSID_DATA_TYPE,
+                    false,
+                    true,
+                    List.of()
+                )
+            )
+        );
+
+        // "No rows" expects 0 here instead of null
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+    }
+
+    protected static List<TestCaseSupplier> suppliers() {
+        var suppliers = new ArrayList<TestCaseSupplier>();
         var precisionSuppliers = Stream.of(
             TestCaseSupplier.intCases(0, 100_000, true),
             TestCaseSupplier.longCases(0L, 100_000L, true),
@@ -58,7 +81,10 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.SEMANTIC_TEXT)
+            MultiRowTestCaseSupplier.flattenedCases(1, 20),
+            MultiRowTestCaseSupplier.geohashCases(1, 1000),
+            MultiRowTestCaseSupplier.geotileCases(1, 1000),
+            MultiRowTestCaseSupplier.geohexCases(1, 1000)
         ).flatMap(List::stream).forEach(fieldCaseSupplier -> {
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -79,9 +105,19 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             DataType.IP,
             DataType.VERSION,
             DataType.KEYWORD,
-            DataType.TEXT
+            DataType.TEXT,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
         )) {
-            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier("No rows (" + dataType + ")", List::of, dataType, false, true);
+            var emptyFieldSupplier = new TestCaseSupplier.TypedDataSupplier(
+                "No rows (" + dataType + ")",
+                List::of,
+                dataType,
+                false,
+                true,
+                List.of()
+            );
 
             // With precision
             for (var precisionCaseSupplier : precisionSuppliers) {
@@ -92,8 +128,38 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             suppliers.add(makeSupplier(emptyFieldSupplier));
         }
 
-        // "No rows" expects 0 here instead of null
-        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+        suppliers.add(
+            makeSupplier(
+                manyInts("<long precision above integer range>"),
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<long precision above integer range>",
+                    () -> (1L << Integer.SIZE) + 1,
+                    DataType.LONG
+                )
+            )
+        );
+        suppliers.add(
+            makeSupplier(
+                manyInts("<unsigned long precision above integer range>"),
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<unsigned long precision above integer range>",
+                    () -> BigInteger.ONE.shiftLeft(Integer.SIZE).add(BigInteger.ONE),
+                    DataType.UNSIGNED_LONG
+                )
+            )
+        );
+        return suppliers;
+    }
+
+    private static TestCaseSupplier.TypedDataSupplier manyInts(String name) {
+        return new TestCaseSupplier.TypedDataSupplier(
+            name,
+            () -> IntStream.range(0, 1000).boxed().toList(),
+            DataType.INTEGER,
+            false,
+            true,
+            List.of()
+        );
     }
 
     @Override
@@ -109,7 +175,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var precisionTypedData = precisionSupplier.get().forceLiteral();
             var values = fieldTypedData.multiRowData();
-            var precision = ((Number) precisionTypedData.data()).intValue();
+            var precision = expectedPrecision(precisionTypedData);
 
             long result;
 
@@ -121,7 +187,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, precisionTypedData),
-                "CountDistinct[field=Attribute[channel=0],precision=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );
@@ -143,7 +209,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "CountDistinct[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("CountDistinct", fieldTypedData.type()),
                 DataType.LONG,
                 equalTo(result)
             );
@@ -172,5 +238,16 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
 
             return hll.cardinality(0);
         }
+    }
+
+    private static int expectedPrecision(TestCaseSupplier.TypedData precision) {
+        if (precision.type() == DataType.UNSIGNED_LONG) {
+            Number value = (Number) precision.data();
+            BigInteger unsignedValue = value instanceof BigInteger bigInteger
+                ? bigInteger
+                : BigInteger.valueOf(value.longValue() ^ Long.MIN_VALUE);
+            return unsignedValue.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
+        }
+        return Math.clamp(((Number) precision.data()).longValue(), 0, Integer.MAX_VALUE);
     }
 }

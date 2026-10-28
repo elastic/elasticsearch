@@ -17,14 +17,14 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +33,8 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,15 +50,13 @@ import java.util.function.Supplier;
 public class NetworkModuleTests extends ESTestCase {
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createThreadPool() throws Exception {
         threadPool = new TestThreadPool(NetworkModuleTests.class.getName());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -126,7 +126,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -173,7 +173,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -218,7 +218,7 @@ public class NetworkModuleTests extends ESTestCase {
                 HttpServerTransport.Dispatcher requestDispatcher,
                 BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
-                Tracer tracer
+                TelemetryProvider telemetryProvider
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -299,10 +299,10 @@ public class NetworkModuleTests extends ESTestCase {
             null,
             xContentRegistry(),
             null,
-            new NullDispatcher(),
+            new AggregatingDispatcher(),
             (preRequest, threadContext) -> {},
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            Tracer.NOOP
+            TelemetryProvider.NOOP
         );
     }
 }

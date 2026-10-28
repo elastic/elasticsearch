@@ -267,6 +267,29 @@ public class ClientYamlTestSuite {
         errors = Stream.concat(
             errors,
             sections.stream()
+                .filter(section -> section instanceof MatchesInAnyOrderAssertion)
+                .filter(
+                    section -> false == hasYamlRunnerFeature(MatchesInAnyOrderAssertion.NAME, testSection, setupSection, teardownSection)
+                )
+                .map(
+                    section -> String.format(
+                        Locale.ROOT,
+                        """
+                            attempted to add a [%s] assertion without a corresponding \
+                            ["requires": "test_runner_features": "%s"] so runners that do not support the \
+                            [%s] assertion can skip the test at line [%d]\
+                            """,
+                        MatchesInAnyOrderAssertion.NAME,
+                        MatchesInAnyOrderAssertion.NAME,
+                        MatchesInAnyOrderAssertion.NAME,
+                        section.getLocation().lineNumber()
+                    )
+                )
+        );
+
+        errors = Stream.concat(
+            errors,
+            sections.stream()
                 .filter(section -> section instanceof DoSection)
                 .map(section -> (DoSection) section)
                 .filter(section -> false == section.getApiCallSection().getHeaders().isEmpty())

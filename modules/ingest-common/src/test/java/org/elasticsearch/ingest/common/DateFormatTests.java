@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -193,9 +194,21 @@ public class DateFormatTests extends ESTestCase {
         try {
             function.apply("2001-01-0:00-0800");
             fail("parse should have failed");
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | DateTimeException e) {
             // all good
         }
+    }
+
+    public void testParseISO8601FailureHasEmptyStackTrace() {
+        Function<String, ZonedDateTime> function = DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null);
+        DateTimeException e = expectThrows(DateTimeException.class, () -> function.apply("not-a-date"));
+        assertThat(e.getStackTrace().length, equalTo(0));
+    }
+
+    public void testParseJavaFormatFailureHasEmptyStackTrace() {
+        Function<String, ZonedDateTime> function = DateFormat.Java.getFunction("uuuu-MM-dd", ZoneOffset.UTC, Locale.ROOT);
+        DateTimeException e = expectThrows(DateTimeException.class, () -> function.apply("not-a-date"));
+        assertThat(e.getStackTrace().length, equalTo(0));
     }
 
     public void testTAI64NParse() {

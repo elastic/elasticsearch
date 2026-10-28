@@ -16,14 +16,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
+import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -35,14 +39,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Transport action for shard recovery operation. This transport action does not actually
  * perform shard recovery, it only reports on recoveries (both active and complete).
  */
-public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
+public class TransportRecoveryAction extends TransportBroadcastByNodeAction<
+    RecoveryRequest,
+    RecoveryResponse,
+    ShardRecoveryInfo,
+    TransportRecoveryAction.BlockedRecoveries> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
+    private final ThrottlingRecoveryService throttlingRecoveryService;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportRecoveryAction(
@@ -50,7 +62,9 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
+        ThrottlingRecoveryService throttlingRecoveryService
     ) {
         super(
             RecoveryAction.NAME,
@@ -62,35 +76,41 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
+        this.throttlingRecoveryService = throttlingRecoveryService;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
-    protected RecoveryState readShardResult(StreamInput in) throws IOException {
-        return RecoveryState.readRecoveryState(in);
+    protected ShardRecoveryInfo readShardResult(StreamInput in) throws IOException {
+        return new ShardRecoveryInfo(in);
     }
 
     @Override
-    protected ResponseFactory<RecoveryResponse, RecoveryState> getResponseFactory(RecoveryRequest request, ClusterState clusterState) {
+    protected ResponseFactory<RecoveryResponse, ShardRecoveryInfo> getResponseFactory(RecoveryRequest request, ClusterState clusterState) {
         return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
-            Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
-            for (RecoveryState recoveryState : responses) {
-                if (recoveryState == null) {
+            Map<String, List<ShardRecoveryInfo>> shardResponses = new HashMap<>();
+            for (ShardRecoveryInfo recoveryInfo : responses) {
+                if (recoveryInfo == null) {
                     continue;
                 }
+                final RecoveryState recoveryState = recoveryInfo.recoveryState();
                 String indexName = recoveryState.getShardId().getIndexName();
                 if (shardResponses.containsKey(indexName) == false) {
                     shardResponses.put(indexName, new ArrayList<>());
                 }
-                if (request.activeOnly()) {
-                    if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
-                        shardResponses.get(indexName).add(recoveryState);
-                    }
-                } else {
-                    shardResponses.get(indexName).add(recoveryState);
+                if (request.activeOnly() == false || isActive(recoveryState)) {
+                    shardResponses.get(indexName).add(recoveryInfo);
                 }
             }
             return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
         };
+    }
+
+    /// A recovery is active if it has not yet completed, including recoveries that are queued ([RecoveryState.Stage#CREATED])
+    /// and those that have started. Only completed recoveries ([RecoveryState.Stage#DONE]) are excluded when `active_only` is set.
+    private static boolean isActive(RecoveryState recoveryState) {
+        return recoveryState.getStage() != RecoveryState.Stage.DONE;
     }
 
     @Override
@@ -99,27 +119,59 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     }
 
     @Override
-    protected void shardOperation(RecoveryRequest request, ShardRouting shardRouting, Task task, ActionListener<RecoveryState> listener) {
+    protected void shardOperation(
+        RecoveryRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        BlockedRecoveries nodeContext,
+        ActionListener<ShardRecoveryInfo> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            return indexShard.recoveryState();
+            assert shardRouting.allocationId() != null;
+            final RecoveryState recoveryState = indexShard.recoveryState();
+            final BlockedState blockedState = nodeContext.blockedState();
+            if (blockedState != null && nodeContext.allocationIds().contains(shardRouting.allocationId().getId())) {
+                return new ShardRecoveryInfo(recoveryState, blockedState.gateName(), nodeContext.blockedForMillis());
+            }
+            return new ShardRecoveryInfo(recoveryState, null, ShardRecoveryInfo.NOT_BLOCKED_MILLIS);
         });
     }
 
     @Override
+    protected BlockedRecoveries createNodeContext() {
+        final BlockedState blockedState = throttlingRecoveryService.blockedState();
+        final long blockedForMillis;
+        if (blockedState == null) {
+            blockedForMillis = ShardRecoveryInfo.NOT_BLOCKED_MILLIS;
+        } else {
+            blockedForMillis = threadPool.relativeTimeInMillis() - blockedState.sinceRelativeMillis();
+        }
+        return new BlockedRecoveries(blockedState, throttlingRecoveryService.queuedAllocationIds(), blockedForMillis);
+    }
+
+    /// Captures the recoveries that are blocked by a recovery gate.
+    record BlockedRecoveries(@Nullable BlockedState blockedState, Set<String> allocationIds, long blockedForMillis) {
+        BlockedRecoveries {
+            allocationIds = Set.copyOf(allocationIds);
+            assert blockedState == null ? blockedForMillis == ShardRecoveryInfo.NOT_BLOCKED_MILLIS : blockedForMillis >= 0L;
+        }
+    }
+
+    @Override
     protected ShardsIterator shards(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.routingTable().allShardsIncludingRelocationTargets(concreteIndices);
+        return state.routingTable(projectResolver.getProjectId()).allShardsIncludingRelocationTargets(concreteIndices);
     }
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RecoveryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

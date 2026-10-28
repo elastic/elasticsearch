@@ -10,6 +10,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpHost;
@@ -36,8 +37,11 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.rules.ErrorCollector;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Parameter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -59,8 +63,9 @@ import java.util.stream.Collectors;
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
  * clients against an elasticsearch cluster.
- *
+ * <p>
  * The suite timeout is extended to account for projects with a large number of tests.
+ * </p>
  */
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
@@ -68,6 +73,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
+     * <p>
+     * A per-task variant {@code tests.rest.suite.<task path>} is also recognised and takes precedence
+     * over the unscoped property when set; this lets a single Gradle invocation supply different suite
+     * lists to different {@code yamlRestTest} tasks via the {@code tests.task} system property each task
+     * already exposes (see {@code GradleTestPolicySetupPlugin}). For example, running
+     * {@code :modules:reindex:yamlRestTest :rest-api-spec:yamlRestTest} in one invocation can use:
+     * {@code -Dtests.rest.suite.:modules:reindex:yamlRestTest=reindex/51_routing}
+     * {@code -Dtests.rest.suite.:rest-api-spec:yamlRestTest=get/41_routing_doc_values}.
      */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
@@ -91,11 +104,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * This separator pattern matches ',' except it is preceded by a '\'.
      * This allows us to support ',' within paths when it is escaped with a slash.
-     *
+     * <p>
      * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
-     *
+     * </p><p>
      * For reference, this regular expression feature is known as zero-width negative look-behind.
-     *
+     * </p>
      */
     private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
@@ -108,8 +121,38 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static ClientYamlSuiteRestSpec restSpecification;
 
+    private ESClientYamlSuiteErrorCollector errorCollector;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
+        assertCandidateParameterNamedYaml(getClass());
         this.testCandidate = testCandidate;
+    }
+
+    /**
+     * randomizedtesting names each parameterized test case from the {@code @Name} annotations on the suite constructor's parameters, and
+     * falls back to {@code p<N>} when one is missing, reporting {@code test {p0=...}} instead of {@code test {yaml=...}}. Build tooling
+     * and {@code muted-tests.yml} match on {@code yaml}, and {@code @Name} is not inherited, so every concrete suite must declare it. This
+     * fails fast, naming the offending suite, rather than letting tests quietly run under a different name.
+     * <p>
+     * The annotation is required on the {@link ClientYamlTestCandidate} parameter wherever it sits; other parameters are not checked.
+     */
+    static void assertCandidateParameterNamedYaml(Class<?> suiteClass) {
+        for (Constructor<?> constructor : suiteClass.getConstructors()) {
+            for (Parameter parameter : constructor.getParameters()) {
+                if (ClientYamlTestCandidate.class.isAssignableFrom(parameter.getType()) == false) {
+                    continue;
+                }
+                Name name = parameter.getAnnotation(Name.class);
+                if (name == null || "yaml".equals(name.value()) == false) {
+                    throw new IllegalStateException(
+                        "Suite ["
+                            + suiteClass.getName()
+                            + "] must declare `@Name(\"yaml\")` on its ClientYamlTestCandidate constructor parameter so test cases are "
+                            + "reported as `test {yaml=...}`. See https://github.com/elastic/elasticsearch/pull/160897."
+                    );
+                }
+            }
+        }
     }
 
     @Before
@@ -126,13 +169,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
 
-            var semanticNodeVersions = nodesVersions.stream()
-                .map(ESRestTestCase::parseLegacyVersion)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
             final TestFeatureService testFeatureService = createTestFeatureService(
                 getClusterStateFeatures(adminClient()),
-                semanticNodeVersions
+                fromSemanticVersions(nodesVersions)
             );
 
             logger.info("initializing client, node versions [{}], hosts {}, os [{}]", nodesVersions, hosts, os);
@@ -171,6 +210,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+
+        errorCollector = new ESClientYamlSuiteErrorCollector();
     }
 
     /**
@@ -226,57 +267,73 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        return createParameters(executeableSectionRegistry, null);
+        return createParameters(executeableSectionRegistry, Map.of(), resolveRestTestsSuitePaths());
     }
 
     /**
      * Create parameters for this parameterized test.
-     */
-    public static Iterable<Object[]> createParameters(String[] testPaths, Map<String, Object> yamlParameters) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths, yamlParameters);
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     */
-    public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
-        return createParameters(testPaths, Collections.emptyMap());
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     *
-     * @param executeableSectionRegistry registry of executable sections
-     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
-     * @return list of test candidates.
-     * @throws Exception
-     */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
-        throws Exception {
-        return createParameters(executeableSectionRegistry, testPaths, Collections.emptyMap());
-    }
-
-    /**
-     * Create parameters for this parameterized test.
-     *
-     * @param executeableSectionRegistry registry of executable sections
-     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
      * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     */
+    public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolveRestTestsSuitePaths());
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     * @param testPaths      list of paths to explicitly search for tests.
+     */
+    public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
+        return createExplicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     * @param testPaths list of paths to explicitly search for tests.
+     */
+    public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
+        return createExplicitPathParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests.
      * @return list of test candidates.
-     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
+        throws Exception {
+        return createExplicitPathParameters(executeableSectionRegistry, Map.of(), testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param yamlParameters             map or parameters used within the yaml specs to be replaced at parsing time.
+     * @param testPaths                  list of paths to explicitly search for tests. If {@code null} then include all tests in root path.
+     * @return list of test candidates.
      */
     public static Iterable<Object[]> createParameters(
         NamedXContentRegistry executeableSectionRegistry,
-        String[] testPaths,
-        Map<String, ?> yamlParameters
+        Map<String, ?> yamlParameters,
+        String... testPaths
     ) throws Exception {
-        if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
-            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+
+        if (testPaths == null) {
+            throw new IllegalArgumentException("testPaths cannot be null");
         }
 
-        // default to all tests under the test root
-        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths;
-        Map<String, Set<Path>> yamlSuites = loadSuites(paths);
+        return buildParameters(executeableSectionRegistry, yamlParameters, loadSuites(testPaths));
+    }
+
+    /** Build the parameterized test candidates from an already-resolved set of yaml suites. */
+    private static Iterable<Object[]> buildParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        Map<String, Set<Path>> yamlSuites
+    ) throws Exception {
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -320,15 +377,122 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return tests;
     }
 
+    /**
+     * Entry point for the explicit-paths {@link #createParameters} overloads. Resolves the suite-selection
+     * system properties and builds the test candidates accordingly.
+     *
+     * When the per-task scoped {@code tests.rest.suite.<task path>} property is set, the suite's declared
+     * {@code testPaths} are intersected (at the resolved-file level) with the requested suites, so per-task
+     * tooling (e.g. the flakiness-detection re-run pipeline) can re-run just the changed subset; an empty
+     * intersection yields zero candidates. A bare, unscoped {@code tests.rest.suite} is unsupported on an
+     * explicit-paths suite and fails. When neither is set, the declared {@code testPaths} are run as-is.
+     *
+     * The property resolution is kept separate from {@link #explicitPathParameters} (which takes the
+     * resolved values as arguments) only so the behaviour above can be unit-tested without mutating
+     * global state.
+     */
+    private static Iterable<Object[]> createExplicitPathParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        String... testPaths
+    ) throws Exception {
+        String task = System.getProperty("tests.task");
+        String scoped = task == null ? null : System.getProperty(REST_TESTS_SUITE + "." + task);
+        String global = System.getProperty(REST_TESTS_SUITE);
+        return explicitPathParameters(executeableSectionRegistry, yamlParameters, scoped, global, testPaths);
+    }
+
+    /**
+     * Builds the candidates for an explicit-paths suite from already-resolved suite-selection values.
+     *
+     * @param scoped the value of the per-task scoped {@code tests.rest.suite.<task>} property, or {@code null}
+     * @param global the value of the bare {@code tests.rest.suite} property, or {@code null}
+     */
+    // pkg private for tests
+    static Iterable<Object[]> explicitPathParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        Map<String, ?> yamlParameters,
+        String scoped,
+        String global,
+        String... testPaths
+    ) throws Exception {
+        if (testPaths == null) {
+            throw new IllegalArgumentException("testPaths cannot be null");
+        }
+        String[] filter = explicitPathsSuiteFilter(scoped, global);
+        Map<String, Set<Path>> yamlSuites = loadSuites(testPaths);
+        if (filter.length > 0) {
+            yamlSuites = intersectSuites(yamlSuites, loadSuites(filter));
+        }
+        return buildParameters(executeableSectionRegistry, yamlParameters, yamlSuites);
+    }
+
+    /**
+     * The requested suite paths to intersect an explicit-paths suite's declared paths with, or an empty
+     * array when no scoping applies (run the declared paths as-is).
+     *
+     * The per-task scoped {@code tests.rest.suite.<task>} is honored (returned, split on
+     * {@link #PATHS_SEPARATOR}): it is set by tooling that deliberately targets this one task.
+     *
+     * A bare, unscoped {@code tests.rest.suite} is instead rejected with an exception. This is a
+     * deliberate policy choice, not a technical limit - it could be intersected too. But the bare form is
+     * the JVM-wide / CLI knob, and an explicit-paths suite builds its list from code, not the property; so
+     * honoring it here would either be a silent no-op (the value is dropped) or silently narrow the suite
+     * to nothing. Failing loudly forces the caller to use the scoped form (or not set it) instead.
+     */
+    private static String[] explicitPathsSuiteFilter(String scopedValue, String globalValue) {
+        if (scopedValue != null) {
+            return scopedValue.split(PATHS_SEPARATOR);
+        }
+        if (globalValue != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Intersects two resolved suite maps at the file level: keeps each {@code requested} file that is also
+     * {@code declared}. Because both sides are first resolved by {@link #loadSuites}, directory-vs-file
+     * granularity is handled naturally - a requested {@code painless/10_basic} narrows a declared
+     * {@code painless} down to that one file, and a requested {@code painless} directory keeps only the
+     * declared files under it. An empty result (the requested suite is not among the declared paths)
+     * yields zero test candidates.
+     */
+    private static Map<String, Set<Path>> intersectSuites(Map<String, Set<Path>> declared, Map<String, Set<Path>> requested) {
+        Set<Path> declaredFiles = declared.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+        return requested.entrySet()
+            .stream()
+            .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(declaredFiles::contains).collect(Collectors.toSet())))
+            .filter(e -> e.getValue().isEmpty() == false)
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+    }
+
     /** Find all yaml suites that match the given list of paths from the root test path. */
     // pkg private for tests
     static Map<String, Set<Path>> loadSuites(String... paths) throws Exception {
-        Map<String, Set<Path>> files = new HashMap<>();
         Path[] roots = ClasspathUtils.findFilePaths(ESClientYamlSuiteTestCase.class.getClassLoader(), TESTS_PATH);
-        for (Path root : roots) {
-            for (String strPath : paths) {
+        return loadSuites(roots, paths);
+    }
+
+    /**
+     * Find all yaml suites that match the given list of paths under the supplied {@code roots}.
+     *
+     * A yamlRestTest task can have more than one root on its classpath: the project's own
+     * {@code src/yamlRestTest/resources/rest-api-spec/test} resources, plus the output of
+     * {@code copyYamlTestsTask} (in {@code build/restResources/yamlTests}) that may pull in
+     * tests from sibling projects. A given user-specified suite path normally only lives in
+     * one of those roots, so requiring it to exist in every root produces spurious failures.
+     * Instead, require each path to be resolvable as a directory or {@code .yml} file in at
+     * least one root, and just skip roots where it isn't present.
+     */
+    static Map<String, Set<Path>> loadSuites(Path[] roots, String... paths) throws Exception {
+        Map<String, Set<Path>> files = new HashMap<>();
+        for (String strPath : paths) {
+            boolean found = false;
+            for (Path root : roots) {
                 Path path = root.resolve(strPath);
                 if (Files.isDirectory(path)) {
+                    found = true;
                     try (var filesStream = Files.walk(path)) {
                         filesStream.forEach(file -> {
                             if (file.toString().endsWith(".yml")) {
@@ -339,11 +503,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                         });
                     }
                 } else {
-                    path = root.resolve(strPath + ".yml");
-                    assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
-                    addSuite(root, path, files);
+                    Path ymlPath = root.resolve(strPath + ".yml");
+                    if (Files.exists(ymlPath)) {
+                        found = true;
+                        addSuite(root, ymlPath, files);
+                    }
                 }
             }
+            // The empty string is the "include everything" sentinel used by the default
+            // createParameters() entry point. It is legitimately allowed to resolve to
+            // nothing - e.g. a yamlRestCompatTest task whose project has no compat tests
+            // at all, so the classpath exposes no rest-api-spec/test root. Only enforce
+            // the typo guard for explicit, non-empty user-supplied suite paths.
+            assert strPath.isEmpty() || found : "Path " + strPath + " does not exist in any YAML test root: " + Arrays.toString(roots);
         }
         return files;
     }
@@ -382,6 +554,30 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
+    /**
+     * Resolves the value of {@link #REST_TESTS_SUITE}, preferring the per-task scoped form
+     * {@code tests.rest.suite.<task path>} when {@code tests.task} is set and a matching property
+     * exists. Returns {@code null} if neither form is set.
+     */
+    private static String resolveRestTestsSuiteProperty() {
+        String task = System.getProperty("tests.task");
+        if (task != null) {
+            String scoped = System.getProperty(REST_TESTS_SUITE + "." + task);
+            if (scoped != null) {
+                return scoped;
+            }
+        }
+        return System.getProperty(REST_TESTS_SUITE);
+    }
+
+    private static String[] resolveRestTestsSuitePaths() {
+        String value = resolveRestTestsSuiteProperty();
+        if (Strings.hasLength(value) == false) {
+            return new String[] { "" };
+        }
+        return value.split(PATHS_SEPARATOR);
+    }
+
     protected ClientYamlTestExecutionContext getAdminExecutionContext() {
         return adminExecutionContext;
     }
@@ -414,7 +610,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    static String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    public static String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
@@ -476,31 +672,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         restTestExecutionContext.clear();
+        // Prepare the stash so that ${_project_id_prefix_} is expanded as needed in some assertions:
+        restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
                 executeSection(executableSection);
             }
-        } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
-            }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
-        }
-    }
-
-    protected boolean skipSetupSections() {
-        return false;
-    }
-
-    /**
-     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
-     */
-    private void executeSection(ExecutableSection executableSection) {
-        try {
-            executableSection.execute(restTestExecutionContext);
-        } catch (AssertionError | Exception e) {
+            errorCollector.verify();
+        } catch (AssertionError e) {
             // Dump the original yaml file, if available, for reference.
             Optional<Path> file = testCandidate.getRestTestSuite().getFile();
             if (file.isPresent()) {
@@ -518,16 +698,41 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")
             );
-            if (e instanceof AssertionError) {
-                throw new AssertionError(errorMessage(executableSection, e), e);
-            } else {
-                throw new RuntimeException(errorMessage(executableSection, e), e);
+            throw e;
+        } finally {
+            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                executeSection(doSection);
             }
+            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
-    private String errorMessage(ExecutableSection executableSection, Throwable t) {
-        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
+    private void executeSection(ExecutableSection executableSection) {
+        errorCollector.checkSucceeds(() -> {
+            try {
+                executableSection.execute(restTestExecutionContext);
+                return null;
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                } else {
+                    throw new AssertionError(
+                        "Error executing section at ["
+                            + testCandidate.getSuitePath()
+                            + ":"
+                            + executableSection.getLocation().lineNumber()
+                            + "]: "
+                            + t.getMessage(),
+                        t
+                    );
+                }
+            }
+        });
+    }
+
+    protected boolean skipSetupSections() {
+        return false;
     }
 
     protected boolean randomizeContentType() {
@@ -552,5 +757,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     public ClientYamlTestCandidate getTestCandidate() {
         return testCandidate;
+    }
+
+    private static class ESClientYamlSuiteErrorCollector extends ErrorCollector {
+
+        public void verify() throws AssertionError {
+            try {
+                super.verify();
+            } catch (Throwable e) {
+                throw new AssertionError(e);
+            }
+        }
     }
 }

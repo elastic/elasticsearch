@@ -8,49 +8,58 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
 
-import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Plugin providing {@link DockerSupportService} for detecting Docker installations and determining requirements for Docker-based
  * Elasticsearch build tasks.
+ * <p>
+ * The service is shared per build, so the plugin is applied to each project that needs it rather than to the root project.
  */
 public class DockerSupportPlugin implements Plugin<Project> {
     public static final String DOCKER_SUPPORT_SERVICE_NAME = "dockerSupportService";
     public static final String DOCKER_ON_LINUX_EXCLUSIONS_FILE = ".ci/dockerOnLinuxExclusions";
 
+    private final ProjectLayout projectLayout;
+
+    @Inject
+    public DockerSupportPlugin(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
+    }
+
     @Override
     public void apply(Project project) {
-        if (project != project.getRootProject()) {
-            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
-        }
-        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
 
         Provider<DockerSupportService> dockerSupportServiceProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(DOCKER_SUPPORT_SERVICE_NAME, DockerSupportService.class, spec -> spec.parameters(params -> {
-                params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE));
-                params.getIsCI().set(buildParams.isCi());
+                params.setExclusionsFile(projectLayout.getSettingsDirectory().file(DOCKER_ON_LINUX_EXCLUSIONS_FILE).getAsFile());
+                params.getIsCI().set(buildParams.getCi());
             }));
 
-        // Ensure that if we are trying to run any DockerBuildTask tasks, we assert an available Docker installation exists
-        project.getGradle().getTaskGraph().whenReady(graph -> {
-            List<String> dockerTasks = graph.getAllTasks()
-                .stream()
-                .filter(task -> task instanceof DockerBuildTask)
-                .map(Task::getPath)
-                .collect(Collectors.toList());
+        // Every task that ends up in the task graph has been realized, so tracking realized tasks avoids realizing
+        // the ones that are not going to run.
+        List<DockerBuildTask> realizedDockerTasks = new ArrayList<>();
+        project.getTasks().withType(DockerBuildTask.class).configureEach(realizedDockerTasks::add);
 
+        // Ensure that if we are trying to run Docker build tasks, we assert an available Docker installation exists.
+        // Only this project's tasks are inspected; looking at tasks of other projects is forbidden by Isolated Projects.
+        project.getGradle().getTaskGraph().whenReady(graph -> {
+            List<String> dockerTasks = realizedDockerTasks.stream().filter(graph::hasTask).map(Task::getPath).toList();
             if (dockerTasks.isEmpty() == false) {
                 dockerSupportServiceProvider.get().failIfDockerUnavailable(dockerTasks);
             }

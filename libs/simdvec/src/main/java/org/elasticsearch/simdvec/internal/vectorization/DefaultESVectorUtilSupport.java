@@ -9,10 +9,25 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
+import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
+import java.io.IOException;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.Callable;
+
+public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
@@ -22,7 +37,200 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    DefaultESVectorUtilSupport() {}
+    static void floatToBFloat16Impl(float[] floats, int floatOffset, byte[] bFloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            arrayAccess.set(bFloats, i * Short.BYTES + bfloatOffset, BFloat16Support.floatToBFloat16(floats[i + floatOffset]));
+        }
+    }
+
+    static void bFloat16ToFloatImpl(byte[] bFloats, int bfOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            floats[i + floatOffset] = BFloat16Support.bFloat16ToFloat((short) arrayAccess.get(bFloats, i * Short.BYTES + bfOffset));
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        floatToBFloat16Impl(floats, 0, bfBytes, 0, floatCount, byteOrder);
+    }
+
+    @Override
+    public void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        bFloat16ToFloatImpl(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
+    }
+
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
+            return VectorUtil.dotProduct(a, b);
+        }
+        float sum = 0f;
+        int aEnd = aOffset + length;
+        for (int ai = aOffset, bi = bOffset; ai < aEnd; ai++, bi++) {
+            sum = fma(a[ai], b[bi], sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public float l2Normalize(float[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return 0;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (float) (v[j] * invNorm);
+        }
+        return (float) normSq;
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b, int offset, int length) {
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            float diff = a[i] - b[i];
+            sum = fma(diff, diff, sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public float cosine(byte[] a, byte[] b) {
+        return VectorUtil.cosine(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (offset == 0 && length == a.length) {
+            return VectorUtil.dotProduct(a, b);
+        }
+        int sum = 0;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum += a[i] * b[i];
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(byte[] v, int offset, int length) {
+        double normSq = 0;
+        int end = offset + length;
+        for (int j = offset; j < end; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = offset; j < end; j++) {
+            v[j] = (byte) (v[j] * invNorm);
+        }
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        float dist = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            dist = fma(diff, diff, dist);
+        }
+        return dist;
+    }
+
+    static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (byte[] bytes : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(bytes, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
 
     @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
@@ -35,18 +243,40 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float ipFloatBit(float[] q, byte[] d) {
-        return ipFloatBitImpl(q, d);
+    public float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        return ipFloatBitImpl(q, qOffset, d, dOffset, qLength);
+    }
+
+    @Override
+    public float ipFloatByte(float[] q, byte[] d) {
+        return ipFloatByteImpl(q, d);
+    }
+
+    @Override
+    public float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        float dsq = VectorUtil.squareDistance(v1, centroid);
+        float proj = 0;
+        for (int i = 0; i < v1.length; i++) {
+            float djk = v1[i] - centroid[i];
+            proj = fma(djk, originalResidual[i], proj);
+        }
+        return dsq + soarLambda * proj * proj / rnorm;
     }
 
     public static int ipByteBitImpl(byte[] q, byte[] d) {
+        return ipByteBitImpl(q, d, 0);
+    }
+
+    public static int ipByteBitImpl(byte[] q, byte[] d, int start) {
         assert q.length == d.length * Byte.SIZE;
         int acc0 = 0;
         int acc1 = 0;
         int acc2 = 0;
         int acc3 = 0;
         // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
+        for (int i = start; i < d.length; i++) {
             byte mask = d[i];
             // Make sure its just 1 or 0
 
@@ -63,42 +293,694 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return acc0 + acc1 + acc2 + acc3;
     }
 
-    public static float ipFloatBitImpl(float[] q, byte[] d) {
-        assert q.length == d.length * Byte.SIZE;
+    static float ipFloatBitImpl(float[] q, int qOffset, byte[] d, int dOffset, int length) {
         float acc0 = 0;
         float acc1 = 0;
         float acc2 = 0;
         float acc3 = 0;
-        // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
-            byte mask = d[i];
-            acc0 = fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
-            acc1 = fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
-            acc2 = fma(q[i * Byte.SIZE + 2], (mask >> 5) & 1, acc2);
-            acc3 = fma(q[i * Byte.SIZE + 3], (mask >> 4) & 1, acc3);
+        int limit = length >>> 3;
+        for (int i = 0; i < limit; i++) {
+            byte mask = d[dOffset + i];
+            int base = qOffset + i * Byte.SIZE;
+            acc0 = fma(q[base + 0], (mask >> 7) & 1, acc0);
+            acc1 = fma(q[base + 1], (mask >> 6) & 1, acc1);
+            acc2 = fma(q[base + 2], (mask >> 5) & 1, acc2);
+            acc3 = fma(q[base + 3], (mask >> 4) & 1, acc3);
 
-            acc0 = fma(q[i * Byte.SIZE + 4], (mask >> 3) & 1, acc0);
-            acc1 = fma(q[i * Byte.SIZE + 5], (mask >> 2) & 1, acc1);
-            acc2 = fma(q[i * Byte.SIZE + 6], (mask >> 1) & 1, acc2);
-            acc3 = fma(q[i * Byte.SIZE + 7], (mask >> 0) & 1, acc3);
+            acc0 = fma(q[base + 4], (mask >> 3) & 1, acc0);
+            acc1 = fma(q[base + 5], (mask >> 2) & 1, acc1);
+            acc2 = fma(q[base + 6], (mask >> 1) & 1, acc2);
+            acc3 = fma(q[base + 7], (mask >> 0) & 1, acc3);
+        }
+        int tail = length & 7;
+        if (tail > 0) {
+            byte mask = d[dOffset + limit];
+            int base = qOffset + limit * Byte.SIZE;
+            for (int j = 0; j < tail; j++) {
+                acc0 = fma(q[base + j], (mask >> (7 - j)) & 1, acc0);
+            }
         }
         return acc0 + acc1 + acc2 + acc3;
     }
 
+    /**
+     * Returns the inner product (aka dot product) between the query vector {@code q}, and the data vector {@code d}.
+     * <p>
+     * The query vector should be {@link #B_QUERY}-bit quantized and striped, so that the first {@code n} bits
+     * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
+     * bits are the second bits of each of the {@code n} vector dimensions, and so on
+     * (this algorithm is only valid for vectors with dimensions a multiple of 8).
+     * The striping is usually done by {@code ESVectorUtil.stride4BitValues}.
+     * <p>
+     * The data vector should be single-bit quantized.
+     *
+     * <h4>Dot products with bit quantization</h4>
+     *
+     * The dot product of any vector with a bit vector is a simple selector - each query vector dimension is multiplied
+     * by the 0 or 1 in the corresponding data vector dimension; the result is that each dimension value
+     * is either kept or ignored, with the dimensions that are kept then summed together.
+     *
+     * <h4>The algorithm</h4>
+     *
+     * The transposition already applied to the query vector ensures there's a 1-to-1 correspondence
+     * between the data vector bits and query vector bits (see {@code ESVectorUtil.stride4BitValues)};
+     * this means we can use a bitwise {@code &} to keep only the bits of the vector elements we want to sum.
+     * Essentially, the data vector is used as a selector for each of the striped bits of each vector dimension
+     * as stored, concatenated together, in {@code q}.
+     * <p>
+     * The final dot product result can be obtained by observing that the sum of each stripe of {@code n} bits
+     * can be computed using the bit count of that stripe. Similar to
+     * <a href="https://en.wikipedia.org/wiki/Multiplication_algorithm#Long_multiplication">long multiplication</a>,
+     * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
+     * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
+     *
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
+     * @param d data vector, 1-bit quantized
+     * @return  inner product result
+     */
     public static long ipByteBinByteImpl(byte[] q, byte[] d) {
         long ret = 0;
         int size = d.length;
-        for (int i = 0; i < B_QUERY; i++) {
+        for (int s = 0; s < B_QUERY; s++) { // for each stripe of B_QUERY-bit quantization in q...
             int r = 0;
-            long subRet = 0;
+            long stripeRet = 0;
+            // bitwise & the query and data vectors together, 32-bits at a time, and counting up the bits still set
             for (final int upperBound = d.length & -Integer.BYTES; r < upperBound; r += Integer.BYTES) {
-                subRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, i * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
+                stripeRet += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(q, s * size + r) & (int) BitUtil.VH_NATIVE_INT.get(d, r));
             }
+            // handle any tail
+            // Java operations on bytes automatically extend to int, so we need to mask back down again in case it sign-extends the int
             for (; r < d.length; r++) {
-                subRet += Integer.bitCount((q[i * size + r] & d[r]) & 0xFF);
+                stripeRet += Integer.bitCount((q[s * size + r] & d[r]) & 0xFF);
             }
-            ret += subRet << i;
+            // shift the result of the s'th stripe s to the left and add to the result
+            ret += stripeRet << s;
         }
         return ret;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        float ret = 0;
+        for (int i = 0; i < q.length; i++) {
+            ret = fma(q[i], d[i], ret);
+        }
+        return ret;
+    }
+
+    @Override
+    public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        float[] query,
+        int vectorOffset,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    ) {
+        if (vectorOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
+        }
+    }
+
+    @Override
+    public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
+    public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.cosine(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.cosine(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.cosine(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.cosine(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        byte[] query,
+        int vectorOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    ) {
+        if (vectorOffset == 0 && length == query.length) {
+            distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+            distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+            distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+            distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+        } else {
+            distances[distancesOffset] = squareDistance(query, v0, vectorOffset, length);
+            distances[distancesOffset + 1] = squareDistance(query, v1, vectorOffset, length);
+            distances[distancesOffset + 2] = squareDistance(query, v2, vectorOffset, length);
+            distances[distancesOffset + 3] = squareDistance(query, v3, vectorOffset, length);
+        }
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistance(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistance(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistance(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistance(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistanceByte(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistanceByte(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistanceByte(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistanceByte(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    static float soarDistanceByte(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        int sqDist = 0;
+        float proj = 0;
+        for (int i = 0; i < v1.length; i++) {
+            int diff = v1[i] - centroid[i];
+            sqDist += diff * diff;
+            proj = fma(diff, originalResidual[i], proj);
+        }
+        return sqDist + soarLambda * proj * proj / rnorm;
+    }
+
+    @Override
+    public float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        return soarDistanceByte(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    @Override
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        stride2BitValuesImpl(vector, packed);
+    }
+
+    public static void stride2BitValuesImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            assert vector[i + 4] >= 0 && vector[i + 4] <= 3;
+            assert vector[i + 5] >= 0 && vector[i + 5] <= 3;
+            assert vector[i + 6] >= 0 && vector[i + 6] <= 3;
+            assert vector[i + 7] >= 0 && vector[i + 7] <= 3;
+            int lowerByte = (vector[i] & 1) << 7 | (vector[i + 1] & 1) << 6 | (vector[i + 2] & 1) << 5 | (vector[i + 3] & 1) << 4
+                | (vector[i + 4] & 1) << 3 | (vector[i + 5] & 1) << 2 | (vector[i + 6] & 1) << 1 | (vector[i + 7] & 1);
+            int upperByte = ((vector[i] >> 1) & 1) << 7 | ((vector[i + 1] >> 1) & 1) << 6 | ((vector[i + 2] >> 1) & 1) << 5 | ((vector[i
+                + 3] >> 1) & 1) << 4 | ((vector[i + 4] >> 1) & 1) << 3 | ((vector[i + 5] >> 1) & 1) << 2 | ((vector[i + 6] >> 1) & 1) << 1
+                | ((vector[i + 7] >> 1) & 1);
+            packed[index] = (byte) lowerByte;
+            packed[index + packed.length / 2] = (byte) upperByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int lowerByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < vector.length; j--, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            lowerByte |= (vector[i] & 1) << j;
+            upperByte |= ((vector[i] >> 1) & 1) << j;
+        }
+        packed[index] = (byte) lowerByte;
+        packed[index + packed.length / 2] = (byte) upperByte;
+    }
+
+    @Override
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        pack2BitValuesImpl(vector, packed);
+    }
+
+    public static void pack2BitValuesImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 3;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 4, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            int packedByte = (vector[i] & 0x03) << 6 | (vector[i + 1] & 0x03) << 4 | (vector[i + 2] & 0x03) << 2 | (vector[i + 3] & 0x03);
+            packed[index] = (byte) packedByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int packedByte = 0;
+        for (int shift = 6; i < vector.length; shift -= 2, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            packedByte |= (vector[i] & 0x03) << shift;
+        }
+        packed[index] = (byte) packedByte;
+    }
+
+    @Override
+    public void pack1BitValues(int[] vector, byte[] packed) {
+        pack1BitValuesImpl(vector, packed);
+    }
+
+    public static void pack1BitValuesImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] == 0 || vector[i] == 1;
+            assert vector[i + 1] == 0 || vector[i + 1] == 1;
+            assert vector[i + 2] == 0 || vector[i + 2] == 1;
+            assert vector[i + 3] == 0 || vector[i + 3] == 1;
+            assert vector[i + 4] == 0 || vector[i + 4] == 1;
+            assert vector[i + 5] == 0 || vector[i + 5] == 1;
+            assert vector[i + 6] == 0 || vector[i + 6] == 1;
+            assert vector[i + 7] == 0 || vector[i + 7] == 1;
+            int result = vector[i] << 7 | (vector[i + 1] << 6) | (vector[i + 2] << 5) | (vector[i + 3] << 4) | (vector[i + 4] << 3)
+                | (vector[i + 5] << 2) | (vector[i + 6] << 1) | (vector[i + 7]);
+            packed[index] = (byte) result;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        byte result = 0;
+        for (int j = 7; j >= 0 && i < vector.length; i++, j--) {
+            assert vector[i] == 0 || vector[i] == 1;
+            result |= (byte) ((vector[i] & 1) << j);
+        }
+        packed[index] = result;
+    }
+
+    @Override
+    public void stride4BitValues(int[] vector, byte[] packed) {
+        stride4BitValuesImpl(vector, packed);
+    }
+
+    public static void stride4BitValuesImpl(int[] q, byte[] quantQueryByte) {
+        int limit = q.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert q[i] >= 0 && q[i] <= 15;
+            assert q[i + 1] >= 0 && q[i + 1] <= 15;
+            assert q[i + 2] >= 0 && q[i + 2] <= 15;
+            assert q[i + 3] >= 0 && q[i + 3] <= 15;
+            assert q[i + 4] >= 0 && q[i + 4] <= 15;
+            assert q[i + 5] >= 0 && q[i + 5] <= 15;
+            assert q[i + 6] >= 0 && q[i + 6] <= 15;
+            assert q[i + 7] >= 0 && q[i + 7] <= 15;
+            int lowerByte = (q[i] & 1) << 7 | (q[i + 1] & 1) << 6 | (q[i + 2] & 1) << 5 | (q[i + 3] & 1) << 4 | (q[i + 4] & 1) << 3 | (q[i
+                + 5] & 1) << 2 | (q[i + 6] & 1) << 1 | (q[i + 7] & 1);
+            int lowerMiddleByte = ((q[i] >> 1) & 1) << 7 | ((q[i + 1] >> 1) & 1) << 6 | ((q[i + 2] >> 1) & 1) << 5 | ((q[i + 3] >> 1) & 1)
+                << 4 | ((q[i + 4] >> 1) & 1) << 3 | ((q[i + 5] >> 1) & 1) << 2 | ((q[i + 6] >> 1) & 1) << 1 | ((q[i + 7] >> 1) & 1);
+            int upperMiddleByte = ((q[i] >> 2) & 1) << 7 | ((q[i + 1] >> 2) & 1) << 6 | ((q[i + 2] >> 2) & 1) << 5 | ((q[i + 3] >> 2) & 1)
+                << 4 | ((q[i + 4] >> 2) & 1) << 3 | ((q[i + 5] >> 2) & 1) << 2 | ((q[i + 6] >> 2) & 1) << 1 | ((q[i + 7] >> 2) & 1);
+            int upperByte = ((q[i] >> 3) & 1) << 7 | ((q[i + 1] >> 3) & 1) << 6 | ((q[i + 2] >> 3) & 1) << 5 | ((q[i + 3] >> 3) & 1) << 4
+                | ((q[i + 4] >> 3) & 1) << 3 | ((q[i + 5] >> 3) & 1) << 2 | ((q[i + 6] >> 3) & 1) << 1 | ((q[i + 7] >> 3) & 1);
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+        }
+        if (i == q.length) {
+            return; // all done
+        }
+        int lowerByte = 0;
+        int lowerMiddleByte = 0;
+        int upperMiddleByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < q.length; j--, i++) {
+            lowerByte |= (q[i] & 1) << j;
+            lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+            upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+            upperByte |= ((q[i] >> 3) & 1) << j;
+        }
+        quantQueryByte[index] = (byte) lowerByte;
+        quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+        quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+        quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+    }
+
+    @Override
+    public int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length) {
+        return ByteArrayUtils.indexOfLineTerminatorLeadByte(bytes, offset, length);
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    }
+
+    @Override
+    public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return ByteArrayUtils.mayContainIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return ByteArrayUtils.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public boolean anyNonAscii(byte[] value, int offset, int length) {
+        return ByteArrayUtils.anyNonAscii(value, offset, length);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        for (int i = 0; i < values.length; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
+    }
+
+    @Override
+    public void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], scaleDest * dest[destOffset + d]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], dest[destOffset + d]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], scaleDest * dest[d]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], dest[d]);
+        }
+    }
+
+    @Override
+    public float logSumExpNQT(float[] vector) {
+        assert vector.length > 0;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (float v : vector) {
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+
+        // Uses a <a href="https://www.nowozin.net/sebastian/blog/streaming-log-sum-exp-computation.html">streaming algorithm</a>.
+        float maxVal = Float.NEGATIVE_INFINITY;
+        float sum = 0.0f;
+        for (int i = 0; i < v1.length; i++) {
+            float v = (v1[i] - v2[i]) / eps;
+            float newMaxVal = Math.max(maxVal, v);
+            sum *= MathUtils.pow2NQT(maxVal - newMaxVal);
+            sum += MathUtils.pow2NQT(v - newMaxVal);
+            maxVal = newMaxVal;
+        }
+
+        return maxVal + MathUtils.log2NQT(sum);
+    }
+
+    @Override
+    public void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        assert v1.length > 0;
+        assert v1.length == v2.length;
+        assert v1.length == result.length;
+
+        for (int j = 0; j < v1.length; j++) {
+            result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
+        }
+    }
+
+    @Override
+    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, m, k, n, false, executor);
+    }
+
+    @Override
+    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        Arrays.fill(result, 0);
+        multiplyAccumulate(a, k, b, result, n, k, n, true, executor);
+    }
+
+    private static final int MIN_PARALLEL_TASKS = 16;
+
+    /**
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
+     *
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
+     * @param upperOnly  C is square and symmetric: each row computes only the entries on and above the diagonal, and copies
+     *                   them into the same column below it
+     */
+    private void multiplyAccumulate(
+        float[] a,
+        int aRowStride,
+        float[] b,
+        float[] c,
+        int cRows,
+        int inner,
+        int n,
+        boolean upperOnly,
+        TaskExecutor executor
+    ) {
+        assert upperOnly == false || cRows == n : "a symmetric product is square";
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        int innerLimit = inner - inner % 4;
+        int taskNum = cRows / 4;
+
+        if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
+            for (int r = 0; r < cRows; r++) {
+                multiplyRow(a, aRowStride, b, c, inner, n, r, upperOnly, innerLimit);
+            }
+        } else {
+            List<Callable<Void>> ops = new ArrayList<>(taskNum);
+            for (int r = 0; r < cRows; r += 4) {
+                int rowStart = r;
+                int rowEnd = Math.min(r + 4, cRows);
+                ops.add(() -> {
+                    for (int i = rowStart; i < rowEnd; i++) {
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, upperOnly, innerLimit);
+                    }
+                    return null;
+                });
+            }
+
+            try {
+                executor.invokeAll(ops);
+            } catch (IOException e) {
+                // can't happen
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    /**
+     * Accumulates row {@code i} of C. With {@code upperOnly} it accumulates only from the diagonal on, and once the row is
+     * complete copies it into column {@code i} below the diagonal. Only the task for row {@code i} writes that column, so
+     * tasks for different rows do not write the same entries.
+     */
+    private void multiplyRow(float[] a, int aRowStride, float[] b, float[] c, int inner, int n, int i, boolean upperOnly, int innerLimit) {
+        int firstColumn = upperOnly ? i : 0;
+        int aBase = i * aRowStride;
+        int cBase = i * n;
+        int l = 0;
+        for (; l < innerLimit; l += 4) {
+            int aOffset = aBase + l;
+            int b0 = l * n;
+            int b1 = b0 + n;
+            int b2 = b0 + n * 2;
+            int b3 = b0 + n * 3;
+            for (int j = firstColumn; j < n; j++) {
+                float acc = c[cBase + j];
+                acc = fma(a[aOffset], b[b0 + j], acc);
+                acc = fma(a[aOffset + 1], b[b1 + j], acc);
+                acc = fma(a[aOffset + 2], b[b2 + j], acc);
+                acc = fma(a[aOffset + 3], b[b3 + j], acc);
+                c[cBase + j] = acc;
+            }
+        }
+        // tail
+        for (; l < inner; l++) {
+            linearCombination(a[aBase + l], b, l * n + firstColumn, c, cBase + firstColumn, n - firstColumn);
+        }
+        if (upperOnly) {
+            for (int j = i + 1; j < n; j++) {
+                c[j * n + i] = c[cBase + j];
+            }
+        }
+    }
+
+    @Override
+    public void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        // unroll x4
+        int i = 0;
+        for (; i + 4 <= rows; i += 4) {
+            int a0 = i * cols;
+            int a1 = a0 + cols;
+            int a2 = a0 + cols * 2;
+            int a3 = a0 + cols * 3;
+            float s0 = 0;
+            float s1 = 0;
+            float s2 = 0;
+            float s3 = 0;
+            for (int j = 0; j < cols; j++) {
+                float vj = v[j];
+                s0 = fma(a[a0 + j], vj, s0);
+                s1 = fma(a[a1 + j], vj, s1);
+                s2 = fma(a[a2 + j], vj, s2);
+                s3 = fma(a[a3 + j], vj, s3);
+            }
+            result[i] = s0;
+            result[i + 1] = s1;
+            result[i + 2] = s2;
+            result[i + 3] = s3;
+        }
+        // tail
+        for (; i < rows; i++) {
+            int ai = i * cols;
+            float sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum = fma(a[ai + j], v[j], sum);
+            }
+            result[i] = sum;
+        }
+    }
+
+    @Override
+    public void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        // unroll x4
+        int i = 0;
+        for (; i + 4 <= rows; i += 4) {
+            int a0 = i * cols;
+            int a1 = a0 + cols;
+            int a2 = a0 + cols * 2;
+            int a3 = a0 + cols * 3;
+            int s0 = 0;
+            int s1 = 0;
+            int s2 = 0;
+            int s3 = 0;
+            for (int j = 0; j < cols; j++) {
+                int vj = v[j];
+                s0 += a[a0 + j] * vj;
+                s1 += a[a1 + j] * vj;
+                s2 += a[a2 + j] * vj;
+                s3 += a[a3 + j] * vj;
+            }
+            result[i] = s0;
+            result[i + 1] = s1;
+            result[i + 2] = s2;
+            result[i + 3] = s3;
+        }
+        // tail
+        for (; i < rows; i++) {
+            int ai = i * cols;
+            int sum = 0;
+            for (int j = 0; j < cols; j++) {
+                sum += a[ai + j] * v[j];
+            }
+            result[i] = sum;
+        }
     }
 }

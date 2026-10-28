@@ -1,0 +1,2 @@
+FROM languages METADATA _index
+| KEEP *

@@ -1,6 +1,0 @@
-pr: 119898
-summary: Resolve/cluster allows querying for cluster info only (no index expression
-  required)
-area: CCS
-type: enhancement
-issues: []

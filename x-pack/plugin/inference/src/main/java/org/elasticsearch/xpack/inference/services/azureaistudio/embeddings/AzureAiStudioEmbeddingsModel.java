@@ -13,11 +13,11 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
+import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -48,10 +48,14 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    public AzureAiStudioEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AzureAiStudioEmbeddingsModel(
@@ -71,7 +75,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             AzureAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureAiStudioEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -99,7 +103,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URI(this.target + EMBEDDINGS_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + EMBEDDINGS_URI_PATH);
     }
 
     @Override

@@ -81,8 +81,34 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         return remoteClient;
     }
 
+    protected boolean isSkipUnavailable() {
+        return true;
+    }
+
+    @Override
+    public void testAlias() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testAlias();
+    }
+
+    @Override
+    public void testInexistentIndexNameWithoutWildcard() {
+        assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isSkipUnavailable());
+        super.testInexistentIndexNameWithoutWildcard();
+    }
+
+    @Override
+    public void testExistentIndexWithoutWildcard() throws IOException {
+        assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());
+        super.testExistentIndexWithoutWildcard();
+    }
+
     @Before
     public void skipTestOnOldVersions() {
-        assumeTrue("skip on old versions", Clusters.localClusterVersion().equals(Version.V_8_16_0));
+        Version version = Clusters.localClusterVersion();
+        assumeTrue(
+            "skip on old versions",
+            version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0))
+        );
     }
 }

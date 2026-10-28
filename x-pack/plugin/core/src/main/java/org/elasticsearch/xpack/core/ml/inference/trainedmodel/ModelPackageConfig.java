@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -178,16 +177,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            this.platformArchitecture = in.readOptionalString();
-        } else {
-            platformArchitecture = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
-        } else {
-            prefixStrings = null;
-        }
+        this.platformArchitecture = in.readOptionalString();
+        prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
     }
 
     public String getPackagedModelId() {
@@ -312,12 +303,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
-            out.writeOptionalString(platformArchitecture);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(prefixStrings);
-        }
+        out.writeOptionalString(platformArchitecture);
+        out.writeOptionalWriteable(prefixStrings);
     }
 
     @Override

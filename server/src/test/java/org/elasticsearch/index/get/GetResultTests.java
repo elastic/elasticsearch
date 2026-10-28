@@ -18,6 +18,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -25,6 +27,7 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -49,6 +52,77 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class GetResultTests extends ESTestCase {
 
+    public static GetResult parseInstance(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        return parseInstanceFromEmbedded(parser);
+    }
+
+    public static GetResult parseInstanceFromEmbedded(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+        return parseInstanceFromEmbedded(parser, null, null);
+    }
+
+    public static GetResult parseInstanceFromEmbedded(XContentParser parser, String index, String id) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+
+        String currentFieldName = parser.currentName();
+        long version = -1;
+        long seqNo = UNASSIGNED_SEQ_NO;
+        long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        Boolean found = null;
+        BytesReference source = null;
+        Map<String, DocumentField> documentFields = new HashMap<>();
+        Map<String, DocumentField> metaFields = new HashMap<>();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (GetResult._INDEX.equals(currentFieldName)) {
+                    index = parser.text();
+                } else if (GetResult._ID.equals(currentFieldName)) {
+                    id = parser.text();
+                } else if (GetResult._VERSION.equals(currentFieldName)) {
+                    version = parser.longValue();
+                } else if (GetResult._SEQ_NO.equals(currentFieldName)) {
+                    seqNo = parser.longValue();
+                } else if (GetResult._PRIMARY_TERM.equals(currentFieldName)) {
+                    primaryTerm = parser.longValue();
+                } else if (GetResult.FOUND.equals(currentFieldName)) {
+                    found = parser.booleanValue();
+                } else {
+                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, singletonList(parser.objectText())));
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (SourceFieldMapper.NAME.equals(currentFieldName)) {
+                    try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+                        // the original document gets slightly modified: whitespaces or pretty printing are not preserved,
+                        // it all depends on the current builder settings
+                        builder.copyCurrentStructure(parser);
+                        source = BytesReference.bytes(builder);
+                    }
+                } else if (GetResult.FIELDS.equals(currentFieldName)) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        DocumentField getField = DocumentField.fromXContent(parser);
+                        documentFields.put(getField.getName(), getField);
+                    }
+                } else {
+                    parser.skipChildren(); // skip potential inner objects for forward compatibility
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (IgnoredFieldMapper.NAME.equals(currentFieldName) || IgnoredSourceFieldMapper.NAME.equals(currentFieldName)) {
+                    metaFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
+                } else {
+                    parser.skipChildren(); // skip potential inner arrays for forward compatibility
+                }
+            }
+        }
+        return new GetResult(index, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
+    }
+
     public void testToAndFromXContent() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
@@ -59,7 +133,7 @@ public class GetResultTests extends ESTestCase {
         // test that we can parse what we print out
         GetResult parsedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedGetResult = GetResult.fromXContent(parser);
+            parsedGetResult = parseInstance(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResult, parsedGetResult);
@@ -136,7 +210,7 @@ public class GetResultTests extends ESTestCase {
         GetResult parsedEmbeddedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsedEmbeddedGetResult = GetResult.fromXContentEmbedded(parser);
+            parsedEmbeddedGetResult = parseInstanceFromEmbedded(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResult, parsedEmbeddedGetResult);

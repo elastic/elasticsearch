@@ -9,10 +9,10 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -20,25 +20,31 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Supplier;
+
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKeyAndToken;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3SessionCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String SESSION_TOKEN = PREFIX + "session-token";
     private static final String CLIENT = "session_credentials_client";
 
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        BUCKET,
-        BASE_PATH,
-        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
+        null,
+        bucketSupplier,
+        basePathSupplier,
+        S3ConsistencyModel::randomConsistencyModel,
+        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, ANY_REGION, "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -59,12 +65,12 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

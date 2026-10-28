@@ -17,10 +17,12 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -40,8 +42,8 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQueryParser(SearchExecutionContext context) {
-        super(context);
+    public MultiMatchQueryParser(SearchExecutionContext context, QueryVisitor queryVisitor) {
+        super(context, queryVisitor);
     }
 
     public void setTieBreaker(float tieBreaker) {
@@ -53,7 +55,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         boolean hasMappedField = fieldNames.keySet().stream().anyMatch(k -> context.getFieldType(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
-            return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+            Query query = Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+            query.visit(queryVisitor);
+            return query;
         }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries = switch (type) {
@@ -126,15 +130,30 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                     group.getKey(),
                     group.getValue().get(0).fieldType,
                     enablePositionIncrements,
-                    autoGenerateSynonymsPhraseQuery
+                    autoGenerateSynonymsPhraseQuery,
+                    queryVisitor
                 );
             } else {
+                // The type blends the term statistics several fields keep in an index, which is what it is for. A
+                // field answering from its values keeps none, and a blend over it would quietly leave its matches
+                // out, so it is refused rather than answered in part.
+                for (FieldAndBoost field : group.getValue()) {
+                    if (answersFromValues(field.fieldType)) {
+                        throw new IllegalArgumentException(
+                            "Cannot run [cross_fields] over field ["
+                                + field.fieldType.name()
+                                + "] since it is answered from its values, which hold none of the term statistics the"
+                                + " type blends"
+                        );
+                    }
+                }
                 builder = new CrossFieldsQueryBuilder(
                     group.getKey(),
                     group.getValue(),
                     tieBreaker,
                     enablePositionIncrements,
-                    autoGenerateSynonymsPhraseQuery
+                    autoGenerateSynonymsPhraseQuery,
+                    queryVisitor
                 );
             }
 
@@ -145,13 +164,26 @@ public class MultiMatchQueryParser extends MatchQueryParser {
              */
             String representativeField = group.getValue().get(0).fieldType.name();
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
+            // Only what the clauses came to is read from the values; the query standing in for none of them below
+            // names no field to read.
+            final boolean readsValues = query != null
+                && group.getValue().size() == 1
+                && answersFromValues(group.getValue().get(0).fieldType);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
+                if (query != null) {
+                    query.visit(queryVisitor);
+                }
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             if (query != null) {
                 if (group.getValue().size() == 1) {
+                    if (readsValues) {
+                        // The clauses name what they look for; nothing has read the field's values to find it yet,
+                        // as the query built for one field on its own is read elsewhere.
+                        query = ((TextFamilyFieldType) group.getValue().get(0).fieldType).toReanalyzingQuery(query, context);
+                    }
                     // apply the field boost to groups that contain a single field
                     float boost = group.getValue().get(0).boost;
                     if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -168,17 +200,20 @@ public class MultiMatchQueryParser extends MatchQueryParser {
     private class CrossFieldsQueryBuilder extends MatchQueryBuilder {
         private final List<FieldAndBoost> blendedFields;
         private final float tieBreaker;
+        private final QueryVisitor queryVisitor;
 
         CrossFieldsQueryBuilder(
             Analyzer analyzer,
             List<FieldAndBoost> blendedFields,
             float tieBreaker,
             boolean enablePositionIncrements,
-            boolean autoGenerateSynonymsPhraseQuery
+            boolean autoGenerateSynonymsPhraseQuery,
+            QueryVisitor queryVisitor
         ) {
-            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery, queryVisitor);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
+            this.queryVisitor = queryVisitor;
         }
 
         @Override
@@ -202,12 +237,16 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             for (int i = 0; i < terms.length; i++) {
                 values[i] = terms[i].term();
             }
-            return blendTerms(context, values, tieBreaker, lenient, blendedFields);
+            Query query = blendTerms(context, values, tieBreaker, lenient, blendedFields);
+            query.visit(queryVisitor);
+            return query;
         }
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            return blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
+            Query query = blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
+            query.visit(queryVisitor);
+            return query;
         }
 
         @Override
@@ -223,6 +262,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
+                query.visit(queryVisitor);
                 disjunctions.add(query);
             }
             return new DisjunctionMaxQuery(disjunctions, tieBreaker);
@@ -236,6 +276,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
+                query.visit(queryVisitor);
                 disjunctions.add(query);
             }
             return new DisjunctionMaxQuery(disjunctions, tieBreaker);

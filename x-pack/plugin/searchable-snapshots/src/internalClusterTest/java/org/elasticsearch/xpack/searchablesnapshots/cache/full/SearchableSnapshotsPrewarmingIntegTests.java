@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -240,7 +242,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
                     assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsPerIndex.get(indexName));
 
-                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(indexName).get();
+                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                        .get();
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_ENABLED_SETTING.getKey()), equalTo("true"));
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 
@@ -312,10 +315,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
                 .get();
             assertThat(
-                recoveryResponse.shardRecoveryStates()
+                recoveryResponse.shardRecoveryInfos()
                     .values()
                     .stream()
                     .flatMap(Collection::stream)
+                    .map(ShardRecoveryInfo::recoveryState)
                     .allMatch(recoveryState -> recoveryState.getStage().equals(RecoveryState.Stage.DONE)),
                 is(true)
             );
@@ -449,11 +453,20 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 "tracking",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
+                (projectId, metadata) -> new FsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                ) {
 
                     @Override
                     protected BlobStore createBlobStore() throws Exception {

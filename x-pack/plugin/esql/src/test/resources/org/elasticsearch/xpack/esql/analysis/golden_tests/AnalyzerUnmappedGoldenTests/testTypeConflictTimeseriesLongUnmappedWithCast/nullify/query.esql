@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify"; FROM k8s, k8s_unmapped
+| EVAL bytes = network.bytes_in::long
+| KEEP bytes

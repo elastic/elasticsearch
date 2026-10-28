@@ -10,10 +10,10 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -61,7 +61,7 @@ public class PainlessContextAction {
 
     private PainlessContextAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends UntypedActionRequest {
 
         private String scriptContextName;
 
@@ -198,7 +198,7 @@ public class PainlessContextAction {
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
             Request request = new Request();
             request.setScriptContextName(restRequest.param(SCRIPT_CONTEXT_NAME_PARAM));
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 }

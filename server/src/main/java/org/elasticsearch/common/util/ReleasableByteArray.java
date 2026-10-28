@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,11 +56,21 @@ public class ReleasableByteArray implements ByteArray {
         if (sliced.length() != 0) {
             ref.offset = sliced.arrayOffset();
             ref.length = sliced.length();
+            // It's safe to use array because this is always built as a contiguous array.
             ref.bytes = sliced.array();
             return true;
         } else {
             return false;
         }
+    }
+
+    @Override
+    public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
+        assert indexIsInt(index);
+        BytesReference sliced = this.ref.slice((int) index, len);
+        // It's safe to use array because this is always built as a contiguous array.
+        scratch.init(sliced.array(), sliced.arrayOffset(), sliced.length());
+        return scratch;
     }
 
     @Override

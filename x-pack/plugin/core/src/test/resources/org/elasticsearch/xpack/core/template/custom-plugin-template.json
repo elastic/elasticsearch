@@ -1,6 +1,6 @@
 {
   "index_patterns": ["logs-my_app-*"],
-  "priority": 200,
+  "priority": 150,
   "data_stream": {},
   "composed_of": [
     "custom-plugin-settings",

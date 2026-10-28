@@ -7,56 +7,96 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.Model;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRequestUtils;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
-public abstract class GoogleVertexAiModel extends Model {
+public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     private final GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings;
 
-    protected URI uri;
+    protected URI nonStreamingUri;
+
+    /**
+     * This field defines the behaviour used to apply authorization headers to a {@link SimpleHttpRequest}. By default, this is
+     * {@link GoogleVertexAiRequestUtils#decorateWithBearerToken(SimpleHttpRequest, GoogleVertexAiSecretSettings)}. Unit tests may provide
+     * different behaviour to allow requests to be created without needing to retrieve credentials.
+     */
+    private final BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator;
 
     public GoogleVertexAiModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings
     ) {
+        this(
+            configurations,
+            secrets,
+            rateLimitServiceSettings,
+            (httpPost, model) -> GoogleVertexAiRequestUtils.decorateWithBearerToken(
+                httpPost,
+                (GoogleVertexAiSecretSettings) model.getSecretSettings()
+            )
+        );
+    }
+
+    // Should only be used for testing. Allows bypassing retrieving the OAuth2 credentials when creating a request
+    public GoogleVertexAiModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings,
+        BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator
+    ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.authHeaderDecorator = authHeaderDecorator;
     }
 
     public GoogleVertexAiModel(GoogleVertexAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        uri = model.uri();
+        nonStreamingUri = model.nonStreamingUri();
         rateLimitServiceSettings = model.rateLimitServiceSettings();
+        authHeaderDecorator = model.authHeaderDecorator();
     }
 
     public GoogleVertexAiModel(GoogleVertexAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
-        uri = model.uri();
+        nonStreamingUri = model.nonStreamingUri();
         rateLimitServiceSettings = model.rateLimitServiceSettings();
+        authHeaderDecorator = model.authHeaderDecorator();
     }
 
-    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
     }
 
-    public URI uri() {
-        return uri;
+    public URI nonStreamingUri() {
+        return nonStreamingUri;
+    }
+
+    public BiConsumer<SimpleHttpRequest, GoogleVertexAiModel> authHeaderDecorator() {
+        return authHeaderDecorator;
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings().rateLimitSettings();
     }
 }

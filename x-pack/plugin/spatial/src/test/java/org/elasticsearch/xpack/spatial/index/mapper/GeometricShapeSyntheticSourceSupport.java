@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.common.geo.GeoJson;
-import org.elasticsearch.common.geo.GeometryNormalizer;
-import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
@@ -50,9 +48,6 @@ public class GeometricShapeSyntheticSourceSupport implements MapperTestCase.Synt
     public MapperTestCase.SyntheticSourceExample example(int maxValues) throws IOException {
         if (randomBoolean()) {
             Value v = generateValue();
-            if (v.blockLoaderOutput != null) {
-                return new MapperTestCase.SyntheticSourceExample(v.input, v.output, v.blockLoaderOutput, this::mapping);
-            }
             return new MapperTestCase.SyntheticSourceExample(v.input, v.output, this::mapping);
         }
 
@@ -60,21 +55,10 @@ public class GeometricShapeSyntheticSourceSupport implements MapperTestCase.Synt
         List<Object> in = values.stream().map(Value::input).toList();
         List<Object> out = values.stream().map(Value::output).toList();
 
-        // Block loader infrastructure will never return nulls
-        List<Object> outBlockList = values.stream()
-            .filter(v -> v.input != null)
-            .map(v -> v.blockLoaderOutput != null ? v.blockLoaderOutput : v.output)
-            .toList();
-        var outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-
-        return new MapperTestCase.SyntheticSourceExample(in, out, outBlock, this::mapping);
+        return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
     }
 
-    private record Value(Object input, Object output, String blockLoaderOutput) {
-        Value(Object input, Object output) {
-            this(input, output, null);
-        }
-    }
+    private record Value(Object input, Object output) {}
 
     private Value generateValue() {
         if (ignoreMalformed && randomBoolean()) {
@@ -130,16 +114,13 @@ public class GeometricShapeSyntheticSourceSupport implements MapperTestCase.Synt
 
     private Value value(Geometry geometry, boolean isGeoJson) {
         var wktString = WellKnownText.toWKT(geometry);
-        var normalizedWktString = fieldType == FieldType.GEO_SHAPE && GeometryNormalizer.needsNormalize(Orientation.RIGHT, geometry)
-            ? WellKnownText.toWKT(GeometryNormalizer.apply(Orientation.RIGHT, geometry))
-            : wktString;
 
         if (isGeoJson) {
             var map = GeoJson.toMap(geometry);
-            return new Value(map, map, normalizedWktString);
+            return new Value(map, map);
         }
 
-        return new Value(wktString, wktString, normalizedWktString);
+        return new Value(wktString, wktString);
     }
 
     private void mapping(XContentBuilder b) throws IOException {

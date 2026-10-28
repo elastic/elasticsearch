@@ -116,7 +116,11 @@ public abstract class BaseRestHandler implements RestHandler {
                 throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
             }
 
-            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
+            // Chunk consumers may defer reading until accept(), including when an interceptor has already aggregated the stream.
+            if (request.hasContent()
+                && request.isContentConsumed() == false
+                && request.isFullContent()
+                && action instanceof RequestBodyChunkConsumer == false) {
                 throw new IllegalArgumentException(
                     "request [" + request.method() + " " + request.path() + "] does not support having a body"
                 );
@@ -154,6 +158,8 @@ public abstract class BaseRestHandler implements RestHandler {
             supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
             final var consumed = new TreeSet<>(request.consumedParams());
             consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            // Response parameters are implicitly consumed since they are made available to response renderings.
+            consumed.addAll(responseParams(request.getRestApiVersion()));
             assert supportedAndCommon.equals(consumed)
                 : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
         }
@@ -211,6 +217,12 @@ public abstract class BaseRestHandler implements RestHandler {
         default void close() {}
     }
 
+    /**
+     * A channel consumer that processes a streamed request body incrementally.
+     * <p>
+     * A REST interceptor may aggregate the stream before request preparation. In that case, the handler must either return a different
+     * consumer for the full body or arrange for this consumer to process the full body when it is accepted.
+     */
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
 
         /**

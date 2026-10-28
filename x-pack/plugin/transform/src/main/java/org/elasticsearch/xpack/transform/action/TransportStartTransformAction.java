@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -36,11 +37,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -72,6 +76,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final Client client;
     private final TransformAuditor auditor;
     private final Settings destIndexSettings;
+    private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportStartTransformAction(
@@ -83,7 +89,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         this(
             StartTransformAction.NAME,
@@ -95,7 +102,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             transformServices,
             persistentTasksService,
             client,
-            transformExtensionHolder
+            transformExtensionHolder,
+            projectResolver
         );
     }
 
@@ -109,7 +117,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
         Client client,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        ProjectResolver projectResolver
     ) {
         super(
             name,
@@ -127,6 +136,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.client = client;
         this.auditor = transformServices.auditor();
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -136,8 +147,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) {
-        TransformNodes.warnIfNoTransformNodes(state);
-        if (TransformMetadata.upgradeMode(state)) {
+        final var projectMetadata = projectResolver.getProjectMetadata(state);
+        TransformNodes.warnIfNoTransformNodes(projectMetadata, state.getNodes());
+        if (TransformMetadata.isUpgradeMode(projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot start any Transform while the Transform feature is upgrading.",
@@ -169,7 +181,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskParamsHolder.get();
             assert transformTask != null;
-            PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(transformTask.getId(), state);
+            PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(
+                transformTask.getId(),
+                projectMetadata
+            );
             if (existingTask == null) {
                 // Create the allocated task and wait for it to be started
                 persistentTasksService.sendStartRequest(
@@ -250,6 +265,41 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     validationException
                 );
             }
+            if (request.getInitialDelay() != null) {
+                if (request.getInitialDelay().compareTo(TimeValue.ZERO) < 0) {
+                    validationException = addValidationError(
+                        "["
+                            + TransformField.INITIAL_DELAY.getPreferredName()
+                            + "] ["
+                            + request.getInitialDelay().getStringRep()
+                            + "] must not be negative",
+                        validationException
+                    );
+                }
+                if (config.getSyncConfig() instanceof TimeSyncConfig timeSyncConfig) {
+                    if (request.getInitialDelay().compareTo(timeSyncConfig.getDelay()) > 0) {
+                        validationException = addValidationError(
+                            "["
+                                + TransformField.INITIAL_DELAY.getPreferredName()
+                                + "] ["
+                                + request.getInitialDelay().getStringRep()
+                                + "] must not be greater than ["
+                                + TransformField.DELAY.getPreferredName()
+                                + "] ["
+                                + timeSyncConfig.getDelay().getStringRep()
+                                + "]",
+                            validationException
+                        );
+                    }
+                } else {
+                    validationException = addValidationError(
+                        "["
+                            + TransformField.INITIAL_DELAY.getPreferredName()
+                            + "] parameter is only supported for continuous transforms with a time sync configuration",
+                        validationException
+                    );
+                }
+            }
             if (validationException != null) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -269,15 +319,32 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     config.getVersion(),
                     request.from(),
                     config.getFrequency(),
-                    config.getSource().requiresRemoteCluster()
+                    config.getSource().requiresRemoteCluster(),
+                    request.getInitialDelay()
                 )
+            );
+            // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
+            // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
+            // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
+            // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
+            // Request.close() is null-safe so this path is identical for non-UIAM callers.
+            //
+            // Uses an independent copy of the credential: TransportValidateTransformAction
+            // unconditionally closes whatever credential this request carries once validate resolves
+            // (it has to, to cover the redirect-to-another-node case), which would zero out the
+            // outer request's credential before the outer releaseAfter(listener, request) gets to it.
+            var validateRequest = new ValidateTransformAction.Request(
+                config,
+                false,
+                request.ackTimeout(),
+                CloudCredential.copyOf(request.getCloudCredential())
             );
             ClientHelper.executeAsyncWithOrigin(
                 parentClient,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, false, request.ackTimeout()),
-                validationListener
+                validateRequest,
+                ActionListener.releaseAfter(validationListener, validateRequest)
             );
         }, listener::onFailure);
 
@@ -300,7 +367,18 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
     @Override
     protected ClusterBlockException checkBlock(StartTransformAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected void doExecute(Task task, StartTransformAction.Request request, ActionListener<StartTransformAction.Response> listener) {
+        // Extract on the coordinating node, before the request is forwarded to master — the
+        // AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient does not survive master forwarding.
+        CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            request.setCloudCredential(callerCredential);
+        }
+        super.doExecute(task, request, ActionListener.releaseAfter(listener, request));
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {

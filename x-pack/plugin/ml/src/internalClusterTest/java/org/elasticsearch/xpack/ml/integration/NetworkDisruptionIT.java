@@ -12,6 +12,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -30,6 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
     @Override
@@ -83,7 +85,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
         // The job running on the original node should have been killed, and hence should not have persisted quantiles
         assertHitCount(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setQuery(
                 QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()))
             ).setTrackTotalHits(true).setIndicesOptions(IndicesOptions.lenientExpandOpen()),
             0
@@ -95,7 +97,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
         // The relocated job was closed rather than killed, and hence should have persisted quantiles
         assertHitCount(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setQuery(
                 QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()))
             ).setTrackTotalHits(true).setIndicesOptions(IndicesOptions.lenientExpandOpen()),
             1

@@ -63,24 +63,37 @@ public class CostCalculatorTests extends ESTestCase {
 
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 19.0d);
-        CostCalculator costCalculator = new CostCalculator(hostsTable, samplingDurationInSeconds, null, null, null);
+        double defaultFreq = TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY;
 
-        // Checks whether the cost calculation is based on the lookup data.
-        // The usd_per_hour value can be looked up from profiling-costs-aws.json.gz.
-        checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_AWS, samples), annualCoreHours, 0.244d, HOST_ID_A_NUM_CORES);
+        // Plausibility check with different frequency factors.
+        // 10x higher frequency means 10x less annualCoreHours with the same number of samples,
+        // and also 10x lower cost.
+        for (double freq : new double[] { defaultFreq, defaultFreq * 10 }) {
+            // Calculate the annual core hours based on the sampling duration, samples, and frequency.
+            double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, freq);
 
-        // Checks whether the cost calculation is based on the lookup data.
-        // The usd_per_hour value can be looked up from profiling-costs-azure.json.gz.
-        checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_AZURE, samples), annualCoreHours, 0.192d, HOST_ID_A_NUM_CORES);
+            // Create a new CostCalculator instance with the hosts table and sampling duration.
+            CostCalculator costCalculator = new CostCalculator(hostsTable, samplingDurationInSeconds, null, null, null);
 
-        // Checks whether the cost calculation is based on the default values.
-        checkCostCalculation(
-            costCalculator.annualCostsUSD(HOST_ID_UNKNOWN, samples),
-            annualCoreHours,
-            CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES,
-            HostMetadata.DEFAULT_PROFILING_NUM_CORES
-        );
+            // Check the cost calculation for AWS host ID.
+            checkCostCalculation(costCalculator.annualCostsUSD(HOST_ID_AWS, samples, freq), annualCoreHours, 0.244d, HOST_ID_A_NUM_CORES);
+
+            // Check the cost calculation for Azure host ID.
+            checkCostCalculation(
+                costCalculator.annualCostsUSD(HOST_ID_AZURE, samples, freq),
+                annualCoreHours,
+                0.192d,
+                HOST_ID_AZURE_NUM_CORES
+            );
+
+            // Check the cost calculation for unknown host ID.
+            checkCostCalculation(
+                costCalculator.annualCostsUSD(HOST_ID_UNKNOWN, samples, freq),
+                annualCoreHours,
+                CostCalculator.DEFAULT_COST_USD_PER_CORE_HOUR * HostMetadata.DEFAULT_PROFILING_NUM_CORES,
+                HostMetadata.DEFAULT_PROFILING_NUM_CORES
+            );
+        }
     }
 
     private void checkCostCalculation(double calculatedAnnualCostsUSD, double annualCoreHours, double usd_per_hour, int profilingNumCores) {

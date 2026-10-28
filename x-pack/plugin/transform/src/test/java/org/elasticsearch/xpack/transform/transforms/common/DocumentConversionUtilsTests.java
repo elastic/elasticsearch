@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
@@ -86,16 +87,18 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     public void testExtractFieldMappings() {
-        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
-            new String[] { "some-index" },
-            Map.ofEntries(
-                entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
-                entry(
-                    "field-2",
-                    Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+        FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder()
+            .withIndices(new String[] { "some-index" })
+            .withFields(
+                Map.ofEntries(
+                    entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
+                    entry(
+                        "field-2",
+                        Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+                    )
                 )
             )
-        );
+            .build();
 
         assertThat(
             DocumentConversionUtils.extractFieldMappings(response),
@@ -104,16 +107,9 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
-        return new FieldCapabilities(
-            name,
-            type,
-            false,
-            true,
-            true,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Collections.emptyMap()
-        );
+        return new FieldCapabilitiesBuilder(name, type).indices(Strings.EMPTY_ARRAY)
+            .nonSearchableIndices(Strings.EMPTY_ARRAY)
+            .nonAggregatableIndices(Strings.EMPTY_ARRAY)
+            .build();
     }
 }

@@ -1,0 +1,4 @@
+FROM employees
+| SORT sin(height) * 2
+| keep hire_date
+| LIMIT 20

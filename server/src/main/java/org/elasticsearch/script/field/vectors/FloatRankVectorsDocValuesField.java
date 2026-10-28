@@ -81,7 +81,7 @@ public class FloatRankVectorsDocValuesField extends RankVectorsDocValuesField {
             return RankVectors.EMPTY;
         }
         decodeVectorIfNecessary();
-        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
+        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims, value);
     }
 
     @Override
@@ -90,7 +90,7 @@ public class FloatRankVectorsDocValuesField extends RankVectorsDocValuesField {
             return defaultValue;
         }
         decodeVectorIfNecessary();
-        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
+        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims, value);
     }
 
     @Override

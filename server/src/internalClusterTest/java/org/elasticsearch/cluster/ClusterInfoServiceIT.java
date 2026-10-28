@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,12 +22,16 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -38,22 +43,28 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -333,5 +344,266 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     .containsShardId(shard.shardId())
             );
         }
+    }
+
+    public void testClusterInfoIncludesNodeUsageStatsForThreadPools() {
+        var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            )
+            // Manually control cluster info refreshes
+            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
+            .build();
+        var masterName = internalCluster().startMasterOnlyNode(settings);
+        var dataNodeName = internalCluster().startDataOnlyNode(settings);
+        ensureStableCluster(2);
+        assertEquals(internalCluster().getMasterName(), masterName);
+        assertNotEquals(internalCluster().getMasterName(), dataNodeName);
+        logger.info("---> master node: " + masterName + ", data node: " + dataNodeName);
+
+        // Track when the data node receives a poll from the master for the write thread pool's stats.
+        final MockTransportService dataNodeMockTransportService = MockTransportService.getInstance(dataNodeName);
+        final CountDownLatch nodeThreadPoolStatsPolledByMaster = new CountDownLatch(1);
+        dataNodeMockTransportService.addRequestHandlingBehavior(
+            TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
+            (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+
+                if (nodeThreadPoolStatsPolledByMaster.getCount() > 0) {
+                    logger.info("---> Data node received a request for thread pool stats");
+                }
+                nodeThreadPoolStatsPolledByMaster.countDown();
+            }
+        );
+
+        // Generate some writes to get some non-zero write thread pool stats.
+        doALotOfDataNodeWrites();
+
+        // Force a refresh of the ClusterInfo state to collect fresh info from the data nodes.
+        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
+        );
+        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+
+        // Verify that the data node received a request for thread pool stats.
+        safeAwait(nodeThreadPoolStatsPolledByMaster);
+
+        final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
+        logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+        assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collected
+        var dataNodeId = getNodeId(dataNodeName);
+        var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+        assertNotNull(nodeUsageStatsForThreadPool);
+        logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+        assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+        var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+        assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+        assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+        assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThan(0f));
+        assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+    }
+
+    /**
+     * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latencies:
+     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
+     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
+     * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE",
+        reason = "Aids diagnosis of hard-to-reproduce failures in this test: thread pool executor state is not otherwise observable"
+    )
+    public void testMaxQueueLatenciesInClusterInfo() throws Exception {
+        var settings = Settings.builder()
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+            )
+            // Manually control cluster info refreshes
+            .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m")
+            .build();
+        var masterName = internalCluster().startMasterOnlyNode(settings);
+        var dataNodeName = internalCluster().startDataOnlyNode(settings);
+        ensureStableCluster(2);
+
+        String indexName = randomIdentifier();
+        final int numShards = randomIntBetween(1, 5);
+        createIndex(indexName, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        ensureGreen(indexName);
+
+        // Block indexing on the data node by submitting write thread pool tasks equal to the number of write threads.
+        var barrier = blockDataNodeIndexing(dataNodeName);
+        try {
+            // Arbitrary number of tasks, which will queue because all the write threads are occupied already, greater than one: only
+            // strictly need a single task to occupy the queue.
+            int numberOfTasks = randomIntBetween(1, 5);
+            Thread[] threadsToJoin = new Thread[numberOfTasks];
+            for (int i = 0; i < numberOfTasks; ++i) {
+                threadsToJoin[i] = startParallelSingleWrite(indexName);
+            }
+
+            // Reach into the data node's write thread pool to check that tasks have reached the queue.
+            var dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+            var writeExecutor = dataNodeThreadPool.executor(ThreadPool.Names.WRITE);
+            assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
+            var trackingWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
+            assertBusy(
+                // Wait for the parallel threads' writes to get queued in the write thread pool.
+                () -> assertThat(
+                    "Write thread pool dump: " + trackingWriteExecutor,
+                    trackingWriteExecutor.peekMaxQueueLatencyInQueueMillis(),
+                    greaterThan(0L)
+                )
+            );
+
+            // Force a refresh of the ClusterInfo state to collect fresh info from the data node.
+            final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
+                InternalClusterInfoService.class,
+                internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
+            );
+            final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+
+            // Since tasks are actively queued right now, #peekMaxQueueLatencyInQueue, which is called from the
+            // TransportNodeUsageStatsForThreadPoolsAction that a ClusterInfoService refresh initiates, should return a max queue
+            // latency > 0;
+            {
+                final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
+                logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+                assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data node should be collected
+                var dataNodeId = getNodeId(dataNodeName);
+                var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+                assertNotNull(nodeUsageStatsForThreadPool);
+                logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+                assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+                var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+                assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0f));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThan(0L));
+            }
+
+            // Now release the data node's indexing, and drain the queued tasks. Max queue latency of executed (not queued) tasks is reset
+            // by each TransportNodeUsageStatsForThreadPoolsAction call (#getMaxQueueLatencyMillisSinceLastPollAndReset), so the new queue
+            // latencies will be present in the next call. There will be nothing in the queue to peek at now, so the result of the max
+            // queue latency result in TransportNodeUsageStatsForThreadPoolsAction will reflect
+            // #getMaxQueueLatencyMillisSinceLastPollAndReset and not #peekMaxQueueLatencyInQueue.
+            barrier.await();
+            for (int i = 0; i < numberOfTasks; ++i) {
+                threadsToJoin[i].join();
+            }
+            Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
+            // Disable the periodic global-checkpoint sync task for ALL indices.
+            // This is a source of GlobalCheckpointSyncAction dispatches to the WRITE pool after all write threads are joined.
+            final var dataNodeIndicesService = internalCluster().getInstance(IndicesService.class, dataNodeName);
+            for (IndexService indexService : dataNodeIndicesService) {
+                indexService.getGlobalCheckpointTask().setInterval(TimeValue.ZERO);
+            }
+            // The `AsyncGlobalCheckpointTask` runs on the GENERIC thread pool. A periodic sync
+            // executing before the above setInterval(ZERO) interrupt signal may have already
+            // dispatched a GlobalCheckpointSyncAction onto the transport layer. A transport action
+            // request is registered as a task in the TransportService's TaskManager *before* it is
+            // routed through the GENERIC pool, and ultimately onto the WRITE pool. Waiting for
+            // GENERIC to quiesce, and no transport TaskManager entry matching
+            // `GlobalCheckpointSyncAction`, ensures that any async tasks have either completed or
+            // advanced past GENERIC into WRITE.
+            final var genericExecutor = (EsThreadPoolExecutor) dataNodeThreadPool.executor(ThreadPool.Names.GENERIC);
+            final var dataNodeTaskManager = internalCluster().getInstance(TransportService.class, dataNodeName).getTaskManager();
+            assertBusy(() -> {
+                assertThat(genericExecutor.getActiveCount(), equalTo(0));
+                assertThat(genericExecutor.getQueue().size(), equalTo(0));
+                final var inFlightSyncCheckpointSyncTasks = dataNodeTaskManager.getTasks()
+                    .values()
+                    .stream()
+                    .filter(t -> t.getAction().startsWith(GlobalCheckpointSyncAction.ACTION_NAME))
+                    .toList();
+                assertThat(inFlightSyncCheckpointSyncTasks, Matchers.empty());
+            });
+            // Once GENERIC is idle and no TaskManager entry exists, any in-flight sync has reached
+            // the WRITE pool. A WRITE thread may still be finishing its run() after unregistering
+            // from the TaskManager, so wait for WRITE to fully quiesce.
+            assertBusy(() -> {
+                assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0));
+                assertThat(trackingWriteExecutor.getCurrentQueueSize(), equalTo(0));
+            });
+
+            final ClusterInfo nextClusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+            {
+                final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = nextClusterInfo
+                    .getNodeUsageStatsForThreadPools();
+                logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+                assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collected
+                var dataNodeId = getNodeId(dataNodeName);
+                var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+                assertNotNull(nodeUsageStatsForThreadPool);
+                logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+                assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+                var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+                assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThan(0f));
+                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+            }
+        } finally {
+            // Ensure that the write threads have been released by signalling an interrupt on any callers waiting on the barrier. If the
+            // callers have already all been successfully released, then there will be nothing left to interrupt.
+            logger.info("---> Ensuring release of the barrier on write thread pool tasks");
+            barrier.reset();
+        }
+
+        // Now that there's nothing in the queue, and no activity since the last ClusterInfo refresh, the max latency returned should be
+        // zero. Verify this.
+        final InternalClusterInfoService masterClusterInfoService = asInstanceOf(
+            InternalClusterInfoService.class,
+            internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class)
+        );
+        final ClusterInfo clusterInfo = ClusterInfoServiceUtils.refresh(masterClusterInfoService);
+        {
+            final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
+            logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
+            assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collected
+            var dataNodeId = getNodeId(dataNodeName);
+            var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
+            assertNotNull(nodeUsageStatsForThreadPool);
+            logger.info("---> Data node's thread pool stats: " + nodeUsageStatsForThreadPool);
+
+            assertEquals(dataNodeId, nodeUsageStatsForThreadPool.nodeId());
+            var writeThreadPoolStats = nodeUsageStatsForThreadPool.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
+            assertNotNull("Expected to find stats for the WRITE thread pool", writeThreadPoolStats);
+            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThan(0));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), equalTo(0f));
+            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Do some writes to create some write thread pool activity.
+     */
+    private void doALotOfDataNodeWrites() {
+        final String indexName = randomIdentifier();
+        final int randomInt = randomIntBetween(500, 1000);
+        for (int i = 0; i < randomInt; i++) {
+            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
+        }
+    }
+
+    /**
+     * Starts a single index request on a parallel thread and returns the reference so {@link Thread#join()} can be called eventually.
+     */
+    private Thread startParallelSingleWrite(String indexName) {
+        Thread running = new Thread(() -> doSingleWrite(indexName));
+        running.start();
+        return running;
+    }
+
+    private void doSingleWrite(String indexName) {
+        final int randomId = randomIntBetween(500, 1000);
+        index(indexName, Integer.toString(randomId), Collections.singletonMap("foo", "bar"));
     }
 }

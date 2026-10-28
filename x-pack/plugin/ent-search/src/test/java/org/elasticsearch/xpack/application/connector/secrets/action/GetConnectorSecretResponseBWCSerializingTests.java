@@ -28,7 +28,14 @@ public class GetConnectorSecretResponseBWCSerializingTests extends AbstractBWCWi
 
     @Override
     protected GetConnectorSecretResponse mutateInstance(GetConnectorSecretResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String id = instance.id();
+        String value = instance.value();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> value = randomValueOtherThan(value, () -> randomAlphaOfLengthBetween(1, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetConnectorSecretResponse(id, value);
     }
 
     @Override

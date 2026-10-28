@@ -16,15 +16,20 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,6 +43,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -47,6 +53,9 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterAllocationDeciderTests extends ESAllocationTestCase {
@@ -88,7 +97,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertNull(routingTable.index("idx").shard(0).shard(0).currentNodeId());
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -154,7 +163,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
-        allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shard(0),
@@ -300,21 +309,24 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
             )
             .build();
+        final Metadata metadata = Metadata.builder().put(index, false).build();
         var clusterState = ClusterState.builder(new ClusterName("test-cluster"))
             .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
-            .metadata(Metadata.builder().put(index, false))
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
 
         var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var decider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        var allocation = new RoutingAllocation(new AllocationDeciders(List.of(decider)), clusterState, null, null, 0);
+        var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
 
         var localRecoveryShard = ShardRouting.newUnassigned(
             new ShardId(index.getIndex(), 0),
             true,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(localRecoveryShard, allocation), equalTo(Optional.of(Set.of("node-1"))));
 
@@ -323,8 +335,123 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
     }
+
+    public void testWithMultipleProjects() {
+        Settings settings = Settings.builder()
+            .put(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getRawKey() + "can_allocate", "true")
+            .put(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getRawKey() + "_id", "bad_node")
+            .build();
+        final FilterAllocationDecider decider = new FilterAllocationDecider(settings, createBuiltInClusterSettings());
+
+        DiscoveryNode goodNodeSpecial = DiscoveryNodeUtils.builder("good_node_s")
+            .attributes(Map.ofEntries(Map.entry("can_allocate", "true"), Map.entry("special", "true")))
+            .build();
+        DiscoveryNode goodNodeNormal = DiscoveryNodeUtils.builder("good_node_n")
+            .attributes(Map.ofEntries(Map.entry("can_allocate", "true")))
+            .build();
+        DiscoveryNode badNode = DiscoveryNodeUtils.builder("bad_node").attributes(Map.ofEntries(Map.entry("can_allocate", "true"))).build();
+        DiscoveryNode noAllocateNode = DiscoveryNodeUtils.builder("no_allocate")
+            .attributes(Map.ofEntries(Map.entry("can_allocate", "false")))
+            .build();
+
+        ProjectMetadata project1 = ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                IndexMetadata.builder("index-a")
+                    .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            )
+            .put(
+                IndexMetadata.builder("index-b")
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "good_node_n")
+                    )
+            )
+            .build();
+        ProjectMetadata project2 = ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                IndexMetadata.builder("index-a")
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                            .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".special", "true")
+                    )
+            )
+            .put(
+                IndexMetadata.builder("index-b")
+                    .settings(
+                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                            .put(IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey() + "_id", "good_node_s")
+                    )
+            )
+            .build();
+
+        final Metadata metadata = Metadata.builder().put(project1).put(project2).build();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .nodes(DiscoveryNodes.builder().add(goodNodeNormal).add(goodNodeSpecial).add(badNode).add(noAllocateNode))
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
+
+        AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(decider));
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .build();
+
+        // project 1, index-a: no special configuration, relies on cluster wide filtering
+        ShardRouting routing1a = new TestShardRouting.Builder(new ShardId(project1.index("index-a").getIndex(), 0), null, true, UNASSIGNED)
+            .build();
+        assertThat(
+            decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(),
+            equalTo(Type.YES)
+        );
+        assertThat(
+            decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
+            equalTo(Type.YES)
+        );
+        assertThat(decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.canAllocate(routing1a, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.getForcedInitialShardAllocationToNodes(routing1a, allocation), isEmpty());
+
+        // project 1, index-b: requires "good_node_n"
+        ShardRouting routing1b = new TestShardRouting.Builder(new ShardId(project1.index("index-b").getIndex(), 0), null, true, UNASSIGNED)
+            .build();
+        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
+            equalTo(Type.YES)
+        );
+        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.canAllocate(routing1b, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.getForcedInitialShardAllocationToNodes(routing1b, allocation), isEmpty());
+
+        // project 2, index-a: excludes "special:true"
+        ShardRouting routing2a = new TestShardRouting.Builder(new ShardId(project2.index("index-a").getIndex(), 0), null, true, UNASSIGNED)
+            .build();
+        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(), equalTo(Type.NO));
+        assertThat(
+            decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(),
+            equalTo(Type.YES)
+        );
+        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.canAllocate(routing2a, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.getForcedInitialShardAllocationToNodes(routing2a, allocation), isEmpty());
+
+        // project 2, index-b: fore initial allocation to good_node_s
+        ShardRouting routing2b = new TestShardRouting.Builder(new ShardId(project2.index("index-b").getIndex(), 0), null, true, UNASSIGNED)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
+        assertThat(
+            decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("good_node_s"), allocation).type(),
+            equalTo(Type.YES)
+        );
+        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("good_node_n"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("bad_node"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.canAllocate(routing2b, clusterState.getRoutingNodes().node("no_allocate"), allocation).type(), equalTo(Type.NO));
+        assertThat(decider.getForcedInitialShardAllocationToNodes(routing2b, allocation), isPresentWith(contains("good_node_s")));
+    }
+
 }

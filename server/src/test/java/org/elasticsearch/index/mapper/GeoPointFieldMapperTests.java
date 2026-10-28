@@ -10,34 +10,48 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ColumnBatch;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -50,9 +64,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class GeoPointFieldMapperTests extends MapperTestCase {
 
@@ -63,7 +77,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             GeoPointFieldMapper gpfm = (GeoPointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
@@ -71,6 +85,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        registerScriptChecks(checker);
+        checker.registerIgnoredParameter("time_series_dimension");
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "position"));
     }
 
     @Override
@@ -168,7 +185,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
         var ft = (GeoPointFieldMapper.GeoPointFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(positionMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -362,7 +379,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertTrue(((GeoPointFieldMapper) fieldMapper).fieldType().indexType().hasOnlyDocValues());
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
@@ -441,6 +458,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             assertEquals(expectedParser.currentToken(), parser.currentToken());
             assertEquals(expectedParser.currentName(), parser.currentName());
             assertEquals(expectedParser.getTokenLocation(), parser.getTokenLocation());
+            // getCurrentLocation() delegates to docParser, whose cursor differs from expectedParser's
+            assertEquals(docParser.getCurrentLocation(), parser.getCurrentLocation());
             assertEquals(expectedParser.textOrNull(), parser.textOrNull());
             expectThrows(UnsupportedOperationException.class, parser::nextToken);
         }
@@ -549,7 +568,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
-        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 
@@ -597,11 +615,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return syntheticSourceSupport(ignoreMalformed, false);
-    }
-
-    @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
             private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
@@ -611,14 +624,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 if (randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
-
-                    if (columnReader) {
-                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), encode(v.output), this::mapping);
-                    }
-                    return new SyntheticSourceExample(v.input, v.output, v.output.toWKT(), this::mapping);
-
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
                 List<Object> in = values.stream().map(Value::input).toList();
@@ -629,24 +637,17 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                // Malformed values always come last in synthetic source
-                Stream<Object> malformedValues = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                // Malformed values always come last in synthetic source (sorted by encoded BytesRef).
+                List<Object> malformedValues = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                if (columnReader) {
-                    // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = outputFromDocValues.stream().map(this::encode).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                } else {
-                    // When reading row-stride, the block is a list of WKT encoded BytesRefs.
-                    // Values are ordered in order of input.
-                    List<String> outBlockList = values.stream().filter(v -> v.malformedOutput == null).map(v -> v.output.toWKT()).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                }
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
             private record Value(Object input, GeoPoint output, Object malformedOutput) {}
@@ -734,43 +735,188 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new IngestScriptSupport() {
+
+            @Override
+            protected ScriptFactory emptyFieldScript() {
+                return (GeoPointFieldScript.Factory) (
+                    fieldName,
+                    params,
+                    searchLookup,
+                    onScriptError) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript(
+                        fieldName,
+                        params,
+                        searchLookup,
+                        OnScriptError.FAIL,
+                        ctx
+                    ) {
+                        @Override
+                        public void execute() {
+
+                        }
+                    };
+            }
+
+            @Override
+            protected ScriptFactory nonEmptyFieldScript() {
+                return emptyFieldScript();
+            }
+        };
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (columnReader) {
-            // When using column reader, we expect the output to be doc-values (which means encoded longs)
-            return v -> asJacksonNumberOutput(((Number) v).longValue());
-        } else {
-            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
-            return v -> asWKT((BytesRef) v);
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    public void testDoSupportsColumnarParseReturnsFalseWhenMultiFieldsPresent() throws IOException {
+        final Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+
+        final MapperService withMultiField = createMapperService(columnarSettings, fieldMapping(b -> {
+            b.field("type", "geo_point");
+            b.startObject("fields").startObject("hash").field("type", "keyword").endObject().endObject();
+        }));
+        final GeoPointFieldMapper mapperWithField = (GeoPointFieldMapper) withMultiField.mappingLookup().getMapper("field");
+        assertFalse(
+            "doSupportsColumnarParse must be false when [fields] is present",
+            mapperWithField.doSupportsColumnarParse(withMultiField.getIndexSettings())
+        );
+
+        final MapperService withoutMultiField = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "geo_point")));
+        final GeoPointFieldMapper mapperWithoutField = (GeoPointFieldMapper) withoutMultiField.mappingLookup().getMapper("field");
+        assertTrue(
+            "doSupportsColumnarParse must be true when no [fields] are present",
+            mapperWithoutField.doSupportsColumnarParse(withoutMultiField.getIndexSettings())
+        );
+    }
+
+    /**
+     * Verifies that the object-form ({@code {"field":{"lat":…,"lon":…}}}) geo_point produces exactly
+     * one SORTED_NUMERIC column with the expected packed long and the correct Lucene field type when
+     * indexed via {@link GeoPointFieldMapper#mapColumnGroupBatch}.
+     */
+    public void testColumnarGroupBatchObjectForm() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "geo_point")));
+
+        double lat = 51.5;
+        double lon = -0.1;
+        withGroupColumnBatch(mapperService, "field", "{\"field\":{\"lat\":" + lat + ",\"lon\":" + lon + "}}", batch -> {
+            Column column = null;
+            int matchCount = 0;
+            for (Column c : batch.columns()) {
+                if ("field".equals(c.name())) {
+                    column = c;
+                    matchCount++;
+                }
+            }
+            assertEquals("must emit exactly one column for field", 1, matchCount);
+            assertNotNull(column);
+            assertThat(
+                "field type must be sameInstance(GEO_POINT_DOC_VALUES_FIELD_TYPE)",
+                column.fieldType(),
+                sameInstance(GeoPointFieldMapper.GEO_POINT_DOC_VALUES_FIELD_TYPE)
+            );
+            assertEquals("doc values type must be SORTED_NUMERIC", DocValuesType.SORTED_NUMERIC, column.fieldType().docValuesType());
+
+            var luceneColumn = (LongColumn) column;
+            var cursor = luceneColumn.tuples();
+            assertEquals(0, cursor.nextDoc());
+            long expectedPacked = (((long) GeoEncodingUtils.encodeLatitude(lat)) << 32) | (GeoEncodingUtils.encodeLongitude(lon)
+                & 0xFFFFFFFFL);
+            assertEquals("packed long must encode lat/lon identically to LatLonPointWithDocValues", expectedPacked, cursor.longValue());
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        });
+    }
+
+    /**
+     * Multiple documents in one batch: verifies that the dense path emits the right packed longs for
+     * every document.
+     */
+    public void testColumnarGroupBatchMultipleDocs() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "geo_point")));
+
+        double[] lats = { 51.5, 48.9, 35.7 };
+        double[] lons = { -0.1, 2.3, 139.7 };
+        String[] sources = {
+            "{\"field\":{\"lat\":" + lats[0] + ",\"lon\":" + lons[0] + "}}",
+            "{\"field\":{\"lat\":" + lats[1] + ",\"lon\":" + lons[1] + "}}",
+            "{\"field\":{\"lat\":" + lats[2] + ",\"lon\":" + lons[2] + "}}" };
+        withGroupColumnBatch(mapperService, "field", sources, batch -> {
+            Column column = null;
+            for (Column c : batch.columns()) {
+                if ("field".equals(c.name())) {
+                    column = c;
+                }
+            }
+            assertNotNull("must emit a column for field", column);
+            var cursor = ((LongColumn) column).tuples();
+            for (int i = 0; i < lats.length; i++) {
+                assertEquals(i, cursor.nextDoc());
+                long expected = (((long) GeoEncodingUtils.encodeLatitude(lats[i])) << 32) | (GeoEncodingUtils.encodeLongitude(lons[i])
+                    & 0xFFFFFFFFL);
+                assertEquals("wrong packed long for doc " + i, expected, cursor.longValue());
+            }
+            assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
+        });
+    }
+
+    /**
+     * Drives the geo_point group mapper over a single-document ESCF batch encoded from each of
+     * {@code sources}, collects the emitted {@link ColumnBatch}, and passes it to {@code assertions}.
+     *
+     * <p>The helper locates ESCF columns whose path starts with {@code field + "."}, derives the
+     * relative key from the suffix, and dispatches {@link GeoPointFieldMapper#mapColumnGroupBatch}
+     * exactly as {@link ShardBatchMapper} would for a group mapper.
+     */
+    private void withGroupColumnBatch(
+        MapperService mapperService,
+        String field,
+        String source,
+        CheckedConsumer<ColumnBatch, Exception> assertions
+    ) throws Exception {
+        withGroupColumnBatch(mapperService, field, new String[] { source }, assertions);
+    }
+
+    private void withGroupColumnBatch(
+        MapperService mapperService,
+        String field,
+        String[] sources,
+        CheckedConsumer<ColumnBatch, Exception> assertions
+    ) throws Exception {
+        List<BytesReference> sourceList = Stream.of(sources).map(s -> (BytesReference) new BytesArray(s)).toList();
+        IndexRequest[] requests = new IndexRequest[sources.length];
+        for (int i = 0; i < sources.length; i++) {
+            requests[i] = new IndexRequest("index").id("doc" + i).source(new BytesArray(sources[i]), XContentType.JSON);
         }
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
+        try (
+            BatchMappingContext ctx = new BatchMappingContext(
+                EngineTestCase.initFromRequests(requests),
+                mapperService.mappingLookup(),
+                mapperService.getIndexSettings(),
+                new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+            );
+            EscfBatch escfBatch = EscfEncoder.encode(sourceList, XContentType.JSON)
+        ) {
+            var mapper = (GeoPointFieldMapper) mapperService.mappingLookup().getMapper(field);
+            String prefix = field + ".";
+            List<EscfColumn> cols = new ArrayList<>();
+            List<String> keys = new ArrayList<>();
+            for (int i = 0; i < escfBatch.columnCount(); i++) {
+                String path = escfBatch.schema().getFullPath(i);
+                if (path.startsWith(prefix)) {
+                    cols.add(escfBatch.column(i));
+                    keys.add(path.substring(prefix.length()));
+                }
+            }
+            mapper.mapColumnGroupBatch(ctx, cols.toArray(EscfColumn[]::new), keys.toArray(String[]::new));
+            assertions.accept(ctx.columns().toColumnBatch());
         }
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

@@ -17,15 +17,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+
+import static org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.PartitionSplitter;
 
 /**
  * Aggregator for `Min`, that works with BytesRef values.
  * Gets the smallest BytesRef value, based on its bytes natural order (Delegated to {@link BytesRef#compareTo}).
  */
 @Aggregator({ @IntermediateState(name = "min", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class MinBytesRefAggregator {
     private static boolean isBetter(BytesRef value, BytesRef otherValue) {
         return value.compareTo(otherValue) < 0;
@@ -63,15 +64,11 @@ class MinBytesRefAggregator {
         }
     }
 
-    public static void combineStates(GroupingState state, int groupId, GroupingState otherState, int otherGroupId) {
-        state.combine(groupId, otherState, otherGroupId);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(selected, ctx.driverContext());
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
-    }
-
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BytesRefArrayState internalState;
 
         private GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
@@ -84,13 +81,7 @@ class MinBytesRefAggregator {
             }
         }
 
-        public void combine(int groupId, GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId));
-            }
-        }
-
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             internalState.toIntermediate(blocks, offset, selected, driverContext);
         }
 
@@ -98,7 +89,28 @@ class MinBytesRefAggregator {
             return internalState.toValuesBlock(selected, driverContext);
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        void ensureCapacity(int size) {
+            internalState.ensureCapacity(size);
+        }
+
+        PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+            return internalState.createPartitioningSplitter(breaker);
+        }
+
+        BytesRefSequence partitionValues(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionValues(source, partition);
+        }
+
+        boolean[] partitionSeen(GroupingAggregatorFunction.PartitionedState source, int partition) {
+            return internalState.partitionSeen(source, partition);
+        }
+
+        void appendPartition(BytesRefSequence src, int firstId, int length) {
+            internalState.appendPartition(src, firstId, length);
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             internalState.enableGroupIdTracking(seen);
         }
 
@@ -108,7 +120,7 @@ class MinBytesRefAggregator {
         }
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final BreakingBytesRefBuilder internalState;
         private boolean seen;
 
@@ -128,7 +140,8 @@ class MinBytesRefAggregator {
             }
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
             blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         }

@@ -13,16 +13,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,12 +47,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
-public class MvPercentile extends EsqlScalarFunction {
+public class MvPercentile extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvPercentile",
         MvPercentile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvPercentile.class)
+        .binary(MvPercentile::new)
+        .name("mv_percentile");
 
     /**
      * 2^52 is the smallest integer where it and all smaller integers can be represented exactly as double
@@ -58,14 +66,20 @@ public class MvPercentile extends EsqlScalarFunction {
     private final Expression percentile;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long" },
+        briefSummary = "Calculates the percentile of all values in a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing "
             + "the value at which a certain percentage of observed values occur.",
         examples = @Example(file = "mv_percentile", tag = "example")
     )
     public MvPercentile(
         Source source,
-        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "percentile",
             type = { "double", "integer", "long" },
@@ -112,6 +126,10 @@ public class MvPercentile extends EsqlScalarFunction {
 
     public final Expression field() {
         return field;
+    }
+
+    Expression percentile() {
+        return percentile;
     }
 
     @Override
@@ -165,18 +183,18 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Double", warnExceptions = IllegalArgumentException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -188,18 +206,18 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Integer", warnExceptions = IllegalArgumentException.class)
     static void process(
         IntBlock.Builder builder,
-        int position,
+        @Position int position,
         IntBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -211,18 +229,18 @@ public class MvPercentile extends EsqlScalarFunction {
     @Evaluator(extraName = "Long", warnExceptions = IllegalArgumentException.class)
     static void process(
         LongBlock.Builder builder,
-        int position,
+        @Position int position,
         LongBlock values,
         double percentile,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch
     ) {
-        int valueCount = values.getValueCount(position);
-        int firstValueIndex = values.getFirstValueIndex(position);
-
-        if (valueCount == 0) {
+        if (values.isNull(position)) {
             builder.appendNull();
             return;
         }
+
+        int valueCount = values.getValueCount(position);
+        int firstValueIndex = values.getFirstValueIndex(position);
 
         if (percentile < 0 || percentile > 100) {
             throw new IllegalArgumentException("Percentile parameter must be a number between 0 and 100, found [" + percentile + "]");
@@ -436,19 +454,44 @@ public class MvPercentile extends EsqlScalarFunction {
     }
 
     /**
-     * Calculates a percentile for a double avoiding overflows.
+     * Interpolates between two doubles for a multivalue percentile.
      * <p>
-     *     If the values are too separated (negative + positive), it uses a slightly different approach.
-     *     This approach would fail if the values are big but not separated, so it's only used in this case.
+     *     Uses {@code (1 - fraction) * lower + fraction * upper}, which is numerically stable.
+     * </p>
+     * <p>
+     *     The formula comes from the simple interpolation formula, which is
+     *     {@code lower + fraction * (upper - lower)}.
+     *     Expanding the multiplication:
+     *     {@code lower + fraction * upper - fraction * lower}.
+     *     Factoring out {@code lower}:
+     *     {@code (1 - fraction) * lower + fraction * upper}.
+     * </p>
+     * <p>
+     *     The straightforward formula has two problems for doubles:
+     * </p>
+     * <ul>
+     *     <li>
+     *         {@code upper - lower} can overflow to {@code +/-infinity} when the values have
+     *         opposite signs and large magnitudes (e.g. {@code MAX_VALUE - (-MAX_VALUE)}).
+     *     </li>
+     *     <li>
+     *         The addition in {@code lower + fraction * (upper - lower)} causes catastrophic
+     *         cancellation when {@code fraction} is close to 1 and {@code |upper| << |lower|}.
+     *         For example, with {@code lower = -100}, {@code upper = -1},
+     *         {@code fraction = 0.99} and a hypothetical 3-significant-digit float:
+     *         {@code -100 + 0.99 * 99 = -100 + 98.0(1!) = -2.00} (wrong, answer should be -1.99).
+     *         With the equivalent form:
+     *         {@code 0.01 * (-100) + 0.99 * (-1) = -1.00 + (-0.99) = -1.99} (correct).
+     *     </li>
+     * </ul>
+     * <p>
+     *     The result is clamped to {@code [lower, upper]}: the two roundings in the formula can land
+     *     one ulp outside that range when the values are equal or very close, which would make
+     *     e.g. {@code MV_PERCENTILE([5.5, 5.5], 8)} return {@code 5.500000000000001}.
      * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {
-        if (lowerValue < 0 && upperValue > 0) {
-            // Order is required to avoid `upper - lower` overflows
-            return (lowerValue + fraction * upperValue) - fraction * lowerValue;
-        }
-
-        var difference = upperValue - lowerValue;
-        return lowerValue + fraction * difference;
+        var result = (1 - fraction) * lowerValue + fraction * upperValue;
+        return Math.max(lowerValue, Math.min(upperValue, result));
     }
 }

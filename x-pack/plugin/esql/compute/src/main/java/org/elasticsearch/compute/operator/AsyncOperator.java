@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -34,9 +34,16 @@ import java.util.concurrent.atomic.LongAdder;
  * to reduce communication overhead and fetches a {@code Fetched} at a time.
  * It's the responsibility of subclasses to transform that {@code Fetched} into
  * output.
+ * <p>
+ *     This operator will also take care of merging response headers from the thread context into the main thread,
+ *     which <b>must</b> be the one that closes this.
+ * </p>
+ *
  * @see #performAsync(Page, ActionListener)
  */
 public abstract class AsyncOperator<Fetched> implements Operator {
+
+    private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
 
     private volatile SubscribableListener<Void> blockedFuture;
 
@@ -45,6 +52,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     private final DriverContext driverContext;
 
     private final int maxOutstandingRequests;
+    private final ResponseHeadersCollector responseHeadersCollector;
     private final LongAdder processNanos = new LongAdder();
 
     private boolean finished = false;
@@ -66,9 +74,18 @@ public abstract class AsyncOperator<Fetched> implements Operator {
      *
      * @param maxOutstandingRequests the maximum number of outstanding requests
      */
-    public AsyncOperator(DriverContext driverContext, int maxOutstandingRequests) {
+    public AsyncOperator(DriverContext driverContext, ThreadContext threadContext, int maxOutstandingRequests) {
         this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
+        this.responseHeadersCollector = new ResponseHeadersCollector(threadContext);
+    }
+
+    /**
+     * The {@link DriverContext} of the driver running this operator. Subclasses that fetch results from another
+     * (possibly remote) driver use this to replay that driver's warnings into this driver's per-driver sink.
+     */
+    protected final DriverContext driverContext() {
+        return driverContext;
     }
 
     @Override
@@ -87,18 +104,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
-                buffers.put(seqNo, output);
-                onSeqNoCompleted(seqNo);
-            }, e -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> buffers.put(seqNo, output), e -> {
                 releasePageOnAnyThread(input);
                 failureCollector.unwrapAndCollect(e);
-                onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
             performAsync(input, ActionListener.runAfter(listener, () -> {
-                driverContext.removeAsyncAction();
+                responseHeadersCollector.collect();
                 processNanos.add(System.nanoTime() - startNanos);
+                onSeqNoCompleted(seqNo);
+                driverContext.removeAsyncAction();
             }));
             success = true;
         } finally {
@@ -127,7 +142,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     private void onSeqNoCompleted(long seqNo) {
         checkpoint.markSeqNoAsProcessed(seqNo);
-        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint()) {
+        // a failure wakes the driver even while earlier results are still in flight, so it fails at once
+        if (checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint() || failureCollector.hasFailure()) {
             notifyIfBlocked();
         }
         if (closed || failureCollector.hasFailure()) {
@@ -172,6 +188,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         finish();
         closed = true;
         discardResults();
+        responseHeadersCollector.finish();
         doClose();
     }
 
@@ -187,6 +204,13 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return true;
         } else {
             return false;
+        }
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        synchronized (this) {
+            return checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint();
         }
     }
 
@@ -207,19 +231,18 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    /**
+     * Blocks while requests are in flight and no result is ready, also once the input finished. Otherwise the driver of an
+     * operator whose input finished would call {@link #getOutput} in a loop until the last result arrives.
+     */
     @Override
     public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
-        if (finished) {
-            return Operator.NOT_BLOCKED;
-        }
-        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-        if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+        if (canMakeProgress()) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (this) {
-            persistedCheckpoint = checkpoint.getPersistedCheckpoint();
-            if (persistedCheckpoint == checkpoint.getMaxSeqNo() || persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
+            if (canMakeProgress()) {
                 return Operator.NOT_BLOCKED;
             }
             if (blockedFuture == null) {
@@ -229,9 +252,20 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    /**
+     * Whether the driver has something to do with this operator: no request is in flight, a result is ready, or a
+     * request failed.
+     */
+    private boolean canMakeProgress() {
+        long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
+        return persistedCheckpoint == checkpoint.getMaxSeqNo()
+            || persistedCheckpoint < checkpoint.getProcessedCheckpoint()
+            || failureCollector.hasFailure();
+    }
+
     @Override
     public final Operator.Status status() {
-        return status(Math.max(0L, checkpoint.getMaxSeqNo()), Math.max(0L, checkpoint.getProcessedCheckpoint()), processNanos.sum());
+        return status(checkpoint.getMaxSeqNo() + 1, checkpoint.getProcessedCheckpoint() + 1, processNanos.sum());
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
@@ -258,7 +292,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         protected Status(StreamInput in) throws IOException {
             this.receivedPages = in.readVLong();
             this.completedPages = in.readVLong();
-            this.processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+            this.processNanos = in.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                 ? in.readVLong()
                 : TimeValue.timeValueMillis(in.readVLong()).nanos();
         }
@@ -268,7 +302,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             out.writeVLong(receivedPages);
             out.writeVLong(completedPages);
             out.writeVLong(
-                out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+                out.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                     ? processNanos
                     : TimeValue.timeValueNanos(processNanos).millis()
             );
@@ -282,7 +316,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return completedPages;
         }
 
-        public long procesNanos() {
+        public long processNanos() {
             return processNanos;
         }
 
@@ -303,8 +337,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            builder.field("received_pages", receivedPages);
-            builder.field("completed_pages", completedPages);
+            builder.field("pages_received", receivedPages);
+            builder.field("pages_completed", completedPages);
             return builder;
         }
 
@@ -328,7 +362,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

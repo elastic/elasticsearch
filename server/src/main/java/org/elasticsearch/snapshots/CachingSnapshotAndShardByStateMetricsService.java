@@ -1,0 +1,202 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.snapshots;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * Generates the snapshots-by-state and shards-by-state metrics when polled. Only produces
+ * metrics on the master node, and only while the {@link ClusterService} is started. Will only
+ * re-calculate the metrics if the {@link SnapshotsInProgress} has changed since the last time
+ * they were calculated.
+ */
+public class CachingSnapshotAndShardByStateMetricsService {
+
+    private final ClusterService clusterService;
+    private volatile CachedSnapshotStateMetrics cachedSnapshotStateMetrics;
+
+    public CachingSnapshotAndShardByStateMetricsService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+    }
+
+    public void recordShardsByState(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(metrics -> recordAll(metrics.shardStateMetrics(), measurement));
+    }
+
+    public void recordSnapshotsByState(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(metrics -> recordAll(metrics.snapshotStateMetrics(), measurement));
+    }
+
+    private static void recordAll(Collection<LongWithAttributes> values, LongAsyncMeasurement measurement) {
+        for (LongWithAttributes value : values) {
+            measurement.record(value.value(), value.attributes());
+        }
+    }
+
+    /// If this node is reporting metrics (i.e. it is master and the cluster service is started), returns a single long value giving the
+    /// longest time that any shard snapshot has been in the [org.elasticsearch.cluster.SnapshotsInProgress.ShardState#WAITING] state (in
+    /// milliseconds, with some caveats). That value will be zero if no shard snapshots are waiting. If this node is not reporting metrics,
+    /// records nothing.
+    ///
+    /// Caveats:
+    /// - The precision of this value is no greater than the interval between calls to this method (because the state is only inspected when
+    /// this method is called).
+    /// - This value is reset if the master changes or restarts (because the timestamps are held in-memory on the master). Exception: If a
+    /// node loses the master assignment without shutting down (e.g. because of a network partition or coordination timeout) and then
+    /// regains it, it will remember the age of any shard snapshot that was waiting before and still is now.
+    public void recordLongestWaitingTimeMillis(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(
+            metrics -> measurement.record(metrics.longestWaitingTimeMillis(currentTimeMillis()))
+        );
+    }
+
+    private Optional<CachedSnapshotStateMetrics> maybeGetCachedSnapshotStateMetrics() {
+        if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+            return Optional.empty();
+        }
+        final ClusterState state = clusterService.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            // Only the master should report on metrics
+            return Optional.empty();
+        }
+        return Optional.of(recalculateIfStale(state));
+    }
+
+    private CachedSnapshotStateMetrics recalculateIfStale(ClusterState currentState) {
+        if (cachedSnapshotStateMetrics == null || cachedSnapshotStateMetrics.isStale(currentState)) {
+            cachedSnapshotStateMetrics = recalculateSnapshotStats(currentState);
+        }
+        return cachedSnapshotStateMetrics;
+    }
+
+    private final Map<Tuple<Snapshot, ShardId>, Long> waitingTimestamps = new HashMap<>();
+
+    private CachedSnapshotStateMetrics recalculateSnapshotStats(ClusterState currentState) {
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final List<LongWithAttributes> snapshotStateMetrics = new ArrayList<>();
+        final List<LongWithAttributes> shardStateMetrics = new ArrayList<>();
+        Set<Tuple<Snapshot, ShardId>> waitingShards = Sets.newHashSet();
+
+        currentState.metadata().projects().forEach((projectId, project) -> {
+            final RepositoriesMetadata repositoriesMetadata = RepositoriesMetadata.get(project);
+            if (repositoriesMetadata != null) {
+                for (RepositoryMetadata repository : repositoriesMetadata.repositories()) {
+                    final Tuple<Map<SnapshotsInProgress.State, Integer>, Map<SnapshotsInProgress.ShardState, Integer>> stateSummaries =
+                        snapshotsInProgress.shardStateSummaryForRepository(projectId, repository.name());
+                    final Map<String, Object> attributesMap = SnapshotMetrics.createAttributesMap(projectId, repository);
+                    stateSummaries.v1()
+                        .forEach(
+                            (snapshotState, count) -> snapshotStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", snapshotState.name()))
+                            )
+                        );
+                    stateSummaries.v2()
+                        .forEach(
+                            (shardState, count) -> shardStateMetrics.add(
+                                new LongWithAttributes(count, Maps.copyMapWithAddedEntry(attributesMap, "state", shardState.name()))
+                            )
+                        );
+                    waitingShards.addAll(snapshotsInProgress.waitingShards(projectId, repository.name()));
+                }
+            }
+        });
+        return new CachedSnapshotStateMetrics(
+            currentState,
+            snapshotStateMetrics,
+            shardStateMetrics,
+            computeEarliestWaitingShardTimestampMillis(waitingShards, currentTimeMillis())
+        );
+    }
+
+    private long computeEarliestWaitingShardTimestampMillis(Set<Tuple<Snapshot, ShardId>> waitingShards, long nowMillis) {
+        synchronized (waitingTimestamps) {
+            if (waitingShards.isEmpty()) {
+                waitingTimestamps.clear();
+                return Long.MAX_VALUE; // ensures that CachedSnapshotStateMetrics.longestWaitingTimeMillis() will compute zero value
+            } else {
+                waitingShards.forEach(shardSnapshot -> waitingTimestamps.putIfAbsent(shardSnapshot, nowMillis));
+                waitingTimestamps.keySet().retainAll(waitingShards);
+                return Collections.min(waitingTimestamps.values());
+            }
+        }
+    }
+
+    private long currentTimeMillis() {
+        // We use absoluteTimeInMillis rather than relativeTimeInMillis because the latter has an arbitrary zero point, so there's a chance
+        // (though very small!) that it could wrap around while we're running, and then the minimum timestamp wouldn't be the earliest.
+        // We deal with the (also very small) chance that we could observe time going backwards in
+        // CachedSnapshotStateMetrics.longestWaitingTimeMillis().
+        long currentTimeMillis = clusterService.threadPool().absoluteTimeInMillis();
+        assert currentTimeMillis >= 0 : "Current time is before epoch start: " + currentTimeMillis;
+        return currentTimeMillis;
+    }
+
+    /**
+     * A cached copy of the snapshot and shard state metrics
+     */
+    private record CachedSnapshotStateMetrics(
+        String clusterStateId,
+        int snapshotsInProgressIdentityHashcode,
+        Collection<LongWithAttributes> snapshotStateMetrics,
+        Collection<LongWithAttributes> shardStateMetrics,
+        long earliestWaitingShardTimestampMillis
+    ) {
+        CachedSnapshotStateMetrics(
+            ClusterState sourceState,
+            Collection<LongWithAttributes> snapshotStateMetrics,
+            Collection<LongWithAttributes> shardStateMetrics,
+            long earliestWaitingShardTimestampMillis
+        ) {
+            this(
+                sourceState.stateUUID(),
+                System.identityHashCode(SnapshotsInProgress.get(sourceState)),
+                snapshotStateMetrics,
+                shardStateMetrics,
+                earliestWaitingShardTimestampMillis
+            );
+        }
+
+        /**
+         * Are these metrics stale?
+         *
+         * @param currentClusterState The current cluster state
+         * @return true if these metrics were calculated from a prior {@link SnapshotsInProgress} and need to be recalculated, false
+         *         otherwise
+         */
+        public boolean isStale(ClusterState currentClusterState) {
+            return System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode;
+        }
+
+        public long longestWaitingTimeMillis(long nowMillis) {
+            return Math.max(nowMillis - earliestWaitingShardTimestampMillis, 0L);
+        }
+    }
+}

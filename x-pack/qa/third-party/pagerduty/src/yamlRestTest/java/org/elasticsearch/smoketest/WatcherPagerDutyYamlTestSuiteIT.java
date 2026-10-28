@@ -9,22 +9,22 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+public class WatcherPagerDutyYamlTestSuiteIT extends AbstractWatcherThirdPartyYamlTestSuiteIT {
 
-import static org.hamcrest.Matchers.is;
+    @ClassRule
+    public static ElasticsearchCluster cluster = baseClusterBuilder().keystore(
+        "xpack.notification.pagerduty.account.test_account.secure_service_api_key",
+        System.getenv("pagerduty_service_api_key")
+    ).build();
 
-/** Runs rest tests against external cluster */
-public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    @Override
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
+    }
 
     public WatcherPagerDutyYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -32,46 +32,6 @@ public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
-    }
-
-    @Before
-    public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = List.of(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
-        assertBusy(() -> {
-            try {
-                getAdminExecutionContext().callApi("watcher.start", Map.of(), List.of(), Map.of());
-
-                for (String template : watcherTemplates) {
-                    ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi(
-                        "indices.exists_template",
-                        Map.of("name", template),
-                        List.of(),
-                        Map.of()
-                    );
-                    assertThat(templateExistsResponse.getStatusCode(), is(200));
-                }
-
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
-                String state = response.evaluate("stats.0.watcher_state");
-                assertThat(state, is("started"));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        });
-    }
-
-    @After
-    public void stopWatcher() throws Exception {
-        assertBusy(() -> {
-            try {
-                getAdminExecutionContext().callApi("watcher.stop", Map.of(), List.of(), Map.of());
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
-                String state = response.evaluate("stats.0.watcher_state");
-                assertThat(state, is("stopped"));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }, 60, TimeUnit.SECONDS);
+        return createParameters();
     }
 }

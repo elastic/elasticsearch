@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -34,6 +33,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
@@ -42,8 +42,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -58,14 +58,15 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -84,7 +85,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * list of browser safelisted media types - not allowed on Content-Type header
      * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
      */
-    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+    static final String FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
+    static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of(FORM_URLENCODED_MEDIA_TYPE, "multipart/form-data", "text/plain");
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
@@ -114,7 +116,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private final CircuitBreakerService circuitBreakerService;
 
     private final UsageService usageService;
-    private final Tracer tracer;
+    private final HttpServerInstrumentation instrumentation;
     private final LongCounter requestsCounter;
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
@@ -129,7 +131,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         TelemetryProvider telemetryProvider
     ) {
         this.usageService = usageService;
-        this.tracer = telemetryProvider.getTracer();
+        this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
         this.requestsCounter = telemetryProvider.getMeterRegistry()
             .registerLongCounter(METRIC_REQUESTS_TOTAL, "The total number of rest requests/responses processed", "unit");
         if (restInterceptor == null) {
@@ -233,6 +235,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param handler The handler to actually execute
      */
     protected void registerHandler(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
+        validateReadOnlyFormEncodedPostBodySupport(handler, method, path, version);
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
@@ -298,6 +301,124 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     public void registerHandler(final RestHandler handler) {
         handler.routes().forEach(route -> registerHandler(route, handler));
+    }
+
+    private static void validateReadOnlyFormEncodedPostBodySupport(
+        RestHandler handler,
+        RestRequest.Method method,
+        String path,
+        RestApiVersion version
+    ) {
+        if (handler.supportsReadOnlyFormEncodedPostBody() == false) {
+            return;
+        }
+
+        final List<Route> routes = declaredRoutes(handler);
+        validateOnlyGetAndPostRoutesAreDeclared(handler, routes);
+        validatePostRouteIsDeclared(handler, routes);
+        validatePostRoutesHaveMatchingGetRoutes(handler, routes);
+        validateAllRoutesAreDeclaredByHandlerRoutes(handler, routes, method, path, version);
+    }
+
+    /**
+     * Checks that every declared route uses a method compatible with the read-only form POST contract.
+     */
+    private static void validateOnlyGetAndPostRoutesAreDeclared(RestHandler handler, List<Route> routes) {
+        final String handlerName = handler.getConcreteRestHandler().getClass().getName();
+        for (Route route : routes) {
+            if (route.getMethod() != RestRequest.Method.GET && route.getMethod() != RestRequest.Method.POST) {
+                throw new IllegalArgumentException(
+                    "handler ["
+                        + handlerName
+                        + "] supports read-only form-encoded POST bodies but route ["
+                        + route.getMethod()
+                        + " "
+                        + route.getPath()
+                        + "] is not a GET or POST route"
+                );
+            }
+        }
+    }
+
+    /**
+     * Checks that the opted-in handler declares at least one {@code POST} route.
+     */
+    private static void validatePostRouteIsDeclared(RestHandler handler, List<Route> routes) {
+        final boolean foundPostRoute = routes.stream().anyMatch(route -> route.getMethod() == RestRequest.Method.POST);
+        if (foundPostRoute == false) {
+            throw new IllegalArgumentException(
+                "handler ["
+                    + handler.getConcreteRestHandler().getClass().getName()
+                    + "] supports read-only form-encoded POST bodies but does not define any POST routes"
+            );
+        }
+    }
+
+    /**
+     * Checks that every declared {@code POST} route has a matching {@code GET} route.
+     */
+    private static void validatePostRoutesHaveMatchingGetRoutes(RestHandler handler, List<Route> routes) {
+        final String handlerName = handler.getConcreteRestHandler().getClass().getName();
+        for (Route route : routes) {
+            if (route.getMethod() == RestRequest.Method.GET) {
+                continue;
+            }
+            final boolean hasMatchingGetRoute = routes.stream()
+                .anyMatch(
+                    candidate -> candidate.getMethod() == RestRequest.Method.GET
+                        && candidate.getPath().equals(route.getPath())
+                        && candidate.getRestApiVersion() == route.getRestApiVersion()
+                );
+            if (hasMatchingGetRoute == false) {
+                throw new IllegalArgumentException(
+                    "handler ["
+                        + handlerName
+                        + "] supports read-only form-encoded POST bodies but route ["
+                        + route.getMethod()
+                        + " "
+                        + route.getPath()
+                        + "] does not have a matching GET route"
+                );
+            }
+        }
+    }
+
+    /**
+     * Prevents callers of {@link #registerHandler(RestRequest.Method, String, RestApiVersion, RestHandler)} from registering a
+     * form-enabled route that the handler did not declare in {@link RestHandler#routes()}.
+     */
+    private static void validateAllRoutesAreDeclaredByHandlerRoutes(
+        RestHandler handler,
+        List<Route> routes,
+        RestRequest.Method method,
+        String path,
+        RestApiVersion version
+    ) {
+        final boolean registeredRouteIsDeclared = routes.stream().anyMatch(route -> routeMatches(route, method, path, version));
+        if (registeredRouteIsDeclared == false) {
+            throw new IllegalArgumentException(
+                "handler ["
+                    + handler.getConcreteRestHandler().getClass().getName()
+                    + "] supports read-only form-encoded POST bodies but registered route ["
+                    + method
+                    + " "
+                    + path
+                    + "] is not declared by the handler"
+            );
+        }
+    }
+
+    private static List<Route> declaredRoutes(RestHandler handler) {
+        return handler.routes()
+            .stream()
+            .flatMap(
+                route -> route.hasReplacement() ? Stream.of(route, Objects.requireNonNull(route.getReplacedRoute())) : Stream.of(route)
+            )
+            .toList();
+    }
+
+    private static boolean routeMatches(Route route, RestRequest.Method method, String path, RestApiVersion version) {
+        return route.getMethod() == method && route.getPath().equals(path) && route.getRestApiVersion() == version;
     }
 
     @Override
@@ -387,6 +508,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return Collections.unmodifiableSortedMap(allStats);
     }
 
+    private void maybeAggregateAndDispatchRequest(
+        RestRequest restRequest,
+        RestChannel restChannel,
+        RestHandler handler,
+        MethodHandlers methodHandlers,
+        ThreadContext threadContext
+    ) throws Exception {
+        if (handler.supportsContentStream()) {
+            dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
+        } else {
+            RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
+                try {
+                    dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
+                } catch (Exception e) {
+                    throw new ElasticsearchException(e);
+                }
+            });
+        }
+    }
+
     private void dispatchRequest(
         RestRequest request,
         RestChannel channel,
@@ -394,25 +535,21 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
+        final boolean consumeFormEncodedBodyParameters;
         if (request.hasContent()) {
-            if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
+            final boolean isBrowserSafelistedContentType = isBrowserSafelistedContentType(request);
+            consumeFormEncodedBodyParameters = isBrowserSafelistedContentType
+                && request.method() == RestRequest.Method.POST
+                && handler.supportsReadOnlyFormEncodedPostBody()
+                && isFormEncodedBody(request)
+                && interceptor.allowsBrowserSafelistedContentType(request);
+            if ((isBrowserSafelistedContentType && consumeFormEncodedBodyParameters == false)
+                || (consumeFormEncodedBodyParameters == false && handler.mediaTypesValid(request) == false)) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            final XContentType xContentType = request.getXContentType();
-            // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsBulkContent()
-                && XContentType.JSON != xContentType.canonical()
-                && XContentType.SMILE != xContentType.canonical()) {
-                channel.sendResponse(
-                    RestResponse.createSimpleErrorResponse(
-                        channel,
-                        RestStatus.NOT_ACCEPTABLE,
-                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"
-                    )
-                );
-                return;
-            }
+        } else {
+            consumeFormEncodedBodyParameters = false;
         }
         RestChannel responseChannel = channel;
         if (apiProtections.isEnabled()) {
@@ -422,8 +559,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
-        // TODO: estimate streamed content size for circuit breaker,
-        // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
         final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
@@ -454,6 +589,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // request as a serverless mode request here, so downstream handlers can use the marker
                 request.markAsServerlessRequest();
                 logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
+            if (consumeFormEncodedBodyParameters) {
+                request.consumeFormEncodedBodyParameters();
             }
 
             final var finalChannel = responseChannel;
@@ -497,14 +636,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
-     * in order to prevent CSRF we have to reject all media types that are from a browser safelist
-     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
-     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
-     * @param request
+     * Browser-safelisted content types can be submitted cross-origin without a CORS preflight.
+     * See https://fetch.spec.whatwg.org/#cors-safelisted-request-header.
      */
-    private static boolean isContentTypeDisallowed(RestRequest request) {
+    private static boolean isBrowserSafelistedContentType(RestRequest request) {
         return request.getParsedContentType() != null
             && SAFELISTED_MEDIA_TYPES.contains(request.getParsedContentType().mediaTypeWithoutParameters());
+    }
+
+    private static boolean isFormEncodedBody(RestRequest request) {
+        return request.getParsedContentType() != null
+            && FORM_URLENCODED_MEDIA_TYPE.equals(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(
@@ -518,7 +660,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                startTrace(threadContext, channel);
+                startInstrumentation(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -526,7 +668,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                startTrace(threadContext, channel);
+                startInstrumentation(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
@@ -534,45 +676,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel) {
-        startTrace(threadContext, channel, null);
+    private void startInstrumentation(ThreadContext threadContext, RestChannel channel) {
+        startInstrumentation(threadContext, channel, null);
     }
 
-    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
-        final RestRequest req = channel.request();
-        if (restPath == null) {
-            restPath = req.path();
-        }
-        String method = null;
-        try {
-            method = req.method().name();
-        } catch (IllegalArgumentException e) {
-            // Invalid methods throw an exception
-        }
-        String name;
-        if (method != null) {
-            name = method + " " + restPath;
-        } else {
-            name = restPath;
-        }
-
-        final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
-        req.getHeaders().forEach((key, values) -> {
-            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
-        });
-        attributes.put("http.method", method);
-        attributes.put("http.url", req.uri());
-        switch (req.getHttpRequest().protocolVersion()) {
-            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
-            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
-        }
-
-        tracer.startTrace(threadContext, channel.request(), name, attributes);
+    private void startInstrumentation(ThreadContext threadContext, RestChannel channel, @Nullable String restPath) {
+        this.instrumentation.start(threadContext, channel.request(), restPath);
     }
 
-    private void traceException(RestChannel channel, Throwable e) {
-        this.tracer.addError(channel.request(), e);
+    private void recordInstrumentationException(RestChannel channel, Throwable e) {
+        this.instrumentation.recordException(channel.request(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
@@ -590,7 +703,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            startTrace(threadContext, channel);
+            startInstrumentation(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             recordRequestMetric(BAD_REQUEST, requestsCounter);
             return;
@@ -619,20 +732,20 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    startTrace(threadContext, channel, handlers.getPath());
+                    startInstrumentation(threadContext, channel, handlers.getPath());
                     var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    dispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
+                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
-            startTrace(threadContext, channel);
-            traceException(channel, e);
+            startInstrumentation(threadContext, channel);
+            recordInstrumentationException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
-        startTrace(threadContext, channel);
+        startInstrumentation(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -644,14 +757,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {
+    Iterator<MethodHandlers> getAllHandlers(@Nullable RequestParams requestParamsRef, String rawPath) {
         final Supplier<Map<String, String>> paramsSupplier;
         if (requestParamsRef == null) {
             paramsSupplier = () -> null;
         } else {
             // Between retrieving the correct path, we need to reset the parameters,
             // otherwise parameters are parsed out of the URI that aren't actually handled.
-            final Map<String, String> originalParams = Map.copyOf(requestParamsRef);
+            final RequestParams originalParams = RequestParams.copyOf(requestParamsRef);
             paramsSupplier = () -> {
                 // PathTrie modifies the request, so reset the params between each iteration
                 requestParamsRef.clear();
@@ -662,7 +775,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return handlers.retrieveAll(rawPath, paramsSupplier).iterator();
+        return handlers.retrieveAll(rawPath, paramsSupplier);
     }
 
     /**
@@ -800,6 +913,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return delegate.handlerName();
+        }
+
+        @Override
         public XContentBuilder newBuilder() throws IOException {
             return delegate.newBuilder();
         }
@@ -868,18 +986,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public String handlerName() {
+            return restHandler.getName();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             super.sendResponse(response);
             recordRequestMetric(response.status(), restHandler.getName(), request().method().name(), requestsCounter);
         }
     }
 
+    // exposed for tests; marked as UpdateForV10 because this assertion should have flushed out all double-close bugs by the time v10 is
+    // released so we should be able to drop the tests that check we behave reasonably in production on this impossible path
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
+    static boolean PERMIT_DOUBLE_RESPONSE = false;
+
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
-        private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean responseSent = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(
             RestChannel delegate,
@@ -898,7 +1026,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             boolean success = false;
             try {
-                close();
+                // protect against double-response bugs
+                if (responseSent.compareAndSet(false, true) == false) {
+                    final var message = "have already sent a response to this request, cannot send another";
+                    assert PERMIT_DOUBLE_RESPONSE : message;
+                    throw new IllegalStateException(message);
+                }
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+
                 statsTracker.addRequestStats(contentLength);
                 statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
@@ -928,14 +1063,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private static long rawRelativeTimeInMillis() {
             return TimeValue.nsecToMSec(System.nanoTime());
-        }
-
-        private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
-            }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
     }
 

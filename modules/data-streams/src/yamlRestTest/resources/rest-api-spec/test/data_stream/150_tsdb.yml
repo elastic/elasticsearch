@@ -85,6 +85,18 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: tsdb-write-blocked
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: tsdb-write-blocked-pipeline
+        ignore: 404
+
+---
 created the data stream:
   - requires:
       cluster_features: ["gte_v8.1.0"]
@@ -108,7 +120,8 @@ created the data stream:
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
   - match: { data_streams.0.time_series.temporal_ranges.0.start: 2021-04-28T00:00:00.000Z }
-  - match: { data_streams.0.time_series.temporal_ranges.0.end: 2021-04-29T00:00:00.000Z }
+  # We can't match on time_series.temporal_ranges.0.end in this test because UpdateTimeSeriesRangeService updates it every 5 minutes, so every
+  # once in a while it is not what we expect it to be. See #124575.
   - set:  { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
@@ -147,13 +160,12 @@ fetch the tsid:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" ]}
 
 ---
 "aggregate the tsid":
   - requires:
       cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hahing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -168,9 +180,8 @@ fetch the tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
+  - length: {aggregations.tsids.buckets: 2}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -190,7 +201,7 @@ TSDB failures go to failure store:
       capabilities:
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [fs-k8s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -283,10 +294,118 @@ TSDB failures go to failure store:
   - match: { items.4.create.status: 400 }
   - match: { items.4.create.error.type: timestamp_error }
   - match: { items.4.create.failure_store: not_enabled }
-  - match: { items.4.create._index: 'k8s' }
-  - match: { items.4.create.status: 400 }
-  - match: { items.4.create.error.type: timestamp_error }
-  - match: { items.4.create.failure_store: not_enabled }
+  - match: { items.5.create._index: 'k8s' }
+  - match: { items.5.create.status: 400 }
+  - match: { items.5.create.error.type: timestamp_error }
+  - match: { items.5.create.failure_store: not_enabled }
+
+---
+TSDB documents for write blocked backing index go to failure store:
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-write-blocked-template] has index patterns [tsdb-write-blocked*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-write-blocked-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-write-blocked-template
+        body:
+          index_patterns: [ "tsdb-write-blocked*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: time_series
+                number_of_replicas: 0
+                number_of_shards: 1
+                routing_path: [ metricset ]
+            data_stream_options:
+              failure_store:
+                enabled: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      ingest.put_pipeline:
+        id: tsdb-write-blocked-pipeline
+        body:
+          processors:
+            - set:
+                field: "@timestamp"
+                value: "{{{_ingest.timestamp}}}"
+
+  - do:
+      indices.create_data_stream:
+        name: tsdb-write-blocked
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: tsdb-write-blocked
+  - match: { rolled_over: true }
+
+  - do:
+      indices.get_data_stream:
+        name: tsdb-write-blocked
+  - set: { data_streams.0.indices.0.index_name: first_backing_index }
+
+  - do:
+      indices.add_block:
+        index: $first_backing_index
+        block: write
+  - is_true: acknowledged
+
+  # The timestamp is not covered by any backing index
+  - do:
+      index:
+        index: tsdb-write-blocked
+        body:
+          '@timestamp': '2000-04-28T01:00:00Z'
+          metricset: pod
+  - match: { failure_store: used }
+  - set: { _index: failure_store_index }
+
+  # The ingest timestamp is covered by the write blocked first backing index
+  - do:
+      index:
+        index: tsdb-write-blocked
+        pipeline: tsdb-write-blocked-pipeline
+        body:
+          metricset: pod
+  - match: { failure_store: used }
+  - match: { _index: $failure_store_index }
+
+  - do:
+      indices.refresh:
+        index: .fs-tsdb-write-blocked-*
+
+  - do:
+      search:
+        index: .fs-tsdb-write-blocked-*
+        body:
+          query:
+            term:
+              error.type: timestamp_error
+  - length: { hits.hits: 1 }
+
+  - do:
+      search:
+        index: .fs-tsdb-write-blocked-*
+        body:
+          query:
+            term:
+              error.type: cluster_block_exception
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.document.index: tsdb-write-blocked }
 
 ---
 index without timestamp with pipeline:
@@ -367,7 +486,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -386,7 +504,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -405,7 +522,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -424,7 +540,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
   - do:
       search:
@@ -442,7 +557,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -519,7 +633,6 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -538,7 +651,6 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -593,11 +705,11 @@ dynamic templates - conflicting aliases with top-level field:
                       time_series_metric: counter
                       ignore_malformed: true
                 - strings_as_keyword:
+                    match_mapping_type: string
+                    path_match: "*attributes.*"
                     mapping:
                       type: keyword
                       ignore_above: 1024
-                      match_mapping_type: string
-                      path_match: "*attributes.*"
 
   - do:
       bulk:
@@ -698,7 +810,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -717,7 +828,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -736,7 +846,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -755,7 +864,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -774,7 +882,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -793,7 +900,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -1384,3 +1490,53 @@ multi value dimensions:
   - match: { aggregations.dims.buckets.1.doc_count: 3 }
   - match: { aggregations.dims.buckets.2.key: c }
   - match: { aggregations.dims.buckets.2.doc_count: 1 }
+
+---
+"custom routing on one item only fails that item":
+  - do:
+      allowed_warnings:
+        - "index template [my-routing-template] has index patterns [k9s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-routing-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-routing-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 2
+                mode: time_series
+                time_series:
+                  start_time: 2023-08-31T13:03:08.138Z
+            mappings:
+              properties:
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+                data:
+                  type: long
+                  time_series_metric: gauge
+
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "routing": "foo" } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 10, "dim": "a" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 20, "dim": "b" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2023-09-01T13:03:08.138Z", "data": 30, "dim": "c" }'
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "/specifies\\ a\\ custom\\ routing/" }
+  - match: { items.1.create.result: created }
+  - match: { items.2.create.result: created }
+
+  - do:
+      count:
+        index: k9s
+
+  - match: { count: 2 }

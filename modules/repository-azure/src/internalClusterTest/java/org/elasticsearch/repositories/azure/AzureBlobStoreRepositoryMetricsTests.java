@@ -99,7 +99,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        final String blobName = "index-" + randomIdentifier();
+        final String blobName = randomIndexName();
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
         clearMetrics(dataNodeName);
@@ -126,7 +126,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        final String blobName = "index-" + randomIdentifier();
+        final String blobName = randomIndexName();
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
         clearMetrics(dataNodeName);
@@ -153,7 +153,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
 
         // Create a blob
-        final String blobName = "index-" + randomIdentifier();
+        final String blobName = randomIndexName();
         final OperationPurpose purpose = randomFrom(OperationPurpose.values());
         blobContainer.writeBlob(purpose, blobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(randomBlobContent())), false);
         clearMetrics(dataNodeName);

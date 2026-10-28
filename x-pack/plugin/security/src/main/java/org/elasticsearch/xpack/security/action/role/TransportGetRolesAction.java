@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.Arrays;
@@ -29,11 +31,21 @@ import java.util.stream.Collectors;
 public class TransportGetRolesAction extends TransportAction<GetRolesRequest, GetRolesResponse> {
 
     private final NativeRolesStore nativeRolesStore;
+    private final ReservedRoleNameChecker reservedRoleNameChecker;
+    private final CompositeRolesStore compositeRolesStore;
 
     @Inject
-    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService) {
+    public TransportGetRolesAction(
+        ActionFilters actionFilters,
+        NativeRolesStore nativeRolesStore,
+        CompositeRolesStore compositeRolesStore,
+        ReservedRoleNameChecker reservedRoleNameChecker,
+        TransportService transportService
+    ) {
         super(GetRolesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nativeRolesStore = nativeRolesStore;
+        this.reservedRoleNameChecker = reservedRoleNameChecker;
+        this.compositeRolesStore = compositeRolesStore;
     }
 
     @Override
@@ -43,9 +55,14 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
 
         if (request.nativeOnly()) {
             final Set<String> rolesToSearchFor = specificRolesRequested
-                ? Arrays.stream(requestedRoles).collect(Collectors.toSet())
+                ? Arrays.stream(requestedRoles).filter(r -> false == reservedRoleNameChecker.isReserved(r)).collect(Collectors.toSet())
                 : Collections.emptySet();
-            getNativeRoles(rolesToSearchFor, listener);
+            if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
+                // specific roles were requested, but they were all reserved, no need to hit the native store
+                listener.onResponse(new GetRolesResponse());
+            } else {
+                getNativeRoles(rolesToSearchFor, request.includeImplicit(), listener);
+            }
             return;
         }
 
@@ -53,13 +70,10 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         final Set<RoleDescriptor> reservedRoles = new LinkedHashSet<>();
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
-                if (ReservedRolesStore.isReserved(role)) {
+                if (reservedRoleNameChecker.isReserved(role)) {
                     RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         reservedRoles.add(rd);
-                    } else {
-                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
-                        return;
                     }
                 } else {
                     rolesToSearchFor.add(role);
@@ -71,21 +85,44 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
 
         if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
             // specific roles were requested, but they were built in only, no need to hit the store
-            listener.onResponse(new GetRolesResponse(reservedRoles.toArray(new RoleDescriptor[0])));
+            respondWithImplicitPrivilegesIfRequested(reservedRoles, request.includeImplicit(), listener);
         } else {
-            getNativeRoles(rolesToSearchFor, reservedRoles, listener);
+            getNativeRoles(rolesToSearchFor, reservedRoles, request.includeImplicit(), listener);
         }
     }
 
-    private void getNativeRoles(Set<String> rolesToSearchFor, ActionListener<GetRolesResponse> listener) {
-        getNativeRoles(rolesToSearchFor, new LinkedHashSet<>(), listener);
+    private void respondWithImplicitPrivilegesIfRequested(
+        Set<RoleDescriptor> roles,
+        boolean includeImplicit,
+        ActionListener<GetRolesResponse> listener
+    ) {
+        if (includeImplicit) {
+            compositeRolesStore.addImplicitPrivilegesToRoles(
+                roles,
+                ActionListener.wrap(
+                    allRoles -> listener.onResponse(new GetRolesResponse(allRoles.toArray(new RoleDescriptor[0]))),
+                    listener::onFailure
+                )
+            );
+        } else {
+            listener.onResponse(new GetRolesResponse(roles.toArray(new RoleDescriptor[0])));
+        }
     }
 
-    private void getNativeRoles(Set<String> rolesToSearchFor, Set<RoleDescriptor> foundRoles, ActionListener<GetRolesResponse> listener) {
+    private void getNativeRoles(Set<String> rolesToSearchFor, boolean includeImplicit, ActionListener<GetRolesResponse> listener) {
+        getNativeRoles(rolesToSearchFor, new LinkedHashSet<>(), includeImplicit, listener);
+    }
+
+    private void getNativeRoles(
+        Set<String> rolesToSearchFor,
+        Set<RoleDescriptor> foundRoles,
+        boolean includeImplicit,
+        ActionListener<GetRolesResponse> listener
+    ) {
         nativeRolesStore.getRoleDescriptors(rolesToSearchFor, ActionListener.wrap((retrievalResult) -> {
             if (retrievalResult.isSuccess()) {
                 foundRoles.addAll(retrievalResult.getDescriptors());
-                listener.onResponse(new GetRolesResponse(foundRoles.toArray(new RoleDescriptor[0])));
+                respondWithImplicitPrivilegesIfRequested(foundRoles, includeImplicit, listener);
             } else {
                 listener.onFailure(retrievalResult.getFailure());
             }

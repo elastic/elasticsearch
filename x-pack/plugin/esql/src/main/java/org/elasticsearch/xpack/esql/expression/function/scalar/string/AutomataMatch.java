@@ -11,12 +11,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.automaton.UTF32ToUTF8;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -24,21 +26,65 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public class AutomataMatch {
     /**
-     * Build an {@link EvalOperator.ExpressionEvaluator.Factory} that will match
+     * Build an {@link ExpressionEvaluator.Factory} that will match
      * {@link BytesRef}s against {@link Automaton automata} and return a {@link BooleanBlock}.
      */
-    public static EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Source source,
-        EvalOperator.ExpressionEvaluator.Factory field,
-        Automaton utf32Automaton
-    ) {
+    public static ExpressionEvaluator.Factory toEvaluator(Source source, ExpressionEvaluator.Factory field, Automaton utf32Automaton) {
         /*
          * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
-         * we couldn't get a nice toDot - so we call UTF32ToUTF8 ourselves.
+         * we couldn’t get a nice toDot - so we call UTF32ToUTF8 ourselves.
          */
-        Automaton automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton automaton;
+        try {
+            automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        }
+
         ByteRunAutomaton run = new ByteRunAutomaton(automaton, true);
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
+    }
+
+    /**
+     * UTF-8 {@link ByteRunAutomaton} for {@code utf32Automaton}, or {@code null} when the
+     * automaton is too complex to determinize. Callers that match many inputs against one
+     * pattern must compile once and reuse the result.
+     */
+    @Nullable
+    public static ByteRunAutomaton compile(Automaton utf32Automaton) {
+        try {
+            Automaton automaton = Operations.determinize(
+                new UTF32ToUTF8().convert(utf32Automaton),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+            );
+            return new ByteRunAutomaton(automaton, true);
+        } catch (TooComplexToDeterminizeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether {@code input} is accepted by {@code utf32Automaton} after converting that automaton
+     * to UTF-8. {@code null} when the automaton is too complex to determinize — callers must treat
+     * that as unknown rather than a miss, so a file is kept rather than skipped unread.
+     * Compiles on every call; prefer {@link #compile} plus {@link #matches(BytesRef, ByteRunAutomaton)}
+     * when the same pattern is applied to many values.
+     */
+    @Nullable
+    public static Boolean matches(BytesRef input, Automaton utf32Automaton) {
+        ByteRunAutomaton run = compile(utf32Automaton);
+        if (run == null) {
+            return null;
+        }
+        return matches(input, run);
+    }
+
+    /** Whether {@code input} is accepted by a previously {@link #compile compiled} automaton. */
+    public static boolean matches(BytesRef input, ByteRunAutomaton run) {
+        if (input == null) {
+            return false;
+        }
+        return run.run(input.bytes, input.offset, input.length);
     }
 
     @Evaluator

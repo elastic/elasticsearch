@@ -17,13 +17,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -35,8 +36,8 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctLongAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctLongAggregatorFunctionSupplier(CountDistinctTestUtils.PRECISION);
     }
 
     @Override
@@ -45,14 +46,11 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
     }
 
     @Override
-    protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream().flatMapToLong(b -> allLongs(b)).distinct().count();
-        long count = ((LongBlock) result).getLong(0);
-
-        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        assertThat((double) count, closeTo(expected, expected * 0.1));
+    protected void assertSimpleOutput(List<Page> input, Block result) {
+        CountDistinctTestUtils.assertCount(
+            ((LongBlock) result).getLong(0),
+            input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).distinct().map(CountDistinctTestUtils::hash)
+        );
     }
 
     @Override
@@ -65,16 +63,14 @@ public class CountDistinctLongAggregatorFunctionTests extends AggregatorFunction
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),
-                new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
-                () -> {}
+                new PageConsumerOperator(page -> fail("shouldn't have made it this far"))
             )
         ) {
-            expectThrows(Exception.class, () -> runDriver(d));  // ### find a more specific exception type
+            expectThrows(ClassCastException.class, () -> new TestDriverRunner().run(d));
         }
     }
 }

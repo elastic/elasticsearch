@@ -1,0 +1,480 @@
+---
+applies_to:
+  stack:
+  serverless:
+navigation_title: "Limitations"
+mapped_pages:
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-limitations.html
+---
+
+# {{esql}} limitations [esql-limitations]
+
+## Result set size limit [esql-max-rows]
+
+By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/commands/limit.md) command.
+
+:::{include} _snippets/common/result-set-size-limitation.md
+:::
+
+## Field types [esql-supported-types]
+
+
+### Supported types [_supported_types]
+
+{{esql}} currently supports the following [field types](/reference/elasticsearch/mapping-reference/field-data-types.md):
+
+* `alias`
+* `boolean`
+* `date`
+* `date_nanos` (Tech Preview)
+
+    * The following functions don’t yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
+    * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
+
+* `date_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+* `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `double_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.6.0` {applies_to}`serverless: preview`
+* `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+* `flattened` {applies_to}`stack: preview 9.5.0`
+* `ip`
+* `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
+* `int` (`short` and `byte` are represented as `int`)
+* `long`
+* `null`
+* `text` [family](/reference/elasticsearch/mapping-reference/text.md) including `text`, `semantic_text` and `match_only_text`
+* `unsigned_long` {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* `version`
+* Spatial types
+
+    * `geo_point`
+    * `geo_shape`
+    * `point`
+    * `shape`
+* TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
+   * `counter`
+   * `gauge`
+   * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+   * [`exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * [`tdigest`](/reference/query-languages/esql/esql-histogram-fields.md) {applies_to}`stack: preview 9.3+, ga 9.4.0`
+
+
+### Unsupported types [_unsupported_types]
+
+{{esql}} does not support certain field types. If the limitation only applies to specific product versions, it is indicated in the following list:
+
+* {applies_to}`stack: ga 9.0-9.1` `dense_vector`
+* {applies_to}`stack: ga 9.0-9.1` TSDB metrics
+   * `counter`
+   * `gauge`
+   * `aggregate_metric_double`
+
+* Other types
+
+    * `binary`
+    * `completion`
+    * `float_range`
+    * `histogram` (can be queried via [casting to `tdigest` or `exponential_histogram`](/reference/query-languages/esql/esql-histogram-fields.md#cast-between-histogram-types))
+    * `integer_range`
+    * `ip_range`
+    * `long_range`
+    * `nested`
+    * `rank_feature`
+    * `rank_features`
+    * `rank_vectors`
+    * `search_as_you_type`
+
+
+Querying a column with an unsupported type returns an error. If a column with an unsupported type is not explicitly used in a query, it is returned with `null` values, with the exception of nested fields. Nested fields are not returned at all. To understand how unsupported types are reported in the API response, refer to [column metadata](esql-rest.md#esql-rest-column-metadata).
+
+
+### Limitations on supported types [_limitations_on_supported_types]
+
+Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
+
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying an expression that evaluates to one of these types as a sort key will result in an error:
+
+    * `geo_point`
+    * `geo_shape`
+    * `cartesian_point`
+    * `cartesian_shape`
+
+
+- In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+
+#### Spatial precision [esql-limitations-spatial-precision]
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point` and `cartesian_shape` are maintained at source precision in the original documents,
+but indexed at reduced precision by Lucene, for performance reasons.
+To ensure this optimization is available in the widest context, all [spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) will produce results
+at this reduced precision, aligned with the underlying Lucene index grid.
+For `geo_point` and `geo_shape`, this grid is smaller than 1 cm at the equator, which is still very high precision for most use cases.
+If the exact, original precision is desired, return the original field in the ES|QL query, which will maintain the original values.
+To prioritize performance over precision, simply drop that field.
+
+For example:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| KEEP location, geohex
+```
+
+This query will perform slowly, due to the need to retrieve the original `location` field from the source document.
+However, the following example will perform much faster:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP x, y, geohex
+```
+
+This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
+Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+
+#### Partial support in 9.2.0
+
+* {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
+
+    :::{note}
+    This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
+    * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
+    * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
+    :::
+
+## Runtime fields [esql-limitations-runtime-fields]
+
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to compute fields at query time, the built-in equivalent of runtime fields.
+
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) directive. Loading unmapped fields from [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with `SET unmapped_fields="load"` is slower than querying mapped fields, and filters or sorts on loaded fields can force a full scan. To learn more, refer to [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
+
+## _source availability [esql-_source-availability]
+
+{{esql}} does not support configurations where the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
+
+## Full-text search [esql-limitations-full-text-search]
+
+### Position restriction on indexed fields [esql-limitations-full-text-search-position]
+
+One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
+[`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
+Otherwise, the query will fail with a validation error.
+
+For example, this query is valid:
+
+```esql
+FROM books
+| WHERE MATCH(author, "Faulkner") AND MATCH(author, "Tolkien")
+```
+
+But this query will fail due to the [STATS](/reference/query-languages/esql/commands/stats-by.md) command:
+
+```esql
+FROM books
+| STATS AVG(price) BY author
+| WHERE MATCH(author, "Faulkner")
+```
+
+{applies_to}`stack: ga 9.6` {applies_to}`serverless: ga`
+[`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) is an exception:
+it can appear between `FROM` and the `WHERE` command without causing the query to fail.
+Unlike `STATS`, it appends the aggregated values as new columns and keeps every input row,
+so the search function can still use the index:
+
+```esql
+FROM books
+| INLINE STATS max_year = MAX(year) BY publisher
+| WHERE MATCH(author, "Faulkner") AND year == max_year
+```
+
+This applies to `MATCH`,
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
+and the `:` operator. Other search functions, such as
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) and
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), are
+still not supported after `INLINE STATS`. A `STATS` command before the search function still
+causes the query to fail, even if an `INLINE STATS` comes after it.
+
+### Runtime search on expressions [esql-limitations-full-text-search-expressions]
+
+{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
+`MATCH` can also target an expression rather than an indexed field, for example a column
+produced by `EVAL` or `STATS`. It then evaluates by scanning the column's values row by row
+instead of using the index.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+Because such a search does not use the index, the restriction above does not apply to it: it can
+appear anywhere in the query, including after `STATS`, `LIMIT` and `FORK`. (In earlier versions it
+was restricted to the same positions as a search on an indexed field. Searching a mapped `text` field
+that `FORK` merged is the one exception, described below.) For example, this query is accepted:
+
+```esql
+FROM books
+| SORT book_no
+| LIMIT 10
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien")
+```
+
+The restriction is lifted per search function, not per `WHERE` command, so a search on an indexed
+field sharing the command still fails. (e.g. if `content` was an indexed field instead, the query would be rejected.)
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
+supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
+option applies to the query string only: how the expression's values are analyzed is declared where
+the column is created, through
+[`TO_TEXT`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_text.md)'s
+`analyzer` option, and the query analyzer defaults to that values analyzer (`standard` when none is
+declared). Analyzer names must name a registered analyzer (prebuilt or plugin-contributed), not a
+per-index custom analyzer. On other expression types options are not supported.
+
+### Analyzer used for a runtime search [esql-limitations-full-text-search-analyzer]
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+An indexed `text` field is sometimes searched as an expression rather than through the index, and its values are
+then analyzed with the values analyzer of the column rather than the one its mapping declares: `standard`, unless it uses
+`TO_TEXT` with its optional `analyzer` argument. This applies whenever the field cannot be searched through the
+index, which includes the column [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) expanded and
+a field that is not mapped the same way across every index the query reads. Searching the field where it can still
+use the index uses the mapping's analyzer.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+What [`FORK`](/reference/query-languages/esql/commands/fork.md) outputs is not index-backed either, but there the
+mapped-`text` case is rejected rather than answered with the substituted analyzer. Declare the analyzer on the
+merged column to search it, which is allowed because the merged column is no longer an indexed field, or search the
+field inside the `FORK` branches instead:
+
+```esql
+FROM books
+| FORK (SORT book_no | LIMIT 5)
+       (SORT book_no DESC | LIMIT 5)
+| EVAL t = TO_TEXT(title, {"analyzer": "whitespace"})
+| WHERE MATCH(t, "Tolkien")
+```
+
+This only applies to a column the merge actually makes non-indexed. Where no branch contains a pipeline breaker
+such as `LIMIT` or `STATS`, the search is pushed into the branches and still uses the index, so it is unaffected.
+`FORK` branches that declare different values analyzers for the same column are rejected too, since the merged
+column can only carry one of them.
+
+:::{warning}
+`MV_EXPAND`, and a field that is not mapped the same way across every index the query reads, substitute the
+analyzer without reporting it. A field whose mapping declares an analyzer other than `standard` is then searched
+differently depending on where in the query it is searched, and the query succeeds while quietly matching a
+different set of documents. Either search the field before the command that turns it into an expression, or declare
+the analyzer again on `TO_TEXT` afterwards, which is allowed once the column is no longer an indexed field:
+
+```esql
+FROM books
+| MV_EXPAND author
+| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
+| WHERE MATCH(a, "Tolkien")
+```
+:::
+
+Which column `MV_EXPAND` expanded therefore decides how the field is searched. Both of these expand
+`author`, which a book can have several of, but only the first searches the expanded column and so
+becomes a runtime search:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(author, "Tolkien")
+```
+
+The second searches an indexed field instead, which is still subject to the restriction above and
+fails after `MV_EXPAND`:
+
+```esql
+FROM books
+| MV_EXPAND author
+| WHERE MATCH(title, "Tolkien")
+```
+
+### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+When using `METADATA _score`, `MATCH` on an expression contributes to the relevance score:
+a row scores the `boost` option (1.0 by default) for each query term occurrence it matches
+(duplicate query terms each contribute separately), rather than BM25, as there are no index
+statistics for an expression. In earlier versions, `MATCH` on an expression does not contribute
+to the score.
+
+A search on an expression contributes to `_score` only once it runs. Filtering on `_score` after
+the search sees its score:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+| WHERE _score > 1.5
+```
+
+Within one `WHERE`, a condition on `_score` combined with `AND` sees the score from every search in
+that `WHERE`, wherever it appears. Here `_score > 1.5` sees the score from both `MATCH` functions:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings") AND _score > 1.5 AND MATCH(content, "English")
+```
+
+Anything that uses `_score` before the search runs sees the score from before it, which is 0.0 if no
+earlier search has scored. For example, a `WHERE` on `_score` before the expression is computed, which
+keeps no books here:
+
+```esql
+FROM books METADATA _score
+| WHERE _score > 1.5
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
+A value computed from `_score` before or alongside the expression, so `s` is 0.0:
+
+```esql
+FROM books METADATA _score
+| EVAL s = _score + 0.0, content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
+A `SORT` and `LIMIT` before the search, which pick 10 books **_before_** any of them have been scored:
+
+```esql
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| SORT _score DESC
+| LIMIT 10
+| WHERE MATCH(content, "Tolkien Rings")
+```
+
+### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
+
+Lastly, note that any queries on `text` fields that do not explicitly use the full-text functions,
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
+will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
+
+
+## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
+
+As discussed in more detail in [Using {{esql}} to query multiple indices](/reference/query-languages/esql/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
+
+* All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
+* The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+
+## Time series data streams [esql-tsdb]
+
+::::{applies-switch}
+:::{applies-item} stack: preview 9.2+
+Time series data streams (TSDS) are supported in technical preview.
+:::
+:::{applies-item} stack: ga 9.0-9.1
+{{esql}} does not support querying time series data streams (TSDS).
+:::
+::::
+
+## Date math limitations [esql-limitations-date-math]
+
+Date math expressions work well when the leftmost expression is a datetime, for example:
+
+```txt
+now() + 1 year - 2hour + ...
+```
+
+But using parentheses or putting the datetime to the right is not always supported yet. For example, the following expressions fail:
+
+```txt
+1year + 2hour + now()
+now() + (1year + 2hour)
+```
+
+Date math does not allow subtracting two datetimes, for example:
+
+```txt
+now() - 2023-10-26
+```
+
+
+## Enrich limitations [esql-limitations-enrich]
+
+While all three enrich policy types are supported, there are some limitations to be aware of:
+
+* The `geo_match` enrich policy type only supports the `intersects` spatial relation.
+* It is required that the `match_field` in the `ENRICH` command is of the correct type. For example, if the enrich policy is of type `geo_match`, the `match_field` in the `ENRICH` command must be of type `geo_point` or `geo_shape`. Likewise, a `range` enrich policy requires a `match_field` of type `integer`, `long`, `date`, or `ip`, depending on the type of the range field in the original enrich index.
+* However, this constraint is relaxed for `range` policies when the `match_field` is of type `KEYWORD`. In this case the field values will be parsed during query execution, row by row. If any value fails to parse, the output values for that row will be set to `null`, an appropriate warning will be produced and the query will continue to execute.
+
+
+## Dissect limitations [esql-limitations-dissect]
+
+The `DISSECT` command does not support reference keys.
+
+
+## Grok limitations [esql-limitations-grok]
+
+The `GROK` command does not support configuring [custom patterns](/reference/ingest-processor/grok-processor.md#custom-patterns), or [multiple patterns](/reference/ingest-processor/grok-processor.md#trace-match). The `GROK` command is not subject to [Grok watchdog settings](/reference/ingest-processor/grok-processor.md#grok-watchdog).
+
+
+## Multivalue limitations [esql-limitations-mv]
+
+{{esql}} [supports multivalued fields](/reference/query-languages/esql/esql-multivalued-fields.md),
+but functions return `null` when applied to a multivalued field, unless documented otherwise.
+Work around this limitation by converting the field to single value with one of the
+[multivalue functions](/reference/query-languages/esql/functions-operators/mv-functions.md).
+
+
+## INLINE STATS limitations [esql-limitations-inlinestats]
+
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
+
+Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
+## Subquery and view limitations [esql-limitations-subquery-views]
+
+[Subqueries](/reference/query-languages/esql/esql-subquery.md) and
+[views](/reference/query-languages/esql/esql-views.md) are closely related,
+since both extend the
+[`FROM`](/reference/query-languages/esql/commands/from.md) command with
+branched query plans. They share the overall branching constraints but each
+has its own additional limitations, described in turn below.
+
+### Subquery limitations [esql-limitations-subquery]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
+### View limitations [esql-limitations-views]
+
+[Views](/reference/query-languages/esql/esql-views.md) reuse the same
+branching model as subqueries, nested branching is generally not supported, but
+views can work around this limitation via
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+Beyond that, views have a few additional restrictions of their own, listed next.
+
+:::{include} _snippets/common/view_limitations.md
+:::
+
+
+## Kibana limitations [esql-limitations-kibana]
+
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
+* Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
+* CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
+* Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
+
+## Known issues [esql-known-issues]
+
+Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for {{esql}}.

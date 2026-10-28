@@ -1,0 +1,156 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.anthropic;
+
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class AnthropicResponseHandlerTests extends ESTestCase {
+
+    public void testBuildFailureStatusCodeException_ReturnsFor500_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(500, "id");
+        assertTrue(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received a server error status code for request from inference entity id [id] status [500]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor529_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(529, "id");
+        assertTrue(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Received an Anthropic server is temporarily overloaded status code for request from inference entity id [id] status [529]"
+            )
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor505_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(505, "id");
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received a server error status code for request from inference entity id [id] status [505]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry() {
+        var exception = callHandleFailureStatusCode(429, "id");
+        assertTrue(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Received a rate limit status code. Token limit [unknown], remaining tokens [unknown], tokens reset [unknown]. "
+                    + "Request limit [unknown], remaining requests [unknown], request reset [unknown]. "
+                    + "Retry after [unknown] for request from inference entity id [id] status [429]"
+            )
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor429_ShouldRetry_RetrievesFieldsFromHeaders() {
+        int statusCode = 429;
+        var response = mock(HttpResponse.class);
+        when(response.getCode()).thenReturn(statusCode);
+        var httpResult = new HttpResult(response, new byte[] {});
+
+        when(response.getFirstHeader(AnthropicResponseHandler.REQUESTS_LIMIT)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.REQUESTS_LIMIT, "3000")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.REMAINING_REQUESTS)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.REMAINING_REQUESTS, "2999")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.TOKENS_LIMIT)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.TOKENS_LIMIT, "10000")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.REMAINING_TOKENS)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.REMAINING_TOKENS, "99800")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.REQUEST_RESET)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.REQUEST_RESET, "123")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.TOKENS_RESET)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.TOKENS_RESET, "456")
+        );
+        when(response.getFirstHeader(AnthropicResponseHandler.RETRY_AFTER)).thenReturn(
+            new BasicHeader(AnthropicResponseHandler.RETRY_AFTER, "2")
+        );
+
+        var error = AnthropicResponseHandler.buildRateLimitErrorMessage(httpResult);
+        assertThat(
+            error,
+            containsString(
+                "Received a rate limit status code. Token limit [10000], remaining tokens [99800], tokens reset [456]. "
+                    + "Request limit [3000], remaining requests [2999], request reset [123]. Retry after [2]"
+            )
+        );
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor403_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(403, "id");
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received a permission denied error status code for request from inference entity id [id] status [403]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.FORBIDDEN));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor300_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(300, "id");
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Unhandled redirection for request from inference entity id [id] status [300]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.MULTIPLE_CHOICES));
+    }
+
+    public void testBuildFailureStatusCodeException_ReturnsFor425_ShouldNotRetry() {
+        var exception = callHandleFailureStatusCode(425, "id");
+        assertFalse(exception.shouldRetry());
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received an unsuccessful status code for request from inference entity id [id] status [425]")
+        );
+        assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    private static RetryException callHandleFailureStatusCode(int statusCode, String inferenceEntityId) {
+        var httpResponse = mock(HttpResponse.class);
+        when(httpResponse.getCode()).thenReturn(statusCode);
+        var header = mock(Header.class);
+        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
+
+        var mockRequest = mock(OutboundRequest.class);
+        when(mockRequest.getInferenceEntityId()).thenReturn(inferenceEntityId);
+        var httpResult = new HttpResult(httpResponse, new byte[] {});
+        var handler = new AnthropicResponseHandler("", (request, result) -> null, false);
+
+        return handler.buildFailureStatusCodeException(mockRequest, httpResult);
+    }
+
+}

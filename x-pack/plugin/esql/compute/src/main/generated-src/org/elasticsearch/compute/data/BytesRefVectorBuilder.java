@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -38,6 +39,14 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     }
 
     @Override
+    public BytesRefVectorBuilder append(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
+        valueCount++;
+        return this;
+    }
+
+    @Override
     protected int elementSize() {
         return -1;
     }
@@ -50,6 +59,19 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     @Override
     protected void growValuesArray(int newSize) {
         throw new AssertionError("should not reach here");
+    }
+
+    @Override
+    public long estimatedBytes() {
+        if (isReleased()) {
+            return 0;
+        }
+        // values accounts for itself through BigArrays so the estimatedBytes field never includes it
+        return BytesRefArrayVector.ramBytesEstimated(
+            values,
+            blockFactory.bytesRefRamOverestimateThreshold(),
+            blockFactory.bytesRefRamOverestimateFactor()
+        );
     }
 
     @Override

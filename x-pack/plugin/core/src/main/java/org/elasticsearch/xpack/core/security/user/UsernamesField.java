@@ -34,6 +34,8 @@ public final class UsernamesField {
     public static final String STORAGE_ROLE_NAME = "_storage";
     public static final String SYNONYMS_USER_NAME = "_synonyms";
     public static final String SYNONYMS_ROLE_NAME = "_synonyms";
+    public static final String CROSS_PROJECT_SEARCH_USER_NAME = "_cross_project_search";
+    public static final String CROSS_PROJECT_SEARCH_ROLE_NAME = "_cross_project_search";
 
     public static final String REMOTE_MONITORING_NAME = "remote_monitoring_user";
     public static final String REMOTE_MONITORING_COLLECTION_ROLE = "remote_monitoring_collector";
@@ -42,6 +44,8 @@ public final class UsernamesField {
     public static final String LAZY_ROLLOVER_ROLE = "_lazy_rollover";
     public static final String REINDEX_DATA_STREAM_NAME = "_reindex_data_stream";
     public static final String REINDEX_DATA_STREAM_ROLE = "_reindex_data_stream";
+    public static final String ENRICH_NAME = "_enrich";
+    public static final String ENRICH_ROLE = "_enrich";
 
     private UsernamesField() {}
 }

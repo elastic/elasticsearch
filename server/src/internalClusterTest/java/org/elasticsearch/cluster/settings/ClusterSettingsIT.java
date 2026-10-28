@@ -574,7 +574,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {
-            final Settings.Builder testSettings = Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace");
+            final Settings.Builder testSettings = Settings.builder().put("logger.test", "ERROR").put("logger._root", "error");
             ClusterUpdateSettingsRequestBuilder updateBuilder = clusterAdmin().prepareUpdateSettings(
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT
@@ -582,8 +582,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             consumer.accept(testSettings, updateBuilder);
 
             updateBuilder.get();
-            assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
-            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, LogManager.getLogger("test").getLevel());
+            assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {
             ClusterUpdateSettingsRequestBuilder undoBuilder = clusterAdmin().prepareUpdateSettings(
                 TEST_REQUEST_TIMEOUT,

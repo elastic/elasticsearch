@@ -34,10 +34,13 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -179,6 +182,82 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         assertAllowedIndexPatterns(permission, new String[] { "security", ".security-7" }, false);
     }
 
+    public void testRestrictedIndexPutRoleRequestWithAllowRestrictedIndices() {
+        new ReservedRolesStore();
+
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.ManageRolesIndexPermissionGroup(new String[] { "*" }, new String[] { "all" }))
+        );
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
+
+        assertAllowedIndexPatterns(permission, new String[] { "*" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { ".*" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { "/.*/" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { ".security-7" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { "security", "*" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { "logs-*" }, new String[] { "all" }, true, false);
+        assertAllowedIndexPatterns(permission, new String[] { "logs-000001" }, new String[] { "all" }, true, false);
+
+        assertAllowedIndexPatterns(permission, new String[] { "*" }, new String[] { "all" }, false, true);
+        assertAllowedIndexPatterns(permission, new String[] { "logs-*" }, new String[] { "all" }, false, true);
+    }
+
+    public void testAllowRestrictedIndicesRejectedForPatternsOverlappingRestrictedIndices() {
+        new ReservedRolesStore();
+
+        for (String pattern : new String[] { "*security*", ".security*", ".s*", "*-7" }) {
+            final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+                List.of(new ManageRolesPrivilege.ManageRolesIndexPermissionGroup(new String[] { pattern }, new String[] { "all" }))
+            );
+            final ClusterPermission permission = privilege.buildPermission(
+                new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+            ).build();
+
+            assertAllowedIndexPatterns(permission, new String[] { pattern }, new String[] { "all" }, true, false);
+            assertAllowedIndexPatterns(permission, new String[] { pattern }, new String[] { "all" }, false, true);
+        }
+    }
+
+    public void testAllowRestrictedIndicesRejectedForSingleIndexGroup() {
+        new ReservedRolesStore();
+
+        final ManageRolesPrivilege privilege = new ManageRolesPrivilege(
+            List.of(new ManageRolesPrivilege.ManageRolesIndexPermissionGroup(new String[] { "allowed-*" }, new String[] { "all" }))
+        );
+        final ClusterPermission permission = privilege.buildPermission(
+            new ClusterPermission.Builder(new RestrictedIndices(TestRestrictedIndices.RESTRICTED_INDICES.getAutomaton()))
+        ).build();
+
+        {
+            final PutRoleRequest putRoleRequest = new PutRoleRequest();
+            putRoleRequest.name(randomAlphaOfLength(3));
+            putRoleRequest.addIndex(new String[] { "allowed-a" }, new String[] { "all" }, null, null, null, false);
+            putRoleRequest.addIndex(new String[] { "allowed-b" }, new String[] { "all" }, null, null, null, true);
+            assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(false));
+        }
+        {
+            final BulkPutRolesRequest bulkPutRolesRequest = new BulkPutRolesRequest(
+                List.of(
+                    new RoleDescriptor(
+                        randomAlphaOfLength(3),
+                        new String[] {},
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder().indices("allowed-a").privileges("all").build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("allowed-b")
+                                .privileges("all")
+                                .allowRestrictedIndices(true)
+                                .build() },
+                        new String[] {}
+                    )
+                )
+            );
+            assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/bulk_put", bulkPutRolesRequest), is(false));
+        }
+    }
+
     public void testGenerateAndParseXContent() throws Exception {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -257,6 +336,70 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(false));
     }
 
+    public void testParseInvalidPrivilege() throws Exception {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        final String invalidJsonString = String.format(Locale.ROOT, """
+            {
+                "manage": {
+                    "indices": [
+                        {
+                            "names": ["test-*"],
+                            "privileges": ["%s"]
+                        }
+                    ]
+                }
+            }""", unknownPrivilege);
+        assertInvalidPrivilegeParsing(invalidJsonString, unknownPrivilege);
+    }
+
+    public void testParseMixedValidAndInvalidPrivileges() throws Exception {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        final String validPrivilege = "read";
+        final String mixedPrivilegesJson = String.format(Locale.ROOT, """
+            {
+                "manage": {
+                    "indices": [
+                        {
+                            "names": ["test-*"],
+                            "privileges": ["%s", "%s"]
+                        }
+                    ]
+                }
+            }""", validPrivilege, unknownPrivilege);
+
+        assertInvalidPrivilegeParsing(mixedPrivilegesJson, unknownPrivilege);
+    }
+
+    /**
+     * Helper method to assert that parsing the given JSON payload results in an
+     * IllegalArgumentException due to an unknown privilege.
+     *
+     * @param jsonPayload The JSON string containing the privilege data.
+     * @param expectedErrorDetail The specific unknown privilege name expected in the error message.
+     */
+    private static void assertInvalidPrivilegeParsing(final String jsonPayload, final String expectedErrorDetail) throws Exception {
+        final XContent xContent = XContentType.JSON.xContent();
+
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, jsonPayload.getBytes(StandardCharsets.UTF_8))
+        ) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> ManageRolesPrivilege.parse(parser));
+
+            assertThat(exception.getMessage(), containsString("unknown index privilege [" + expectedErrorDetail + "]"));
+        }
+    }
+
     private static boolean permissionCheck(ClusterPermission permission, String action, ActionRequest request) {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         assertThat(request.validate(), nullValue());
@@ -273,10 +416,20 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         String[] privileges,
         boolean expected
     ) {
+        assertAllowedIndexPatterns(permission, indexPatterns, privileges, false, expected);
+    }
+
+    private static void assertAllowedIndexPatterns(
+        ClusterPermission permission,
+        String[] indexPatterns,
+        String[] privileges,
+        boolean allowRestrictedIndices,
+        boolean expected
+    ) {
         {
             final PutRoleRequest putRoleRequest = new PutRoleRequest();
             putRoleRequest.name(randomAlphaOfLength(3));
-            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, false);
+            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, allowRestrictedIndices);
             assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(expected));
         }
         {
@@ -286,7 +439,11 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
                         randomAlphaOfLength(3),
                         new String[] {},
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices(indexPatterns).privileges(privileges).build() },
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(indexPatterns)
+                                .privileges(privileges)
+                                .allowRestrictedIndices(allowRestrictedIndices)
+                                .build() },
                         new String[] {}
                     )
                 )

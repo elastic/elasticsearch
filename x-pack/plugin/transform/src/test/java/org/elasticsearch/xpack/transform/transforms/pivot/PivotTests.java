@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
@@ -25,7 +26,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -38,6 +41,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -70,9 +74,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.transform.transforms.common.AbstractCompositeAggFunction.COMPOSITE_AGGREGATION_NAME;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -309,13 +315,22 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var emptyAggregationClient = new MyMockClientWithEmptyAggregation(threadPool);
-            pivot.preview(emptyAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                emptyAggregationClient,
+                null,
+                new HashMap<>(),
+                new SourceConfig("test"),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
         assertThat(exceptionHolder.get(), is(nullValue()));
@@ -328,7 +343,16 @@ public class PivotTests extends ESTestCase {
             SettingsConfigTests.randomSettingsConfig(),
             TransformConfigVersion.CURRENT,
             Collections.emptySet()
-        );
+        ) {
+            protected Stream<Map<String, Object>> extractResults(
+                CompositeAggregation agg,
+                Map<String, String> fieldTypeMap,
+                TransformIndexerStats transformIndexerStats,
+                TransformProgress transformProgress
+            ) {
+                return Stream.of(Map.ofEntries(Map.entry(TransformField.DOCUMENT_ID_FIELD, "1234"), Map.entry("testKey", "testValue")));
+            }
+        };
 
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -336,37 +360,39 @@ public class PivotTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var compositeAggregationClient = new MyMockClientWithCompositeAggregation(threadPool);
-            pivot.preview(compositeAggregationClient, null, new HashMap<>(), new SourceConfig("test"), null, 1, ActionListener.wrap(r -> {
-                responseHolder.set(r);
-                latch.countDown();
-            }, e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }));
+            pivot.preview(
+                compositeAggregationClient,
+                null,
+                new HashMap<>(),
+                new SourceConfig("test"),
+                IndicesOptions.LENIENT_EXPAND_OPEN,
+                null,
+                1,
+                ActionListener.wrap(r -> {
+                    responseHolder.set(r);
+                    latch.countDown();
+                }, e -> {
+                    exceptionHolder.set(e);
+                    latch.countDown();
+                })
+            );
             assertTrue(latch.await(100, TimeUnit.MILLISECONDS));
         }
 
         assertThat(exceptionHolder.get(), is(nullValue()));
-        assertThat(responseHolder.get(), is(empty()));
+        assertThat(
+            responseHolder.get(),
+            containsInAnyOrder(
+                Map.ofEntries(
+                    Map.entry(TransformField.DOCUMENT_ID_FIELD, "1234"),
+                    Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, Map.of("testKey", "testValue"))
+                )
+            )
+        );
     }
 
     private static SearchResponse searchResponseFromAggs(InternalAggregations aggs) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            aggs,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            10,
-            5,
-            0,
-            0,
-            ShardSearchFailure.EMPTY_ARRAY,
-            null
-        );
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).shards(10, 5, 0).build();
     }
 
     private class MyMockClient extends NoOpClient {
@@ -397,22 +423,10 @@ public class PivotTests extends ESTestCase {
                 }
                 ActionListener.respondAndRelease(
                     listener,
-                    (Response) new SearchResponse(
-                        SearchHits.EMPTY_WITH_TOTAL_HITS,
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        null,
-                        10,
-                        searchFailures.size() > 0 ? 0 : 5,
-                        0,
-                        0,
-                        searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]),
-                        null
-                    )
+                    (Response) SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                        .shards(10, searchFailures.isEmpty() ? 5 : 0, 0)
+                        .shardFailures(searchFailures)
+                        .build()
                 );
                 return;
             }
@@ -451,10 +465,12 @@ public class PivotTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            SearchResponse response = mock(SearchResponse.class);
-            InternalComposite compositeAggregation = mock(InternalComposite.class);
+            SearchResponse response = mock();
+            InternalComposite compositeAggregation = mock();
+            when(compositeAggregation.getName()).thenReturn(COMPOSITE_AGGREGATION_NAME);
+            InternalComposite.InternalBucket bucket = mock();
+            when(compositeAggregation.getBuckets()).thenReturn(List.of(bucket));
             when(response.getAggregations()).thenReturn(InternalAggregations.from(List.of(compositeAggregation)));
-            when(compositeAggregation.getBuckets()).thenReturn(new ArrayList<>());
             listener.onResponse((Response) response);
         }
     }
@@ -583,7 +599,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Function pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validateQuery(client, emptyMap(), source, null, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, emptyMap(), source, IndicesOptions.LENIENT_EXPAND_OPEN, null, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

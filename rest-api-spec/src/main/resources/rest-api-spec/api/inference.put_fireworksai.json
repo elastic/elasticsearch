@@ -1,0 +1,48 @@
+{
+  "inference.put_fireworksai": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-fireworksai",
+      "description": "Create a Fireworks AI inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{fireworksai_inference_id}",
+          "methods": ["PUT"],
+          "parts": {
+            "task_type": {
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "text_embedding",
+                "completion",
+                "chat_completion"
+              ]
+            },
+            "fireworksai_inference_id": {
+              "type": "string",
+              "description": "The inference ID"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
+    }
+  }
+}

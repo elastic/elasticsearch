@@ -67,13 +67,23 @@ public final class WelfordAlgorithm {
             count = countValue;
             return;
         }
-        double delta = mean - meanValue;
+        double delta = meanValue - mean;
         m2 += m2Value + delta * delta * count * countValue / (count + countValue);
-        mean = (mean * count + meanValue * countValue) / (count + countValue);
+        // A weighted sum can round identical means differently and introduce variance in subsequent merges.
+        mean += delta * ((double) countValue / (count + countValue));
         count += countValue;
     }
 
-    public double evaluate() {
-        return count < 2 ? 0 : Math.sqrt(m2 / count);
+    /**
+     * Evaluate the variance or standard deviation.
+     * @param stdDev if true, compute standard deviation, otherwise variance
+     * @return
+     */
+    public double evaluate(boolean stdDev) {
+        if (stdDev == false) {
+            return count < 2 ? 0 : m2 / count;
+        } else {
+            return count < 2 ? 0 : Math.sqrt(m2 / count);
+        }
     }
 }

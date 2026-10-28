@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -135,6 +135,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(listener).onFailure(any());
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
+        // Prepare one job with a retention policy
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(20L).build()
+        );
+
+        createExpiredResultsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // Assert: success callback invoked, no DBQ requests
+        verify(listener).onResponse(true);
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testCalcCutoffEpochMs() {
         String jobId = "calc-cutoff";
@@ -164,11 +180,12 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private void givenDBQRequest(boolean shouldSucceed) {
         doAnswer(invocationOnMock -> {
             capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
-            ActionListener<BulkByScrollResponse> listener = (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<BulkByPaginatedSearchResponse> listener = (ActionListener<BulkByPaginatedSearchResponse>) invocationOnMock
+                .getArguments()[2];
             if (shouldSucceed) {
-                BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
-                when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
-                listener.onResponse(bulkByScrollResponse);
+                BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse = mock(BulkByPaginatedSearchResponse.class);
+                when(bulkByPaginatedSearchResponse.getDeleted()).thenReturn(42L);
+                listener.onResponse(bulkByPaginatedSearchResponse);
             } else {
                 listener.onFailure(new RuntimeException("failed"));
             }
@@ -180,12 +197,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private void givenBucket(Bucket bucket) {
         doAnswer(invocationOnMock -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
+            SearchResponse searchResponse = AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket));
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
+        return createExpiredResultsRemover(jobIterator, true);
+    }
+
+    private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator, boolean isResultsIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -196,6 +218,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        MockWritableIndexExpander.create(isResultsIndexWritable);
 
         return new ExpiredResultsRemover(
             originSettingClient,

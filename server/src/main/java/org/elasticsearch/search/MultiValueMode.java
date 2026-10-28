@@ -13,9 +13,10 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -23,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
-import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
+import org.elasticsearch.index.fielddata.DenseLongValues;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -42,7 +44,7 @@ public enum MultiValueMode implements Writeable {
      */
     SUM {
         @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
+        protected long pick(SortedNumericLongValues values) throws IOException {
             final int count = values.docValueCount();
             long total = 0;
             for (int index = 0; index < count; ++index) {
@@ -53,7 +55,7 @@ public enum MultiValueMode implements Writeable {
 
         @Override
         protected long pick(
-            SortedNumericDocValues values,
+            SortedNumericLongValues values,
             long missingValue,
             DocIdSetIterator docItr,
             int startDoc,
@@ -123,7 +125,7 @@ public enum MultiValueMode implements Writeable {
      */
     AVG {
         @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
+        protected long pick(SortedNumericLongValues values) throws IOException {
             final int count = values.docValueCount();
             long total = 0;
             for (int index = 0; index < count; ++index) {
@@ -134,7 +136,7 @@ public enum MultiValueMode implements Writeable {
 
         @Override
         protected long pick(
-            SortedNumericDocValues values,
+            SortedNumericLongValues values,
             long missingValue,
             DocIdSetIterator docItr,
             int startDoc,
@@ -208,7 +210,7 @@ public enum MultiValueMode implements Writeable {
      */
     MEDIAN {
         @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
+        protected long pick(SortedNumericLongValues values) throws IOException {
             int count = values.docValueCount();
             for (int i = 0; i < (count - 1) / 2; ++i) {
                 values.nextValue();
@@ -239,13 +241,13 @@ public enum MultiValueMode implements Writeable {
      */
     MIN {
         @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
+        protected long pick(SortedNumericLongValues values) throws IOException {
             return values.nextValue();
         }
 
         @Override
         protected long pick(
-            SortedNumericDocValues values,
+            SortedNumericLongValues values,
             long missingValue,
             DocIdSetIterator docItr,
             int startDoc,
@@ -297,8 +299,19 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
-            return values.nextValue();
+        protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
+            if (values.getValueOrder() == SortableBinaryDocValues.ValueOrder.SORTED) {
+                return values.nextValue();
+            }
+            final int count = values.docValueCount();
+            scratch.copyBytes(values.nextValue());
+            for (int i = 1; i < count; ++i) {
+                final BytesRef next = values.nextValue();
+                if (next.compareTo(scratch.get()) < 0) {
+                    scratch.copyBytes(next);
+                }
+            }
+            return scratch.get();
         }
 
         @Override
@@ -362,7 +375,7 @@ public enum MultiValueMode implements Writeable {
      */
     MAX {
         @Override
-        protected long pick(SortedNumericDocValues values) throws IOException {
+        protected long pick(SortedNumericLongValues values) throws IOException {
             final int count = values.docValueCount();
             for (int i = 0; i < count - 1; ++i) {
                 values.nextValue();
@@ -372,7 +385,7 @@ public enum MultiValueMode implements Writeable {
 
         @Override
         protected long pick(
-            SortedNumericDocValues values,
+            SortedNumericLongValues values,
             long missingValue,
             DocIdSetIterator docItr,
             int startDoc,
@@ -436,12 +449,22 @@ public enum MultiValueMode implements Writeable {
         }
 
         @Override
-        protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
-            int count = values.docValueCount();
-            for (int i = 0; i < count - 1; ++i) {
-                values.nextValue();
+        protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
+            final int count = values.docValueCount();
+            if (values.getValueOrder() == SortableBinaryDocValues.ValueOrder.SORTED) {
+                for (int i = 0; i < count - 1; ++i) {
+                    values.nextValue();
+                }
+                return values.nextValue();
             }
-            return values.nextValue();
+            scratch.copyBytes(values.nextValue());
+            for (int i = 1; i < count; ++i) {
+                final BytesRef next = values.nextValue();
+                if (next.compareTo(scratch.get()) > 0) {
+                    scratch.copyBytes(next);
+                }
+            }
+            return scratch.get();
         }
 
         @Override
@@ -520,12 +543,12 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
-    public NumericDocValues select(final SortedNumericDocValues values) {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+    public LongValues select(final SortedNumericLongValues values) {
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         if (singleton != null) {
             return singleton;
         } else {
-            return new AbstractNumericDocValues() {
+            return new LongValues() {
 
                 private long value;
 
@@ -539,11 +562,6 @@ public enum MultiValueMode implements Writeable {
                 }
 
                 @Override
-                public int docID() {
-                    return values.docID();
-                }
-
-                @Override
                 public long longValue() {
                     return value;
                 }
@@ -551,7 +569,7 @@ public enum MultiValueMode implements Writeable {
         }
     }
 
-    protected long pick(SortedNumericDocValues values) throws IOException {
+    protected long pick(SortedNumericLongValues values) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -567,42 +585,36 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDocValues select(
-        final SortedNumericDocValues values,
+    public DenseLongValues select(
+        final SortedNumericLongValues values,
         final long missingValue,
         final BitSet parentDocs,
         final DocIdSetIterator childDocs,
         int maxChildren
     ) throws IOException {
         if (parentDocs == null || childDocs == null) {
-            return FieldData.replaceMissing(DocValues.emptyNumeric(), missingValue);
+            return FieldData.replaceMissing(FieldData.EMPTY, missingValue);
         }
 
-        return new AbstractNumericDocValues() {
+        return new DenseLongValues() {
 
             int lastSeenParentDoc = -1;
             long lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
+            public void doAdvanceExact(int parentDoc) throws IOException {
                 assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
                 if (parentDoc == lastSeenParentDoc) {
-                    return true;
+                    return;
                 } else if (parentDoc == 0) {
                     lastEmittedValue = missingValue;
-                    return true;
+                    return;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
                 final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
-                return true;
-            }
-
-            @Override
-            public int docID() {
-                return lastSeenParentDoc;
             }
 
             @Override
@@ -613,7 +625,7 @@ public enum MultiValueMode implements Writeable {
     }
 
     protected long pick(
-        SortedNumericDocValues values,
+        SortedNumericLongValues values,
         long missingValue,
         DocIdSetIterator docItr,
         int startDoc,
@@ -624,18 +636,18 @@ public enum MultiValueMode implements Writeable {
     }
 
     /**
-     * Return a {@link NumericDoubleValues} instance that can be used to sort documents
+     * Return a {@link DoubleValues} instance that can be used to sort documents
      * with this mode and the provided values. When a document has no value,
      * <code>missingValue</code> is returned.
      *
      * Allowed Modes: SUM, AVG, MEDIAN, MIN, MAX
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values) {
-        final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+    public DoubleValues select(final SortedNumericDoubleValues values) {
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(values);
         if (singleton != null) {
             return singleton;
         } else {
-            return new NumericDoubleValues() {
+            return new DoubleValues() {
 
                 private double value;
 
@@ -661,7 +673,7 @@ public enum MultiValueMode implements Writeable {
     }
 
     /**
-     * Return a {@link NumericDoubleValues} instance that can be used to sort root documents
+     * Return a {@link DoubleValues} instance that can be used to sort root documents
      * with this mode, the provided values and filters for root/inner documents.
      *
      * For every root document, the values of its inner documents will be aggregated.
@@ -672,7 +684,7 @@ public enum MultiValueMode implements Writeable {
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      *       The returned instance can only be evaluate the current and upcoming docs
      */
-    public NumericDoubleValues select(
+    public DenseDoubleValues select(
         final SortedNumericDoubleValues values,
         final double missingValue,
         final BitSet parentDocs,
@@ -680,26 +692,25 @@ public enum MultiValueMode implements Writeable {
         int maxChildren
     ) throws IOException {
         if (parentDocs == null || childDocs == null) {
-            return FieldData.replaceMissing(FieldData.emptyNumericDouble(), missingValue);
+            return FieldData.replaceMissing(DoubleValues.EMPTY, missingValue);
         }
 
-        return new NumericDoubleValues() {
+        return new DenseDoubleValues() {
 
             int lastSeenParentDoc = 0;
             double lastEmittedValue = missingValue;
 
             @Override
-            public boolean advanceExact(int parentDoc) throws IOException {
+            public void doAdvanceExact(int parentDoc) throws IOException {
                 assert parentDoc >= lastSeenParentDoc : "can only evaluate current and upcoming parent docs";
                 if (parentDoc == lastSeenParentDoc) {
-                    return true;
+                    return;
                 }
                 final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
                 final int firstChildDoc = getFirstChildDoc(prevParentDoc, childDocs);
 
                 lastSeenParentDoc = parentDoc;
                 lastEmittedValue = pick(values, missingValue, childDocs, firstChildDoc, parentDoc, maxChildren);
-                return true;
             }
 
             @Override
@@ -737,7 +748,7 @@ public enum MultiValueMode implements Writeable {
      *
      * Allowed Modes: MIN, MAX
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue) {
+    public BinaryDocValues select(final SortableBinaryDocValues values, final BytesRef missingValue) {
         final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
         if (singleton != null) {
             if (missingValue == null) {
@@ -761,12 +772,13 @@ public enum MultiValueMode implements Writeable {
         } else {
             return new AbstractBinaryDocValues() {
 
+                private final BytesRefBuilder scratch = new BytesRefBuilder();
                 private BytesRef value;
 
                 @Override
                 public boolean advanceExact(int target) throws IOException {
                     if (values.advanceExact(target)) {
-                        value = pick(values);
+                        value = pick(values, scratch);
                         return true;
                     }
                     value = missingValue;
@@ -781,7 +793,17 @@ public enum MultiValueMode implements Writeable {
         }
     }
 
-    protected BytesRef pick(SortedBinaryDocValues values) throws IOException {
+    /**
+     * The value this mode selects out of a document's values.
+     *
+     * <p>A document whose values arrive sorted is answered from its first or last value. One read back in
+     * {@link SortableBinaryDocValues.ValueOrder#ARRAY} order is scanned, which costs what reading the document
+     * costs and no more.
+     *
+     * <p>{@code scratch} is the caller's, and is where a scan builds its answer - the value found has to be copied
+     * because reading on can invalidate it.
+     */
+    protected BytesRef pick(SortableBinaryDocValues values, BytesRefBuilder scratch) throws IOException {
         throw new IllegalArgumentException("Unsupported sort mode: " + this);
     }
 
@@ -798,7 +820,7 @@ public enum MultiValueMode implements Writeable {
      *       The returned instance can only be evaluate the current and upcoming docs
      */
     public BinaryDocValues select(
-        final SortedBinaryDocValues values,
+        final SortableBinaryDocValues values,
         final BytesRef missingValue,
         final BitSet parentDocs,
         final DocIdSetIterator childDocs,

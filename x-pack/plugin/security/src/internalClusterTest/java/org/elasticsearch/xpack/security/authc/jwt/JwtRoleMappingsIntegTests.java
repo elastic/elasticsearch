@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -444,6 +445,7 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
     }
 
     private void publishRoleMappings(Set<ExpressionRoleMapping> roleMappings) throws InterruptedException {
+        final ProjectId projectId = ProjectId.DEFAULT;
         RoleMappingMetadata roleMappingMetadata = new RoleMappingMetadata(roleMappings);
         List<ClusterService> clusterServices = new ArrayList<>();
         internalCluster().getInstances(ClusterService.class).forEach(clusterServices::add);
@@ -452,7 +454,8 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
             clusterService.addListener(new ClusterStateListener() {
                 @Override
                 public void clusterChanged(ClusterChangedEvent event) {
-                    RoleMappingMetadata publishedRoleMappingMetadata = RoleMappingMetadata.getFromClusterState(event.state());
+                    final var project = event.state().metadata().getProject(projectId);
+                    RoleMappingMetadata publishedRoleMappingMetadata = RoleMappingMetadata.getFromProject(project);
                     if (roleMappingMetadata.equals(publishedRoleMappingMetadata)) {
                         clusterService.removeListener(this);
                         publishedClusterState.countDown();
@@ -464,7 +467,9 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
         masterClusterService.submitUnbatchedStateUpdateTask("test-add-role-mapping", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return roleMappingMetadata.updateClusterState(currentState);
+                return ClusterState.builder(currentState)
+                    .putProjectMetadata(roleMappingMetadata.updateProject(currentState.getMetadata().getProject(projectId)))
+                    .build();
             }
 
             @Override

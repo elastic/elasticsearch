@@ -17,6 +17,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,7 @@ import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -89,6 +91,23 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public boolean supportsConcurrentMultipartUploads() {
+        return delegate.supportsConcurrentMultipartUploads();
+    }
+
+    @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        long blobSize,
+        BlobMultiPartInputStreamProvider provider,
+        boolean failIfAlreadyExists,
+        Executor executor
+    ) throws IOException {
+        delegate.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
+    }
+
+    @Override
     public void writeBlobAtomic(
         OperationPurpose purpose,
         String blobName,
@@ -103,6 +122,20 @@ public abstract class FilterBlobContainer implements BlobContainer {
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         delegate.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+    }
+
+    @Override
+    public void copyBlob(
+        OperationPurpose purpose,
+        BlobContainer sourceBlobContainer,
+        String sourceBlobName,
+        String blobName,
+        long blobSize,
+        @Nullable Executor executor
+    ) throws IOException {
+        // FsBlobContainer accesses internals of the sourceBlobContainer in copyBlob so it needs the delegate
+        assert sourceBlobContainer instanceof FilterBlobContainer;
+        delegate.copyBlob(purpose, ((FilterBlobContainer) sourceBlobContainer).delegate, sourceBlobName, blobName, blobSize, executor);
     }
 
     @Override

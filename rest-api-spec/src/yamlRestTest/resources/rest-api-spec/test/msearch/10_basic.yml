@@ -1,5 +1,13 @@
 ---
 setup:
+  - requires:
+      test_runner_features: allowed_warnings
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: false
 
   - do:
       index:
@@ -27,6 +35,14 @@ setup:
 
   - do:
       indices.refresh: {}
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.default_allow_partial_results: null
 
 ---
 "Basic multi-search":
@@ -67,6 +83,12 @@ setup:
         rest_total_hits_as_int: true
         max_concurrent_shard_requests: 1
         max_concurrent_searches: 1
+        ignore_unavailable: false
+        ignore_throttled: false
+        allow_no_indices: false
+        expand_wildcards: open
+        include_named_queries_score: false
+        index: index_*
         body:
           - index: index_*
           - query:
@@ -83,6 +105,8 @@ setup:
           - {}
           - query:
               match_all: {}
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
 
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.hits.total:     1  }

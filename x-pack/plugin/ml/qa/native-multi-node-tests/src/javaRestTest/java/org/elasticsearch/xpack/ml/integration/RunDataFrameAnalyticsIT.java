@@ -265,7 +265,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         client().admin().indices().prepareCreate(sourceIndex).get();
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
         getSettingsRequest.indices(sourceIndex);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
         getSettingsRequest.includeDefaults(true);

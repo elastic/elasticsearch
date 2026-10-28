@@ -37,12 +37,12 @@ import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.util.Collection;
@@ -64,7 +64,7 @@ import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.BUNDLE_AT
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
-    private static final int CLUSTER_UP_TIMEOUT = 40;
+    private static final int CLUSTER_UP_TIMEOUT = 120;
     private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
@@ -85,6 +85,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private int nodeIndex = 0;
 
     private final ConfigurableFileCollection pluginAndModuleConfiguration;
+    private final Provider<JavaLauncher> jdk17FallbackLauncher;
 
     private boolean shared = false;
 
@@ -102,7 +103,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava,
-        Function<Version, Boolean> isReleasedVersion
+        Function<Version, Boolean> isReleasedVersion,
+        Provider<JavaLauncher> jdk17FallbackLauncher
     ) {
         this.path = path;
         this.clusterName = clusterName;
@@ -118,6 +120,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
         this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
+        this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         this.nodes.add(
             new ElasticsearchNode(
                 safeName(clusterName),
@@ -132,7 +135,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 fileOperations,
                 workingDirBase,
                 runtimeJava,
-                isReleasedVersion
+                isReleasedVersion,
+                jdk17FallbackLauncher
             )
         );
 
@@ -190,7 +194,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     fileOperations,
                     workingDirBase,
                     runtimeJava,
-                    isReleasedVersion
+                    isReleasedVersion,
+                    jdk17FallbackLauncher
                 )
             );
         }
@@ -275,7 +280,15 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
+        // Use TaskProvider.map() with an unbound method reference so that the resulting
+        // Provider<File> captures nothing from the outer scope. project.getLayout().file()
+        // would wrap the provider in a ProjectLayout-backed implementation that is not
+        // configuration-cache serializable in Gradle 9.5+; avoiding that call keeps the
+        // entire provider chain CC-safe. The task dependency is still tracked because the
+        // provider is derived from the TaskProvider.
+        Provider<File> moduleDir = module.map(Sync::getDestinationDir);
+        pluginAndModuleConfiguration.from(moduleDir);
+        nodes.all(each -> each.addModuleDirectory(moduleDir));
     }
 
     @Override
@@ -533,7 +546,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {
-                Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
+                Files.writeString(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }
@@ -599,6 +612,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void stop(boolean tailLogs) {
         nodes.forEach(each -> each.stop(tailLogs));
+    }
+
+    /**
+     * Returns resource leak messages from all nodes that detected leaks during shutdown.
+     */
+    @Internal
+    public List<String> getLeakMessages() {
+        return nodes.stream().map(ElasticsearchNode::getLeakMessage).filter(Objects::nonNull).toList();
     }
 
     @Override

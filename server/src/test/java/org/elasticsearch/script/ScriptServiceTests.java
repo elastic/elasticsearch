@@ -8,12 +8,14 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +63,7 @@ public class ScriptServiceTests extends ESTestCase {
     private Settings baseSettings;
     private ClusterSettings clusterSettings;
     private Map<String, ScriptContext<?>> rateLimitedContexts;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
@@ -78,21 +81,14 @@ public class ScriptServiceTests extends ESTestCase {
         engines.put("test", new MockScriptEngine("test", scripts, Collections.emptyMap()));
         logger.info("--> setup script service");
         rateLimitedContexts = compilationRateLimitedContexts();
+        projectId = randomProjectIdOrDefault();
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L) {
+        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L, TestProjectResolvers.singleProject(projectId)) {
             @Override
-            Map<String, StoredScriptSource> getScriptsFromClusterState() {
-                Map<String, StoredScriptSource> scripts = new HashMap<>();
-                scripts.put("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
-                scripts.put("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
-                return scripts;
-            }
-
-            @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 // mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
@@ -272,7 +268,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(script, context);
         scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
+        assertWarnings(USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
     }
 
     public void testGeneralCompilationStatsOnCacheHit() throws IOException {
@@ -300,7 +296,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
-        assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
+        assertWarnings(USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -316,10 +312,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.INLINE, "test", "2+2", Collections.emptyMap()), context);
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
-        assertSettingDeprecationsAndWarnings(
-            new Setting<?>[] { contextCacheSizeSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
-        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { contextCacheSizeSetting }, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
     }
 
     public void testGeneralCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -404,7 +397,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { cacheSizeA, compilationRateA, cacheSizeB, compilationRateB },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE
         );
     }
 
@@ -446,25 +439,26 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
-                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
-                    )
-            )
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
+            .putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build())
             .build();
 
-        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
 
-        cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
+        project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
+        ScriptMetadata.Builder scripts = new ScriptMetadata.Builder(null);
+        scripts.storeScript("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
+        scripts.storeScript("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
+        final var project = ProjectMetadata.builder(projectId).putCustom(ScriptMetadata.TYPE, scripts.build()).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        scriptService.applyClusterState(new ClusterChangedEvent("", state, ClusterState.EMPTY_STATE));
+
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
             scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
@@ -539,10 +533,10 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { ingestExpire, fieldSize, scoreCompilation },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE),
-            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(fieldCacheKey)),
-            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(ingestExpireKey)),
-            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(scoreCompileKey))
+            USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
+            implicitContextCacheMessage(fieldCacheKey),
+            implicitContextCacheMessage(ingestExpireKey),
+            implicitContextCacheMessage(scoreCompileKey)
         );
     }
 
@@ -573,7 +567,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(cacheExpireFooTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("foo").get(s));
         assertEquals(cacheExpireBackupTimeValue, ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("bar").get(s));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheExpireSetting, cacheExpireSetting });
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { cacheSizeSetting, cacheExpireSetting });
     }
 
     public void testUseContextSettingValue() {
@@ -626,10 +620,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(new ScriptCache.CompilationRate(aCompilationRate), scriptService.cacheHolder.get().contextCache.get(a).get().rate);
         assertEquals(new ScriptCache.CompilationRate(bCompilationRate), scriptService.cacheHolder.get().contextCache.get(b).get().rate);
-        assertSettingDeprecationsAndWarnings(
-            new Setting<?>[] { aSetting, bSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
-        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { aSetting, bSetting }, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
     }
 
     public void testImplicitContextCache() throws IOException {
@@ -650,7 +641,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(new ScriptCache.CompilationRate(bCompilationRate), scriptService.cacheHolder.get().contextCache.get(b).get().rate);
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { aSetting, bSetting },
-            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey()))
+            implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey())
         );
     }
 
@@ -675,7 +666,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(bSize, scriptService.cacheHolder.get().contextCache.get(b).get().cacheSize);
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { aSetting, bSetting },
-            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey()))
+            implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey())
         );
     }
 
@@ -699,10 +690,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), ScriptService.USE_CONTEXT_RATE_KEY)
                 .build()
         );
-        assertSettingDeprecationsAndWarnings(
-            new Setting<?>[] { field, ingest },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
-        );
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { field, ingest }, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
     }
 
     public void testDisableCompilationRateSetting() throws IOException {
@@ -739,7 +727,7 @@ public class ScriptServiceTests extends ESTestCase {
             new Setting<?>[] {
                 SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("field"),
                 SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("ingest") },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE
         );
     }
 
@@ -863,7 +851,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { cacheSizeContextSetting, cacheExpireContextSetting, compilationRateContextSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE
         );
     }
 

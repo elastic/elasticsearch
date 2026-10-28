@@ -60,17 +60,14 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         clusterService = createClusterService(threadPool);
         taskManager = new TaskManager(clusterService.getSettings(), threadPool, Set.of());
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -117,7 +114,7 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         assertTrue(exception.getCause() instanceof ClusterBlockException);
     }
 
-    public void testTaskCancelledAfterBlock() {
+    public void testTaskCancelledImmediately() {
         var request = new Request();
         ClusterBlock block = new ClusterBlock(randomInt(), "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
         var state = ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
@@ -128,7 +125,22 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         ActionTestUtils.execute(new Action(taskManager, clusterService), task, request, listener);
 
         TaskCancelHelper.cancel(task, "test");
-        assertFalse(listener.isDone());
+        assertTrue(listener.isDone());
+        var exception = assertThrows(ExecutionException.class, listener::get);
+        assertTrue(exception.getCause() instanceof TaskCancelledException);
+    }
+
+    public void testTaskCancelled() {
+        var request = new Request();
+        ClusterBlock block = new ClusterBlock(randomInt(), "", true, true, false, randomFrom(RestStatus.values()), ClusterBlockLevel.ALL);
+        var state = ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(block)).build();
+        setState(clusterService, state);
+
+        CancellableTask task = new CancellableTask(randomLong(), "test", Action.ACTION_NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action(taskManager, clusterService), task, request, listener);
+
+        TaskCancelHelper.cancel(task, "test");
         setState(clusterService, ClusterState.builder(state).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
         assertTrue(listener.isDone());
         var exception = assertThrows(ExecutionException.class, listener::get);
@@ -159,7 +171,7 @@ public class TransportLocalClusterStateActionTests extends ESTestCase {
         static final String ACTION_NAME = "internal:testAction";
 
         Action(TaskManager taskManager, ClusterService clusterService) {
-            super(ACTION_NAME, new ActionFilters(Set.of()), taskManager, clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(ACTION_NAME, ActionFilters.EMPTY, taskManager, clusterService, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         @Override

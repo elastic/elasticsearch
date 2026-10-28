@@ -27,13 +27,13 @@ public record Column(DataType type, Block values) implements Releasable, Writeab
     }
 
     public Column(BlockStreamInput in) throws IOException {
-        this(DataType.fromTypeName(in.readString()), in.readNamedWriteable(Block.class));
+        this(DataType.fromTypeName(in.readString()), Block.readTypedBlock(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type.typeName());
-        out.writeNamedWriteable(values);
+        Block.writeTypedBlock(values, out);
     }
 
     @Override

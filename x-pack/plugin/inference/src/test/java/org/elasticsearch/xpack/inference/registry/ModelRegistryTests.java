@@ -7,314 +7,78 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
-import org.apache.lucene.search.TotalHits;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
+import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
-import org.junit.After;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ModelRegistryTests extends ESTestCase {
-
+public class ModelRegistryTests extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "my-inference-id";
+    private static final String DOC_ID = Model.documentId(INFERENCE_ID);
+    private static final String FAILED_TO_STORE_MESSAGE = "Failed to store document id*";
+    private static final String DEBUG_LOGGING = "org.elasticsearch.xpack.inference.registry.ModelRegistry:DEBUG";
+    private static final String DEBUG_LOGGING_REASON = "the expected level for the failure message is verified, which requires DEBUG to be "
+        + "enabled for the registry logger so that an unexpected DEBUG message would be observed";
 
-    private ThreadPool threadPool;
+    private ModelRegistry registry;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(ReindexPlugin.class, LocalStateInferencePlugin.class);
+    }
 
     @Before
-    public void setUpThreadPool() {
-        threadPool = new TestThreadPool(getTestName());
-    }
-
-    @After
-    public void tearDownThreadPool() {
-        terminate(threadPool);
-    }
-
-    public void testGetUnparsedModelMap_ThrowsResourceNotFound_WhenNoHitsReturned() {
-        var client = mockClient();
-        mockClientExecuteSearch(client, mockSearchResponse(SearchHits.EMPTY));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("Inference endpoint not found [1]"));
-    }
-
-    public void testGetUnparsedModelMap_ThrowsIllegalArgumentException_WhenInvalidIndexReceived() {
-        var client = mockClient();
-        var unknownIndexHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", "unknown_index"));
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { unknownIndexHit }));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is("Invalid result while loading inference endpoint [1] index: [unknown_index]. Try deleting and reinitializing the service")
-        );
-    }
-
-    public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceEntry() {
-        var client = mockClient();
-        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceSecretsHit }));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
-        );
-    }
-
-    public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceSecretsEntry() {
-        var client = mockClient();
-        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
-        );
-    }
-
-    public void testGetModelWithSecrets() {
-        var client = mockClient();
-        String config = """
-            {
-              "model_id": "1",
-              "task_type": "sparse_embedding",
-              "service": "foo"
-            }
-            """;
-        String secrets = """
-            {
-              "api_key": "secret"
-            }
-            """;
-
-        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
-        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
-        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
-        inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))));
-
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModelWithSecrets("1", listener);
-
-        var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.inferenceEntityId());
-        assertEquals("foo", modelConfig.service());
-        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
-        assertThat(modelConfig.settings().keySet(), empty());
-        assertThat(modelConfig.secrets().keySet(), hasSize(1));
-        assertEquals("secret", modelConfig.secrets().get("api_key"));
-    }
-
-    public void testGetModelNoSecrets() {
-        var client = mockClient();
-        String config = """
-            {
-              "model_id": "1",
-              "task_type": "sparse_embedding",
-              "service": "foo"
-            }
-            """;
-
-        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
-        inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
-
-        mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
-
-        var registry = new ModelRegistry(client);
-
-        var listener = new PlainActionFuture<UnparsedModel>();
-        registry.getModel("1", listener);
-
-        var modelConfig = listener.actionGet(TIMEOUT);
-        assertEquals("1", modelConfig.inferenceEntityId());
-        assertEquals("foo", modelConfig.service());
-        assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
-        assertThat(modelConfig.settings().keySet(), empty());
-        assertThat(modelConfig.secrets().keySet(), empty());
-    }
-
-    public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {
-        var client = mockBulkClient();
-
-        var bulkItem = mock(BulkItemResponse.class);
-        when(bulkItem.isFailed()).thenReturn(false);
-        var bulkResponse = mock(BulkResponse.class);
-        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItem });
-
-        mockClientExecuteBulk(client, bulkResponse);
-
-        var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistry(client);
-        var listener = new PlainActionFuture<Boolean>();
-
-        registry.storeModel(model, listener);
-
-        assertTrue(listener.actionGet(TIMEOUT));
-    }
-
-    public void testStoreModel_ThrowsException_WhenBulkResponseIsEmpty() {
-        var client = mockBulkClient();
-
-        var bulkResponse = mock(BulkResponse.class);
-        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[0]);
-
-        mockClientExecuteBulk(client, bulkResponse);
-
-        var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistry(client);
-        var listener = new PlainActionFuture<Boolean>();
-
-        registry.storeModel(model, listener);
-
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(
-                format(
-                    "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
-                    model.getConfigurations().getInferenceEntityId()
-                )
-            )
-        );
-    }
-
-    public void testStoreModel_ThrowsResourceAlreadyExistsException_WhenFailureIsAVersionConflict() {
-        var client = mockBulkClient();
-
-        var bulkItem = mock(BulkItemResponse.class);
-        when(bulkItem.isFailed()).thenReturn(true);
-
-        var failure = new BulkItemResponse.Failure("index", "id", mock(VersionConflictEngineException.class));
-        when(bulkItem.getFailure()).thenReturn(failure);
-        var bulkResponse = mock(BulkResponse.class);
-        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItem });
-
-        mockClientExecuteBulk(client, bulkResponse);
-
-        var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistry(client);
-        var listener = new PlainActionFuture<Boolean>();
-
-        registry.storeModel(model, listener);
-
-        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
-        );
-    }
-
-    public void testStoreModel_ThrowsException_WhenFailureIsNotAVersionConflict() {
-        var client = mockBulkClient();
-
-        var bulkItem = mock(BulkItemResponse.class);
-        when(bulkItem.isFailed()).thenReturn(true);
-
-        var failure = new BulkItemResponse.Failure("index", "id", mock(IllegalStateException.class));
-        when(bulkItem.getFailure()).thenReturn(failure);
-        var bulkResponse = mock(BulkResponse.class);
-        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { bulkItem });
-
-        mockClientExecuteBulk(client, bulkResponse);
-
-        var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistry(client);
-        var listener = new PlainActionFuture<Boolean>();
-
-        registry.storeModel(model, listener);
-
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId()))
-        );
+    public void createComponents() {
+        registry = node().injector().getInstance(ModelRegistry.class);
     }
 
     public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
-        var client = mock(Client.class);
-
-        var registry = new ModelRegistry(client);
         var listener = new PlainActionFuture<Boolean>();
-
         registry.removeDefaultConfigs(Set.of(), listener);
-
         assertTrue(listener.actionGet(TIMEOUT));
-        verify(client, times(0)).execute(any(), any(), any());
     }
 
     public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
-        var client = mockClient();
-
-        var registry = new ModelRegistry(client);
         var model = TestModel.createRandomInstance();
         var newModel = TestModel.createRandomInstance();
         registry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
@@ -333,10 +97,10 @@ public class ModelRegistryTests extends ESTestCase {
     public void testIdMatchedDefault() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
 
         var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
@@ -345,36 +109,35 @@ public class ModelRegistryTests extends ESTestCase {
         assertFalse(matched.isPresent());
     }
 
-    public void testContainsDefaultConfigId() {
-        var client = mockClient();
-        var registry = new ModelRegistry(client);
-
+    public void testContainsPreconfiguredInferenceEndpointId() {
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
-        assertTrue(registry.containsDefaultConfigId("foo"));
-        assertFalse(registry.containsDefaultConfigId("baz"));
+        assertTrue(registry.containsPreconfiguredInferenceEndpointId("foo"));
+        assertFalse(registry.containsPreconfiguredInferenceEndpointId("baz"));
     }
 
     public void testTaskTypeMatchedDefaults() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s1", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s1", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s2", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s2", EndpointClusterState.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
             new InferenceService.DefaultConfigId(
                 "d1",
-                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EndpointClusterState.textEmbedding("my_service", 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 mock(InferenceService.class)
             )
         );
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", MinimalServiceSettings.completion(), mock(InferenceService.class)));
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("c1", EndpointClusterState.completion("my_service"), mock(InferenceService.class))
+        );
 
         var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
         assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
@@ -385,19 +148,16 @@ public class ModelRegistryTests extends ESTestCase {
     }
 
     public void testDuplicateDefaultIds() {
-        var client = mockBulkClient();
-        var registry = new ModelRegistry(client);
-
         var id = "my-inference";
         var mockServiceA = mock(InferenceService.class);
         when(mockServiceA.name()).thenReturn("service-a");
         var mockServiceB = mock(InferenceService.class);
         when(mockServiceB.name()).thenReturn("service-b");
 
-        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceA));
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, EndpointClusterStateTests.randomInstance(), mockServiceA));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceB))
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, EndpointClusterStateTests.randomInstance(), mockServiceB))
         );
         assertThat(
             ise.getMessage(),
@@ -408,59 +168,109 @@ public class ModelRegistryTests extends ESTestCase {
         );
     }
 
-    private Client mockBulkClient() {
-        var client = mockClient();
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+    public void testDeleteModels_Succeeds_WhenNoInferenceIdsAreProvided() {
+        var model = TestModel.createRandomInstance();
+        assertStoreModel(registry, model);
 
-        return client;
+        var listener = new PlainActionFuture<Boolean>();
+        registry.deleteModels(Set.of(), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
     }
 
-    private Client mockClient() {
-        var client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
+    @TestLogging(reason = DEBUG_LOGGING_REASON, value = DEBUG_LOGGING)
+    public void testCreateModelStoreResponse_LogsAtDebug_WhenFailureIsVersionConflict() {
+        var cause = createVersionConflict();
 
-        return client;
+        var response = createModelStoreResponseAndAssertLogged(cause, Level.DEBUG, Level.WARN);
+
+        assertThat(response.inferenceId(), is(INFERENCE_ID));
+        assertThat(response.status(), is(RestStatus.CONFLICT));
+        assertTrue(response.failed());
+        assertThat(response.failureCause(), is(cause));
     }
 
-    private static void mockClientExecuteSearch(Client client, SearchResponse searchResponse) {
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            ActionListener.respondAndRelease(actionListener, searchResponse);
-            return Void.TYPE;
-        }).when(client).execute(any(), any(), any());
+    @TestLogging(reason = DEBUG_LOGGING_REASON, value = DEBUG_LOGGING)
+    public void testCreateModelStoreResponse_LogsAtDebug_WhenFailureIsWrappedVersionConflict() {
+        var cause = new RemoteTransportException("remote", createVersionConflict());
+
+        var response = createModelStoreResponseAndAssertLogged(cause, Level.DEBUG, Level.WARN);
+
+        assertThat(response.inferenceId(), is(INFERENCE_ID));
+        assertTrue(response.failed());
+        assertThat(response.failureCause(), is(cause));
     }
 
-    private static void mockClientExecuteBulk(Client client, BulkResponse bulkResponse) {
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<BulkResponse> actionListener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(bulkResponse);
-            return Void.TYPE;
-        }).when(client).execute(any(), any(), any());
+    @TestLogging(reason = DEBUG_LOGGING_REASON, value = DEBUG_LOGGING)
+    public void testCreateModelStoreResponse_LogsAtWarn_WhenFailureIsNotVersionConflict() {
+        var cause = new IllegalArgumentException("failure");
+
+        var response = createModelStoreResponseAndAssertLogged(cause, Level.WARN, Level.DEBUG);
+
+        assertThat(response.inferenceId(), is(INFERENCE_ID));
+        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+        assertTrue(response.failed());
+        assertThat(response.failureCause(), is(cause));
     }
 
-    private static SearchResponse mockSearchResponse(SearchHit[] hits) {
-        var searchResponse = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1);
-        try {
-            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
-        } finally {
-            searchHits.decRef();
-        }
+    @TestLogging(reason = DEBUG_LOGGING_REASON, value = DEBUG_LOGGING)
+    public void testCreateModelStoreResponse_DoesNotLogFailure_WhenItemSucceeded() {
+        var indexResponse = new IndexResponse(new ShardId(InferenceIndex.INDEX_NAME, "_na_", 0), DOC_ID, 0, 1, 1, true);
+        var item = BulkItemResponse.success(0, DocWriteRequest.OpType.CREATE, indexResponse);
 
-        return searchResponse;
+        var responseRef = new AtomicReference<ModelStoreResponse>();
+        MockLog.assertThatLogger(
+            () -> responseRef.set(ModelRegistry.createModelStoreResponse(item, Map.of(DOC_ID, INFERENCE_ID))),
+            ModelRegistry.class,
+            new MockLog.UnseenEventExpectation("no warn", ModelRegistry.class.getName(), Level.WARN, FAILED_TO_STORE_MESSAGE),
+            new MockLog.UnseenEventExpectation("no debug", ModelRegistry.class.getName(), Level.DEBUG, FAILED_TO_STORE_MESSAGE)
+        );
+
+        assertThat(responseRef.get(), is(new ModelStoreResponse(INFERENCE_ID, RestStatus.CREATED, null)));
     }
 
-    public static MinimalServiceSettings randomMinimalServiceSettings() {
-        TaskType type = randomFrom(TaskType.values());
-        if (type == TaskType.TEXT_EMBEDDING) {
-            return MinimalServiceSettings.textEmbedding(
-                randomIntBetween(2, 384),
-                randomFrom(SimilarityMeasure.values()),
-                randomFrom(DenseVectorFieldMapper.ElementType.values())
-            );
-        }
-        return new MinimalServiceSettings(type, null, null, null);
+    private static VersionConflictEngineException createVersionConflict() {
+        return new VersionConflictEngineException(
+            new ShardId(InferenceIndex.INDEX_NAME, "_na_", 0),
+            "[" + DOC_ID + "]",
+            "document already exists"
+        );
+    }
+
+    /**
+     * Creates a response for a failed bulk item and verifies the failure message was logged at {@code expectedLevel} and not at
+     * {@code unexpectedLevel}.
+     */
+    private static ModelStoreResponse createModelStoreResponseAndAssertLogged(Exception cause, Level expectedLevel, Level unexpectedLevel) {
+        var item = BulkItemResponse.failure(
+            0,
+            DocWriteRequest.OpType.CREATE,
+            new BulkItemResponse.Failure(InferenceIndex.INDEX_NAME, DOC_ID, cause)
+        );
+
+        var responseRef = new AtomicReference<ModelStoreResponse>();
+        MockLog.assertThatLogger(
+            () -> responseRef.set(ModelRegistry.createModelStoreResponse(item, Map.of(DOC_ID, INFERENCE_ID))),
+            ModelRegistry.class,
+            new MockLog.SeenEventExpectation("expected level", ModelRegistry.class.getName(), expectedLevel, FAILED_TO_STORE_MESSAGE),
+            new MockLog.UnseenEventExpectation("unexpected level", ModelRegistry.class.getName(), unexpectedLevel, FAILED_TO_STORE_MESSAGE)
+        );
+        return responseRef.get();
+    }
+
+    public static void assertStoreModel(ModelRegistry registry, Model model) {
+        PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
+        registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
+        assertTrue(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
+
+        assertEndpointClusterState(registry, model);
+    }
+
+    public static void assertEndpointClusterState(ModelRegistry registry, Model model) {
+        var settings = registry.getEndpointClusterState(model.getInferenceEntityId());
+        assertNotNull(settings);
+        assertThat(settings.taskType(), Matchers.equalTo(model.getTaskType()));
+        assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));
+        assertThat(settings.elementType(), Matchers.equalTo(model.getServiceSettings().elementType()));
+        assertThat(settings.dimensions(), Matchers.equalTo(model.getServiceSettings().dimensions()));
     }
 }

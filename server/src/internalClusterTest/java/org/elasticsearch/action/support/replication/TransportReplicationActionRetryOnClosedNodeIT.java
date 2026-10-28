@@ -10,8 +10,6 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -141,8 +139,8 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
         public TestPlugin() {}
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return List.of(new ActionHandler<>(TestAction.TYPE, TestAction.class));
+        public List<ActionHandler> getActions() {
+            return List.of(new ActionHandler(TestAction.TYPE, TestAction.class));
         }
 
         @Override

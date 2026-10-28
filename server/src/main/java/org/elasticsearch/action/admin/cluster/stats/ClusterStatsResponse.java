@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
@@ -37,6 +39,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final RepositoryUsageStats repositoryUsageStats;
     final CCSTelemetrySnapshot ccsMetrics;
     final CCSTelemetrySnapshot esqlMetrics;
+    final ProjectRoutingUsageSnapshot projectRoutingUsageSnapshot;
+    @Nullable
+    final TagsConfigSnapshot tagsConfig;
+    @Nullable
+    final SearchTierStats searchTierStats;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
@@ -54,15 +61,19 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         AnalysisStats analysisStats,
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
-        Map<String, RemoteClusterStats> remoteClustersStats
+        Map<String, RemoteClusterStats> remoteClustersStats,
+        boolean skipMRT,
+        @Nullable TagsConfigSnapshot tagsConfig,
+        @Nullable SearchTierStats searchTierStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
         this.timestamp = timestamp;
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
-        ccsMetrics = new CCSTelemetrySnapshot();
-        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
+        ccsMetrics = new CCSTelemetrySnapshot(skipMRT == false);
+        esqlMetrics = new CCSTelemetrySnapshot(false);
+        projectRoutingUsageSnapshot = new ProjectRoutingUsageSnapshot();
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -74,9 +85,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         nodes.forEach(node -> {
             ccsMetrics.add(node.getSearchCcsMetrics());
             esqlMetrics.add(node.getEsqlCcsMetrics());
+            projectRoutingUsageSnapshot.add(node.getProjectRoutingUsageSnapshot());
         });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
+        this.tagsConfig = tagsConfig;
+        this.searchTierStats = searchTierStats;
 
         this.repositoryUsageStats = nodes.stream()
             .map(ClusterStatsNodeResponse::repositoryUsageStats)
@@ -167,6 +181,26 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
         builder.endObject();
 
+        if (tagsConfig != null) {
+            builder.startObject("tags");
+            tagsConfig.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (searchTierStats != null) {
+            builder.startObject("search_tier");
+            searchTierStats.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        long totalQueries = projectRoutingUsageSnapshot.getSearchQueriesTotal() + projectRoutingUsageSnapshot.getEsqlQueriesTotal();
+        if (totalQueries > 0) {
+            builder.startObject("project_routing");
+            builder.field("queries", totalQueries);
+            projectRoutingUsageSnapshot.toXContent(builder, params);
+            builder.endObject();
+        }
+
         return builder;
     }
 
@@ -181,7 +215,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public record RemoteClusterStats(
         String clusterUUID,
         String mode,
-        boolean skipUnavailable,
+        Optional<Boolean> skipUnavailable,
         String transportCompress,
         Set<String> versions,
         String status,
@@ -192,7 +226,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         long heapBytes,
         long memBytes
     ) implements ToXContentFragment {
-        public RemoteClusterStats(String mode, boolean skipUnavailable, String transportCompress) {
+        public RemoteClusterStats(String mode, Optional<Boolean> skipUnavailable, String transportCompress) {
             this(
                 "unavailable",
                 mode,
@@ -231,7 +265,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.startObject();
             builder.field("cluster_uuid", clusterUUID);
             builder.field("mode", mode);
-            builder.field("skip_unavailable", skipUnavailable);
+            if (skipUnavailable.isPresent()) {
+                builder.field("skip_unavailable", skipUnavailable.get());
+            }
             builder.field("transport.compress", transportCompress);
             builder.field("status", status);
             builder.field("version", versions);

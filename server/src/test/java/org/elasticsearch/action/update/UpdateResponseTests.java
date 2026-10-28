@@ -60,7 +60,9 @@ public class UpdateResponseTests extends ESTestCase {
                     "total": 0,
                     "successful": 0,
                     "failed": 0
-                  }
+                  },
+                  "_seq_no": -2,
+                  "_primary_term": 0
                 }"""), output);
         }
         {
@@ -213,7 +215,7 @@ public class UpdateResponseTests extends ESTestCase {
 
         if (UpdateResponse.GET.equals(currentFieldName)) {
             if (token == XContentParser.Token.START_OBJECT) {
-                context.setGetResult(GetResult.fromXContentEmbedded(parser));
+                context.setGetResult(GetResultTests.parseInstanceFromEmbedded(parser));
             }
         } else {
             BulkItemResponseTests.parseInnerToXContent(parser, context);

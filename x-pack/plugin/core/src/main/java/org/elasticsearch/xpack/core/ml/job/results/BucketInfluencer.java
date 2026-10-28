@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,10 +20,14 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
 
 public class BucketInfluencer implements ToXContentObject, Writeable {
+
+    private static final TransportVersion ML_ANOMALY_EVENT_INGESTED = TransportVersion.fromName("ml_anomaly_event_ingested");
+
     /**
      * Result type
      */
@@ -69,6 +74,7 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         parser.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
         parser.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
         parser.declareBoolean(BucketInfluencer::setIsInterim, Result.IS_INTERIM);
+        parser.declareObject(BucketInfluencer::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -82,6 +88,7 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
     private boolean isInterim;
     private final Date timestamp;
     private final long bucketSpan;
+    private Instant eventIngested;
 
     public BucketInfluencer(String jobId, Date timestamp, long bucketSpan) {
         this.jobId = jobId;
@@ -99,6 +106,9 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
+        if (in.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            eventIngested = in.readOptionalInstant();
+        }
     }
 
     @Override
@@ -112,6 +122,9 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
+        if (out.getTransportVersion().supports(ML_ANOMALY_EVENT_INGESTED)) {
+            out.writeOptionalInstant(eventIngested);
+        }
     }
 
     @Override
@@ -139,6 +152,11 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         );
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
+        if (eventIngested != null) {
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -210,6 +228,14 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         return timestamp;
     }
 
+    public Instant getEventIngested() {
+        return eventIngested;
+    }
+
+    public void setEventIngested(Instant eventIngested) {
+        this.eventIngested = eventIngested;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -221,7 +247,8 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
             isInterim,
             timestamp,
             jobId,
-            bucketSpan
+            bucketSpan,
+            eventIngested
         );
     }
 
@@ -249,7 +276,8 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
             && Objects.equals(isInterim, other.isInterim)
             && Objects.equals(timestamp, other.timestamp)
             && Objects.equals(jobId, other.jobId)
-            && bucketSpan == other.bucketSpan;
+            && bucketSpan == other.bucketSpan
+            && Objects.equals(eventIngested, other.eventIngested);
 
     }
 }

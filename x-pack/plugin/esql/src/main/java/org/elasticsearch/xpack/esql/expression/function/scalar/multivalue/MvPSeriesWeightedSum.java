@@ -12,10 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -23,6 +26,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -43,30 +49,39 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
  */
-public class MvPSeriesWeightedSum extends EsqlScalarFunction implements EvaluatorMapper {
+public class MvPSeriesWeightedSum extends EsqlScalarFunction implements AnyNullIsNull, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvPSeriesWeightedSum",
         MvPSeriesWeightedSum::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvPSeriesWeightedSum.class)
+        .binary(MvPSeriesWeightedSum::new)
+        .name("mv_pseries_weighted_sum");
 
     private final Expression field, p;
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double" },
-
+        briefSummary = "Calculates the P-series weighted sum of a multi-value field.",
         description = "Converts a multivalued expression into a single-valued column by multiplying every "
             + "element on the input list by its corresponding term in P-Series and computing the sum.",
         examples = @Example(file = "mv_pseries_weighted_sum", tag = "example")
     )
     public MvPSeriesWeightedSum(
         Source source,
-        @Param(name = "number", type = { "double" }, description = "Multivalue expression.") Expression field,
+        @Param(
+            name = "number",
+            type = { "double" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression field,
         @Param(
             name = "p",
             type = { "double" },
-            description = "It is a constant number that represents the 'p' parameter in the P-Series. "
-                + "It impacts every element's contribution to the weighted sum."
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
+            description = "It is a constant number that represents the *p* parameter in the P-Series. "
+                + "It impacts every element’s contribution to the weighted sum."
         ) Expression p
     ) {
         super(source, Arrays.asList(field, p));
@@ -95,7 +110,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         }
 
         if (p.dataType() == NULL) {
-            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
+            // If the type is `null` this parameter doesn’t have to be foldable. It’s effectively foldable anyway.
             // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
         }
@@ -109,7 +124,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case DOUBLE -> new MvPSeriesWeightedSumDoubleEvaluator.Factory(
                 source(),
@@ -117,7 +132,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
                 ctx -> new CompensatedSum(),
                 (Double) p.fold(toEvaluator.foldCtx())
             );
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -143,7 +158,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
     @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static void process(
         DoubleBlock.Builder builder,
-        int position,
+        @Position int position,
         DoubleBlock block,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) CompensatedSum sum,
         @Fixed double p

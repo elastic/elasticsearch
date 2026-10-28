@@ -19,10 +19,11 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 
@@ -30,7 +31,7 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_
 
 class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
-    private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
+    static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
     protected ES815BitFlatVectorsFormat() {
         super("ES815BitFlatVectorsFormat");
@@ -38,7 +39,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState segmentWriteState) throws IOException {
-        return delegate.fieldsWriter(segmentWriteState);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -74,7 +75,7 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
             assert vectorValues instanceof ByteVectorValues;
             assert vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN;
             if (vectorValues instanceof ByteVectorValues byteVectorValues) {
-                assert byteVectorValues instanceof QuantizedByteVectorValues == false;
+                assert byteVectorValues instanceof LegacyQuantizedByteVectorValues == false;
                 return switch (vectorSimilarityFunction) {
                     case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT, COSINE, EUCLIDEAN -> new HammingScorerSupplier(byteVectorValues);
                 };
@@ -109,10 +110,6 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
         }
     }
 
-    static float hammingScore(byte[] a, byte[] b) {
-        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
-    }
-
     static class HammingVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final byte[] query;
         private final ByteVectorValues byteValues;
@@ -125,23 +122,38 @@ class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public float score(int i) throws IOException {
-            return hammingScore(byteValues.vectorValue(i), query);
+            return ESVectorUtil.hammingScore(byteValues.vectorValue(i), query);
         }
     }
 
     static class HammingScorerSupplier implements RandomVectorScorerSupplier {
-        private final ByteVectorValues byteValues, byteValues1, byteValues2;
+        private final ByteVectorValues byteValues, targetValues;
 
         HammingScorerSupplier(ByteVectorValues byteValues) throws IOException {
             this.byteValues = byteValues;
-            this.byteValues1 = byteValues.copy();
-            this.byteValues2 = byteValues.copy();
+            this.targetValues = byteValues.copy();
         }
 
         @Override
-        public RandomVectorScorer scorer(int i) throws IOException {
-            byte[] query = byteValues1.vectorValue(i);
-            return new HammingVectorScorer(byteValues2, query);
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(targetValues) {
+                private final byte[] query = new byte[targetValues.dimension()];
+                private int currentOrd = -1;
+
+                @Override
+                public void setScoringOrdinal(int i) throws IOException {
+                    if (currentOrd == i) {
+                        return;
+                    }
+                    System.arraycopy(targetValues.vectorValue(i), 0, query, 0, query.length);
+                    this.currentOrd = i;
+                }
+
+                @Override
+                public float score(int i) throws IOException {
+                    return ESVectorUtil.hammingScore(targetValues.vectorValue(i), query);
+                }
+            };
         }
 
         @Override

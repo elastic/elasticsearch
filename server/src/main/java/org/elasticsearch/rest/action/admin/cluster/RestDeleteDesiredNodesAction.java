@@ -14,13 +14,15 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.EmptyResponseListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.action.EmptyResponseListener.PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME;
 
 public class RestDeleteDesiredNodesAction extends BaseRestHandler {
     @Override
@@ -34,12 +36,17 @@ public class RestDeleteDesiredNodesAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(PLAIN_TEXT_EMPTY_RESPONSE_CAPABILITY_NAME);
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final var deleteDesiredNodesRequest = new AcknowledgedRequest.Plain(getMasterNodeTimeout(request), getAckTimeout(request));
         return restChannel -> client.execute(
             TransportDeleteDesiredNodesAction.TYPE,
             deleteDesiredNodesRequest,
-            new RestToXContentListener<>(restChannel)
+            new EmptyResponseListener(restChannel)
         );
     }
 }

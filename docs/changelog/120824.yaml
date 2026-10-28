@@ -1,5 +1,0 @@
-pr: 120824
-summary: Optimize some per-document hot paths in the geoip processor
-area: Ingest Node
-type: enhancement
-issues: []

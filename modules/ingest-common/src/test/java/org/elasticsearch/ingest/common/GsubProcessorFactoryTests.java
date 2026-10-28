@@ -44,7 +44,7 @@ public class GsubProcessorFactoryTests extends AbstractStringProcessorFactoryTes
         config.put("field", "field1");
         config.put("replacement", "-");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
@@ -57,7 +57,7 @@ public class GsubProcessorFactoryTests extends AbstractStringProcessorFactoryTes
         config.put("field", "field1");
         config.put("pattern", "\\.");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[replacement] required property is missing"));
@@ -71,7 +71,7 @@ public class GsubProcessorFactoryTests extends AbstractStringProcessorFactoryTes
         config.put("pattern", "[");
         config.put("replacement", "-");
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("[pattern] Invalid regex pattern. Unclosed character class"));

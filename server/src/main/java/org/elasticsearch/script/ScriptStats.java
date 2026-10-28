@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.collect.Iterators.single;
+import static org.elasticsearch.script.ScriptContextStats.Fields.CACHE_EVICTIONS_HISTORY;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
 import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
@@ -129,17 +129,10 @@ public record ScriptStats(
         TimeSeries cacheEvictionsHistory;
         long compilations;
         long cacheEvictions;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            compilationsHistory = new TimeSeries(in);
-            cacheEvictionsHistory = new TimeSeries(in);
-            compilations = compilationsHistory.total;
-            cacheEvictions = cacheEvictionsHistory.total;
-        } else {
-            compilations = in.readVLong();
-            cacheEvictions = in.readVLong();
-            compilationsHistory = new TimeSeries(compilations);
-            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
-        }
+        compilationsHistory = new TimeSeries(in);
+        cacheEvictionsHistory = new TimeSeries(in);
+        compilations = compilationsHistory.total;
+        cacheEvictions = cacheEvictionsHistory.total;
         var compilationLimitTriggered = in.readVLong();
         var contextStats = in.readCollectionAsList(ScriptContextStats::read);
         return new ScriptStats(
@@ -154,13 +147,8 @@ public record ScriptStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            compilationsHistory.writeTo(out);
-            cacheEvictionsHistory.writeTo(out);
-        } else {
-            out.writeVLong(compilations);
-            out.writeVLong(cacheEvictions);
-        }
+        compilationsHistory.writeTo(out);
+        cacheEvictionsHistory.writeTo(out);
         out.writeVLong(compilationLimitTriggered);
         out.writeCollection(contextStats);
     }
@@ -205,7 +193,7 @@ public record ScriptStats(
                 builder.endObject();
             }
             if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                builder.startObject(COMPILATIONS_HISTORY);
+                builder.startObject(CACHE_EVICTIONS_HISTORY);
                 cacheEvictionsHistory.toXContent(builder, params);
                 builder.endObject();
             }

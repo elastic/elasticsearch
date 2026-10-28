@@ -1,0 +1,13 @@
+area: ES|QL
+issues:
+ - 145888
+ - 162784
+ - 145889
+ - 162778
+ - 145886
+ - 162782
+ - 145887
+ - 162780
+pr: 145996
+summary: Fix `MvPercentile` precision on edge cases and unmute tests
+type: bug

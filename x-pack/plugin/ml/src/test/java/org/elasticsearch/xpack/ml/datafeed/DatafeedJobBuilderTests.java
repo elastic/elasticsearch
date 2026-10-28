@@ -22,18 +22,22 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.action.datafeed.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -50,7 +54,10 @@ import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class DatafeedJobBuilderTests extends ESTestCase {
@@ -79,11 +86,15 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             new HashSet<>(
                 Arrays.asList(
                     MachineLearning.DELAYED_DATA_CHECK_FREQ,
+                    MachineLearning.CCS_STABILIZATION_CYCLES,
+                    MachineLearning.CCS_STABILIZATION_FLOOR,
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -110,7 +121,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             System::currentTimeMillis,
             jobResultsPersister,
             Settings.EMPTY,
-            clusterService
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
         );
     }
 
@@ -121,13 +134,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
             assertThat(datafeedJob.lastEndTimeMs(), is(nullValue()));
-            wasHandlerCalled.compareAndSet(false, true);
+            wasHandlerCalled.set(true);
         });
 
         DatafeedContext datafeedContext = new DatafeedContext(
@@ -139,9 +153,17 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
-        datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
 
-        assertBusy(() -> wasHandlerCalled.get());
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    private void buildDatafeedJob(
+        TransportStartDatafeedAction.DatafeedTask task,
+        DatafeedContext context,
+        ActionListener<DatafeedJob> listener
+    ) {
+        datafeedJobBuilder.buildWithExtractorFactory(task, context, mock(DataExtractorFactory.class), listener);
     }
 
     public void testBuild_GivenScrollDatafeedAndOldJobWithLatestRecordTimestampAfterLatestBucket() throws Exception {
@@ -151,13 +173,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
-            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_200_000L));
-            wasHandlerCalled.compareAndSet(false, true);
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_399_999L));
+            wasHandlerCalled.set(true);
         });
 
         DatafeedContext datafeedContext = new DatafeedContext(
@@ -169,9 +192,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
-        datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
+        buildDatafeedJob(datafeedTask, datafeedContext, datafeedJobHandler);
 
-        assertBusy(() -> wasHandlerCalled.get());
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
     public void testBuild_GivenScrollDatafeedAndOldJobWithLatestBucketAfterLatestRecordTimestamp() throws Exception {
@@ -181,13 +204,14 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
             assertThat(datafeedJob.isRunning(), is(true));
             assertThat(datafeedJob.isIsolated(), is(false));
-            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_199_999L));
-            wasHandlerCalled.compareAndSet(false, true);
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_399_999L));
+            wasHandlerCalled.set(true);
         });
 
         DatafeedContext datafeedContext = new DatafeedContext(
@@ -199,9 +223,105 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
-        datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
+        buildDatafeedJob(datafeedTask, datafeedContext, datafeedJobHandler);
 
-        assertBusy(() -> wasHandlerCalled.get());
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenRawEsqlDatafeedAndRestartShouldNotAdvanceLatestRecordTime() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM logs");
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        long hour = TimeValue.timeValueHours(1).millis();
+        long recordStamp = 9 * hour;
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(recordStamp));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(8 * hour, recordStamp, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenAggregatingEsqlDatafeedAndRestartShouldAdvanceLatestRecordTimePastGroupingInterval() throws Exception {
+        assumeTrue("Only relevant when the ES|QL datafeeds feature flag is on", MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled());
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", jobBuilder.getId());
+        datafeed.setEsqlQuery("FROM logs | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)");
+        datafeed.setSourceTimeField("@timestamp");
+        datafeed.setGroupingInterval(TimeValue.timeValueHours(1));
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        long hour = TimeValue.timeValueHours(1).millis();
+        long recordStamp = 9 * hour;
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * hour - 1));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(8 * hour, recordStamp, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testBuildGivenScrollDatafeedAndRestartShouldNotAdvanceLatestRecordTime() throws Exception {
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
+
+        long hour = TimeValue.timeValueHours(1).millis();
+        long recordStamp = 9 * hour;
+        long finalBucketStart = 8 * hour;
+
+        AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionTestUtils.assertNoFailureListener(datafeedJob -> {
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(recordStamp));
+            wasHandlerCalled.set(true);
+        });
+
+        DatafeedContext datafeedContext = new DatafeedContext(
+            datafeed.build(),
+            jobBuilder.build(),
+            new RestartTimeInfo(finalBucketStart, recordStamp, true),
+            new DatafeedTimingStats(jobBuilder.getId())
+        );
+
+        buildDatafeedJob(newDatafeedTask("datafeed1"), datafeedContext, datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
     }
 
     public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {
@@ -213,7 +333,9 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             System::currentTimeMillis,
             jobResultsPersister,
             nonRemoteClusterClientNode(),
-            clusterService
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
         );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -221,6 +343,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         jobBuilder.setCreateTime(new Date());
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
+        datafeed.setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
         datafeed.setIndices(Collections.singletonList("remotecluster:index-*"));
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
@@ -238,7 +361,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                         )
                     )
                 );
-                wasHandlerCalled.compareAndSet(false, true);
+                wasHandlerCalled.set(true);
             }
         );
 
@@ -251,8 +374,31 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         TransportStartDatafeedAction.DatafeedTask datafeedTask = newDatafeedTask("datafeed1");
 
-        datafeedJobBuilder.build(datafeedTask, datafeedContext, datafeedJobHandler);
-        assertBusy(() -> wasHandlerCalled.get());
+        buildDatafeedJob(datafeedTask, datafeedContext, datafeedJobHandler);
+        assertBusy(() -> assertTrue(wasHandlerCalled.get()));
+    }
+
+    public void testCheckRemoteIndicesAreAvailableGivenNullIndicesShouldNotThrow() {
+        datafeedJobBuilder = new DatafeedJobBuilder(
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            nonRemoteClusterClientNode(),
+            clusterService,
+            CloudCredentialManager.Noop::new,
+            DatafeedSearchTelemetry.NOOP
+        );
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("datafeed1", "job1").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        DatafeedConfig datafeedWithoutIndices = spy(datafeed);
+        doReturn(null).when(datafeedWithoutIndices).getIndices();
+
+        datafeedJobBuilder.checkRemoteIndicesAreAvailable(datafeedWithoutIndices);
     }
 
     private static TransportStartDatafeedAction.DatafeedTask newDatafeedTask(String datafeedId) {

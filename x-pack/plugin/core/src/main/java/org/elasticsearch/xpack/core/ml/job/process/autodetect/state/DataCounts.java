@@ -138,10 +138,6 @@ public final class DataCounts implements ToXContentObject, Writeable {
         return jobId + DOCUMENT_SUFFIX;
     }
 
-    public static String v54DocumentId(String jobId) {
-        return jobId + "-data-counts";
-    }
-
     private final String jobId;
     private long processedRecordCount;
     private long processedFieldCount;

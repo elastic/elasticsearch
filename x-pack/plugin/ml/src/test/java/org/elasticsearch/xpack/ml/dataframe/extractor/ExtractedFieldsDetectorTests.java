@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -814,15 +816,20 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             FieldSelection.included("some_boolean", Collections.singleton("boolean"), isRequired, featureType)
         );
 
-        SearchHit hit = new SearchHitBuilder(42).addField("some_boolean", true).build();
-        SourceSupplier sourceSupplier = new SourceSupplier(hit);
-        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(1));
+        SearchHit hitTrue = new SearchHitBuilder(42).addField("some_boolean", true).build();
+        try (var hitTrueRef = ReleasableRef.of(hitTrue)) {
+            assertThat(booleanField.value(hitTrueRef.get(), new SourceSupplier(hitTrueRef.get())), arrayContaining(1));
+        }
 
-        hit = new SearchHitBuilder(42).addField("some_boolean", false).build();
-        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(0));
+        SearchHit hitFalse = new SearchHitBuilder(42).addField("some_boolean", false).build();
+        try (var hitFalseRef = ReleasableRef.of(hitFalse)) {
+            assertThat(booleanField.value(hitFalseRef.get(), new SourceSupplier(hitFalseRef.get())), arrayContaining(0));
+        }
 
-        hit = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
-        assertThat(booleanField.value(hit, sourceSupplier), arrayContaining(0, 1, 0));
+        SearchHit hitArray = new SearchHitBuilder(42).addField("some_boolean", Arrays.asList(false, true, false)).build();
+        try (var hitArrayRef = ReleasableRef.of(hitArray)) {
+            assertThat(booleanField.value(hitArrayRef.get(), new SourceSupplier(hitArrayRef.get())), arrayContaining(0, 1, 0));
+        }
     }
 
     public void testDetect_GivenBooleanField_OutlierDetection() {
@@ -1715,7 +1722,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             for (String type : types) {
                 caps.put(
                     type,
-                    new FieldCapabilities(field, type, isMetadataField, true, isAggregatable, null, null, null, Collections.emptyMap())
+                    new FieldCapabilitiesBuilder(field, type).isMetadataField(isMetadataField).isAggregatable(isAggregatable).build()
                 );
             }
             fieldCaps.put(field, caps);
@@ -1723,7 +1730,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         }
 
         private FieldCapabilitiesResponse build() {
-            return new FieldCapabilitiesResponse(new String[] { "test" }, fieldCaps);
+            return FieldCapabilitiesResponse.builder().withIndices(new String[] { "test" }).withFields(fieldCaps).build();
         }
     }
 }

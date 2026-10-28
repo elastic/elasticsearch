@@ -19,7 +19,7 @@ public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>,
         this.context = context;
     }
 
-    protected Context context() {
+    public Context context() {
         return context;
     }
 

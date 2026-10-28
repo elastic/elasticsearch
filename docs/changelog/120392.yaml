@@ -1,6 +1,0 @@
-pr: 120392
-summary: Test/107515 restore template with match only text mapper it fail
-area: Search
-type: bug
-issues:
- - 107515

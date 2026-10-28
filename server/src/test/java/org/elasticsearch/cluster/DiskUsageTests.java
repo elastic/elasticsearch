@@ -17,7 +17,10 @@ import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
@@ -25,6 +28,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -100,27 +104,35 @@ public class DiskUsageTests extends ESTestCase {
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
         commonStats0.store = new StoreStats(100, 101, 0L);
+        commonStats0.indexing = randomIndexingStats();
+        commonStats0.search = randomSearchStats();
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(index, 1),
             false,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 1001, 0L);
+        commonStats1.indexing = randomIndexingStats();
+        commonStats1.search = randomSearchStats();
         CommonStats commonStats2 = new CommonStats();
         commonStats2.store = new StoreStats(1000, 999, 0L);
+        commonStats2.indexing = randomIndexingStats();
+        commonStats2.search = randomSearchStats();
         ShardStats[] stats = new ShardStats[] {
             new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, false, 0),
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, false, 0),
@@ -135,9 +147,24 @@ public class DiskUsageTests extends ESTestCase {
                 0
             ) };
         Map<String, Long> shardSizes = new HashMap<>();
+        Map<ShardId, Double> shardWriteLoads = new HashMap<>();
+        Map<ShardId, Double> shardSearchLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
-        InternalClusterInfoService.buildShardLevelInfo(stats, shardSizes, shardDataSetSizes, routingToPath, new HashMap<>());
+        // AVERAGE write loads are not sourced from indices stats, so buildShardLevelInfo does not populate them
+        WriteLoadDeciderShardWriteLoadType shardWriteLoadType = randomFrom(
+            Arrays.stream(WriteLoadDeciderShardWriteLoadType.values()).filter(WriteLoadDeciderShardWriteLoadType::useIndicesStats).toList()
+        );
+        InternalClusterInfoService.buildShardLevelInfo(
+            stats,
+            shardWriteLoads,
+            shardSearchLoads,
+            shardSizes,
+            shardDataSetSizes,
+            routingToPath,
+            new HashMap<>(),
+            shardWriteLoadType
+        );
 
         assertThat(
             shardSizes,
@@ -157,6 +184,77 @@ public class DiskUsageTests extends ESTestCase {
                 hasEntry(ClusterInfo.NodeAndShard.from(test_0), test0Path.getParent().getParent().getParent().toAbsolutePath().toString()),
                 hasEntry(ClusterInfo.NodeAndShard.from(test_1), test1Path.getParent().getParent().getParent().toAbsolutePath().toString())
             )
+        );
+
+        assertThat(
+            shardWriteLoads,
+            equalTo(
+                Map.of(
+                    test_0.shardId(),
+                    shardWriteLoadType.getWriteLoad(commonStats0.indexing),
+                    test_1.shardId(),
+                    Math.max(shardWriteLoadType.getWriteLoad(commonStats1.indexing), shardWriteLoadType.getWriteLoad(commonStats2.indexing))
+                )
+            )
+        );
+
+        assertThat(
+            shardSearchLoads,
+            equalTo(
+                Map.of(
+                    test_0.shardId(),
+                    commonStats0.search.getTotal().getSearchLoadRate(),
+                    test_1.shardId(),
+                    Math.max(commonStats1.search.getTotal().getSearchLoadRate(), commonStats2.search.getTotal().getSearchLoadRate())
+                )
+            )
+        );
+    }
+
+    private IndexingStats randomIndexingStats() {
+        return new IndexingStats(
+            new IndexingStats.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomMillisUpToYear9999(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0d, 10d, true),
+                randomDoubleBetween(0d, 10d, true)
+            )
+        );
+    }
+
+    private SearchStats randomSearchStats() {
+        return new SearchStats(
+            new SearchStats.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0d, 10d, true)
+            ),
+            randomNonNegativeLong(),
+            null
         );
     }
 

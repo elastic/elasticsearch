@@ -3,6 +3,10 @@ steps:
     label: Trigger pipeline to build lucene snapshot
     key: lucene-build
     if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
+    build:
+      branch: "${LUCENE_BRANCH:-branch_10_6}"
+      env:
+        JDK_VERSION: "${LUCENE_JDK_VERSION:-21}"
   - wait
   - label: Upload and update lucene snapshot
     command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh
@@ -12,7 +16,7 @@ steps:
       UPDATE_ES_LUCENE_SNAPSHOT: "true"
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - wait

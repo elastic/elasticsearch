@@ -40,8 +40,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
     }
 
     private static List<FunctionResolutionStrategy> resolutionStrategies() {
-        return asList(FunctionResolutionStrategy.DEFAULT, new FunctionResolutionStrategy() {
-        });
+        return asList(FunctionResolutionStrategy.DEFAULT, new FunctionResolutionStrategy() {});
     }
 
     protected List<FunctionResolutionStrategy> pluggableResolutionStrategies() {

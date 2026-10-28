@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -560,7 +560,7 @@ public class HttpRequest implements ToXContentObject {
                 }
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    RestUtils.decodeQueryString(rawQuery, 0, params);
+                    setParams(RequestParams.fromQueryString(rawQuery));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

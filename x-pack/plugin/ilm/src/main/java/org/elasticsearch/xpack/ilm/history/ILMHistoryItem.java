@@ -86,7 +86,9 @@ public class ILMHistoryItem implements ToXContentObject {
         Exception error
     ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
-        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
+        String fullErrorString = exceptionToString(error);
+        String truncatedErrorString = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(fullErrorString);
+        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, truncatedErrorString);
     }
 
     @Override

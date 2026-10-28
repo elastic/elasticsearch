@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
@@ -27,6 +29,10 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
  * Newline-delimited JSON.
  */
 public class NdJsonTextStructureFinder implements TextStructureFinder {
+
+    private static final int NO_RECURSION_DEPTH = 1;
+    private static final int DEFAULT_RECURSION_DEPTH = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY)
+        .intValue();
 
     private final List<String> sampleMessages;
     private final TextStructure structure;
@@ -87,8 +93,17 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
                 );
         }
 
+        int maxRecursionDepth = (overrides.getShouldParseRecursively() != null && overrides.getShouldParseRecursively())
+            ? DEFAULT_RECURSION_DEPTH
+            : NO_RECURSION_DEPTH;
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
+            .guessMappingsAndCalculateFieldStats(
+                explanation,
+                sampleRecords,
+                timeoutChecker,
+                overrides.getTimestampFormat(),
+                maxRecursionDepth
+            );
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

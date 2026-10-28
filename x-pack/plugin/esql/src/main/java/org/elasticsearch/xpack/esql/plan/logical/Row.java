@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,10 +22,13 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Row extends LeafPlan implements PostAnalysisVerificationAware, TelemetryAware {
 
     private final List<Alias> fields;
+
+    private List<Attribute> lazyOutput;
 
     public Row(Source source, List<Alias> fields) {
         super(source);
@@ -49,7 +51,10 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(fields);
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(fields, List.of());
+        }
+        return lazyOutput;
     }
 
     @Override

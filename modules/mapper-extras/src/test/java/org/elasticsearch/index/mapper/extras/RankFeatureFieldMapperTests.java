@@ -46,6 +46,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", 2));
     }
 
     @Override
@@ -214,5 +215,15 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

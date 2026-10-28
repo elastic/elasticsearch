@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
@@ -44,6 +45,7 @@ public class PutCcrRestoreSessionActionTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ClusterService clusterService = mock(ClusterService.class);
         final ActionFilters actionFilters = mock(ActionFilters.class);
+        final ProjectResolver projectResolver = mock(ProjectResolver.class);
         final IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         final TransportService transportService = mock(TransportService.class);
         final IndicesService indicesService = mock(IndicesService.class);
@@ -53,6 +55,7 @@ public class PutCcrRestoreSessionActionTests extends ESTestCase {
             threadPool,
             clusterService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             transportService,
             indicesService,
@@ -65,6 +68,7 @@ public class PutCcrRestoreSessionActionTests extends ESTestCase {
                 threadPool,
                 clusterService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 transportService,
                 indicesService,

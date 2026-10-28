@@ -1,40 +1,43 @@
 {
-  "ccr.get_auto_follow_pattern":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-auto-follow-pattern.html",
-      "description": "Gets configured auto-follow patterns. Returns the specified auto-follow pattern collection."
+  "ccr.get_auto_follow_pattern": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ccr-get-auto-follow-pattern-1",
+      "description": "Get auto-follow patterns"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ccr/auto_follow",
-          "methods":[
+          "path": "/_ccr/auto_follow",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_ccr/auto_follow/{name}",
-          "methods":[
+          "path": "/_ccr/auto_follow/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"The name of the auto follow pattern."
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the auto follow pattern."
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       }
     }
   }

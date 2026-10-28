@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -38,17 +39,26 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
+import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.MlMemoryAction;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -71,7 +81,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -130,8 +142,14 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
+        givenDatafeedConfigs(Collections.emptyList());
+        givenCalendars(Collections.emptyList());
+        givenFilters(Collections.emptyList());
+        givenScheduledEvents(Collections.emptyList());
+        givenModelSnapshots(Collections.emptyList());
         givenDataFrameAnalytics(Collections.emptyList(), Collections.emptyList());
         givenTrainedModels(Collections.emptyList());
+        givenInferenceEndpoints(Collections.emptyList());
         givenTrainedModelStats(
             new GetTrainedModelsStatsAction.Response(
                 new QueryPage<>(Collections.emptyList(), 0, GetTrainedModelsStatsAction.Response.RESULTS_FIELD)
@@ -165,12 +183,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         client.threadPool().shutdown();
     }
 
-    private MachineLearningUsageTransportAction newUsageAction(
-        Settings settings,
-        boolean isAnomalyDetectionEnabled,
-        boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
-    ) {
+    private MachineLearningUsageTransportAction newUsageAction(Settings settings) {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         return new MachineLearningUsageTransportAction(
@@ -178,14 +191,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             TestEnvironment.newEnvironment(settings),
             client,
             licenseState,
-            jobManagerHolder,
-            new MachineLearningExtensionHolder(
-                new MachineLearningTests.MlTestExtension(true, true, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled)
-            )
+            jobManagerHolder
         );
     }
 
@@ -200,9 +209,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         boolean available = randomBoolean();
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-        var usageAction = newUsageAction(commonSettings, randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(commonSettings);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -230,9 +239,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         assertThat(featureSet.enabled(), is(expected));
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
@@ -251,9 +260,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         Map<String, Integer> expectedDfaCountByAnalysis = setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -398,7 +407,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     public void testAnomalyDetectionDisabled() throws Exception {
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
-        Settings.Builder settings = Settings.builder().put(commonSettings);
+        Settings.Builder settings = Settings.builder().put(commonSettings).put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false);
         settings.put("xpack.ml.enabled", true);
 
         Map<String, Integer> trainedModelsCountByAnalysis = Map.of("classification", 1, "regression", 1, "ner", 1);
@@ -409,9 +418,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         // models if the features were disabled.
         Map<String, Integer> expectedDfaCountByAnalysis = setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), false, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -498,6 +507,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
+        settings.put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false);
+        settings.put(XPackSettings.NLP_ENABLED.getKey(), false);
 
         // This test works by setting up a mocks that imply trained models exist, then checking
         // that the usage stats don't mention them. This proves that the trained model APIs
@@ -505,9 +516,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         // models if the features were disabled.
         setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), true, false, false);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -579,7 +590,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.total"), equalTo(11));
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
-            assertThat(source.getValue("inference"), anEmptyMap());
+            assertThat(source.getValue("inference.trained_models"), is(nullValue()));
+            assertThat(source.getValue("inference.deployments"), is(nullValue()));
+            assertThat(source.getValue("inference.ingest_processors"), is(nullValue()));
         }
     }
 
@@ -602,9 +615,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         MlMemoryAction.Response memory = new MlMemoryAction.Response(new ClusterName("foo"), List.of(), List.of());
         givenMlMemory(memory);
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         XContentSource source;
@@ -637,9 +650,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -659,9 +672,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -685,9 +698,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -785,6 +798,72 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             );
             return Void.TYPE;
         }).when(client).execute(same(GetDatafeedsStatsAction.INSTANCE), any(), any());
+    }
+
+    private void givenDatafeedConfigs(List<DatafeedConfig> datafeeds) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetDatafeedsAction.Response> listener = (ActionListener<GetDatafeedsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetDatafeedsAction.INSTANCE), any(), any());
+    }
+
+    private void givenCalendars(List<Calendar> calendars) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetCalendarsAction.Response> listener = (ActionListener<GetCalendarsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetCalendarsAction.Response(new QueryPage<>(calendars, calendars.size(), Calendar.RESULTS_FIELD)));
+            return Void.TYPE;
+        }).when(client).execute(same(GetCalendarsAction.INSTANCE), any(), any());
+    }
+
+    private void givenFilters(List<MlFilter> filters) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetFiltersAction.Response> listener = (ActionListener<GetFiltersAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetFiltersAction.Response(new QueryPage<>(filters, filters.size(), MlFilter.RESULTS_FIELD)));
+            return Void.TYPE;
+        }).when(client).execute(same(GetFiltersAction.INSTANCE), any(), any());
+    }
+
+    private void givenScheduledEvents(List<ScheduledEvent> scheduledEvents) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetCalendarEventsAction.Response> listener = (ActionListener<GetCalendarEventsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetCalendarEventsAction.Response(new QueryPage<>(scheduledEvents, scheduledEvents.size(), ScheduledEvent.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetCalendarEventsAction.INSTANCE), any(), any());
+    }
+
+    private void givenModelSnapshots(List<ModelSnapshot> modelSnapshots) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetModelSnapshotsAction.Response> listener = (ActionListener<GetModelSnapshotsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetModelSnapshotsAction.Response(new QueryPage<>(modelSnapshots, modelSnapshots.size(), ModelSnapshot.RESULTS_FIELD))
+            );
+            return Void.TYPE;
+        }).when(client).execute(same(GetModelSnapshotsAction.INSTANCE), any(), any());
+    }
+
+    private void givenInferenceEndpoints(List<ModelConfigurations> endpoints) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetInferenceModelAction.Response> listener = (ActionListener<GetInferenceModelAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetInferenceModelAction.Response(endpoints));
+            return Void.TYPE;
+        }).when(client).execute(same(GetInferenceModelAction.INSTANCE), any(), any());
     }
 
     private void givenDataFrameAnalytics(
@@ -989,20 +1068,23 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(10, 1, 1000, 100)
-                                        ),
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(20, 2, 2000, 200)
-                                        ),
-                                        // Adding a non inference processor that should be ignored
-                                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(10, 1, 1000, 100)
+                                            ),
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(20, 2, 2000, 200)
+                                            ),
+                                            // Adding a non inference processor that should be ignored
+                                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(100, 100, 100, 100))
+                                        )
                                     )
                                 )
                             ),
@@ -1017,12 +1099,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_1",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(30, 3, 3000, 300)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_1",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(30, 3, 3000, 300)
+                                            )
                                         )
                                     )
                                 )
@@ -1038,12 +1123,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_2",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(40, 4, 4000, 400)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_2",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(40, 4, 4000, 400)
+                                            )
                                         )
                                     )
                                 )
@@ -1077,7 +1165,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2L,
                                         33.0,
-                                        1L
+                                        1L,
+                                        0L,
+                                        null
                                     )
                                 ),
                                 Priority.NORMAL
@@ -1090,12 +1180,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new IngestStats.Stats(0, 0, 0, 0),
                                 List.of(),
                                 Map.of(
-                                    "pipeline_3",
-                                    List.of(
-                                        new IngestStats.ProcessorStat(
-                                            InferenceProcessor.TYPE,
-                                            InferenceProcessor.TYPE,
-                                            new IngestStats.Stats(50, 5, 5000, 500)
+                                    ProjectId.DEFAULT,
+                                    Map.of(
+                                        "pipeline_3",
+                                        List.of(
+                                            new IngestStats.ProcessorStat(
+                                                InferenceProcessor.TYPE,
+                                                InferenceProcessor.TYPE,
+                                                new IngestStats.Stats(50, 5, 5000, 500)
+                                            )
                                         )
                                     )
                                 )
@@ -1129,7 +1222,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2L,
                                         33.0,
-                                        1L
+                                        1L,
+                                        0L,
+                                        null
                                     ),
                                     AssignmentStats.NodeStats.forStartedState(
                                         DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
@@ -1148,7 +1243,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         2L,
                                         4L,
                                         34.0,
-                                        1L
+                                        1L,
+                                        0L,
+                                        null
                                     )
                                 ),
                                 Priority.NORMAL

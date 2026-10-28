@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
@@ -37,7 +37,7 @@ public class DocCountProviderTests extends AggregatorTestCase {
     private static final String NUMBER_FIELD = "number";
 
     public void testDocsWithDocCount() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(new CustomTermFreqField(DOC_COUNT_FIELD, DOC_COUNT_FIELD, 4), new SortedNumericDocValuesField(NUMBER_FIELD, 1))
             );
@@ -54,7 +54,7 @@ public class DocCountProviderTests extends AggregatorTestCase {
     }
 
     public void testDocsWithoutDocCount() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 1)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(NUMBER_FIELD, 1)));

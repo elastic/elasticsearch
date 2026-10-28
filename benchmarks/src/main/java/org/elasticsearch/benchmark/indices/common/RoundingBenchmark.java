@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark.indices.common;
 
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -37,6 +38,11 @@ import java.util.function.Supplier;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 public class RoundingBenchmark {
+
+    static {
+        BenchmarkLogging.configure();
+    }
+
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");
 
     @Param(

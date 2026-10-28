@@ -12,12 +12,12 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class ImplicitTiebreakerTests extends ESTestCase {
 
-    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("ImplicitTiebreakerTests");
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = NoopCircuitBreaker.INSTANCE;
 
     private final List<HitExtractor> keyExtractors = emptyList();
     private final HitExtractor tsExtractor = TimestampExtractor.INSTANCE;
@@ -74,18 +74,19 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
-            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(
                     new Long[] { (long) ordinal, sortValue },
                     new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
                 )
             );
-            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(
-                l,
-                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-            );
+            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            try {
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
+            } finally {
+                searchHits.decRef();
+            }
         }
 
         @Override
@@ -94,7 +95,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }

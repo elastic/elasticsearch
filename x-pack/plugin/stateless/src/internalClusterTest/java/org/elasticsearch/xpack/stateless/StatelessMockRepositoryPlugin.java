@@ -1,0 +1,56 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless;
+
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * Installs a {@link StatelessMockRepository} for stateless testing. See also {@link StatelessMockRepositoryStrategy}.
+ */
+public class StatelessMockRepositoryPlugin extends Plugin implements RepositoryPlugin {
+    public static final String TYPE = ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT);
+
+    @Override
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        return Map.of(
+            TYPE,
+            (projectId, metadata) -> new StatelessMockRepository(
+                projectId,
+                metadata,
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                new StatelessMockRepositoryStrategy(),
+                snapshotMetrics
+            )
+        );
+    }
+}

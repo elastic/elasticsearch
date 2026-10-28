@@ -24,13 +24,14 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
@@ -89,6 +89,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     private List<BulkRequest> bulkRequests;
     private Client client;
     private TransportOpenIdConnectLogoutAction action;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     public void setup() throws Exception {
@@ -163,17 +164,18 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         }).when(client).bulk(any(BulkRequest.class), anyActionListener());
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
         final ClusterService clusterService;
         try (var ignored = threadContext.newStoredContext()) {
@@ -181,18 +183,17 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
         }
 
-        final MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
+        bytesRefRecycler = new MockBytesRefRecycler();
 
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
             client,
-            licenseState,
             new SecurityContext(settings, threadContext),
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
 
         final TransportService transportService = new TransportService(
@@ -260,6 +261,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
     @After
     public void cleanup() {
         oidcRealm.close();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     @SuppressWarnings("unchecked")

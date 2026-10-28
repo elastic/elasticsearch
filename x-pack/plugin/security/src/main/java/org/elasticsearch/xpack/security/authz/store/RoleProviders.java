@@ -55,7 +55,7 @@ public class RoleProviders {
 
         this.reservedRolesStore = Objects.requireNonNull(reservedRolesStore);
         this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
-        this.fileRolesStore.addListener(this::onRoleModification);
+        this.fileRolesStore.addListener(this::onClusterScopedRoleModification);
         this.nativeRolesStore = Objects.requireNonNull(nativeRolesStore);
         this.customRoleProviders = Objects.requireNonNull(customRoleProviders);
 
@@ -97,8 +97,8 @@ public class RoleProviders {
         return List.copyOf(providers);
     }
 
-    private void onRoleModification(Set<String> roles) {
-        changeListeners.forEach(l -> l.rolesChanged(roles));
+    private void onClusterScopedRoleModification(Set<String> roles) {
+        changeListeners.forEach(l -> l.clusterScopedRolesChanged(roles));
     }
 
     public void addChangeListener(ChangeListener listener) {
@@ -117,7 +117,7 @@ public class RoleProviders {
     }
 
     interface ChangeListener {
-        void rolesChanged(Set<String> roles);
+        void clusterScopedRolesChanged(Set<String> roles);
 
         void providersChanged();
     }

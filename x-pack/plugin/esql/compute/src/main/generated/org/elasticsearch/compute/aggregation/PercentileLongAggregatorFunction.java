@@ -14,10 +14,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -36,17 +39,15 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
 
   private final double percentile;
 
-  public PercentileLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      QuantileStates.SingleState state, double percentile) {
+  private final double tDigestStateCompression;
+
+  PercentileLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      double percentile, double tDigestStateCompression) {
+    this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.percentile = percentile;
-  }
-
-  public static PercentileLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, double percentile) {
-    return new PercentileLongAggregatorFunction(driverContext, channels, PercentileLongAggregator.initSingle(driverContext, percentile), percentile);
+    this.state = PercentileLongAggregator.initSingle(driverContext, percentile, tDigestStateCompression);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,69 +63,160 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(LongVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      PercentileLongAggregator.combine(state, vector.getLong(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(LongVector vVector) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      PercentileLongAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(LongVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        PercentileLongAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      PercentileLongAggregator.combine(state, vector.getLong(i));
+      long vValue = vVector.getLong(valuesPosition);
+      PercentileLongAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(LongBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        PercentileLongAggregator.combine(state, block.getLong(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        PercentileLongAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(LongBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        PercentileLongAggregator.combine(state, block.getLong(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        PercentileLongAggregator.combine(state, vValue);
       }
     }
   }
@@ -135,12 +227,21 @@ public final class PercentileLongAggregatorFunction implements AggregatorFunctio
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    PercentileLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

@@ -8,12 +8,13 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -23,8 +24,8 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -148,6 +149,40 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return from(in.readNamedWriteableCollectionAsList(InternalAggregation.class));
     }
 
+    /**
+     * Appends SearchHits from all top_hits aggregations in the tree to the given collection.
+     * Does not take a reference; use on the shard where top_hits were already registered with
+     * {@link org.elasticsearch.search.query.QuerySearchResult#registerTopHitsForRelease}.
+     */
+    public static void addTopHitsToReleaseList(InternalAggregations aggs, Collection<SearchHits> out) {
+        addTopHitsToReleaseList(aggs, out, false);
+    }
+
+    /**
+     * Appends SearchHits from all top_hits aggregations in the tree to the given collection.
+     * When {@code takeRef} is true, takes a reference for each so the collection owner can decRef on release
+     * (use when the tree was expanded from the wire / reduce context).
+     */
+    public static void addTopHitsToReleaseList(InternalAggregations aggs, Collection<SearchHits> out, boolean takeRef) {
+        if (aggs == null) {
+            return;
+        }
+        addTopHitsToReleaseListImpl(aggs, out, takeRef);
+    }
+
+    private static void addTopHitsToReleaseListImpl(InternalAggregations aggs, Collection<SearchHits> out, boolean takeRef) {
+        for (InternalAggregation agg : aggs.asList()) {
+            if (agg instanceof InternalTopHits topHits) {
+                SearchHits h = topHits.getHits();
+                if (takeRef) {
+                    h.incRef();
+                }
+                out.add(h);
+            }
+            agg.forEachBucket(sub -> addTopHitsToReleaseListImpl(sub, out, takeRef));
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableCollection(getInternalAggregations());
@@ -180,44 +215,22 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     /**
-     * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes a list of
-     * {@link DelayableWriteable}. The object will be expanded once via {@link DelayableWriteable#expand()}
-     * but it is the responsibility of the caller to release those releasables.
+     * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes an iterator and a count.
      */
-    public static InternalAggregations topLevelReduceDelayable(
-        List<DelayableWriteable<InternalAggregations>> delayableAggregations,
-        AggregationReduceContext context
-    ) {
-        final List<InternalAggregations> aggregations = new AbstractList<>() {
-            @Override
-            public InternalAggregations get(int index) {
-                return delayableAggregations.get(index).expand();
-            }
-
-            @Override
-            public int size() {
-                return delayableAggregations.size();
-            }
-        };
-        return topLevelReduce(aggregations, context);
+    public static InternalAggregations topLevelReduce(Iterator<InternalAggregations> aggs, int count, AggregationReduceContext context) {
+        if (count == 0) {
+            return null;
+        }
+        return maybeExecuteFinalReduce(context, count == 1 ? reduce(aggs.next(), context) : reduce(aggs, count, context));
     }
 
-    /**
-     * Begin the reduction process.  This should be the entry point for the "first" reduction, e.g. called by
-     * SearchPhaseController or anywhere else that wants to initiate a reduction.  It _should not_ be called
-     * as an intermediate reduction step (e.g. in the middle of an aggregation tree).
-     *
-     * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
-     * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
-     */
-    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
-        InternalAggregations reduced = reduce(aggregationsList, context);
+    private static InternalAggregations maybeExecuteFinalReduce(AggregationReduceContext context, InternalAggregations reduced) {
         if (reduced == null) {
             return null;
         }
         if (context.isFinalReduce()) {
-            List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
-            reducedInternalAggs = reducedInternalAggs.stream()
+            List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations()
+                .stream()
                 .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
                 .collect(Collectors.toCollection(ArrayList::new));
 
@@ -229,6 +242,18 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             return from(reducedInternalAggs);
         }
         return reduced;
+    }
+
+    /**
+     * Begin the reduction process.  This should be the entry point for the "first" reduction, e.g. called by
+     * SearchPhaseController or anywhere else that wants to initiate a reduction.  It _should not_ be called
+     * as an intermediate reduction step (e.g. in the middle of an aggregation tree).
+     *
+     * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
+     * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
+     */
+    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
+        return maybeExecuteFinalReduce(context, reduce(aggregationsList, context));
     }
 
     /**
@@ -250,6 +275,16 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
             for (InternalAggregations aggregations : aggregationsList) {
                 reducer.accept(aggregations);
             }
+            return reducer.get();
+        }
+    }
+
+    private static InternalAggregations reduce(Iterator<InternalAggregations> aggsIterator, int count, AggregationReduceContext context) {
+        // general case
+        var first = aggsIterator.next();
+        try (AggregatorsReducer reducer = new AggregatorsReducer(first, context, count)) {
+            reducer.accept(first);
+            aggsIterator.forEachRemaining(reducer::accept);
             return reducer.get();
         }
     }

@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| WHERE KNN(does_not_exist, [0, 1, 2])

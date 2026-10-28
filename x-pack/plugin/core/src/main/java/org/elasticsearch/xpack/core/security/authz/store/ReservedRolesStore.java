@@ -52,12 +52,29 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
 
+    /** Alerting V2 - alert events and action indexes used by multiple solutions */
+    public static final String ALERTING_V2_ALERT_INDEX_ALIAS = ".alert*";
+    public static final String ALERTING_V2_RULE_INDEX_ALIAS = ".rule*";
+    public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
+    public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
+
+    /** Nightshift source ES|QL views, named {@code $.nightshift.sources.<spaceId>.<slug>}; Kibana writes them as kibana_system */
+    public static final String NIGHTSHIFT_SOURCE_VIEWS = "$.nightshift.sources.*";
+
+    /** Cases analytics indexes and aliases */
+    public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
+    public static final String CASES_ANALYTICS_ALIASES = ".cases*";
+
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
 
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
     public static final String PREVIEW_ALERTS_BACKING_INDEX = ".internal.preview.alerts*";
     public static final String PREVIEW_ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.preview.alerts*";
+
+    /** "Attack Discovery" ad-hoc alerts index */
+    public static final String ADHOC_ALERTS_INDEX_ALIAS = ".adhoc.alerts*";
+    public static final String ADHOC_ALERTS_BACKING_INDEX = ".internal.adhoc.alerts*";
 
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
@@ -66,6 +83,44 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
     public static final String LISTS_ITEMS_INDEX_REINDEXED_V8 = ".reindexed-v8-items-*";
+
+    /**
+     * "Security Solutions" threat intelligence indicators, produced by the threat intel supply
+     * pipeline. Kibana creates and writes the index and manages the per-space filtered aliases;
+     * Detection Engine Indicator Match rules read those aliases as the rule's own user.
+     *
+     * The two patterns differ deliberately. {@code kibana_system} needs the index and its aliases,
+     * so it is granted {@link #THREAT_INTEL_INDICATORS_INDEX}. {@code viewer} and {@code editor}
+     * are granted only {@link #THREAT_INTEL_INDICATORS_ALIAS}, which requires the trailing hyphen
+     * and so never matches the bare {@code .threat-intel-indicators} index. That index holds every
+     * space's candidate indicators at every confidence level, and only the filtered per-space
+     * aliases are safe for a rule to read.
+     */
+    public static final String THREAT_INTEL_INDICATORS_INDEX = ".threat-intel-indicators*";
+    public static final String THREAT_INTEL_INDICATORS_ALIAS = ".threat-intel-indicators-*";
+
+    /** "Security Solutions" Entity Store and Asset Criticality indices for Asset Inventory and Entity Analytics */
+    public static final String ENTITY_STORE_V1_LATEST_INDEX = ".entities.v1.latest.security_*";
+    /**
+     * Entity Store v2 latest indices. Solution-neutral {@code .entities.v2.latest.{namespace}-*} names,
+     * including legacy {@code .entities.v2.latest.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_LATEST_INDEX = ".entities.v2.latest.*";
+    /**
+     * Entity Store v2 updates data streams. Solution-neutral {@code .entities.v2.updates.{namespace}} names,
+     * including legacy {@code .entities.v2.updates.security_*} names during migration.
+     */
+    public static final String ENTITY_STORE_V2_UPDATES_INDEX = ".entities.v2.updates.*";
+    /**
+     * Entity Store v2 metadata data streams. Solution-neutral {@code .entities.v2.metadata.{namespace}} names,
+     * including legacy {@code .entities.v2.metadata.security_*} compatibility aliases.
+     */
+    public static final String ENTITY_STORE_V2_METADATA_INDEX = ".entities.v2.metadata.*";
+    public static final String ENTITY_STORE_HISTORY_INDEX = ".entities.*.history.*";
+    public static final String ASSET_CRITICALITY_INDEX = ".asset-criticality.asset-criticality-*";
+    public static final String PRIVILEGED_USER_MONITORING_INDEX = ".entity_analytics.monitoring*";
+    public static final String ENTITY_ANALYTICS_ENTITY_LEADS_INDEX = ".entity_analytics.entity-leads*";
+    public static final String ENTITY_ANALYTICS_WATCHLISTS_INDEX = ".entity_analytics.watchlists.*";
 
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
@@ -78,6 +133,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
+                // TODO add read_failure_store when failures authorization is implemented
                 .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                 .allowRestrictedIndices(true)
                 .build() },
@@ -95,6 +151,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new RoleDescriptor.RemoteIndicesPrivileges(
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
+                    // TODO add read_failure_store when failures authorization is implemented
                     .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -314,23 +371,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana")
+                            .application("kibana-*")
                             .resources("*")
-                            .privileges(
-                                "feature_discover.minimal_read",
-                                "feature_discover.generate_report",
-                                "feature_dashboard.minimal_read",
-                                "feature_dashboard.generate_report",
-                                "feature_dashboard.download_csv_report",
-                                "feature_canvas.minimal_read",
-                                "feature_canvas.generate_report",
-                                "feature_visualize.minimal_read",
-                                "feature_visualize.generate_report"
-                            )
+                            .privileges("reserved_reporting_user")
                             .build() },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    MetadataUtils.getDeprecatedReservedMetadata("Please grant access via Kibana privileges instead."),
                     null,
                     null,
                     null,
@@ -339,7 +386,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + "including generating and downloading reports. "
                         + "This role implicitly grants access to all Kibana reporting features, "
                         + "with each user having access only to their own reports. Note that reporting users should also be assigned "
-                        + "additional roles that grant read access to the indices that will be used to generate reports."
+                        + "additional roles that grant read access to Kibana, and the indices that will be used to generate reports."
                 )
             ),
             entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),
@@ -494,7 +541,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + "This role grants monitor_ml cluster privileges, read access to the .ml-notifications and .ml-anomalies* indices "
                         + "(which store machine learning results), and write access to .ml-annotations* indices. "
                         + "Machine learning users also need index privileges for source and destination indices "
-                        + "and roles that grant access to Kibana. "
+                        + "and roles that grant access to Kibana."
                 )
             ),
             entry(
@@ -746,6 +793,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "Grants access to manage all enrich indices (.enrich-*) and all operations on ingest pipelines."
                 )
             ),
+            // AlertZero worker service accounts
+            entry("alertzero_alert_triage", KibanaOwnedReservedRoleDescriptors.alertZeroAlertTriage("alertzero_alert_triage")),
+            entry("alertzero_attack_discovery", KibanaOwnedReservedRoleDescriptors.alertZeroAttackDiscovery("alertzero_attack_discovery")),
+            entry(
+                "alertzero_endpoint_analysis",
+                KibanaOwnedReservedRoleDescriptors.alertZeroEndpointAnalysis("alertzero_endpoint_analysis")
+            ),
+            entry("alertzero_threat_hunt", KibanaOwnedReservedRoleDescriptors.alertZeroThreatHunt("alertzero_threat_hunt")),
+            entry("alertzero_rule_tuning", KibanaOwnedReservedRoleDescriptors.alertZeroRuleTuning("alertzero_rule_tuning")),
+            entry("alertzero_rule_coverage", KibanaOwnedReservedRoleDescriptors.alertZeroRuleCoverage("alertzero_rule_coverage")),
             entry("viewer", buildViewerRoleDescriptor()),
             entry("editor", buildEditorRoleDescriptor())
         );
@@ -754,18 +811,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildViewerRoleDescriptor() {
         return new RoleDescriptor(
             "viewer",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("/~(([.]|ilm-history-).*)/")
-                    .privileges("read", "view_index_metadata")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
                     .build(),
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".slo-observability.*")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Evaluations
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("read", "view_index_metadata").build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -774,13 +833,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_ITEMS_INDEX,
                         ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
-                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_LATEST_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_UPDATES_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_METADATA_INDEX,
+                        ReservedRolesStore.ASSET_CRITICALITY_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
+                        ReservedRolesStore.ENTITY_ANALYTICS_WATCHLISTS_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
+                    .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .indices(
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Universal Profiling
@@ -808,12 +886,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     private static RoleDescriptor buildEditorRoleDescriptor() {
         return new RoleDescriptor(
             "editor",
-            new String[] {},
+            new String[] { "monitor_inference" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // Stack
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("/~(([.]|ilm-history-).*)/")
-                    .privileges("read", "view_index_metadata")
+                    .privileges("read", "view_index_metadata", "read_view_metadata")
                     .build(),
                 // Observability
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -824,6 +902,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".slo-observability.*")
                     .privileges("read", "view_index_metadata", "write", "manage")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".evaluation-*")
+                    .privileges("read", "view_index_metadata", "write")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -832,9 +914,30 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_ITEMS_INDEX,
                         ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
-                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.ASSET_CRITICALITY_INDEX
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
+                    .build(),
+                // Security - Entity Store is view only
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_LATEST_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_UPDATES_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_V2_METADATA_INDEX,
+                        ReservedRolesStore.PRIVILEGED_USER_MONITORING_INDEX,
+                        ReservedRolesStore.ENTITY_ANALYTICS_ENTITY_LEADS_INDEX,
+                        ReservedRolesStore.ENTITY_ANALYTICS_WATCHLISTS_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
+                    )
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                // Threat intel indicators. Only the per-space filtered aliases are granted, so the
+                // trailing hyphen is load-bearing: it never matches the bare .threat-intel-indicators index.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.THREAT_INTEL_INDICATORS_ALIAS)
+                    .privileges("read")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -844,7 +947,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED,
-                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.ADHOC_ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),

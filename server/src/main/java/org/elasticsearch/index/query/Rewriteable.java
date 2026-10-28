@@ -9,15 +9,24 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * A basic interface for rewriteable classes.
  */
 public interface Rewriteable<T> {
+
+    Logger logger = LogManager.getLogger(Rewriteable.class);
 
     int MAX_REWRITE_ROUNDS = 16;
 
@@ -72,6 +81,9 @@ public interface Rewriteable<T> {
 
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     * The listener may be called on any thread, including a transport thread.
+     * For the listener to be called on a specific thread pool, use
+     * {@link #rewriteAndFetch(Rewriteable, QueryRewriteContext, Executor, ActionListener)} instead.
      */
     static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T> rewriteResponse) {
         rewriteAndFetch(original, context, rewriteResponse, 0);
@@ -79,7 +91,33 @@ public interface Rewriteable<T> {
 
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     * The listener is guaranteed to be completed on the provided executor.
+     *
+     * @param original the rewriteable to rewrite
+     * @param context the rewrite context
+     * @param responseExecutor the executor to complete the listener on. Must not be null.
+     * @param rewriteResponse the listener to notify on completion
+     * @param <T> the rewriteable type
+     *
+     * @see #rewriteAndFetch(Rewriteable, QueryRewriteContext, ActionListener)
      */
+    static <T extends Rewriteable<T>> void rewriteAndFetch(
+        T original,
+        QueryRewriteContext context,
+        Executor responseExecutor,
+        ActionListener<T> rewriteResponse
+    ) {
+        // Thread context is passed as null, meaning the listener will execute in the thread context
+        // of the completing thread rather than capturing the caller's context. This is consistent
+        // with the behavior of rewriteAndFetch(original, context, listener)
+        SubscribableListener.<T>newForked(l -> rewriteAndFetch(original, context, l, 0))
+            .addListener(rewriteResponse, Objects.requireNonNull(responseExecutor), null);
+    }
+
+    /**
+     * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
+     */
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     static <T extends Rewriteable<T>> void rewriteAndFetch(
         T original,
         QueryRewriteContext context,
@@ -87,6 +125,7 @@ public interface Rewriteable<T> {
         int iteration
     ) {
         T builder = original;
+        final T rewritten;
         try {
             for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder; rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
@@ -106,10 +145,16 @@ public interface Rewriteable<T> {
                     return;
                 }
             }
-            rewriteResponse.onResponse(builder);
+            rewritten = builder;
         } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
+            return;
+        } catch (StackOverflowError ex) { // TODO: unsafe - replace with manual depth tracking
+            logger.warn(() -> Strings.format("stack overflow while rewriting [%s]", original.getClass().getName()), ex);
+            rewriteResponse.onFailure(new IllegalArgumentException("The request is too deeply nested to rewrite"));
+            return;
         }
+        rewriteResponse.onResponse(rewritten);
     }
 
     /**

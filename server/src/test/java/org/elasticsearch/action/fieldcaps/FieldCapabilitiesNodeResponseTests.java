@@ -10,7 +10,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +44,16 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             responses.add(
-                new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "index_" + i,
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
+                )
             );
         }
         int numUnmatched = randomIntBetween(0, 3);
@@ -67,7 +75,16 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 3);
         switch (mutation) {
             case 0 -> newResponses.add(
-                new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
+                new FieldCapabilitiesIndexResponse(
+                    "extra_index",
+                    null,
+                    randomFieldCaps(),
+                    randomBoolean(),
+                    randomFrom(IndexMode.availableModes()),
+                    0,
+                    0,
+                    0
+                )
             );
             case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
@@ -82,7 +99,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes()),
+                        0,
+                        0,
+                        0
                     )
                 );
             }
@@ -96,7 +116,10 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.values())
+                        randomFrom(IndexMode.availableModes()),
+                        resp.getNumberOfShards(),
+                        resp.getIndexSettingsVersion(),
+                        resp.getMappingVersion()
                     )
                 );
             }
@@ -112,11 +135,46 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         );
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_2_0,
-            TransportVersion.current()
+
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
         );
+        final boolean hasVectordbMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
+        assumeTrue(
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+        );
+        final boolean hasVectordbColumnarMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_COLUMNAR);
+        assumeTrue(
+            "vectordb_columnar index mode requires transport version " + IndexMode.VECTORDB_COLUMNAR_INDEX_MODE,
+            hasVectordbColumnarMode == false || version.supports(IndexMode.VECTORDB_COLUMNAR_INDEX_MODE)
+        );
+        final boolean hasInferenceField = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isInference);
+        assumeTrue(
+            "inference field flag requires transport version " + FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD,
+            hasInferenceField == false || version.supports(FieldCapabilities.FIELD_CAPS_INFERENCE_FIELD)
+        );
+        final boolean hasIndexAnalyzer = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.indexAnalyzer() != null || fc.indexLocalAnalyzer());
+        assumeTrue(
+            "index analyzer requires transport version " + FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER,
+            hasIndexAnalyzer == false || version.supports(FieldCapabilities.FIELD_CAPS_INDEX_ANALYZER)
+        );
+        final boolean hasPassthrough = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(fc -> fc.isPassthrough() != null);
+        assumeTrue(
+            "passthrough flag requires transport version " + FieldCapabilities.FIELD_CAPS_PASSTHROUGH,
+            hasPassthrough == false || version.supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
+        );
+
         final FieldCapabilitiesNodeResponse outNode = copyInstance(inNode, version);
         assertThat(outNode.getFailures().keySet(), equalTo(inNode.getFailures().keySet()));
         assertThat(outNode.getUnmatchedShardIds(), equalTo(inNode.getUnmatchedShardIds()));
@@ -127,10 +185,12 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
             outList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList(),
             equalTo(inList.stream().sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName)).toList())
         );
+
         Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponses = outList.stream()
             .filter(r -> r.canMatch() && r.getIndexMappingHash() != null)
             .collect(Collectors.groupingBy(FieldCapabilitiesIndexResponse::getIndexMappingHash));
         assertThat(groupedResponses.keySet(), equalTo(mappingHashToIndices.keySet()));
+
         // Asserts responses of indices with the same mapping hash must be shared.
         for (Map.Entry<String, List<FieldCapabilitiesIndexResponse>> e : groupedResponses.entrySet()) {
             List<String> indices = mappingHashToIndices.get(e.getKey());

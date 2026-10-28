@@ -8,24 +8,43 @@
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.index.mapper.vectors.SyntheticVectorsMapperTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.Source;
@@ -42,24 +61,34 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase.randomNormalizedVector;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToBFloat16List;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests.convertToList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RankVectorsFieldMapperTests extends MapperTestCase {
+public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase {
 
     private final ElementType elementType;
     private final int dims;
 
     public RankVectorsFieldMapperTests() {
-        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
-        this.dims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        this.elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
+        int baseDims = ElementType.BIT == elementType ? 4 * Byte.SIZE : 4;
+        int randomMultiplier = switch (elementType) {
+            case FLOAT, BFLOAT16 -> randomIntBetween(1, 64);
+            case BYTE, BIT -> 1;
+        };
+        this.dims = baseDims * randomMultiplier;
     }
 
     @Override
@@ -84,12 +113,55 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         }
     }
 
+    /**
+     * In {@code columnar_stored} mode the source blob materialized at index time leaves out {@code rank_vectors} fields, at
+     * the root and inside a {@code nested} object alike: the vectors are already held in binary doc values, and are patched
+     * back into {@code _source} on read.
+     */
+    public void testColumnarStoredExcludesVectorsFromSourceBlob() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("vec").field("type", "rank_vectors").field("dims", 3).endObject();
+            b.startObject("nested").field("type", "nested").startObject("properties");
+            b.startObject("kwd").field("type", "keyword").endObject();
+            b.startObject("vec").field("type", "rank_vectors").field("dims", 3).endObject();
+            b.endObject().endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("kwd", "a");
+            b.field("vec", new float[][] { { 1.5f, 2.5f, 3.5f }, { 4.5f, 5.5f, 6.5f } });
+            b.startArray("nested");
+            b.startObject().field("kwd", "b").field("vec", new float[][] { { 7.5f, 8.5f, 9.5f } }).endObject();
+            b.startObject().field("kwd", "c").endObject();
+            b.endArray();
+        }));
+
+        BytesRef blob = doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
+        String encoded = new BytesArray(blob).utf8ToString();
+        assertThat(encoded.substring(encoded.indexOf('{')), equalTo("{\"kwd\":\"a\",\"nested\":[{\"kwd\":\"b\"},{\"kwd\":\"c\"}]}"));
+    }
+
+    @Override
+    protected Object getSampleValueForDocument(boolean binaryFormat) {
+        return getSampleValueForDocument();
+    }
+
     @Override
     protected Object getSampleValueForDocument() {
         int numVectors = randomIntBetween(1, 16);
-        return Stream.generate(
-            () -> elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1)
-        ).limit(numVectors).toList();
+        return Stream.generate(switch (elementType) {
+            case FLOAT -> () -> convertToList(randomNormalizedVector(this.dims));
+            case BFLOAT16 -> () -> convertToBFloat16List(randomNormalizedVector(this.dims));
+            case BYTE -> () -> convertToList(randomByteArrayOfLength(dims));
+            case BIT -> () -> convertToList(randomByteArrayOfLength(dims / Byte.SIZE));
+        }).limit(numVectors).toList();
     }
 
     @Override
@@ -107,6 +179,21 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck(
             "element_type",
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "byte")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "float")),
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
+        );
+        checker.registerConflictCheck(
+            "element_type",
+            fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims).field("element_type", "bfloat16")),
             fieldMapping(b -> b.field("type", "rank_vectors").field("dims", dims * 8).field("element_type", "bit"))
         );
         checker.registerConflictCheck(
@@ -129,7 +216,6 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     @Override
     protected void assertSearchable(MappedFieldType fieldType) {
         assertThat(fieldType, instanceOf(RankVectorsFieldMapper.RankVectorsFieldType.class));
-        assertFalse(fieldType.isIndexed());
         assertFalse(fieldType.isSearchable());
     }
 
@@ -197,6 +283,45 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         }));
     }
 
+    public void testEmptyVectorArrayIsRejected() throws Exception {
+        // covers both the static-dims path and the dynamic-dims path (dims inferred from the first document)
+        XContentBuilder mapping = randomBoolean()
+            ? fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3))
+            : fieldMapping(b -> b.field("type", "rank_vectors"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startArray("field").endArray()))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [field] of type [rank_vectors] requires at least one vector; use null to indicate a missing value")
+        );
+    }
+
+    public void testTooManyVectorsIsRejected() throws Exception {
+        // covers both the static-dims path and the dynamic-dims path (dims inferred from the first document)
+        XContentBuilder mapping = randomBoolean()
+            ? fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3))
+            : fieldMapping(b -> b.field("type", "rank_vectors"));
+        DocumentMapper mapper = createDocumentMapper(mapping);
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < RankVectorsFieldMapper.MAX_VECTORS + 1; i++) {
+                b.startArray().value(1.0f).value(2.0f).value(3.0f).endArray();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Field [field] of type [rank_vectors] cannot be indexed with more than ["
+                    + RankVectorsFieldMapper.MAX_VECTORS
+                    + "] vectors in a single document"
+            )
+        );
+    }
+
     public void testNonIndexedVector() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "rank_vectors").field("dims", 3)));
 
@@ -226,7 +351,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields.get(0).binaryValue();
-        assertEquals(ElementType.FLOAT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
+        assertEquals(DenseVectorFieldMapper.FLOAT_ELEMENT.getNumBytes(validVectors[0].length) * validVectors.length, vectorBR.length);
         float[][] decodedValues = new float[validVectors.length][];
         for (int i = 0; i < validVectors.length; i++) {
             decodedValues[i] = new float[validVectors[i].length];
@@ -353,9 +478,18 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         assertThat(e3.getCause().getMessage(), containsString("has a different number of dimensions [2] than defined in the mapping [3]"));
     }
 
+    /**
+     * A {@code rank_vectors} field already holds many vectors in a single value, so there is no "many values" shape to fetch.
+     * Instead of skipping, assert that the extra level of nesting the base class builds is rejected at parse time.
+     */
     @Override
-    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
-        assumeFalse("Dense vectors currently don't support multiple values in the same field", false);
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) {
+        MappedFieldType ft = mapperService.fieldType(field);
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.field(ft.name(), value)))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
     }
 
     /**
@@ -368,6 +502,7 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -376,66 +511,54 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(ir.leaves().get(0), 0);
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
-            RankVectorsFieldMapper.RankVectorsFieldType denseVectorFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) ft;
-            switch (denseVectorFieldType.getElementType()) {
-                case BYTE -> assumeFalse("byte element type testing not currently added", false);
-                case FLOAT -> {
-                    List<float[]> fetchedFloatsList = new ArrayList<>();
-                    for (var f : fromNative) {
-                        float[] fetchedFloats = new float[denseVectorFieldType.getVectorDimensions()];
-                        assert f instanceof List;
-                        List<?> vector = (List<?>) f;
-                        int i = 0;
-                        for (Object v : vector) {
-                            assert v instanceof Number;
-                            fetchedFloats[i++] = ((Number) v).floatValue();
-                        }
-                        fetchedFloatsList.add(fetchedFloats);
-                    }
-                    float[][] fetchedFloats = fetchedFloatsList.toArray(new float[0][]);
-                    assertThat("fetching " + value, fetchedFloats, equalTo(value));
-                }
+            float[][] fetchedFloats = new float[fromNative.size()][];
+            for (int i = 0; i < fromNative.size(); i++) {
+                fetchedFloats[i] = (float[]) fromNative.get(i);
             }
+            assertThat("fetching " + value, fetchedFloats, equalTo(value));
         });
     }
 
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "rank_vectors").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
+        ElementType fetchElementType = randomFrom(ElementType.values());
+        int fetchDims = fetchElementType == ElementType.BIT ? randomIntBetween(1, 512) * Byte.SIZE : randomIntBetween(2, 4096);
+        b.field("type", "rank_vectors").field("dims", fetchDims).field("element_type", fetchElementType.toString());
     }
 
+    /**
+     * Values are generated as {@code float[][]} for every element type so that they can be compared directly against what
+     * {@link #assertFetch} reads back: the value fetcher always hands out one {@code float[]} per vector.
+     */
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         RankVectorsFieldMapper.RankVectorsFieldType vectorFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) ft;
         int numVectors = randomIntBetween(1, 16);
-        return switch (vectorFieldType.getElementType()) {
-            case BYTE -> {
-                byte[][] vectors = new byte[numVectors][vectorFieldType.getVectorDimensions()];
-                for (int i = 0; i < numVectors; i++) {
-                    vectors[i] = randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-                }
-                yield vectors;
+        ElementType elementType = vectorFieldType.getElementType();
+        // bit vectors are provided as one signed byte per 8 dimensions
+        int valuesPerVector = elementType == ElementType.BIT
+            ? vectorFieldType.getVectorDimensions() / Byte.SIZE
+            : vectorFieldType.getVectorDimensions();
+        float[][] vectors = new float[numVectors][valuesPerVector];
+        for (int i = 0; i < numVectors; i++) {
+            for (int j = 0; j < valuesPerVector; j++) {
+                vectors[i][j] = switch (elementType) {
+                    case FLOAT -> randomFloat();
+                    // bfloat16 storage is lossy, so only values that survive a round trip can be compared against the fetched ones
+                    case BFLOAT16 -> BFloat16.truncateToBFloat16(randomFloat());
+                    case BYTE, BIT -> randomByte();
+                };
             }
-            case FLOAT -> {
-                float[][] vectors = new float[numVectors][vectorFieldType.getVectorDimensions()];
-                for (int i = 0; i < numVectors; i++) {
-                    for (int j = 0; j < vectorFieldType.getVectorDimensions(); j++) {
-                        vectors[i][j] = randomFloat();
-                    }
-                }
-                yield vectors;
-            }
-            case BIT -> {
-                byte[][] vectors = new byte[numVectors][vectorFieldType.getVectorDimensions() / 8];
-                for (int i = 0; i < numVectors; i++) {
-                    vectors[i] = randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
-                }
-                yield vectors;
-            }
-        };
+        }
+        return vectors;
     }
 
     public void testCannotBeUsedInMultifields() {
@@ -468,22 +591,26 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
         private final int numVecs = between(1, 16);
-        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
+        private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BFLOAT16, ElementType.BIT);
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
-                case BYTE, BIT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
-                case FLOAT:
-                    yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                case BYTE, BIT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));
+                case FLOAT -> randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomFloat));
+                // bfloat16 storage is lossy, so only values that survive a round trip can be compared against the synthetic source
+                case BFLOAT16 -> randomList(
+                    numVecs,
+                    numVecs,
+                    () -> randomList(dims, dims, () -> BFloat16.truncateToBFloat16(randomFloat()))
+                );
             };
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "rank_vectors");
-            if (elementType == ElementType.BYTE || elementType == ElementType.BIT || randomBoolean()) {
+            if (elementType != ElementType.FLOAT || randomBoolean()) {
                 b.field("element_type", elementType.toString());
             }
             b.field("dims", elementType == ElementType.BIT ? dims * Byte.SIZE : dims);
@@ -498,5 +625,165 @@ public class RankVectorsFieldMapperTests extends MapperTestCase {
     @Override
     public void testSyntheticSourceKeepArrays() {
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
+    }
+
+    // This is a copy of the method LuceneTestCase#assertDocValuesEquals with special handling of the magnitude field
+    @Override
+    public void assertDocValuesEquals(String info, IndexReader leftReader, IndexReader rightReader) throws IOException {
+        Set<String> leftFields = getDVFields(leftReader);
+        Set<String> rightFields = getDVFields(rightReader);
+        assertEquals(info, leftFields, rightFields);
+
+        for (String field : leftFields) {
+            {
+                NumericDocValues leftValues = MultiDocValues.getNumericValues(leftReader, field);
+                NumericDocValues rightValues = MultiDocValues.getNumericValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    assertDocValuesEquals(info, leftReader.maxDoc(), leftValues, rightValues);
+                } else {
+                    assertTrue(
+                        info + ": left numeric doc values for field=\"" + field + "\" are not null",
+                        leftValues == null || leftValues.nextDoc() == NO_MORE_DOCS
+                    );
+                    assertTrue(
+                        info + ": right numeric doc values for field=\"" + field + "\" are not null",
+                        rightValues == null || rightValues.nextDoc() == NO_MORE_DOCS
+                    );
+                }
+            }
+
+            {
+                BinaryDocValues leftValues = MultiDocValues.getBinaryValues(leftReader, field);
+                BinaryDocValues rightValues = MultiDocValues.getBinaryValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        if (field.equals("field._magnitude")) {
+                            // The magnitude field is computed from the incoming vectors. This computation might use the Panama
+                            // vector API. This API might compute different values depending on the code is being interpreted or
+                            // the code is compiled by the JIT. Therefore we need to assert the actual floats with a delta.
+                            assertEquals(leftValues.binaryValue().length, rightValues.binaryValue().length);
+                            assertEquals(0, leftValues.binaryValue().length % Float.BYTES);
+                            int numFloats = leftValues.binaryValue().length / 4;
+                            ByteBuffer b1 = ByteBuffer.wrap(
+                                leftValues.binaryValue().bytes,
+                                leftValues.binaryValue().offset,
+                                leftValues.binaryValue().length
+                            ).order(ByteOrder.LITTLE_ENDIAN);
+                            ByteBuffer b2 = ByteBuffer.wrap(
+                                rightValues.binaryValue().bytes,
+                                rightValues.binaryValue().offset,
+                                rightValues.binaryValue().length
+                            ).order(ByteOrder.LITTLE_ENDIAN);
+                            for (int i = 0; i < numFloats; i++) {
+                                float leftFloat = b1.getFloat(i * Float.BYTES);
+                                float rightFloat = b2.getFloat(i * Float.BYTES);
+                                assertEquals(leftFloat, rightFloat, 0.001f);
+                            }
+                        } else {
+                            assertEquals(leftValues.binaryValue(), rightValues.binaryValue());
+                        }
+                    }
+                } else {
+                    assertTrue(info, leftValues == null || leftValues.nextDoc() == NO_MORE_DOCS);
+                    assertTrue(info, rightValues == null || rightValues.nextDoc() == NO_MORE_DOCS);
+                }
+            }
+
+            {
+                SortedDocValues leftValues = MultiDocValues.getSortedValues(leftReader, field);
+                SortedDocValues rightValues = MultiDocValues.getSortedValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    // numOrds
+                    assertEquals(info, leftValues.getValueCount(), rightValues.getValueCount());
+                    // ords
+                    for (int i = 0; i < leftValues.getValueCount(); i++) {
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(i));
+                        final BytesRef right = rightValues.lookupOrd(i);
+                        assertEquals(info, left, right);
+                    }
+                    // bytes
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(leftValues.ordValue()));
+                        final BytesRef right = rightValues.lookupOrd(rightValues.ordValue());
+                        assertEquals(info, left, right);
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+
+            {
+                SortedSetDocValues leftValues = MultiDocValues.getSortedSetValues(leftReader, field);
+                SortedSetDocValues rightValues = MultiDocValues.getSortedSetValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    // numOrds
+                    assertEquals(info, leftValues.getValueCount(), rightValues.getValueCount());
+                    // ords
+                    for (int i = 0; i < leftValues.getValueCount(); i++) {
+                        final BytesRef left = BytesRef.deepCopyOf(leftValues.lookupOrd(i));
+                        final BytesRef right = rightValues.lookupOrd(i);
+                        assertEquals(info, left, right);
+                    }
+                    // ord lists
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        assertEquals(info, leftValues.docValueCount(), rightValues.docValueCount());
+                        for (int i = 0; i < leftValues.docValueCount(); i++) {
+                            assertEquals(info, leftValues.nextOrd(), rightValues.nextOrd());
+                        }
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+
+            {
+                SortedNumericDocValues leftValues = MultiDocValues.getSortedNumericValues(leftReader, field);
+                SortedNumericDocValues rightValues = MultiDocValues.getSortedNumericValues(rightReader, field);
+                if (leftValues != null && rightValues != null) {
+                    while (true) {
+                        int docID = leftValues.nextDoc();
+                        assertEquals(docID, rightValues.nextDoc());
+                        if (docID == NO_MORE_DOCS) {
+                            break;
+                        }
+                        assertEquals(info, leftValues.docValueCount(), rightValues.docValueCount());
+                        for (int j = 0; j < leftValues.docValueCount(); j++) {
+                            assertEquals(info, leftValues.nextValue(), rightValues.nextValue());
+                        }
+                    }
+                } else {
+                    assertNull(info, leftValues);
+                    assertNull(info, rightValues);
+                }
+            }
+        }
+    }
+
+    private static Set<String> getDVFields(IndexReader reader) {
+        Set<String> fields = new HashSet<>();
+        for (FieldInfo fi : FieldInfos.getMergedFieldInfos(reader)) {
+            if (fi.getDocValuesType() != DocValuesType.NONE) {
+                fields.add(fi.name);
+            }
+        }
+
+        return fields;
     }
 }

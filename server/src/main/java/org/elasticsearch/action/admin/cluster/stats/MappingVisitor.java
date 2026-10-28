@@ -9,23 +9,38 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.common.TriConsumer;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class MappingVisitor {
+    public static final String PROPERTIES = "properties";
+    public static final String FIELD_TYPE = "type";
+    public static final String MULTI_FIELDS = "fields";
 
     private MappingVisitor() {}
 
     public static void visitMapping(Map<String, ?> mapping, BiConsumer<String, Map<String, ?>> fieldMappingConsumer) {
-        visitMapping(mapping, "", fieldMappingConsumer);
+        visitMapping(mapping, "", fieldMappingConsumer, fieldMappingConsumer);
+    }
+
+    public static void visitMapping(
+        Map<String, ?> mapping,
+        BiConsumer<String, Map<String, ?>> fieldMappingConsumer,
+        final BiConsumer<String, Map<String, ?>> multiFieldsMappingConsumer
+    ) {
+        visitMapping(mapping, "", fieldMappingConsumer, multiFieldsMappingConsumer);
     }
 
     private static void visitMapping(
         final Map<String, ?> mapping,
         final String path,
-        final BiConsumer<String, Map<String, ?>> fieldMappingConsumer
+        final BiConsumer<String, Map<String, ?>> propertiesMappingConsumer,
+        final BiConsumer<String, Map<String, ?>> multiFieldsMappingConsumer
     ) {
-        Object properties = mapping.get("properties");
+        Object properties = mapping.get(PROPERTIES);
         if (properties instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> propertiesAsMap = (Map<String, ?>) properties;
@@ -36,11 +51,11 @@ public final class MappingVisitor {
                     @SuppressWarnings("unchecked")
                     Map<String, ?> fieldMapping = (Map<String, ?>) v;
                     final String prefix = path + entry.getKey();
-                    fieldMappingConsumer.accept(prefix, fieldMapping);
-                    visitMapping(fieldMapping, prefix + ".", fieldMappingConsumer);
+                    propertiesMappingConsumer.accept(prefix, fieldMapping);
+                    visitMapping(fieldMapping, prefix + ".", propertiesMappingConsumer, multiFieldsMappingConsumer);
 
                     // Multi fields
-                    Object fieldsO = fieldMapping.get("fields");
+                    Object fieldsO = fieldMapping.get(MULTI_FIELDS);
                     if (fieldsO instanceof Map) {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> fields = (Map<String, ?>) fieldsO;
@@ -49,7 +64,7 @@ public final class MappingVisitor {
                             if (v2 instanceof Map) {
                                 @SuppressWarnings("unchecked")
                                 Map<String, ?> fieldMapping2 = (Map<String, ?>) v2;
-                                fieldMappingConsumer.accept(prefix + "." + subfieldEntry.getKey(), fieldMapping2);
+                                multiFieldsMappingConsumer.accept(prefix + "." + subfieldEntry.getKey(), fieldMapping2);
                             }
                         }
                     }
@@ -74,5 +89,52 @@ public final class MappingVisitor {
             Map<String, ?> runtimeFieldMapping = (Map<String, ?>) runtimeFieldMappingObject;
             runtimeFieldMappingConsumer.accept(entry.getKey(), runtimeFieldMapping);
         }
+    }
+
+    /**
+     * This visitor traverses the source mapping and copies the structure to the destination mapping after applying
+     * the fieldMappingConsumer to the individual properties.
+     */
+    public static void visitPropertiesAndCopyMapping(
+        final Map<String, ?> sourceMapping,
+        final Map<String, Object> destMapping,
+        final TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldMappingConsumer
+    ) {
+        Map<String, ?> sourceProperties = getMapOrNull(sourceMapping.get(PROPERTIES));
+        if (sourceProperties == null) {
+            return;
+        }
+        Map<String, Object> destProperties = new HashMap<>(sourceProperties.size());
+        destMapping.put(PROPERTIES, destProperties);
+
+        for (Map.Entry<String, ?> entry : sourceProperties.entrySet()) {
+            Map<String, ?> sourceFieldMapping = getMapOrNull(entry.getValue());
+            if (sourceFieldMapping == null) {
+                return;
+            }
+            var destFieldMapping = processAndCopy(entry.getKey(), sourceFieldMapping, destProperties, fieldMappingConsumer);
+            visitPropertiesAndCopyMapping(sourceFieldMapping, destFieldMapping, fieldMappingConsumer);
+        }
+    }
+
+    private static Map<String, ?> getMapOrNull(Object object) {
+        if (object instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> map = (Map<String, ?>) object;
+            return map;
+        }
+        return null;
+    }
+
+    private static Map<String, Object> processAndCopy(
+        String fieldName,
+        Map<String, ?> sourceFieldMapping,
+        Map<String, Object> destParentMap,
+        TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldMappingConsumer
+    ) {
+        Map<String, Object> destFieldMapping = new HashMap<>(sourceFieldMapping.size());
+        destParentMap.put(fieldName, destFieldMapping);
+        fieldMappingConsumer.apply(fieldName, sourceFieldMapping, destFieldMapping);
+        return destFieldMapping;
     }
 }

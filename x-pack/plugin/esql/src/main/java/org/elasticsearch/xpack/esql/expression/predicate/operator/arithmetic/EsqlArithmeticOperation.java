@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -76,10 +76,36 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
     }
 
+    /** Constant-RHS fast-path factory for INTEGER common type. */
+    @FunctionalInterface
+    public interface IntConstantFactory {
+        ExpressionEvaluator.Factory create(Source source, ExpressionEvaluator.Factory lhs, int rhs);
+    }
+
+    /** Constant-RHS fast-path factory for LONG common type. */
+    @FunctionalInterface
+    public interface LongConstantFactory {
+        ExpressionEvaluator.Factory create(Source source, ExpressionEvaluator.Factory lhs, long rhs);
+    }
+
+    /** Constant-RHS fast-path factory for DOUBLE common type. */
+    @FunctionalInterface
+    public interface DoubleConstantFactory {
+        ExpressionEvaluator.Factory create(Source source, ExpressionEvaluator.Factory lhs, double rhs);
+    }
+
     private final BinaryEvaluator ints;
     private final BinaryEvaluator longs;
     private final BinaryEvaluator ulongs;
     private final BinaryEvaluator doubles;
+
+    // Constant-RHS fast-path factories. All null for operators with no fast path.
+    private final IntConstantFactory intsConst;
+    private final LongConstantFactory longsConst;
+    private final DoubleConstantFactory doublesConst;
+    // When true, the fast path is skipped for a foldable-zero RHS so the binary
+    // path's per-row /-by-zero warning contract is preserved (Mod, Div).
+    private final boolean excludeZeroRhs;
 
     private DataType dataType;
 
@@ -93,11 +119,32 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles
     ) {
+        this(source, left, right, op, ints, longs, ulongs, doubles, null, null, null, false);
+    }
+
+    EsqlArithmeticOperation(
+        Source source,
+        Expression left,
+        Expression right,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        IntConstantFactory intsConst,
+        LongConstantFactory longsConst,
+        DoubleConstantFactory doublesConst,
+        boolean excludeZeroRhs
+    ) {
         super(source, left, right, op);
         this.ints = ints;
         this.longs = longs;
         this.ulongs = ulongs;
         this.doubles = doubles;
+        this.intsConst = intsConst;
+        this.longsConst = longsConst;
+        this.doublesConst = doublesConst;
+        this.excludeZeroRhs = excludeZeroRhs;
     }
 
     EsqlArithmeticOperation(
@@ -108,6 +155,21 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles
     ) throws IOException {
+        this(in, op, ints, longs, ulongs, doubles, null, null, null, false);
+    }
+
+    EsqlArithmeticOperation(
+        StreamInput in,
+        OperationSymbol op,
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles,
+        IntConstantFactory intsConst,
+        LongConstantFactory longsConst,
+        DoubleConstantFactory doublesConst,
+        boolean excludeZeroRhs
+    ) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
@@ -116,7 +178,11 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             ints,
             longs,
             ulongs,
-            doubles
+            doubles,
+            intsConst,
+            longsConst,
+            doublesConst,
+            excludeZeroRhs
         );
     }
 
@@ -164,8 +230,59 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 
+    /**
+     * Dispatch: try the constant-RHS fast path first (if the operator opted in via
+     * the constructor's fast-path factories); fall through to the binary path.
+     * Subclasses can still override this for orthogonal concerns (dense-vector,
+     * date-time) and call {@code super.toEvaluator(...)} for the numeric cases.
+     */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory fast = tryConstantRhsFastPath(toEvaluator);
+        return fast != null ? fast : binaryToEvaluator(toEvaluator);
+    }
+
+    private ExpressionEvaluator.Factory tryConstantRhsFastPath(ToEvaluator toEvaluator) {
+        if (intsConst == null && longsConst == null && doublesConst == null) {
+            return null;
+        }
+        Expression right = right();
+        if (right.foldable() == false) {
+            return null;
+        }
+        Object folded = right.fold(toEvaluator.foldCtx());
+        if (folded instanceof Number == false) {
+            return null;
+        }
+        Number rhs = (Number) folded;
+        DataType commonType = dataType();
+        if (excludeZeroRhs && isZero(rhs, commonType)) {
+            return null;
+        }
+        if (commonType == INTEGER && intsConst != null) {
+            ExpressionEvaluator.Factory lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            return intsConst.create(source(), lhs, rhs.intValue());
+        }
+        if (commonType == LONG && longsConst != null) {
+            ExpressionEvaluator.Factory lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            return longsConst.create(source(), lhs, rhs.longValue());
+        }
+        if (commonType == DOUBLE && doublesConst != null) {
+            ExpressionEvaluator.Factory lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            return doublesConst.create(source(), lhs, rhs.doubleValue());
+        }
+        // UNSIGNED_LONG is the intentional binary-path standard for operators that opt into
+        // the fast path (we have no UNSIGNED_LONG constant-RHS evaluator yet). Anything else
+        // is unclassified — likely a new numeric type added without extending the fast path.
+        if (commonType == UNSIGNED_LONG) {
+            return null;
+        }
+        throw new EsqlIllegalArgumentException(
+            "constant-RHS fast path: type " + commonType + " is unclassified on " + getClass().getSimpleName()
+        );
+    }
+
+    private ExpressionEvaluator.Factory binaryToEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
@@ -188,5 +305,18 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             return eval.apply(source(), lhs, rhs);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
+    }
+
+    private static boolean isZero(Number value, DataType type) {
+        if (type == INTEGER) {
+            return value.intValue() == 0;
+        }
+        if (type == LONG) {
+            return value.longValue() == 0L;
+        }
+        if (type == DOUBLE) {
+            return value.doubleValue() == 0.0d;
+        }
+        return false;
     }
 }

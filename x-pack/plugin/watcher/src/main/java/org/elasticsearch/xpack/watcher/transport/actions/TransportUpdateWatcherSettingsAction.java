@@ -20,10 +20,13 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -53,6 +56,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
     private static final Logger logger = LogManager.getLogger(TransportUpdateWatcherSettingsAction.class);
     private final MetadataUpdateSettingsService updateSettingsService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateWatcherSettingsAction(
@@ -61,7 +65,8 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         ThreadPool threadPool,
         ActionFilters actionFilters,
         MetadataUpdateSettingsService updateSettingsService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateWatcherSettingsAction.NAME,
@@ -75,8 +80,10 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         );
         this.updateSettingsService = updateSettingsService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
     }
 
+    @FixForMultiProject(description = "Don't use default project id to update settings")
     @Override
     protected void masterOperation(
         Task task,
@@ -84,7 +91,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final IndexMetadata watcherIndexMd = state.metadata().index(WATCHER_INDEX_NAME);
+        final IndexMetadata watcherIndexMd = projectResolver.getProjectMetadata(state.metadata()).index(WATCHER_INDEX_NAME);
         if (watcherIndexMd == null) {
             // Index does not exist, so fail fast
             listener.onFailure(new ResourceNotFoundException("no Watches found on which to modify settings"));
@@ -92,6 +99,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         }
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();
         final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest(
+            Metadata.DEFAULT_PROJECT_ID,
             request.masterNodeTimeout(),
             request.ackTimeout(),
             newSettings,
@@ -127,6 +135,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         }
         return state.blocks()
             .indicesBlockedException(
+                projectResolver.getProjectId(),
                 ClusterBlockLevel.METADATA_WRITE,
                 indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, WATCHER_INDEX_REQUEST)
             );

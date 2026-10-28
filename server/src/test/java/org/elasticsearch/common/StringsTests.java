@@ -9,11 +9,16 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,8 +29,6 @@ import java.util.stream.IntStream;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.common.Strings.INVALID_CHARS;
 import static org.elasticsearch.common.Strings.cleanTruncate;
-import static org.elasticsearch.common.Strings.collectionToDelimitedString;
-import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
 import static org.elasticsearch.common.Strings.deleteAny;
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.Strings.hasLength;
@@ -38,7 +41,8 @@ import static org.elasticsearch.common.Strings.substring;
 import static org.elasticsearch.common.Strings.toLowercaseAscii;
 import static org.elasticsearch.common.Strings.tokenizeByCommaToSet;
 import static org.elasticsearch.common.Strings.trimLeadingCharacter;
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startArray;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -46,7 +50,8 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class StringsTests extends ESTestCase {
 
@@ -226,89 +231,6 @@ public class StringsTests extends ESTestCase {
         assertThat(delimitedListToStringArray("abcd,abce,abcdf,bcad,a", ",a", "d"), arrayContaining("abc", "bce", "bcf,bca", ""));
     }
 
-    public void testCollectionToDelimitedStringWithLimitZero() {
-        final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
-
-        final int count = between(0, 100);
-        final List<String> strings = new ArrayList<>(count);
-        while (strings.size() < count) {
-            // avoid starting with a sequence of empty appends, it makes the assertions much messier
-            final int minLength = strings.isEmpty() && delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
-            strings.add(randomAlphaOfLength(between(minLength, 10)));
-        }
-
-        final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, 0, stringBuilder);
-        final String completelyTruncatedDescription = stringBuilder.toString();
-
-        if (count == 0) {
-            assertThat(completelyTruncatedDescription, equalTo(""));
-        } else if (count == 1) {
-            assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix));
-        } else {
-            assertThat(
-                completelyTruncatedDescription,
-                equalTo(prefix + strings.get(0) + suffix + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
-            );
-        }
-    }
-
-    public void testCollectionToDelimitedStringWithLimitTruncation() {
-        final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
-
-        final int count = between(2, 100);
-        final List<String> strings = new ArrayList<>(count);
-        while (strings.size() < count) {
-            // avoid empty appends, it makes the assertions much messier
-            final int minLength = delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
-            strings.add(randomAlphaOfLength(between(minLength, 10)));
-        }
-
-        final int fullDescriptionLength = collectionToDelimitedString(strings, delimiter, prefix, suffix).length();
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
-        final int truncatedLength = between(0, fullDescriptionLength - lastItemSize - 1);
-        final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, truncatedLength, stringBuilder);
-        final String truncatedDescription = stringBuilder.toString();
-
-        assertThat(truncatedDescription, allOf(containsString("... (" + count + " in total,"), endsWith(" omitted)")));
-
-        assertThat(
-            truncatedDescription,
-            truncatedDescription.length(),
-            lessThanOrEqualTo(truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length())
-        );
-    }
-
-    public void testCollectionToDelimitedStringWithLimitNoTruncation() {
-        final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
-
-        final int count = between(1, 100);
-        final List<String> strings = new ArrayList<>(count);
-        while (strings.size() < count) {
-            strings.add(randomAlphaOfLength(between(0, 10)));
-        }
-
-        final String fullDescription = collectionToDelimitedString(strings, delimiter, prefix, suffix);
-        for (String string : strings) {
-            assertThat(fullDescription, containsString(prefix + string + suffix));
-        }
-
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
-        final int minLimit = fullDescription.length() - lastItemSize;
-        final int limit = randomFrom(between(minLimit, fullDescription.length()), between(minLimit, Integer.MAX_VALUE), Integer.MAX_VALUE);
-
-        final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, limit, stringBuilder);
-        assertThat(stringBuilder.toString(), equalTo(fullDescription));
-    }
-
     public void testPadStart() {
         String testStr;
         assertThat(padStart("", 5, 'a'), equalTo("aaaaa"));
@@ -355,6 +277,161 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
+    public void testToTruncatedStringWithChunkedXContentUnderLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {"field1":"value1","field2":"value2"}""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentOverLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 100);
+
+        assertTrue(result.truncated());
+        assertEquals("""
+            {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentObjectUnderLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> List.of(new TestToXContent(1, true), new TestToXContent(2, true))
+            .iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 1024);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {"field1":"value1"} {"field2":"value2"}""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentObjectOverLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> IntStream.range(1, 1_000_000)
+            .mapToObj(i -> new TestToXContent(i, true))
+            .iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 100);
+
+        assertTrue(result.truncated());
+        assertEquals(
+            "{\"field1\":\"value1\"} {\"field2\":\"value2\"} {\"field3\":\"value3\"} {\"field4\":\"value4\"} {\"field5\":\"value5\"} ",
+            result.string()
+        );
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutput() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result.string());
+    }
+
+    public void testToTruncatedStringEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, true);
+
+        assertFalse(result.endsWith("[...]"));
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result);
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimitEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, false);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
+    }
+
+    public void testToTruncatedStringException() {
+        ToXContent chunk = (b, p) -> { throw new IOException("boom!"); };
+        ChunkedToXContent chunkedToXContent = __ -> List.of(chunk).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
+
+        assertFalse(result.truncated());
+        assertThat(result.string(), containsString("error building toString out of XContent:"));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidObject() {
+        ChunkedToXContent chunkedToXContent = __ -> Iterators.concat(
+            startObject("nested"),
+            IntStream.iterate(0, i -> i + 1)
+                .<ToXContent>mapToObj(i -> (b, p) -> b.field("field" + i, randomAlphaOfLengthBetween(0, 50)))
+                .iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidObject_ChunkedToXContentObject() {
+        ChunkedToXContentObject chunkedToXContent = __ -> Iterators.concat(
+            startObject(),
+            IntStream.iterate(0, i -> i + 1)
+                .<ToXContent>mapToObj(i -> (b, p) -> b.field("field" + i, randomAlphaOfLengthBetween(0, 50)))
+                .iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidArray() {
+        ChunkedToXContent chunkedToXContent = __ -> Iterators.concat(
+            startArray("array"),
+            IntStream.iterate(0, i -> i + 1).<ToXContent>mapToObj(i -> (b, p) -> b.value(randomAlphaOfLengthBetween(0, 50))).iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("{"));
+        assertThat(result.string(), not(endsWith("}")));
+    }
+
+    public void testTruncatesSuccessfullyEvenIfStoppedMidArray_ChunkedToXContentObject() {
+        ChunkedToXContentObject chunkedToXContent = __ -> Iterators.concat(
+            startArray(),
+            IntStream.iterate(0, i -> i + 1).<ToXContent>mapToObj(i -> (b, p) -> b.value(randomAlphaOfLengthBetween(0, 50))).iterator()
+        );
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024 * 1024);
+
+        assertTrue(result.truncated());
+        assertThat(result.string(), startsWith("["));
+        assertThat(result.string(), not(endsWith("]")));
+    }
+
     private static String lowercaseAsciiOnly(String s) {
         // explicitly lowercase just ascii characters
         StringBuilder sb = new StringBuilder(s);
@@ -365,5 +442,24 @@ public class StringsTests extends ESTestCase {
             }
         }
         return sb.toString();
+    }
+
+    private record TestToXContent(int counter, boolean isObject) implements ToXContent {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (isObject) {
+                builder.startObject();
+            }
+            if (builder.humanReadable()) {
+                builder.field("field" + counter, "this is a value number " + counter);
+            } else {
+                builder.field("field" + counter, "value" + counter);
+            }
+            if (isObject) {
+                builder.endObject();
+            }
+            return builder;
+        }
     }
 }

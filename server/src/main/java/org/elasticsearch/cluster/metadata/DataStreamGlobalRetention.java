@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 
 /**
- * Wrapper class for the {@link DataStreamGlobalRetentionSettings}.
+ * Holds the current values of global retention as it has been retrieved from {@link DataStreamLifecycleSettings}.
  */
 public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) implements Writeable {
 
@@ -44,6 +44,17 @@ public record DataStreamGlobalRetention(@Nullable TimeValue defaultRetention, @N
         }
         this.defaultRetention = defaultRetention;
         this.maxRetention = maxRetention;
+    }
+
+    /**
+     * Helper method that creates a global retention object or returns null in case both retentions are null
+     */
+    @Nullable
+    public static DataStreamGlobalRetention create(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+        if (defaultRetention == null && maxRetention == null) {
+            return null;
+        }
+        return new DataStreamGlobalRetention(defaultRetention, maxRetention);
     }
 
     private boolean validateRetentionValue(@Nullable TimeValue retention) {

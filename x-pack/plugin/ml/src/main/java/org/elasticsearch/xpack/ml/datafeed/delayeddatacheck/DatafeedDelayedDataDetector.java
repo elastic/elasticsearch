@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -14,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -38,6 +41,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
  * This class will search the buckets and indices over a given window to determine if any data is missing
  */
 public class DatafeedDelayedDataDetector implements DelayedDataDetector {
+
+    private static final Logger logger = LogManager.getLogger(DatafeedDelayedDataDetector.class);
 
     private static final String DATE_BUCKETS = "date_buckets";
 
@@ -71,6 +76,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
         this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
         this.client = client;
+    }
+
+    // visible for testing
+    IndicesOptions getIndicesOptions() {
+        return indicesOptions;
     }
 
     /**
@@ -134,9 +144,18 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
-            SearchResponse response = client.execute(TransportSearchAction.TYPE, searchRequest).actionGet();
+            SearchResponse searchResponse = client.execute(TransportSearchAction.TYPE, searchRequest).actionGet();
             try {
-                List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
+                // The aggregations are null when the search had no shard results to reduce
+                InternalAggregations aggregations = searchResponse.getAggregations();
+                Histogram histogram = aggregations == null ? null : aggregations.get(DATE_BUCKETS);
+                if (histogram == null) {
+                    // We log search response here to get information about shards and hits which may be helpful while debugging.
+                    // The size of the search response is small as we only log if the "date_buckets" aggregation is missing.
+                    logger.warn("[{}] Delayed data check failed with missing aggregation in search response [{}]", jobId, searchResponse);
+                    return Collections.emptyMap();
+                }
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                 Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
                 for (Histogram.Bucket bucket : buckets) {
                     long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
@@ -147,7 +166,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
                 }
                 return hashMap;
             } finally {
-                response.decRef();
+                searchResponse.decRef();
             }
         }
     }

@@ -22,13 +22,19 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -38,11 +44,13 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,11 +59,14 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.TransportClosePointInTimeAction.markContextsAsRelocating;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -66,49 +77,63 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
-    private static final float DEFAULT_INDEX_BOOST = 1.0f;
+public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+    protected static final float DEFAULT_INDEX_BOOST = 1.0f;
+    public static final String INTERNAL_PARTIAL_RESULTS_CANCEL_REASON = "partial results are not allowed and at least one shard has failed";
+    public static final String ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL = "All shards failed due to internal cancel";
+
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final SearchTransportService searchTransportService;
+    protected final SearchTransportService searchTransportService;
+    protected final BigArrays bigArrays;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
-    private final SearchRequest request;
+    protected final SearchRequest request;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
+    protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
+    private final CircuitBreaker circuitBreaker;
     private final long clusterStateVersion;
-    private final TransportVersion minTransportVersion;
-    private final Map<String, AliasFilter> aliasFilter;
-    private final Map<String, Float> concreteIndexBoosts;
+    protected final Map<String, AliasFilter> aliasFilter;
+    protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
-    private final AtomicInteger successfulOps = new AtomicInteger();
-    private final SearchTimeProvider timeProvider;
+    private final AtomicInteger successfulOps;
+    protected final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected final List<SearchShardIterator> toSkipShardsIts;
     protected final List<SearchShardIterator> shardsIts;
-    private final SearchShardIterator[] shardIterators;
+    protected final SearchShardIterator[] shardIterators;
     private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
-    private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
-    private final boolean throttleConcurrentRequests;
-    private final AtomicBoolean requestCancelled = new AtomicBoolean();
+    private final Map<String, PendingExecutions> pendingExecutionsPerNode;
+    private final AtomicBoolean internalCancelTriggered = new AtomicBoolean();
+    private final AtomicInteger internalCancelledShardCount = new AtomicInteger();
+    private final int skippedCount;
+    private final TransportVersion mintransportVersion;
+    protected final SearchResponseMetrics searchResponseMetrics;
+    protected final Map<String, Object> searchRequestAttributes;
+    private final boolean isPitRelocationEnabled;
+    protected long phaseStartTimeInNanos;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     // protected for tests
-    protected final List<Releasable> releasables = new ArrayList<>();
+    protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
+    private final AtomicBoolean coordinatorTripRaised = new AtomicBoolean();
+    private final Supplier<DiscoveryNodes> discoveryNodes;
+    private final LongAdder phaseResultBytesRead = new LongAdder();
+    private final LongAdder phaseRequestBytesWritten = new LongAdder();
 
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -116,62 +141,71 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
+        Map<String, Integer> skippedByClusterAlias,
         SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
+        CircuitBreaker circuitBreaker,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes,
+        boolean pitRelocationEnabled
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
-        final List<SearchShardIterator> iterators = new ArrayList<>();
-        for (final SearchShardIterator iterator : shardsIts) {
-            if (iterator.skip()) {
-                toSkipIterators.add(iterator);
-            } else {
-                iterators.add(iterator);
-            }
-        }
-        this.toSkipShardsIts = toSkipIterators;
-        this.shardsIts = iterators;
+        this.skippedCount = CollectionUtils.sumIntValues(skippedByClusterAlias);
+        this.shardsIts = shardsIts;
         outstandingShards = new AtomicInteger(shardsIts.size());
-        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        successfulOps = new AtomicInteger(this.skippedCount);
+        this.shardIterators = shardsIts.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
         Arrays.sort(shardIterators);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
-        this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
+        this.pendingExecutionsPerNode = maxConcurrentRequestsPerNode < shardsIts.size() ? new ConcurrentHashMap<>() : null;
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
+        this.bigArrays = bigArrays;
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+        this.listener = ActionListener.runBefore(listener, () -> doneFuture.onResponse(null));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
-        this.minTransportVersion = clusterState.getMinTransportVersion();
+        this.mintransportVersion = clusterState.getMinTransportVersion();
+        this.discoveryNodes = clusterState::nodes;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        this.circuitBreaker = circuitBreaker;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
+        this.searchResponseMetrics = searchResponseMetrics;
+        this.searchRequestAttributes = searchRequestAttributes;
+        this.isPitRelocationEnabled = pitRelocationEnabled;
+    }
+
+    protected final boolean hasShardResponse() {
+        return hasShardResponse.get();
     }
 
     protected void notifyListShards(
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
-        SearchSourceBuilder sourceBuilder
+        SearchRequest searchRequest,
+        Map<String, Integer> skippedByClusterAlias
     ) {
+        var sourceBuilder = searchRequest.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
-            SearchProgressListener.buildSearchShardsFromIter(toSkipShardsIts),
+            skippedByClusterAlias,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider
@@ -182,7 +216,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
+        var doneFuture = this.doneFuture;
+        if (doneFuture.isDone()) {
+            releasable.close();
+        } else {
+            doneFuture.addListener(ActionListener.releasing(releasable));
+        }
     }
 
     /**
@@ -215,39 +254,37 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     protected final void run() {
-        for (final SearchShardIterator iterator : toSkipShardsIts) {
-            assert iterator.skip();
-            skipShard(iterator);
+        phaseStartTimeInNanos = System.nanoTime();
+        if (outstandingShards.get() == 0) {
+            onPhaseDone();
+            return;
         }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             shardIndexMap.put(shardIterators[i], i);
         }
-        if (shardsIts.size() > 0) {
-            doCheckNoMissingShards(getName(), request, shardsIts);
-            for (int i = 0; i < shardsIts.size(); i++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(i);
-                assert shardRoutings.skip() == false;
-                assert shardIndexMap.containsKey(shardRoutings);
-                int shardIndex = shardIndexMap.get(shardRoutings);
-                final SearchShardTarget routing = shardRoutings.nextOrNull();
-                if (routing == null) {
-                    failOnUnavailable(shardIndex, shardRoutings);
-                } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
-                }
+        doRun(shardIndexMap);
+    }
+
+    protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
+        doCheckNoMissingShards(getName(), request, shardsIts);
+        for (int i = 0; i < shardsIts.size(); i++) {
+            final SearchShardIterator shardRoutings = shardsIts.get(i);
+            assert shardRoutings.skip() == false;
+            assert shardIndexMap.containsKey(shardRoutings);
+            int shardIndex = shardIndexMap.get(shardRoutings);
+            final SearchShardTarget routing = shardRoutings.nextOrNull();
+            if (routing == null) {
+                failOnUnavailable(shardIndex, shardRoutings);
+            } else {
+                performPhaseOnShard(shardIndex, shardRoutings, routing);
             }
         }
     }
 
-    void skipShard(SearchShardIterator iterator) {
-        successfulOps.incrementAndGet();
-        assert iterator.skip();
-        successfulShardExecution();
-    }
-
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        if (throttleConcurrentRequests) {
+    protected final void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+        var pendingExecutionsPerNode = this.pendingExecutionsPerNode;
+        if (pendingExecutionsPerNode != null) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
                 shard.getNodeId(),
                 n -> new PendingExecutions(maxConcurrentRequestsPerNode)
@@ -286,7 +323,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executePhaseOnShard(shardIt, connection, shardListener);
     }
 
-    private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
+    protected final void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
         onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }
@@ -336,6 +373,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                 } else {
+                    if (internalCancelledShardCount.get() == results.getNumShards()) {
+                        // All shards encountered internal TaskCancelledException, which is not included in shard failures. To prevent a
+                        // spurious SERVICE_UNAVAILABLE response due to no shard failures being present, provide a placeholder cause to
+                        // onPhaseFailure() which can be filtered out later
+                        onPhaseFailure(
+                            currentPhase,
+                            ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL,
+                            new ElasticsearchException(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL)
+                        );
+                        return;
+                    }
                     int discrepancy = getNumShards() - successfulOps.get();
                     assert discrepancy > 0 : "discrepancy: " + discrepancy;
                     if (logger.isDebugEnabled()) {
@@ -343,7 +391,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
                             discrepancy,
                             successfulOps.get(),
-                            toSkipShardsIts.size(),
+                            skippedCount,
                             getNumShards(),
                             currentPhase
                         );
@@ -352,6 +400,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
                 return;
             }
+            long resultBytes = phaseResultBytesRead.sumThenReset();
+            long requestBytes = phaseRequestBytesWritten.sumThenReset();
+            // bytes tracked is 0 in the following scenarios:
+            // - all requests/responses were local
+            // - for the expand phase whose sub-searches are tracked separately
+            // - for the result side if all shards failed, which is the only case where remote requests track bytes but results don't
+            if (resultBytes > 0) {
+                assert requestBytes > 0 : "successful responses from remote nodes must have corresponding request bytes set";
+                searchResponseMetrics.recordSearchPhaseShardResultBytes(currentPhase, resultBytes, searchRequestAttributes);
+            }
+            if (requestBytes > 0) {
+                searchResponseMetrics.recordSearchPhaseShardRequestBytes(currentPhase, requestBytes, searchRequestAttributes);
+            }
+            assert currentPhase.equals(ExpandSearchPhase.NAME) == false || (requestBytes == 0 && resultBytes == 0)
+                : "bytes should not be tracked for the expand phase, whose sub-searches are tracked individually";
             var nextPhase = nextPhaseSupplier.get();
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
@@ -380,7 +443,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
+    protected ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
@@ -393,43 +456,47 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+    protected final void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
-        if (lastShard) {
+        final boolean retriable = TransportActions.isRetriableShardLevelException(e);
+        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s] retriable [%s]", shard, request, lastShard, retriable), e);
+        if (lastShard == false && retriable) {
+            logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);
+            performPhaseOnShard(shardIndex, shardIt, nextShard);
+        } else {
             if (request.allowPartialSearchResults() == false) {
-                if (requestCancelled.compareAndSet(false, true)) {
+                if (internalCancelTriggered.compareAndSet(false, true)) {
                     try {
-                        searchTransportService.cancelSearchTask(task, "partial results are not allowed and at least one shard has failed");
+                        searchTransportService.cancelSearchTask(task, INTERNAL_PARTIAL_RESULTS_CANCEL_REASON);
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
                     }
                 }
             }
             onShardGroupFailure(shardIndex, shard, e);
+            finishOneShard();
         }
-        if (lastShard == false) {
-            performPhaseOnShard(shardIndex, shardIt, nextShard);
-        } else {
-            // count down outstanding shards, we're done with this shard as there's no more copies to try
-            final int outstanding = outstandingShards.decrementAndGet();
-            assert outstanding >= 0 : "outstanding: " + outstanding;
-            if (outstanding == 0) {
-                onPhaseDone();
-            }
+    }
+
+    private void finishOneShard() {
+        final int outstanding = outstandingShards.decrementAndGet();
+        assert outstanding >= 0 : "outstanding: " + outstanding;
+        if (outstanding == 0) {
+            onPhaseDone();
         }
     }
 
     /**
-     * Executed once for every {@link ShardId} that failed on all available shard routing.
+     * Executed once for every {@link ShardId} that fails terminally — either all available shard copies have been exhausted, or the
+     * exception is classified as non-retriable by {@link TransportActions#isRetriableShardLevelException}.
      *
      * @param shardIndex the shard index that failed
-     * @param shardTarget the last shard target for this failure
-     * @param exc the last failure reason
+     * @param shardTarget the failing shard target
+     * @param exc the failure reason
      */
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
@@ -449,11 +516,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
-        if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {
+        if (isInternalCancel(e) == false) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
-                synchronized (shardFailuresMutex) {
+                synchronized (this.shardFailures) {
                     shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
                     if (shardFailures == null) { // still null so we are the first and create a new instance
                         shardFailures = new AtomicArray<>(getNumShards());
@@ -476,11 +543,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 assert failure == null : "shard failed before but shouldn't: " + failure;
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
+        } else {
+            internalCancelledShardCount.incrementAndGet();
         }
     }
 
-    private static boolean isTaskCancelledException(Exception e) {
-        return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
+    private boolean isInternalCancel(Exception e) {
+        // It's possible for a TaskCancelledException due to the internal cancel to reach here before internalCancelTriggered has been set
+        // to true if the search is cancelled from another cluster, so also check the task cancellation reason
+        return (ExceptionsHelper.isTaskCancelledException(e)
+            && (internalCancelTriggered.get()
+                || task.getReasonCancelled() != null && task.getReasonCancelled().contains(INTERNAL_PARTIAL_RESULTS_CANCEL_REASON)));
     }
 
     /**
@@ -494,39 +567,62 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
-        results.consumeResult(result, () -> onShardResultConsumed(result));
-    }
-
-    private void onShardResultConsumed(Result result) {
-        successfulOps.incrementAndGet();
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
-        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+        // so it's ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        // we need to increment successful ops first before we compare the exit condition otherwise if we
-        // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
-        // increment all the "future" shards to update the total ops since we some may work and some may not...
-        // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution();
+        // accumulate the per-shard metrics into the single merged reference before consuming the result
+        accumulateDirectoryMetrics(result.getDirectoryMetrics());
+        results.consumeResult(result, () -> {
+            successfulOps.incrementAndGet();
+            finishOneShard();
+        });
     }
 
-    private void successfulShardExecution() {
-        final int outstanding = outstandingShards.decrementAndGet();
-        assert outstanding >= 0 : "outstanding: " + outstanding;
-        if (outstanding == 0) {
-            onPhaseDone();
-        }
+    /**
+     * The {@link CircuitBreaker#REQUEST} breaker to account coordinating-node memory against.
+     */
+    CircuitBreaker circuitBreaker() {
+        return circuitBreaker;
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard result to the running total for the current phase.
+     * Called once per shard result, from the transport response handler's read path.
+     */
+    void trackPhaseResultBytesRead(long bytes) {
+        phaseResultBytesRead.add(bytes);
+    }
+
+    /**
+     * Adds the wire-format byte count of a shard request to the running total for the current phase.
+     * Called once per shard request, before sending it to the data node.
+     */
+    void trackPhaseRequestBytesWritten(long bytes) {
+        phaseRequestBytesWritten.add(bytes);
+    }
+
+    /**
+     * Merges the {@link DirectoryMetrics} carried by a single shard result into the search-wide total. This is the only
+     * place metrics are accumulated on the coordinating node.
+     */
+    void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        DirectoryMetrics.accumulate(mergedDirectoryMetrics, metrics);
+    }
+
+    // package private for testing
+    DirectoryMetrics getMergedDirectoryMetrics() {
+        return mergedDirectoryMetrics.get();
     }
 
     /**
      * Returns the total number of shards to the current search across all indices
      */
     public final int getNumShards() {
-        return results.getNumShards();
+        return results.getNumShards() + skippedCount;
     }
 
     /**
@@ -580,21 +676,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
             numSuccess,
-            toSkipShardsIts.size(),
+            skippedCount,
             buildTookInMillis(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            request.source(),
+            request.indices()
         );
-    }
-
-    boolean buildPointInTimeFromSearchResults() {
-        return false;
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        searchResponse.setDirectoryMetrics(directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
+        return searchResponse;
     }
 
     /**
@@ -610,20 +708,115 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-            final BytesReference searchContextId;
-            if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion, failures);
-            } else {
-                if (request.source() != null
-                    && request.source().pointInTimeBuilder() != null
-                    && request.source().pointInTimeBuilder().singleSession() == false) {
-                    searchContextId = request.source().pointInTimeBuilder().getEncodedId();
-                } else {
-                    searchContextId = null;
+            SearchResponse searchResponse = buildSearchResponse(
+                internalSearchResponse,
+                failures,
+                request.scroll() != null
+                    ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                    : null,
+                buildSearchContextId(failures)
+            );
+            if (request.bufferSubSearchResponseForMultiSearch() && results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                long handoffBytes = queryPhaseResultConsumer.transferAggregationBreakerBytesForMultiSearch();
+                if (handoffBytes > 0) {
+                    searchResponse.setQueryPhaseAggregationBreakerBytes(handoffBytes);
                 }
             }
-            ActionListener.respondAndRelease(listener, buildSearchResponse(internalSearchResponse, failures, scrollId, searchContextId));
+            ActionListener.respondAndRelease(listener, searchResponse);
+        }
+    }
+
+    void recordStoreMetrics(DirectoryMetrics directoryMetrics) {
+        if (directoryMetrics.isEmpty()) {
+            return;
+        }
+        var storeMetrics = directoryMetrics.metrics(StoreMetrics.NAME);
+        if (storeMetrics != null) {
+            searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
+        }
+    }
+
+    protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
+        SearchSourceBuilder source = request.source();
+        // only (re-)build a search context id if we are running a long-lived point-in-time request
+        if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
+            if (isPitRelocationEnabled) {
+                // we want to change node ids in the PIT id if any shards and its PIT context have moved
+                return maybeReEncodeNodeIds(
+                    source.pointInTimeBuilder(),
+                    results.getAtomicArray().asList(),
+                    namedWriteableRegistry,
+                    mintransportVersion,
+                    searchTransportService,
+                    discoveryNodes.get(),
+                    logger
+                );
+            } else {
+                return source.pointInTimeBuilder().getEncodedId();
+            }
+        } else {
+            return null;
+        }
+    }
+
+    static <Result extends SearchPhaseResult> BytesReference maybeReEncodeNodeIds(
+        PointInTimeBuilder originalPit,
+        List<Result> results,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportVersion mintransportVersion,
+        SearchTransportService searchTransportService,
+        DiscoveryNodes nodes,
+        Logger logger
+    ) {
+        SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
+        // only create the following two collections if we detect an id change
+        Map<ShardId, SearchContextIdForNode> updatedShardMap = null;
+        Collection<SearchContextIdForNode> contextsToCleanUp = null;
+        logger.debug("checking [{}] search result shards to detect PIT node changes", results.size());
+        for (Result result : results) {
+            SearchShardTarget searchShardTarget = result.getSearchShardTarget();
+            ShardId shardId = searchShardTarget.getShardId();
+            SearchContextIdForNode originalShard = original.shards().get(shardId);
+            if (originalShard != null && originalShard.getSearchContextId() != null && originalShard.getSearchContextId().isRetryable()) {
+                // check if the node is different, if so we need to re-encode the PIT
+                String originalNode = originalShard.getNode();
+                if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
+                    // the target node for this shard entry in the PIT has changed, we need to update it
+                    if (updatedShardMap == null) {
+                        // initialize the map with entries from old map to keep ids for shards that have not responded in this results
+                        updatedShardMap = new HashMap<>(original.shards());
+                        contextsToCleanUp = new ArrayList<>();
+                    }
+                    SearchContextIdForNode updatedId = new SearchContextIdForNode(
+                        searchShardTarget.getClusterAlias(),
+                        searchShardTarget.getNodeId(),
+                        originalShard.getSearchContextId()
+                    );
+                    assert result.getContextId() == null || result.getContextId().equals(originalShard.getSearchContextId())
+                        : "Result context id should be same as original context id";
+                    logger.debug(
+                        "PIT id - changing node for shard id [{}] from [{}] to [{}]",
+                        searchShardTarget.getShardId(),
+                        originalShard,
+                        updatedId
+                    );
+                    updatedShardMap.put(shardId, updatedId);
+                    contextsToCleanUp.add(original.shards().get(shardId));
+
+                }
+            }
+        }
+        if (updatedShardMap != null) {
+            // Mark old contexts as relocating rather than closing them immediately. This lets
+            // the Reaper drain them gracefully once all in-flight markAsUsed references are
+            // released (plus the PitReaderContext grace period), avoiding a race where an
+            // immediate close could interrupt a concurrent search in the phase-transition gap
+            // when no reference is held. The contexts will also expire naturally via their
+            // keep-alive TTL if the mark request cannot be delivered.
+            markContextsAsRelocating(nodes, searchTransportService, contextsToCleanUp);
+            return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
+        } else {
+            return originalPit.getEncodedId();
         }
     }
 
@@ -636,6 +829,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
+    }
+
+    /**
+     * Fails the whole search because this node could not hold what a shard sent back. A shard failure would instead
+     * answer with hits missing at ranks the caller cannot see.
+     * <p>
+     * Only the first caller raises: shards in flight when one trips are likely to trip too, and
+     * {@link #raisePhaseFailure} is not idempotent.
+     */
+    void failOnCoordinatorTrip(String phase, Exception cause) {
+        if (coordinatorTripRaised.compareAndSet(false, true)) {
+            onPhaseFailure(phase, "", cause);
+        }
+    }
+
+    /**
+     * Whether a coordinator trip has already failed this search, in which case a phase must not advance: the
+     * results it would work on have been released.
+     */
+    boolean failedOnCoordinatorTrip() {
+        return coordinatorTripRaised.get();
     }
 
     /**
@@ -658,6 +872,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
+        task.getProgressListener().notifyPhaseFailure(exception);
         listener.onFailure(exception);
     }
 
@@ -680,6 +895,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        searchResponseMetrics.recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, searchRequestAttributes);
         executeNextPhase(getName(), this::getNextPhase);
     }
 
@@ -698,22 +914,37 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return searchTransportService;
     }
 
+    /**
+     * Returns the {@link SearchResponseMetrics} to record search phase timings
+     */
+    public SearchResponseMetrics getSearchResponseMetrics() {
+        return searchResponseMetrics;
+    }
+
+    /**
+     * Returns search request attributes used to record attributes for search phase timings in an immutable map.
+     */
+    public Map<String, Object> getSearchRequestAttributes() {
+        return Collections.unmodifiableMap(searchRequestAttributes);
+    }
+
     public final void execute(Runnable command) {
         executor.execute(command);
     }
 
     /**
-     * Builds an request for the initial search phase.
+     * Builds a shard search request before each search phase, on the coordinating node
      *
      * @param shardIt the target {@link SearchShardIterator}
      * @param shardIndex the index of the shard that is used in the coordinator node to
      *                   tiebreak results with identical sort values
      */
-    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
+    protected ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(
+        // Coordinators always rebuild the ShardSearchRequest, so data nodes omit it from shard results.
+        return new ShardSearchRequest(
             shardIt.getOriginalIndices(),
             request,
             shardIt.shardId(),
@@ -724,14 +955,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             timeProvider.absoluteStartMillis(),
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
-            shardIt.getSearchContextKeepAlive()
+            shardIt.getSearchContextKeepAlive(),
+            shardIt.getSplitShardCountSummary(),
+            true
         );
-        // if we already received a search result we can inform the shard that it
-        // can return a null response if the request rewrites to match none rather
-        // than creating an empty response in the search thread pool.
-        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
-        return shardRequest;
     }
 
     /**

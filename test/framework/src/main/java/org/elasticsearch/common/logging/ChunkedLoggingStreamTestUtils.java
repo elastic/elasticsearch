@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedRunnable;
@@ -95,7 +96,7 @@ public class ChunkedLoggingStreamTestUtils {
                 Assert.assertFalse(seenTotal);
                 final var message = event.getMessage().getFormattedMessage();
                 final var onePartPrefix = prefix + " (gzip compressed and base64-encoded; for details see " + referenceDocs + "): ";
-                final var partPrefix = prefix + " [part " + (chunks + 1) + "]: ";
+                final var partPrefix = prefix + " [part " + Strings.format("%03d", chunks + 1) + "]: ";
                 if (message.startsWith(partPrefix)) {
                     chunks += 1;
                     final var chunk = message.substring(partPrefix.length());

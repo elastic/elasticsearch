@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -26,9 +27,13 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -36,6 +41,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,6 +51,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -62,6 +69,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private final IndicesService indicesService;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
+    private volatile TimeValue statelessGetRealtimeActivePrimaryTimeout;
 
     @Inject
     public TransportShardMultiGetAction(
@@ -70,6 +78,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ExecutorSelector executorSelector,
         NodeClient client
@@ -80,6 +89,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             MultiGetShardRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
@@ -87,6 +97,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
         this.client = client;
+        clusterService.getClusterSettings()
+            .initializeAndWatch(
+                TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
+                v -> this.statelessGetRealtimeActivePrimaryTimeout = v
+            );
     }
 
     @Override
@@ -105,9 +120,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
-            .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+            .getShards(project, request.request().index(), request.request().shardId(), request.request().preference());
         if (iterator == null) {
             return null;
         }
@@ -120,7 +135,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            handleMultiGetOnUnpromotableShard(request, indexShard, listener);
+            handleMultiGetOnUnpromotableShard(request, shardId, listener);
             return;
         }
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
@@ -150,28 +165,26 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
+        if (projectResolver.getProjectMetadata(clusterState).index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
-        } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
-            return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
-            return super.getExecutor(request, shardId);
+            return super.getExecutor(shardId);
         }
     }
 
     private void handleMultiGetOnUnpromotableShard(
         MultiGetShardRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         ActionListener<MultiGetShardResponse> listener
     ) throws IOException {
-        ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
-            var refreshRequest = new BasicReplicationRequest(shardId);
+            final var indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).index(shardId.getIndex());
+            var refreshRequest = new BasicReplicationRequest(shardId, SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId()));
             refreshRequest.setParentTask(request.getParentTask());
-            client.executeLocally(
+            client.execute(
                 TransportShardRefreshAction.TYPE,
                 refreshRequest,
                 listener.delegateFailureAndWrap((l, replicationResponse) -> super.asyncShardOperation(request, shardId, l))
@@ -183,11 +196,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             final var observer = new ClusterStateObserver(
                 state,
                 clusterService,
-                TimeValue.timeValueSeconds(60),
+                statelessGetRealtimeActivePrimaryTimeout,
                 logger,
                 threadPool.getThreadContext()
             );
-            shardMultiGetFromTranslog(request, indexShard, state, observer, listener);
+            shardMultiGetFromTranslog(request, shardId, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time mget with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -196,53 +209,66 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     private void shardMultiGetFromTranslog(
         MultiGetShardRequest request,
-        IndexShard indexShard,
-        ClusterState state,
+        ShardId shardId,
+        ProjectState state,
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
         DiscoveryNode node;
         try {
-            node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+            node = getCurrentNodeOfPrimary(state, shardId);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
+        ProjectId projectId = state.projectId();
         final var retryingListener = listener.delegateResponse((l, e) -> {
-            final var cause = ExceptionsHelper.unwrapCause(e);
-            logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
-                logger.debug("retrying mget_from_translog[shard]");
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        shardMultiGetFromTranslog(request, indexShard, state, observer, l);
-                    }
+            logger.debug("mget_from_translog[shard] failed", e);
+            if (ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TransportException).isPresent()) {
+                // If there was a transport exception, that means the exception relates to the action we sent to the indexing node
+                // So check if the indexing shard was relocated to retry, else do not retry and fail the listener
+                if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                    e,
+                    t -> t instanceof ShardNotFoundException
+                        || t instanceof IndexNotFoundException
+                        || t instanceof IllegalIndexShardStateException
+                        || t instanceof AlreadyClosedException
+                ).isPresent()) {
+                    logger.debug("retrying mget_from_translog[shard]");
+                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, l);
+                        }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        l.onFailure(new NodeClosedException(clusterService.localNode()));
-                    }
+                        @Override
+                        public void onClusterServiceClose() {
+                            l.onFailure(new NodeClosedException(clusterService.localNode()));
+                        }
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
-                    }
-                });
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", e));
+                        }
+                    });
+                } else {
+                    l.onFailure(e);
+                }
             } else {
+                // Local exceptions, e.g., if the search shard was relocated, are handled by the upper layer. This is also shown, e.g.,
+                // by asyncShardOperation() which can produce ShardNotFoundException if the search shard was relocated.
                 l.onFailure(e);
             }
         });
-        tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
+        tryShardMultiGetFromTranslog(request, shardId, node, retryingListener);
     }
 
     private void tryShardMultiGetFromTranslog(
         MultiGetShardRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         DiscoveryNode node,
         ActionListener<MultiGetShardResponse> listener
     ) {
-        final var shardId = indexShard.shardId();
         TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
             request,
             shardId
@@ -252,7 +278,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             node,
             TransportShardMultiGetFomTranslogAction.NAME,
             mgetFromTranslogRequest,
-            new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, r) -> {
                 var responseHasMissingLocations = false;
                 for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
                     if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
@@ -276,16 +302,20 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
                         final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
                             listener.delegateFailureAndWrap(
-                                (ll, aLong) -> getExecutor(request, shardId).execute(
+                                (ll, aLong) -> getExecutor(shardId).execute(
                                     ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
                                 )
                             ),
                             threadPool.getThreadContext()
                         );
-                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
+                        getIndexShard(shardId).waitForPrimaryTermAndGeneration(
+                            r.primaryTerm(),
+                            r.segmentGeneration(),
+                            termAndGenerationListener
+                        );
                     }
                 }
-            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
+            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(shardId))
         );
     }
 
@@ -312,15 +342,18 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         MultiGetRequest.Item item = request.items.get(location);
         try {
             GetResult getResult = indexShard.getService()
-                .get(
+                .mget(
                     item.id(),
+                    item.routing(),
                     item.storedFields(),
                     request.realtime(),
                     item.version(),
                     item.versionType(),
                     item.fetchSourceContext(),
                     request.isForceSyntheticSource(),
-                    mget
+                    mget,
+                    request.getSplitShardCountSummary(),
+                    request.refresh()
                 );
             response.add(request.locations.get(location), new GetResponse(getResult));
         } catch (RuntimeException e) {
@@ -339,7 +372,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
         throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
             }));

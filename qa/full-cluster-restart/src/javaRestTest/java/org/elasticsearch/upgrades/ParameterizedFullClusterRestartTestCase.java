@@ -35,6 +35,16 @@ import static org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus.UPGRADE
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+/**
+ * Base class for full cluster restart suites. Each suite is run twice, once against the old cluster and once after it has
+ * been restarted on the current version. The two runs build on each other: the old-cluster run creates the indices and
+ * other state that the upgraded run asserts survived the restart.
+ * <p>
+ * Because of that, a project hosting such a suite must opt out of smart retry's individual test pruning in its
+ * {@code build.gradle}, otherwise a run that passed in an earlier build attempt is skipped on retry and the run it was
+ * setting up fails:
+ * <pre>{@code smartRetry.pruneIndividualTests.set(false)}</pre>
+ */
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
 
@@ -100,9 +110,16 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         }
     }
 
+    protected void beforeUpgrade() {
+        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
+            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
+        }
+    }
+
     @Before
     public void maybeUpgrade() throws Exception {
         if (upgraded == false && requestedUpgradeStatus == UPGRADED) {
+            beforeUpgrade();
             try {
                 if (getOldClusterTestVersion().before(MINIMUM_WIRE_COMPATIBLE_VERSION)) {
                     // First upgrade to latest wire compatible version
@@ -134,7 +151,11 @@ public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTest
         return requestedUpgradeStatus == OLD;
     }
 
-    public static String getOldClusterVersion() {
+    /**
+     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
+     * comparison. Use (test) cluster features and {@link ParameterizedFullClusterRestartTestCase#oldClusterHasFeature} instead.
+     */
+    protected static String getOldClusterVersion() {
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 

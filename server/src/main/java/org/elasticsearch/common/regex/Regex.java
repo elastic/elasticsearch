@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Glob;
 import org.elasticsearch.core.Predicates;
 
 import java.util.ArrayList;
@@ -59,8 +60,15 @@ public class Regex {
         return isSuffixMatchPattern(str) && str.endsWith(".*");
     }
 
-    /** Return an {@link Automaton} that matches the given pattern. */
-    public static Automaton simpleMatchToAutomaton(String pattern) {
+    /**
+     * Return a non-determinized {@link Automaton} that matches the given pattern.
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
+     */
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String pattern) {
         List<Automaton> automata = new ArrayList<>();
         int previous = 0;
         for (int i = pattern.indexOf('*'); i != -1; i = pattern.indexOf('*', i + 1)) {
@@ -69,13 +77,24 @@ public class Regex {
             previous = i + 1;
         }
         automata.add(Automata.makeString(pattern.substring(previous)));
-        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.concatenate(automata);
+    }
+
+    /** Return a deterministic {@link Automaton} that matches the given pattern. */
+    public static Automaton simpleMatchToAutomaton(String pattern) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(pattern), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
-     * Return an Automaton that matches the union of the provided patterns.
+     * Returns a non-deterministic {@link Automaton} that matches the union of the given patterns.
+     *
+     * WARNING: Use this method only when the resulting {@link Automaton} is used in contexts
+     * that do not require determinism (e.g., checking the intersection of automatons).
+     *
+     * For pattern matching with {@link CharacterRunAutomaton}, a deterministic automaton is required.
+     * In that case, use {@link Regex#simpleMatchToAutomaton} instead.
      */
-    public static Automaton simpleMatchToAutomaton(String... patterns) {
+    public static Automaton simpleMatchToNonDeterminizedAutomaton(String... patterns) {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
@@ -88,7 +107,7 @@ public class Regex {
             if (isSuffixWildcard(pattern) && pattern.length() < 1000) {
                 prefixes.add(new BytesRef(pattern.substring(0, pattern.length() - 1)));
             } else if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
-                automata.add(simpleMatchToAutomaton(pattern));
+                automata.add(simpleMatchToNonDeterminizedAutomaton(pattern));
             } else {
                 simpleStrings.add(new BytesRef(pattern));
             }
@@ -113,7 +132,14 @@ public class Regex {
             prefixAutomaton.add(Automata.makeAnyString());
             automata.add(Operations.concatenate(prefixAutomaton));
         }
-        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return Operations.union(automata);
+    }
+
+    /**
+     * Return a deterministic Automaton that matches the union of the provided patterns.
+     */
+    public static Automaton simpleMatchToAutomaton(String... patterns) {
+        return Operations.determinize(simpleMatchToNonDeterminizedAutomaton(patterns), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**
@@ -182,43 +208,7 @@ public class Regex {
             pattern = Strings.toLowercaseAscii(pattern);
             str = Strings.toLowercaseAscii(str);
         }
-        return simpleMatchWithNormalizedStrings(pattern, str);
-    }
-
-    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
-        final int firstIndex = pattern.indexOf('*');
-        if (firstIndex == -1) {
-            return pattern.equals(str);
-        }
-        if (firstIndex == 0) {
-            if (pattern.length() == 1) {
-                return true;
-            }
-            final int nextIndex = pattern.indexOf('*', firstIndex + 1);
-            if (nextIndex == -1) {
-                // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
-                return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
-            } else if (nextIndex == 1) {
-                // Double wildcard "**" detected - skipping all "*"
-                int wildcards = nextIndex + 1;
-                while (wildcards < pattern.length() && pattern.charAt(wildcards) == '*') {
-                    wildcards++;
-                }
-                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str);
-            }
-            final String part = pattern.substring(1, nextIndex);
-            int partIndex = str.indexOf(part);
-            while (partIndex != -1) {
-                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
-                    return true;
-                }
-                partIndex = str.indexOf(part, partIndex + 1);
-            }
-            return false;
-        }
-        return str.regionMatches(0, pattern, 0, firstIndex)
-            && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
+        return Glob.globMatch(pattern, str);
     }
 
     /**

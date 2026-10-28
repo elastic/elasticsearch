@@ -107,9 +107,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeJimfs() throws Exception {
         IOUtils.close(jimfs);
-        super.tearDown();
     }
 
     public void testOutputDirectory() throws Exception {
@@ -274,7 +273,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         final int keysize = randomFrom(1024, 2048);
         final int days = randomIntBetween(1, 1024);
         KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
-        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
+        X509Certificate caCert = CertGenUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days, null);
 
         final boolean generatedCa = randomBoolean();
         final char[] keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null;

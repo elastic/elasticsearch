@@ -14,20 +14,20 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.tools.zip.ZipEntry
 import org.apache.tools.zip.ZipFile
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
-class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncTest {
+class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
+    Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.InternalDistributionArchiveSetupPlugin
+
+    
     def setup() {
+        // elasticsearch.internal-distribution-archive-setup is applied by AbstractGradleInternalPluginFuncTest
         buildFile << """
         import org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar
-
-        plugins {
-            id 'elasticsearch.internal-distribution-archive-setup'
-        }
         """
         file('someFile.txt') << "some content"
     }
@@ -80,11 +80,8 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "registered distribution provides archives and directory variant"() {
         given:
         file('someFile.txt') << "some content"
-
-        settingsFile << """
-            include ':consumer'
-            include ':producer-tar'
-        """
+        subProject("consumer")
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -154,9 +151,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
     def "builds extracted distribution via extractedAssemble"() {
         given:
         file('someFile.txt') << "some content"
-        settingsFile << """
-            include ':producer-tar'
-        """
+        subProject("producer-tar")
 
         buildFile << """
         import org.gradle.api.artifacts.type.ArtifactTypeDefinition;

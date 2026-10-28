@@ -9,6 +9,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -23,7 +25,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.AbstractBytesReference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -32,21 +36,36 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndicesRequestCacheTests extends ESTestCase {
 
@@ -66,7 +85,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -77,7 +96,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache hit
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -129,7 +148,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -143,7 +162,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache the second
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(secondReader, 0);
-        value = cache.getOrCompute(entity, loader, mappingKey, secondReader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey, secondReader, termBytes, null);
         assertEquals("bar", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -155,7 +174,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(secondReader, 0);
-        value = cache.getOrCompute(secondEntity, loader, mappingKey, secondReader, termBytes);
+        value = cache.getOrCompute(secondEntity, loader, mappingKey, secondReader, termBytes, null);
         assertEquals("bar", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -165,7 +184,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(2, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -204,7 +223,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
     public void testCacheDifferentMapping() throws Exception {
         IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
         MappingLookup.CacheKey mappingKey1 = MappingLookup.EMPTY.cacheKey();
-        MappingLookup.CacheKey mappingKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey mappingKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
+            .cacheKey();
         AtomicBoolean indexShard = new AtomicBoolean(true);
         ShardRequestCache requestCacheStats = new ShardRequestCache();
         Directory dir = newDirectory();
@@ -218,7 +238,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, mappingKey1, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey1, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -232,7 +252,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache the second
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 1);
-        value = cache.getOrCompute(entity, loader, mappingKey2, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey2, reader, termBytes, null);
         assertEquals("bar", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -244,7 +264,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 1);
-        value = cache.getOrCompute(secondEntity, loader, mappingKey2, reader, termBytes);
+        value = cache.getOrCompute(secondEntity, loader, mappingKey2, reader, termBytes, null);
         assertEquals("bar", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -254,7 +274,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, mappingKey1, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey1, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(2, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -302,9 +322,9 @@ public class IndicesRequestCacheTests extends ESTestCase {
             TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
             Loader secondLoader = new Loader(secondReader, 0);
 
-            BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+            BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
             assertEquals("foo", value1.streamInput().readString());
-            BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, mappingKey, secondReader, termBytes);
+            BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, mappingKey, secondReader, termBytes, null);
             assertEquals("bar", value2.streamInput().readString());
             size = requestCacheStats.stats().getMemorySize();
             IOUtils.close(reader, secondReader, writer, dir, cache);
@@ -334,12 +354,12 @@ public class IndicesRequestCacheTests extends ESTestCase {
         TestEntity thirddEntity = new TestEntity(requestCacheStats, indexShard);
         Loader thirdLoader = new Loader(thirdReader, 0);
 
-        BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value1.streamInput().readString());
-        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, mappingKey, secondReader, termBytes);
+        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, mappingKey, secondReader, termBytes, null);
         assertEquals("bar", value2.streamInput().readString());
         logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
-        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, mappingKey, thirdReader, termBytes);
+        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, mappingKey, thirdReader, termBytes, null);
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(2, cache.count());
         assertEquals(1, requestCacheStats.stats().getEvictions());
@@ -364,23 +384,25 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey secondMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey secondMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
+            .cacheKey();
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         Loader secondLoader = new Loader(secondReader, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
         DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
-        MappingLookup.CacheKey thirdMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey thirdMappingKey = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD)
+            .cacheKey();
         AtomicBoolean differentIdentity = new AtomicBoolean(true);
         TestEntity thirdEntity = new TestEntity(requestCacheStats, differentIdentity);
         Loader thirdLoader = new Loader(thirdReader, 0);
 
-        BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        BytesReference value1 = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value1.streamInput().readString());
-        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondMappingKey, secondReader, termBytes);
+        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondMappingKey, secondReader, termBytes, null);
         assertEquals("bar", value2.streamInput().readString());
         logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
-        BytesReference value3 = cache.getOrCompute(thirdEntity, thirdLoader, thirdMappingKey, thirdReader, termBytes);
+        BytesReference value3 = cache.getOrCompute(thirdEntity, thirdLoader, thirdMappingKey, thirdReader, termBytes, null);
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(3, cache.count());
         final long hitCount = requestCacheStats.stats().getHitCount();
@@ -389,7 +411,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         cache.cleanCache();
         assertEquals(1, cache.count());
         // third has not been validated since it's a different identity
-        value3 = cache.getOrCompute(thirdEntity, thirdLoader, thirdMappingKey, thirdReader, termBytes);
+        value3 = cache.getOrCompute(thirdEntity, thirdLoader, thirdMappingKey, thirdReader, termBytes, null);
         assertEquals(hitCount + 1, requestCacheStats.stats().getHitCount());
         assertEquals("baz", value3.streamInput().readString());
 
@@ -449,7 +471,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -460,7 +482,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache hit
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -474,7 +496,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
         cache.invalidate(entity, mappingKey, reader, termBytes);
-        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -502,11 +524,65 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
+    public void testInvalidateWithCustomCacheHelper() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+
+        // Wrap with a custom ESCacheHelper whose key differs from Lucene's native reader cache key,
+        // simulating FrozenEngine behavior where a stable cacheIdentity outlives individual readers.
+        Object cacheIdentity = new Object();
+        ESCacheHelper customCacheHelper = new ESCacheHelper() {
+            @Override
+            public Object getKey() {
+                return cacheIdentity;
+            }
+
+            @Override
+            public void addClosedListener(ClosedListener listener) {}
+        };
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+            DirectoryReader.open(writer),
+            new ShardId("foo", "bar", 1),
+            customCacheHelper
+        );
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        // populate the cache
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        Loader loader = new Loader(reader, 0);
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(1, cache.count());
+
+        // invalidate should remove the entry even though the ES cache key differs from Lucene's native key
+        entity = new TestEntity(requestCacheStats, indexShard);
+        cache.invalidate(entity, mappingKey, reader, termBytes);
+        assertEquals(0, cache.count());
+
+        // subsequent get should be a cache miss
+        entity = new TestEntity(requestCacheStats, indexShard);
+        loader = new Loader(reader, 0);
+        value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, null);
+        assertEquals("foo", value.streamInput().readString());
+        assertFalse(loader.loadedFromCache);
+        assertEquals(2, requestCacheStats.stats().getMissCount());
+
+        IOUtils.close(reader, writer, dir, cache);
+    }
+
     public void testKeyEqualsAndHashCode() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
         MappingLookup.CacheKey mKey1 = MappingLookup.EMPTY.cacheKey();
-        MappingLookup.CacheKey mKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList()).cacheKey();
+        MappingLookup.CacheKey mKey2 = MappingLookup.fromMappers(Mapping.EMPTY, emptyList(), emptyList(), IndexMode.STANDARD).cacheKey();
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, config);
@@ -561,6 +637,303 @@ public class IndicesRequestCacheTests extends ESTestCase {
         );
         assertEquals(key1, key2);
         assertEquals(key1.hashCode(), key2.hashCode());
+    }
+
+    public void testComputingThreadDoesNotRegisterForCancellation() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        AtomicBoolean loaderExecuted = new AtomicBoolean(false);
+        AtomicReference<Runnable> capturedCallback = new AtomicReference<>();
+        CheckedSupplier<BytesReference, IOException> loader = () -> {
+            loaderExecuted.set(true);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeString("computed_value");
+                return out.bytes();
+            }
+        };
+
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, capturedCallback::set);
+
+        assertEquals("computed_value", value.streamInput().readString());
+        assertTrue("Loader should have been executed", loaderExecuted.get());
+        assertEquals(1, cache.count());
+        assertNull("Callback should NOT be registered for computing thread", capturedCallback.get());
+
+        IOUtils.close(reader, writer, dir, cache);
+    }
+
+    public void testMultipleWaitingThreadsCanBeCancelledIndependently() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            // Computing thread
+            CountDownLatch loaderStarted = new CountDownLatch(1);
+            CountDownLatch allowLoaderToComplete = new CountDownLatch(1);
+            CheckedSupplier<BytesReference, IOException> slowLoader = () -> {
+                loaderStarted.countDown();
+                try {
+                    allowLoaderToComplete.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.writeString("result");
+                    return out.bytes();
+                }
+            };
+
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    cache.getOrCompute(entity, slowLoader, mappingKey, reader, termBytes, callback -> {});
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+            assertTrue("Thread should have started", loaderStarted.await(10, TimeUnit.SECONDS));
+
+            // Waiting thread - cancelled
+            AtomicBoolean threadCancelled = new AtomicBoolean(false);
+            AtomicReference<Runnable> cancelCallback = new AtomicReference<>();
+            CountDownLatch waiter1Ready = new CountDownLatch(1);
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    cache.getOrCompute(entity, () -> {
+                        fail("Should not call loader");
+                        return null;
+                    }, mappingKey, reader, termBytes, callback -> {
+                        cancelCallback.set(callback);
+                        waiter1Ready.countDown();
+                    });
+                } catch (TaskCancelledException e) {
+                    threadCancelled.set(true);
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+
+            // Waiting thread - completed
+            AtomicBoolean threadCompleted = new AtomicBoolean(false);
+            CountDownLatch waiter2Ready = new CountDownLatch(1);
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    BytesReference value = cache.getOrCompute(entity, () -> {
+                        fail("Should not call loader");
+                        return null;
+                    }, mappingKey, reader, termBytes, callback -> { waiter2Ready.countDown(); });
+                    if (value != null) {
+                        threadCompleted.set(true);
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+
+            assertTrue("Thread should have started", waiter1Ready.await(10, TimeUnit.SECONDS));
+            assertTrue("Thread should have started", waiter2Ready.await(10, TimeUnit.SECONDS));
+
+            Runnable callback = cancelCallback.get();
+            assertNotNull(callback);
+            callback.run();
+
+            allowLoaderToComplete.countDown();
+
+            assertBusy(() -> assertTrue("Waiter 1 should have been cancelled", threadCancelled.get()));
+            assertBusy(() -> assertTrue("Waiter 2 should have completed successfully", threadCompleted.get()));
+        } finally {
+            executor.shutdown();
+            boolean done = executor.awaitTermination(10, TimeUnit.SECONDS);
+            if (done == false) {
+                executor.shutdownNow();
+            }
+            IOUtils.close(reader, writer, dir, cache);
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:DEBUG",
+        reason = "counts the reloads so that a failure says which recovery path the waiters took"
+    )
+    public void testWaitingThreadsDoNotInheritLoaderCancellation() throws Exception {
+        final int threads = 8;
+        final int rounds = 20;
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        // a fresh cache key per round, so that every round has one computing thread and the rest waiting on it
+        List<BytesReference> keyPerRound = new ArrayList<>(rounds);
+        for (int round = 0; round < rounds; round++) {
+            keyPerRound.add(XContentHelper.toXContent(new TermQueryBuilder("id", "round-" + round), XContentType.JSON, false));
+        }
+
+        // a waiter recovers either by reloading, which logs, or, once Cache#computeIfAbsent has dropped the failed future from the
+        // segment map, through an ordinary cache miss, which does not. Both are correct, so count the reloads but never assert on them.
+        ReloadCount reloads = new ReloadCount();
+        try (MockLog mockLog = MockLog.capture(IndicesRequestCache.class)) {
+            mockLog.addExpectation(reloads);
+            for (int round = 0; round < rounds; round++) {
+                BytesReference termBytes = keyPerRound.get(round);
+                int reloadsBeforeRound = reloads.count();
+
+                // released once every thread but the computing one is parked on the in-flight computation
+                CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+                AtomicReference<Thread> cancelledThread = new AtomicReference<>();
+                List<Throwable> failures = new ArrayList<>();
+                List<String> values = new ArrayList<>();
+                AtomicInteger loads = new AtomicInteger();
+
+                CheckedSupplier<BytesReference, IOException> loader = () -> {
+                    loads.incrementAndGet();
+                    if (cancelledThread.compareAndSet(null, Thread.currentThread())) {
+                        safeAwait(waitersParked);
+                        throw new TaskCancelledException("task cancelled [http channel [some other client] closed]");
+                    }
+                    try (BytesStreamOutput out = new BytesStreamOutput()) {
+                        out.writeString("computed_value");
+                        return out.bytes();
+                    }
+                };
+
+                startInParallel(threads, i -> {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    try {
+                        // the callback is registered where this thread starts waiting on another thread's computation
+                        BytesReference value = cache.getOrCompute(
+                            entity,
+                            loader,
+                            mappingKey,
+                            reader,
+                            termBytes,
+                            callback -> waitersParked.countDown()
+                        );
+                        synchronized (values) {
+                            values.add(value.streamInput().readString());
+                        }
+                    } catch (Exception e) {
+                        if (Thread.currentThread() != cancelledThread.get()) {
+                            synchronized (failures) {
+                                failures.add(e);
+                            }
+                        }
+                    }
+                });
+
+                // thread scheduling decides how the waiters recovered, so report it with every failure
+                String state = Strings.format(
+                    "round [%d] of [%d] with [%d] threads: loads [%d], reloads logged [%d] in this round and [%d] so far, values %s",
+                    round,
+                    rounds,
+                    threads,
+                    loads.get(),
+                    reloads.count() - reloadsBeforeRound,
+                    reloads.count(),
+                    values
+                );
+
+                assertNotNull("one thread must have computed the entry, " + state, cancelledThread.get());
+                for (Throwable failure : failures) {
+                    fail("a thread which was never cancelled failed, " + state + ", with " + ExceptionsHelper.stackTrace(failure));
+                }
+                assertThat("every waiter must be given a value, " + state, values, hasSize(threads - 1));
+                assertThat("every waiter must be given the computed value, " + state, values, everyItem(equalTo("computed_value")));
+                // the cancelled load, plus a reload for the waiters. A waiter given a cancellation on every attempt stops retrying
+                // and loads for itself, which is common on a busy host, so allow the one extra load per waiter that costs.
+                assertThat("the cancelled load must be followed by a reload, " + state, loads.get(), greaterThanOrEqualTo(2));
+                assertThat("no request may load more than once, " + state, loads.get(), lessThanOrEqualTo(threads));
+            }
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            IOUtils.close(reader, writer, dir, cache);
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.indices.IndicesRequestCache:DEBUG",
+        reason = "asserts that a failure which is not a cancellation was not retried"
+    )
+    public void testLoaderFailuresOtherThanCancellationAreNotRetried() throws Exception {
+        final int threads = 4;
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        BytesReference termBytes = XContentHelper.toXContent(new TermQueryBuilder("id", "0"), XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        try {
+            // released once every thread but the computing one is parked on the in-flight computation
+            CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+            List<Exception> failures = new ArrayList<>();
+
+            CheckedSupplier<BytesReference, IOException> loader = () -> {
+                safeAwait(waitersParked);
+                throw new IOException("the shard is broken");
+            };
+
+            // the retry exists for cancellations, which belong to the request that was cancelled rather than to the entry. Any other
+            // failure describes the entry itself, so every request waiting on it has to be given that failure instead.
+            MockLog.assertThatLogger(() -> startInParallel(threads, i -> {
+                TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                try {
+                    cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, callback -> waitersParked.countDown());
+                    throw new AssertionError("the load failed, so no thread should have been given a value");
+                } catch (Exception e) {
+                    synchronized (failures) {
+                        failures.add(e);
+                    }
+                }
+            }),
+                IndicesRequestCache.class,
+                new MockLog.UnseenEventExpectation(
+                    "failure retried",
+                    IndicesRequestCache.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "reloading request cache entry for *"
+                )
+            );
+
+            assertThat(failures, hasSize(threads));
+            for (Exception failure : failures) {
+                Throwable cause = ExceptionsHelper.unwrap(failure, IOException.class);
+                assertNotNull("expected the loader failure, got " + ExceptionsHelper.stackTrace(failure), cause);
+                assertEquals("the shard is broken", cause.getMessage());
+            }
+        } finally {
+            IOUtils.close(reader, writer, dir, cache);
+        }
     }
 
     private static class TestBytesReference extends AbstractBytesReference {
@@ -642,6 +1015,34 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public long ramBytesUsed() {
             return 42;
+        }
+    }
+
+    /**
+     * Counts the reloads {@link IndicesRequestCache} logs when a waiter inherits another request's cancellation.
+     */
+    private static class ReloadCount implements MockLog.LoggingExpectation {
+
+        private static final String RELOAD_MESSAGE_PREFIX = "reloading request cache entry for ";
+
+        private final AtomicInteger reloads = new AtomicInteger();
+
+        @Override
+        public void match(LogEvent event) {
+            if (Level.DEBUG.equals(event.getLevel())
+                && event.getLoggerName().equals(IndicesRequestCache.class.getCanonicalName())
+                && event.getMessage().getFormattedMessage().startsWith(RELOAD_MESSAGE_PREFIX)) {
+                reloads.incrementAndGet();
+            }
+        }
+
+        @Override
+        public void assertMatched() {
+            // nothing to assert, any number of reloads is correct
+        }
+
+        int count() {
+            return reloads.get();
         }
     }
 }

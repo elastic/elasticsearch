@@ -28,6 +28,10 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final int maxSubwordSize;
     protected final boolean onlyLongestMatch;
     protected final CharArraySet wordList;
+    /** {@link #wordList} for subclasses to fold into their sharing key, along with its {@code word_list_case} mode. */
+    protected final Analysis.StableCharArraySet wordListKey;
+    // TODO expose this parameter?
+    protected final boolean reuseChars;
 
     protected AbstractCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -36,10 +40,13 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         minSubwordSize = settings.getAsInt("min_subword_size", CompoundWordTokenFilterBase.DEFAULT_MIN_SUBWORD_SIZE);
         maxSubwordSize = settings.getAsInt("max_subword_size", CompoundWordTokenFilterBase.DEFAULT_MAX_SUBWORD_SIZE);
         onlyLongestMatch = settings.getAsBoolean("only_longest_match", false);
+        // TODO is the default of true correct? see: https://github.com/apache/lucene/pull/14278
+        reuseChars = true;
         wordList = Analysis.getWordSet(env, settings, "word_list");
         if (wordList == null) {
             throw new IllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }
+        wordListKey = new Analysis.StableCharArraySet(wordList, settings.getAsBoolean("word_list_case", false));
     }
 
     @Override

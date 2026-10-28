@@ -1,5 +1,0 @@
-pr: 120291
-summary: ESQL - Allow full text functions disjunctions for non-full text functions
-area: ES|QL
-type: feature
-issues: []

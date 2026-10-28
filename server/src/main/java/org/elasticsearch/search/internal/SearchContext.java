@@ -11,12 +11,13 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -25,8 +26,10 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -40,6 +43,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -48,6 +52,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
@@ -55,8 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -70,18 +73,21 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
-
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    protected final SubscribableListener<Void> closeFuture = new SubscribableListener<>();
 
     {
         if (Assertions.ENABLED) {
-            releasables.add(LeakTracker.wrap(() -> { assert closed.get(); }));
+            closeFuture.addListener(ActionListener.releasing(LeakTracker.wrap(new Releasable() {
+                @Override
+                public void close() {
+                    // empty instance that will actually get GC'ed so that the leak tracker works
+                }
+            })));
         }
     }
     private InnerHitsContext innerHitsContext;
 
-    private Query rewriteQuery;
+    protected Query rewriteQuery;
 
     protected SearchContext() {}
 
@@ -90,7 +96,7 @@ public abstract class SearchContext implements Releasable {
         if (lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
             Runnable c = () -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -100,23 +106,53 @@ public abstract class SearchContext implements Releasable {
         return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
     }
 
-    public abstract void setTask(SearchShardTask task);
+    public abstract void setTask(CancellableTask task);
 
-    public abstract SearchShardTask getTask();
+    public abstract CancellableTask getTask();
 
     public abstract boolean isCancelled();
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) {
-            Releasables.close(releasables);
-        }
+        closeFuture.onResponse(null);
+    }
+
+    public final boolean isClosed() {
+        return closeFuture.isDone();
     }
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
      */
     public abstract void preProcess();
+
+    /**
+     * Returns the {@link DirectoryMetrics} accumulated by forked search worker threads while executing this context's
+     * query. The caller is responsible for folding these into the overall directory metrics. Returns
+     * {@link DirectoryMetrics#EMPTY} when no worker threads were used (e.g. single-slice execution) or directory metrics
+     * are disabled.
+     */
+    public DirectoryMetrics getWorkerThreadsMetrics() {
+        return DirectoryMetrics.EMPTY;
+    }
+
+    /**
+     * Supplier that, when invoked, captures the calling thread's directory-metric baseline and returns a delta supplier
+     * for the reads performed on that thread. Returns {@link DirectoryMetrics.Capture#NOOP} when directory metrics are
+     * disabled.
+     */
+    public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
+        return DirectoryMetrics.Capture.NOOP;
+    }
+
+    /**
+     * Returns the {@link DirectoryMetrics} accumulated while assembling this context's fetch results.
+     */
+    public DirectoryMetrics getFetchThreadsMetrics() {
+        return DirectoryMetrics.EMPTY;
+    }
+
+    public void addFetchThreadsMetrics(DirectoryMetrics metrics) {}
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
@@ -341,6 +377,13 @@ public abstract class SearchContext implements Releasable {
     public abstract QuerySearchResult queryResult();
 
     /**
+     * Register SearchHits from a top_hits aggregation so that the shard result can release them when it is released.
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        queryResult().registerTopHitsForRelease(searchHits);
+    }
+
+    /**
      * Indicates that the caller will be using, and thus owning, a {@link QuerySearchResult} object.  It is the caller's responsibility
      * to correctly cleanup this result object.
      */
@@ -370,11 +413,36 @@ public abstract class SearchContext implements Releasable {
     public abstract Profilers getProfilers();
 
     /**
+     * The circuit breaker used to account for the search operation.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the circuit breaker.
+     * IMPORTANT: the caller is responsible for cleaning up the circuit breaker.
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param label the label to use in the breaker
+     * @return true if the circuit breaker is called and false otherwise
+     */
+    public final boolean checkCircuitBreaker(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(locallyAccumulatedBytes, label);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
-        assert closed.get() == false;
-        releasables.add(releasable);
+        assert closeFuture.isDone() == false;
+        closeFuture.addListener(ActionListener.releasing(releasable));
     }
 
     /**
@@ -415,7 +483,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Build something to load source {@code _source}.
      */
-    public abstract SourceLoader newSourceLoader();
+    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
 
     public abstract IdLoader newIdLoader();
 }

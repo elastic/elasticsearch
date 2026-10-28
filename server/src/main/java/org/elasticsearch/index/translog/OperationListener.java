@@ -9,18 +9,19 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 
 @FunctionalInterface
 public interface OperationListener {
 
     /**
-     * This method is called when a new operation is added to the translog. The BytesReference is a releasable
-     * instance, so it should not be retained beyond the scope of this method.
+     * This method is called when a new {@link Translog.Record} is added to the translog: either a single
+     * {@link Translog.Operation} (one sequence number) or an {@link IndexOperationBatch.TranslogRecord}
+     * (one sequence number per replayable row).
      *
-     * @param data a releasable bytes reference of the data add
-     * @param seqNo the sequence number of the operation
+     * @param operation the serialized record added to the translog
+     * @param seqNos the sequence numbers of the operations the record carries
      * @param location the location written
      */
-    void operationAdded(BytesReference data, long seqNo, Translog.Location location);
+    void recordAdded(Translog.Serialized operation, long[] seqNos, Translog.Location location);
 }

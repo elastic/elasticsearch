@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -30,9 +31,9 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -80,6 +81,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         void onOffsetsUsed(String field);
 
         void onDocValuesUsed(String field);
+
+        void onDocValuesSkipperUsed(String field);
 
         void onStoredFieldsUsed(String field);
 
@@ -131,6 +134,11 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public StoredFields storedFields() throws IOException {
             StoredFields storedFields = super.storedFields();
             return new StoredFields() {
+                @Override
+                public void prefetch(int docID) throws IOException {
+                    storedFields.prefetch(docID);
+                }
+
                 @Override
                 public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                     if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
@@ -194,6 +202,15 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            DocValuesSkipper skipper = super.getDocValuesSkipper(field);
+            if (skipper != null) {
+                notifier.onDocValuesSkipperUsed(field);
+            }
+            return skipper;
+        }
+
+        @Override
         public NumericDocValues getNormValues(String field) throws IOException {
             NumericDocValues numericDocValues = super.getNormValues(field);
             if (numericDocValues != null) {
@@ -221,7 +238,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);
@@ -229,7 +246,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
             super.searchNearestVectors(field, target, collector, acceptDocs);
             if (collector.visitedCount() > 0) {
                 notifier.onKnnVectorsUsed(field);

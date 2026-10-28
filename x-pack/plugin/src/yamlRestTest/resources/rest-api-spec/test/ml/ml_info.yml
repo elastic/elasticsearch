@@ -101,3 +101,13 @@ teardown:
   - match: { limits.effective_max_model_memory_limit: "1mb" }
   - match: { limits.total_ml_memory: "/\\d+mb/" }
   - match: { upgrade_mode: false }
+
+---
+"Test ml info model_platform_variant":
+  - requires:
+      cluster_features: ["ml.info.model_platform_variant"]
+      reason: "model_platform_variant added in 9.5"
+  - do:
+      ml.info: {}
+  # model_platform_variant depends on the test machine architecture
+  - match: { defaults.model_platform_variant: "/linux-x86_64|platform_agnostic/" }

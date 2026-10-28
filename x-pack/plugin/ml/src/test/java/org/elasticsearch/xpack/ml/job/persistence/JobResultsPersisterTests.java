@@ -36,6 +36,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -132,6 +134,18 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
         assertTrue(s.matches(".*anomaly_score.:14\\.15.*"));
         assertTrue(s.matches(".*raw_anomaly_score.:19\\.19.*"));
+        assertNotNull("event.ingested must be set on bucket influencer", bi.getEventIngested());
+    }
+
+    public void testPersistBucketSetsEventIngested() {
+        Bucket bucket = new Bucket(JOB_ID, new Date(), 600);
+        bucket.setAnomalyScore(10.0);
+        // No records → no copy is made, setEventIngested is called on the original bucket object
+        assertNull(bucket.getEventIngested());
+
+        persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
+
+        assertNotNull("event.ingested must be set on bucket after persist", bucket.getEventIngested());
     }
 
     public void testPersistRecords() {
@@ -186,6 +200,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*partition_field_value.:.partValue.*"));
         assertTrue(s.matches(".*over_field_name.:.overName.*"));
         assertTrue(s.matches(".*over_field_value.:.overValue.*"));
+        assertNotNull("event.ingested must be set on record after persist", r1.getEventIngested());
     }
 
     public void testPersistInfluencers() {
@@ -209,6 +224,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
         assertTrue(s.matches(".*initial_influencer_score.:55\\.5.*"));
         assertTrue(s.matches(".*influencer_score.:16\\.0.*"));
+        assertNotNull("event.ingested must be set on influencer after persist", inf.getEventIngested());
     }
 
     public void testExecuteRequest_ClearsBulkRequest() {
@@ -234,6 +250,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
     }
@@ -253,6 +270,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
@@ -286,6 +304,30 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
     }
 
+    public void testPersistEsqlDatafeedSourceCheckpointShouldWriteThroughResultsWriteAlias() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(
+            checkpoint,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionTestUtils.assertNoFailureListener(r -> {})
+        );
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        IndexRequest indexRequest = (IndexRequest) bulkRequestCaptor.getValue().requests().get(0);
+        assertThat(indexRequest.index(), equalTo(AnomalyDetectorsIndex.resultsWriteAlias(JOB_ID)));
+        assertThat(indexRequest.id(), equalTo(EsqlDatafeedSourceCheckpoint.documentId(JOB_ID)));
+        assertThat(indexRequest.sourceAsMap().get("result_type"), equalTo(EsqlDatafeedSourceCheckpoint.TYPE.getPreferredName()));
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+    }
+
+    public void testPersistEsqlDatafeedSourceCheckpointSyncShouldUseRefreshNone() {
+        EsqlDatafeedSourceCheckpoint checkpoint = new EsqlDatafeedSourceCheckpoint(JOB_ID, "foo-df", 3_600_000L, "fp");
+        persister.persistEsqlDatafeedSourceCheckpoint(checkpoint);
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
+        assertThat(bulkRequestCaptor.getValue().getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.NONE));
+    }
+
     public void testPersistDatafeedTimingStats() {
         DatafeedTimingStats timingStats = new DatafeedTimingStats(
             "foo",
@@ -303,6 +345,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
         inOrder.verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         inOrder.verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
@@ -439,7 +482,9 @@ public class JobResultsPersisterTests extends ESTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );

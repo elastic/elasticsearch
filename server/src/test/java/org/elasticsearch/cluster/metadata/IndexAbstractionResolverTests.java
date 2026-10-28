@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -20,15 +21,16 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -41,19 +43,15 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private IndexAbstractionResolver indexAbstractionResolver;
-    private Metadata metadata;
+    private ProjectMetadata projectMetadata;
     private String dateTimeIndexToday;
     private String dateTimeIndexTomorrow;
 
     // Only used when resolving wildcard expressions
-    private final Supplier<Set<String>> defaultMask = () -> Set.of("index1", "index2", "data-stream1");
+    private final Set<String> defaultMask = Set.of("index1", "index2", "data-stream1");
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
-        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
-
+    @Before
+    public void initResolvers() throws Exception {
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for
         // the next day and if they're different, add both to the cluster state. Check for either in date math tests.
         long timeMillis = System.currentTimeMillis();
@@ -61,7 +59,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         dateTimeIndexToday = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeMillis);
         dateTimeIndexTomorrow = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeTomorrow);
 
-        metadata = DataStreamTestHelper.getClusterStateWithDataStreams(
+        projectMetadata = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("data-stream1", 2), new Tuple<>("data-stream2", 2)),
             List.of("index1", "index2", "index3", dateTimeIndexToday, dateTimeIndexTomorrow),
             randomMillisUpToYear9999(),
@@ -69,7 +67,14 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             0,
             false,
             true
-        ).metadata();
+        );
+
+        indexNameExpressionResolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProject(projectMetadata.id())
+        );
+        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
     }
 
     public void testResolveIndexAbstractions() {
@@ -81,11 +86,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("index1::data")));
         // Selectors allowed, valid selector given, data selector stripped off in result since it is the default
         assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::data")), contains("index1"));
-        // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
-        // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::*")), contains("index1"));
         // Selectors allowed, invalid selector given
-        expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index1::custom")));
+        expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index1::*")));
 
         // == Single Date Math Expressions ==
 
@@ -125,7 +127,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::data")), containsInAnyOrder("index1", "index2"));
         // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
         // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::*")), containsInAnyOrder("index1", "index2"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*")), containsInAnyOrder("index1", "index2"));
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index*::custom")));
 
@@ -137,11 +139,9 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("data-stream1::data")));
         // Selectors allowed, valid selector given
         assertThat(resolveAbstractionsSelectorAllowed(List.of("data-stream1::failures")), contains("data-stream1::failures"));
-        // Selectors allowed, wildcard selector provided
-        // ** returns both ::data and ::failures since expression is a data stream
-        // ** data selector stripped off in result since it is the default
+        // Selectors allowed, data selector is not added in result since it is the default
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("data-stream1::*")),
+            resolveAbstractionsSelectorAllowed(List.of("data-stream1", "data-stream1::failures")),
             containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -155,10 +155,9 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("data-stream*::data")));
         // Selectors allowed, valid selector given
         assertThat(resolveAbstractionsSelectorAllowed(List.of("data-stream*::failures")), contains("data-stream1::failures"));
-        // Selectors allowed, wildcard selector provided
-        // ** returns both ::data and ::failures since expression is a data stream
+        // Selectors allowed, both ::data and ::failures are returned
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("data-stream*::*")),
+            resolveAbstractionsSelectorAllowed(List.of("data-stream*", "data-stream*::failures")),
             containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -179,7 +178,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // Selectors allowed, wildcard selector provided
         // ** returns both ::data and ::failures for applicable abstractions
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("*::*")),
+            resolveAbstractionsSelectorAllowed(List.of("*", "*::failures")),
             containsInAnyOrder("index1", "index2", "data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -194,11 +193,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // Selectors allowed, wildcard selector provided
         // ** returns both ::data and ::failures for applicable abstractions
         // ** limits the returned values based on selectors
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("*::*", "-*::data")), contains("data-stream1::failures"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("*", "*::failures", "-*::data")), contains("data-stream1::failures"));
         // Selectors allowed, wildcard selector provided
         // ** limits the returned values based on selectors
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("*::*", "-*::failures")),
+            resolveAbstractionsSelectorAllowed(List.of("*", "*::failures", "-*::failures")),
             containsInAnyOrder("index1", "index2", "data-stream1")
         );
         // Selectors allowed, none given, default to both selectors
@@ -213,26 +212,23 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     public void testIsIndexVisible() {
         assertThat(isIndexVisible("index1", null), is(true));
-        assertThat(isIndexVisible("index1", "*"), is(true));
         assertThat(isIndexVisible("index1", "data"), is(true));
         assertThat(isIndexVisible("index1", "failures"), is(false)); // *
         // * Indices don't have failure components so the failure component is not visible
 
         assertThat(isIndexVisible("data-stream1", null), is(true));
-        assertThat(isIndexVisible("data-stream1", "*"), is(true));
         assertThat(isIndexVisible("data-stream1", "data"), is(true));
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
-    }
 
-    private boolean isIndexVisible(String index, String selector) {
-        return IndexAbstractionResolver.isIndexVisible(
-            "*",
-            selector,
-            index,
-            IndicesOptions.strictExpandHidden(),
-            metadata,
-            indexNameExpressionResolver,
-            true
+        assertFalse(
+            IndexAbstractionResolver.isIndexVisibleUnderConcreteAccess(
+                "data-stream1",
+                null,
+                IndicesOptions.DEFAULT,
+                projectMetadata,
+                indexNameExpressionResolver,
+                false
+            )
         );
     }
 
@@ -275,16 +271,77 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             List.of(new SystemIndices.Feature("name", "description", List.of(fooDescriptor, barDescriptor)))
         );
 
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
-        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
-        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        projectMetadata = ProjectMetadata.builder(projectMetadata.id()).put(foo, true).put(barReindexed, true).put(other, true).build();
 
-        metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
+        // these indices options are for the GET _data_streams case
+        final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).build())
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
+            .build();
 
-        assertThat(isIndexVisible("other", "*"), is(true));
-        assertThat(isIndexVisible(".foo", "*"), is(false));
-        assertThat(isIndexVisible(".bar", "*"), is(false));
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.singleProject(projectMetadata.id())
+            );
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- with system access, you can see everything
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(true));
+            assertThat(isIndexVisible(".bar", null), is(true));
+
+            // but if you don't ask for hidden and aliases, you won't see hidden indices or aliases, naturally
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
+        }
+
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            );
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- without system access, you can't see everything
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(false));
+            assertThat(isIndexVisible(".bar", null), is(false));
+
+            // no difference here in the datastream case, you can't see these then, either
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
+        }
+
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
+            threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "some-elastic-product");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.singleProject(projectMetadata.id())
+            );
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- with product (only) access, you can't see everything
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(false));
+            assertThat(isIndexVisible(".bar", null), is(false));
+
+            // no difference here in the datastream case, you can't see these then, either
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
+        }
     }
 
     private static XContentBuilder mappings() {
@@ -309,7 +366,31 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         return resolveAbstractions(expressions, IndicesOptions.strictExpandOpen(), defaultMask);
     }
 
-    private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
-        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, metadata, mask, (idx) -> true, true);
+    private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Set<String> mask) {
+        return indexAbstractionResolver.resolveIndexAbstractions(
+            expressions,
+            indicesOptions,
+            projectMetadata,
+            (ignored) -> mask,
+            (ignored1, ignored2) -> true,
+            true
+        ).getLocalIndicesList();
     }
+
+    private boolean isIndexVisible(String index, String selector) {
+        return isIndexVisible(index, selector, IndicesOptions.strictExpandHidden());
+    }
+
+    private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
+        return IndexAbstractionResolver.isIndexVisibleUnderWildcardAccess(
+            "*",
+            selector,
+            index,
+            indicesOptions,
+            projectMetadata,
+            indexNameExpressionResolver,
+            true
+        );
+    }
+
 }

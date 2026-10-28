@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -95,6 +96,6 @@ public class RestMainActionTests extends ESTestCase {
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference xcontentBytes = BytesReference.bytes(responseBuilder);
-        assertEquals(xcontentBytes, response.content());
+        assertThat(response.content(), equalBytes(xcontentBytes));
     }
 }

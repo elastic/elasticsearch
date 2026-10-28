@@ -11,14 +11,17 @@ package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.entitlement.qa.EntitlementsTestRule.PolicyBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
@@ -29,6 +32,7 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         builder.value("inbound_network");
         builder.value("outbound_network");
         builder.value("load_native_libraries");
+        builder.value("manage_threads");
         builder.value(
             Map.of(
                 "write_system_properties",
@@ -42,7 +46,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                     Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
                     Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
-                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write"),
+                    // Try to grant explicit access to forbidden files (and test this is not possible in any case)
+                    Map.of("relative_path", "jvm.options.d", "relative_to", "config", "mode", "read_write"),
+                    Map.of("relative_path", "jvm.options", "relative_to", "config", "mode", "read_write"),
+                    Map.of("relative_path", "elasticsearch.yml", "relative_to", "config", "mode", "read_write")
                 )
             )
         );
@@ -67,9 +75,87 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         if (expectAllowed) {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+            String noOpChanged = result.getHeader("noOpChanged");
+            if (noOpChanged != null) {
+                assertTrue("Action [" + actionName + "] expected state to change when allowed but it did not", "true".equals(noOpChanged));
+            }
         } else {
-            var exception = expectThrows(IOException.class, this::executeCheck);
-            assertThat(exception.getMessage(), containsString("not_entitled_exception"));
+            try {
+                Response result = executeCheck();
+                assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+                if (result.getHeader("noOpChanged") != null) {
+                    assertFalse(
+                        "Action [" + actionName + "] expected no-op when denied but state changed",
+                        "true".equals(result.getHeader("noOpChanged"))
+                    );
+                } else if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
+                    assertTrue(
+                        "Action [" + actionName + "] expected null default but got a non-null result",
+                        "true".equals(result.getHeader("resultIsNull"))
+                    );
+                } else if (result.getHeader("expectedDefaultIfDenied") != null) {
+                    String actualValue = result.getHeader("resultValue");
+                    assertThat(
+                        "Action [" + actionName + "] returned unexpected default value",
+                        actualValue,
+                        equalTo(result.getHeader("expectedDefaultIfDenied"))
+                    );
+                    String defaultTypeMatch = result.getHeader("defaultTypeMatch");
+                    if (defaultTypeMatch != null) {
+                        assertTrue(
+                            "Action [" + actionName + "] returned result not matching expected default type",
+                            "true".equals(defaultTypeMatch)
+                        );
+                    }
+                } else {
+                    fail("Action [" + actionName + "] was expected to be denied but succeeded");
+                }
+            } catch (ResponseException exception) {
+                assertThat(exception, statusCodeMatcher(403));
+            }
         }
+    }
+
+    private static Matcher<ResponseException> statusCodeMatcher(int statusCode) {
+        return new TypeSafeMatcher<>() {
+            String expectedException = null;
+            String mismatchDetail = null;
+
+            @Override
+            protected boolean matchesSafely(ResponseException item) {
+                Response resp = item.getResponse();
+                expectedException = resp.getHeader("expectedException");
+                if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
+                    return false;
+                }
+                String actualException = resp.getHeader("actualException");
+                if (expectedException.equals(actualException) == false) {
+                    mismatchDetail = "expected exception [" + expectedException + "] but got [" + actualException + "]";
+                    return false;
+                }
+                String notEntitledCause = resp.getHeader("notEntitledCause");
+                if ("false".equals(notEntitledCause)) {
+                    mismatchDetail = "expected NotEntitledException in cause chain but it was absent";
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendValue(statusCode).appendText(" due to ").appendText(expectedException);
+            }
+
+            @Override
+            protected void describeMismatchSafely(ResponseException item, Description description) {
+                description.appendText("was ")
+                    .appendValue(item.getResponse().getStatusLine().getStatusCode())
+                    .appendText("\n")
+                    .appendValue(item.getMessage());
+                if (mismatchDetail != null) {
+                    description.appendText("\n").appendText(mismatchDetail);
+                }
+            }
+        };
     }
 }

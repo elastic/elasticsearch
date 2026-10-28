@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,9 +32,9 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
     }
 
     /**
-     * Build an evaluator for this function given the evaluator for it's input.
+     * Build an evaluator for this function given the evaluator for it’s input.
      */
-    protected abstract EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field);
+    protected abstract ExpressionEvaluator.Factory doubleEvaluator(ExpressionEvaluator.Factory field);
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

@@ -9,50 +9,62 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class MutedTestPlugin implements Plugin<Project> {
     private static final String ADDITIONAL_FILES_PROPERTY = "org.elasticsearch.additional.muted.tests";
+    static final String MUTED_TESTS_ENABLED_PROPERTY = "tests.mutes.enabled";
 
     @Override
     public void apply(Project project) {
+        applyGlobalBuildInfoIfRoot(project);
+        var buildParams = loadBuildParams(project).get();
+
+        File settingsRoot = project.getLayout().getSettingsDirectory().getAsFile();
         String additionalFilePaths = project.hasProperty(ADDITIONAL_FILES_PROPERTY)
             ? project.property(ADDITIONAL_FILES_PROPERTY).toString()
             : "";
         List<RegularFile> additionalFiles = Arrays.stream(additionalFilePaths.split(","))
             .filter(p -> p.isEmpty() == false)
-            .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
+            .map(p -> project.getLayout().getSettingsDirectory().file(p))
             .toList();
 
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        var buildParams = loadBuildParams(project).get();
+        String mutedTestsEnabledValue = project.hasProperty(MUTED_TESTS_ENABLED_PROPERTY)
+            ? project.property(MUTED_TESTS_ENABLED_PROPERTY).toString()
+            : System.getProperty(MUTED_TESTS_ENABLED_PROPERTY);
+        boolean mutedTestsEnabled = mutedTestsEnabledValue == null || mutedTestsEnabledValue.equalsIgnoreCase("true");
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("mutedTests", MutedTestsBuildService.class, spec -> {
-                spec.getParameters().getInfoPath().set(project.getRootProject().getProjectDir());
+                spec.getParameters().getInfoPath().set(settingsRoot);
                 spec.getParameters().getAdditionalFiles().set(additionalFiles);
             });
 
-        project.getTasks().withType(Test.class).configureEach(test -> {
-            test.filter(filter -> {
-                for (String exclude : mutedTestsProvider.get().getExcludePatterns()) {
-                    filter.excludeTestsMatching(exclude);
-                }
-
-                // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(buildParams.isCi() == false);
+        if (mutedTestsEnabled) {
+            project.getTasks().withType(Test.class).configureEach(test -> {
+                test.filter(filter -> {
+                    for (String exclude : mutedTestsProvider.get().getExcludePatternsForTask(test.getPath())) {
+                        filter.excludeTestsMatching(exclude);
+                    }
+                });
             });
+        }
+
+        // Don't fail when all tests are ignored when running in CI
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            test.filter(filter -> filter.setFailOnNoMatchingTests(buildParams.getCi() == false));
         });
     }
 }

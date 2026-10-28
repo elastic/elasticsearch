@@ -35,6 +35,9 @@ import java.io.IOException;
 
 /**
  * BlockTree's implementation of {@link Terms}.
+ *
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene40.blocktree.FieldReader} that allows to read from ancient
+ * Lucene versions. The key difference is the FST loading which relies on {@link FST}.
  */
 public final class FieldReader extends Terms {
 
@@ -132,17 +135,17 @@ public final class FieldReader extends Terms {
 
     @Override
     public boolean hasFreqs() {
-        return fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) >= 0;
+        return fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS);
     }
 
     @Override
     public boolean hasOffsets() {
-        return fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+        return fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
     }
 
     @Override
     public boolean hasPositions() {
-        return fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+        return fieldInfo.getIndexOptions().subsumes(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
     }
 
     @Override

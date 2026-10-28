@@ -9,8 +9,9 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -48,7 +49,12 @@ import java.util.zip.Inflater;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedXContent implements Writeable {
+public final class CompressedXContent implements Writeable, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CompressedXContent.class);
+
+    /** Base64 encoding of a 256-bit SHA-256 digest is always 44 characters. */
+    private static final long SHA256_RAM_BYTES_USED = RamUsageEstimator.sizeOf(Base64.getEncoder().encodeToString(new byte[32]));
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
@@ -110,7 +116,7 @@ public final class CompressedXContent implements Writeable {
         BytesStreamOutput bStream = baos.get();
         try {
             OutputStream checkedStream = new DigestOutputStream(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream),
+                CompressorFactory.COMPRESSOR.threadLocalStreamOutput(bStream),
                 messageDigest
             );
             try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
@@ -135,7 +141,7 @@ public final class CompressedXContent implements Writeable {
      * that may already be compressed.
      */
     public CompressedXContent(BytesReference data) throws IOException {
-        Compressor compressor = CompressorFactory.compressor(data);
+        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(data);
         if (compressor != null) {
             // already compressed...
             this.bytes = BytesReference.toBytes(data);
@@ -148,7 +154,7 @@ public final class CompressedXContent implements Writeable {
     }
 
     private void assertConsistent() {
-        assert CompressorFactory.compressor(new BytesArray(bytes)) != null;
+        assert CompressorFactory.compressorForUnknownXContentType(new BytesArray(bytes)) != null;
         assert this.sha256.equals(sha256(uncompressed()));
         assert this.sha256.equals(sha256FromCompressed(bytes));
     }
@@ -201,28 +207,20 @@ public final class CompressedXContent implements Writeable {
         return sha256;
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bytes) + SHA256_RAM_BYTES_USED;
+    }
+
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
-        final String sha256;
-        final byte[] compressedData;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            sha256 = in.readString();
-            compressedData = in.readByteArray();
-        } else {
-            int crc32 = in.readInt();
-            compressedData = in.readByteArray();
-            sha256 = sha256FromCompressed(compressedData);
-        }
+        String sha256 = in.readString();
+        byte[] compressedData = in.readByteArray();
         return new CompressedXContent(compressedData, sha256);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeString(sha256);
-        } else {
-            int crc32 = crc32FromCompressed(bytes);
-            out.writeInt(crc32);
-        }
+        out.writeString(sha256);
         out.writeByteArray(bytes);
     }
 

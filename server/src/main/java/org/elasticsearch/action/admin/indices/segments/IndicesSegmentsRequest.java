@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +23,10 @@ import java.util.Map;
 
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
+    private static final TransportVersion SEGMENT_AUTO_CALIBRATION = TransportVersion.fromName("segment_auto_calibration");
+
     private boolean includeVectorFormatsInfo;
+    private boolean includeAutoCalibration;
 
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -31,11 +34,9 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readBoolean();   // old 'verbose' option, since removed
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.includeVectorFormatsInfo = in.readBoolean();
+        this.includeVectorFormatsInfo = in.readBoolean();
+        if (in.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            this.includeAutoCalibration = in.readBoolean();
         }
     }
 
@@ -49,6 +50,15 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         return this;
     }
 
+    public IndicesSegmentsRequest withAutoCalibration(boolean includeAutoCalibration) {
+        this.includeAutoCalibration = includeAutoCalibration;
+        return this;
+    }
+
+    public boolean isIncludeAutoCalibration() {
+        return includeAutoCalibration;
+    }
+
     public boolean isIncludeVectorFormatsInfo() {
         return includeVectorFormatsInfo;
     }
@@ -56,11 +66,9 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(includeVectorFormatsInfo);
+        out.writeBoolean(includeVectorFormatsInfo);
+        if (out.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            out.writeBoolean(includeAutoCalibration);
         }
     }
 

@@ -9,16 +9,36 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 
+import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
-import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
-import static org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
-import static org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder.RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_AUTO_PREFILTERING;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_BFLOAT16_SUPPORT;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
+import static org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
+import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE;
 
 /**
  * Provides inference features.
@@ -27,24 +47,162 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.bbq_and_similarity_support"
+    );
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.vector_similarity_support"
+    );
+    private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
+        "test_reranking_service.parse_text_as_score"
+    );
+    private static final NodeFeature TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS = new NodeFeature(
+        "test_rule_retriever.with_indices_that_dont_return_rank_docs"
+    );
+    private static final NodeFeature SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX = new NodeFeature(
+        "semantic_query_rewrite_interceptors.propagate_boost_and_query_name_fix"
+    );
+    private static final NodeFeature SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER = new NodeFeature("semantic_text.match_all_highlighter");
+    private static final NodeFeature COHERE_V2_API = new NodeFeature("inference.cohere.v2");
+    public static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTING_FLAT = new NodeFeature("semantic_text.highlighter.flat_index_options");
+    private static final NodeFeature SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT = new NodeFeature("semantic_text.fields_chunks_format");
+    private static final NodeFeature SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX = new NodeFeature("semantic.exists_query_auto_prefilter_fix");
+    private static final NodeFeature SEMANTIC_AUTO_PREFILTER_RECURSION_FIX = new NodeFeature("semantic.auto_prefilter_recursion_fix");
+
+    public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
+    public static final NodeFeature INFERENCE_CCM_CACHE = new NodeFeature("inference.ccm.cache");
+    public static final NodeFeature INFERENCE_OAUTH2_TOKEN_CACHE = new NodeFeature("inference.oauth2.token_cache");
+    public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = new NodeFeature(
+        "text_similarity_reranker_inference_id_chunking"
+    );
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING = new NodeFeature(
+        "text_similarity_reranker.comprehensive_top_n_handling"
+    );
+    public static final NodeFeature INFERENCE_AUTH_POLLER_PERSISTENT_TASK = new NodeFeature("inference.auth_poller.persistent_task");
+    public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
+
+    public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+    public static final NodeFeature DECISION_TASK_TYPE = new NodeFeature("inference.decision_task_type");
+    public static final NodeFeature DOCUMENT_EXTRACTION_TASK_TYPE = new NodeFeature("inference.document_extraction_task_type");
+    public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+
+    /**
+     * Test feature marking that this node stores only the {@code heuristics} + {@code internal} subset of
+     * {@link org.elasticsearch.inference.metadata.EndpointMetadata} in cluster state (gated on transport version
+     * {@code inference_endpoint_metadata_cluster_state_added} in
+     * {@link org.elasticsearch.inference.EndpointClusterState}).
+     * Nodes that do NOT publish this feature write the full {@code EndpointMetadata} layout (including {@code display},
+     * {@code regions}, and {@code denied_by_region_policy}) to cluster state.
+     * <p>
+     * Used by BWC rolling-upgrade tests to distinguish a self-upgrade task (where the "old" cluster is the same build)
+     * from a genuine old-cluster run, so that the old-cluster {@code display} assertion is not triggered when the old
+     * cluster never wrote {@code display} in the first place.
+     */
+    public static final NodeFeature ENDPOINT_METADATA_CLUSTER_STATE_SUBSET = new NodeFeature(
+        "inference.endpoint_metadata_cluster_state_subset"
+    );
+    public static final NodeFeature INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION = new NodeFeature(
+        "inference.internal_delete_endpoints_action"
+    );
+    public static final NodeFeature INFERENCE_ELASTIC_REASONING_TASK_SETTINGS = new NodeFeature(
+        "inference.elastic.reasoning_task_settings"
+    );
+    public static final NodeFeature SEMANTIC_TEXT_EMBEDDING_TASK = new NodeFeature("semantic_text.inference_using_embedding_task");
+    // Kept in getFeatures() for BWC: 9.5 nodes check clusterHasFeature(INFERENCE_INFERENCE_INDEX_DOC_TYPE) when the
+    // .inference index does not yet exist to decide whether to include doc_type in documents. Removing this from
+    // getFeatures() would cause 9.5 nodes in a mixed 9.5/9.6 cluster to see the feature absent and incorrectly
+    // omit doc_type. Safe to drop once the minimum supported version is past 9.5.
+    public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
+    public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
+    public static final NodeFeature INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED = new NodeFeature("inference.anthropic.completion_url_added");
+    // Test feature only: gates the YAML suite that sends a template instead of messages to a chat completion endpoint.
+    private static final NodeFeature INFERENCE_CHAT_COMPLETION_TEMPLATE = new NodeFeature("inference.chat_completion_template");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(
+            INFERENCE_ENDPOINT_CACHE,
+            INFERENCE_CCM_CACHE,
+            INFERENCE_OAUTH2_TOKEN_CACHE,
+            INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
+            INFERENCE_CCM_ENABLEMENT_SERVICE,
+            EMBEDDING_TASK_TYPE,
+            DECISION_TASK_TYPE,
+            DOCUMENT_EXTRACTION_TASK_TYPE,
+            ENDPOINT_METADATA_FIELD,
+            INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION,
+            INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
+            INFERENCE_INFERENCE_INDEX_DOC_TYPE,
+            INFERENCE_CLEAR_PREFERENCES_CACHE,
+            INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED
+        );
+    }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
-            SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
-            SEMANTIC_TEXT_HIGHLIGHTER,
-            SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
-            SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
-            SemanticInferenceMetadataFieldsMapper.EXPLICIT_NULL_FIXES,
-            SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
-            TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
-            SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
-            SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
-            SEMANTIC_KNN_FILTER_FIX
+        var testFeatures = new HashSet<>(
+            Set.of(
+                SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS,
+                SEMANTIC_TEXT_HIGHLIGHTER,
+                SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
+                SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
+                SemanticInferenceMetadataFieldsMapper.EXPLICIT_NULL_FIXES,
+                SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_MINSCORE_FIX,
+                SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
+                SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
+                SEMANTIC_KNN_FILTER_FIX,
+                TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_BIT_VECTOR_SUPPORT,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT,
+                TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS,
+                SEMANTIC_TEXT_SUPPORT_CHUNKING_CONFIG,
+                SEMANTIC_TEXT_MATCH_ALL_HIGHLIGHTER,
+                SEMANTIC_TEXT_EXCLUDE_SUB_FIELDS_FROM_FIELD_CAPS,
+                SEMANTIC_TEXT_INDEX_OPTIONS,
+                COHERE_V2_API,
+                SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS,
+                SEMANTIC_QUERY_REWRITE_INTERCEPTORS_PROPAGATE_BOOST_AND_QUERY_NAME_FIX,
+                SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
+                SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
+                SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
+                SEMANTIC_TEXT_UPDATABLE_INFERENCE_ID,
+                SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_AUTO_PREFILTERING,
+                SEMANTIC_TEXT_BFLOAT16_SUPPORT,
+                SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
+                SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
+                InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
+                SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_FILTERS_REWRITE_INTERCEPTION_SUPPORTED,
+                TEXT_SIMILARITY_RERANKER_SNIPPETS,
+                ModelStats.SEMANTIC_TEXT_USAGE,
+                SEARCH_USAGE_EXTENDED_DATA,
+                TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
+                RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
+                TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
+                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE,
+                SEMANTIC_TEXT_ELEMENT_TYPE_IN_INDEX_OPTIONS,
+                SEMANTIC_TEXT_PREVENT_LEGACY_FORMAT_NEW_INDICES,
+                SEMANTIC_TEXT_EMBEDDING_TASK,
+                SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
+                SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
+                ENDPOINT_METADATA_CLUSTER_STATE_SUBSET,
+                SEMANTIC_EXISTS_QUERY_AUTO_PREFILTER_FIX,
+                SEMANTIC_AUTO_PREFILTER_RECURSION_FIX,
+                INFERENCE_CHAT_COMPLETION_TEMPLATE
+            )
         );
+        testFeatures.addAll(getFeatures());
+        return testFeatures;
     }
 }

@@ -72,9 +72,10 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        IndexStateResolver indexStateResolver
+        IndexStateResolver indexStateResolver,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
-        super(threadPool, client, clusterService, indexStateResolver);
+        super(threadPool, client, clusterService, indexStateResolver, templateRegistry);
     }
 
     @Override
@@ -98,7 +99,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
     private void bumpVersion(ClusterState state, ProfilingIndex index, ActionListener<? super ActionResponse> listener) {
         if (index.getOnVersionBump() == OnVersionBump.DELETE_OLD) {
-            Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
+            Map<String, IndexMetadata> indicesMetadata = state.metadata().getProject().indices();
             List<String> priorIndexVersions = indicesMetadata.keySet()
                 .stream()
                 // ignore the current index and look only for old versions
@@ -131,7 +132,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
     }
 
     private void createIndex(final ClusterState state, final ProfilingIndex index, final ActionListener<? super ActionResponse> listener) {
-        if (state.metadata().hasAlias(index.getAlias())) {
+        if (state.metadata().getProject().hasAlias(index.getAlias())) {
             // there is an existing index from a prior version. Use the rollover API to move the write alias atomically. This has the
             // following implications:
             //
@@ -352,7 +353,7 @@ public class ProfilingIndexManager extends AbstractProfilingPersistenceManager<P
 
         @Override
         public IndexMetadata indexMetadata(ClusterState state) {
-            Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
+            Map<String, IndexMetadata> indicesMetadata = state.metadata().getProject().indices();
             if (indicesMetadata == null) {
                 return null;
             }

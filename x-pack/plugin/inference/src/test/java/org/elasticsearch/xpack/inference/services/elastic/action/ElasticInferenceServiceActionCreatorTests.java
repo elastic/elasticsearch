@@ -1,0 +1,1085 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.elastic.action;
+
+import org.apache.hc.core5.http.HttpHeaders;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockRequest;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicy;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DocumentExtractionResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentExtractionInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createApplierFactory;
+import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactoryTests.createNoopApplierFactory;
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
+
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String MODEL_ID = "my-model-id";
+    private static final String COMPLETION_INPUT = "hello world";
+    private static final String COMPLETION_CONTENT = "Hello there, how may I assist you today?";
+    private static final String COMPLETION_RESPONSE_JSON = Strings.format("""
+        {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1677652288,
+            "model": "%s",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "%s"
+                    },
+                    "finish_reason": "stop"
+                }
+            ]
+        }
+        """, MODEL_ID, COMPLETION_CONTENT);
+
+    private final MockWebServer webServer = new MockWebServer();
+    private ThreadPool threadPool;
+    private HttpClientManager clientManager;
+
+    @Before
+    public void init() throws Exception {
+        webServer.start();
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+        clientManager = HttpClientManager.create(
+            Settings.EMPTY,
+            threadPool,
+            mockClusterServiceEmpty(),
+            mock(ThrottlerManager.class),
+            new TestCircuitBreaker()
+        );
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        clientManager.close();
+        terminate(threadPool);
+        webServer.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForElserAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), false)
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model) {
+        return createAction(sender, model, createNoopApplierFactory());
+    }
+
+    private ExecutableAction createAction(Sender sender, ElasticInferenceServiceModel model, CCMAuthenticationApplierFactory factory) {
+        var cache = new InferencePreferencesCache(
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            mock(Client.class),
+            mockClusterService(),
+            featureService(true),
+            listener -> listener.onResponse(null)
+        );
+        var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), factory, cache);
+        var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
+        actionCreator.create(model, createTraceContext(), actionCreatorListener);
+
+        return actionCreatorListener.actionGet(TIMEOUT);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_SparseEmbedding_AddsAuthorizationHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), false)
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithAuth(webServer.requests(), secret);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_SparseEmbedding_AddsRegionPolicyHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var regionPolicy = new RegionPolicy(List.of("eu"), null);
+            var cache = new InferencePreferencesCache(
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                mock(Client.class),
+                mockClusterService(),
+                featureService(true),
+                listener -> listener.onResponse(regionPolicy)
+            );
+            var actionCreator = new ElasticInferenceServiceActionCreator(
+                sender,
+                createWithEmptySettings(threadPool),
+                createNoopApplierFactory(),
+                cache
+            );
+            var actionCreatorListener = new TestPlainActionFuture<ExecutableAction>();
+            actionCreator.create(model, createTraceContext(), actionCreatorListener);
+            var action = actionCreatorListener.actionGet(TIMEOUT);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+            listener.actionGet(TIMEOUT);
+
+            var request = assertSingleRequestSent(webServer.requests());
+            assertThat(request.getHeader(ElasticInferenceServiceRequest.X_ELASTIC_INFERENCE_ALLOWED_GEOS_HEADER), equalTo("eu"));
+        }
+    }
+
+    private static void assertHeadersWithAuth(List<MockRequest> requests, String secret) {
+        var request = assertSingleRequestSent(requests);
+        assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo(apiKey(secret)));
+    }
+
+    private static MockRequest assertSingleRequestSent(List<MockRequest> requests) {
+        assertThat(requests, hasSize(1));
+        var request = requests.get(0);
+        assertNull(request.getUri().getQuery());
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+        return request;
+    }
+
+    private static void assertHeadersWithoutAuth(List<MockRequest> requests) {
+        var request = assertSingleRequestSent(requests);
+        assertNull(request.getHeader(HttpHeaders.AUTHORIZATION));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSend_FailsFromInvalidResponseFormat_ForElserAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            // This will fail because the expected output is {"data": [{...}]}
+            String responseJson = """
+                {
+                    "data": {
+                        "hello": 2.1259406
+                    }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
+        }
+    }
+
+    /**
+     * A {@code completion} model must be routed to the non-streaming completion strategy, which parses the OpenAI-shaped body into
+     * {@link CompletionResults}. Routing it to the chat completion strategy instead
+     * silently produces the unified chat-completion shape.
+     */
+    public void testExecute_ReturnsSuccessfulResponse_ForCompletionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(COMPLETION_RESPONSE_JSON));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, false), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(CompletionResults.class));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of(COMPLETION_CONTENT))));
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.get("model"), is(MODEL_ID));
+            assertFalse((Boolean) requestMap.get("stream"));
+            assertNull(requestMap.get("stream_options"));
+        }
+    }
+
+    public void testExecute_ReturnsErrorResponse_ForCompletionAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody("""
+                {
+                    "error": "some error"
+                }
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, false), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+            // The completion task type must not surface the unified chat-completion error shape.
+            assertThat(thrownException, not(instanceOf(UnifiedChatCompletionException.class)));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Received a bad request status code for request from inference entity id [id] status [400]. "
+                        + "Error message: [some error]"
+                )
+            );
+        }
+    }
+
+    /**
+     * {@code completion} is a streaming-capable task type for EIS, so the completion handler must also parse an SSE body — into
+     * {@link org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults}, not the unified chat-completion chunks.
+     */
+    public void testExecute_ReturnsStreamingResponse_ForCompletionAction() throws Exception {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+                data: {\
+                    "id":"chatcmpl-123",\
+                    "object":"chat.completion.chunk",\
+                    "created":1677652288,\
+                    "model":"my-model-id",\
+                    "choices":[\
+                        {\
+                            "index":0,\
+                            "delta":{\
+                                "content":"hello, world"\
+                            },\
+                            "finish_reason":null\
+                        }\
+                    ]\
+                }
+
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, true), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(StreamingCompletionResults.class));
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+                {"completion":[{"delta":"hello, world"}]}""");
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertTrue((Boolean) requestMap.get("stream"));
+        }
+    }
+
+    /**
+     * The chat completion twin of {@link #testExecute_ReturnsErrorResponse_ForCompletionAction}, so the two strategies stay pinned
+     * against each other.
+     */
+    public void testExecute_ReturnsUnifiedErrorResponse_ForChatCompletionAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            webServer.enqueue(new MockResponse().setResponseCode(400).setBody("""
+                {
+                    "error": "some error"
+                }
+                """));
+
+            var model = ElasticInferenceServiceCompletionModelTests.createModel(getUrl(webServer), MODEL_ID, TaskType.CHAT_COMPLETION);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new UnifiedChatInput(List.of(COMPLETION_INPUT), USER_ROLE, true), null, listener);
+
+            var thrownException = expectThrows(UnifiedChatCompletionException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    "Received a bad request status code for request from inference entity id [id] status [400]. "
+                        + "Error message: [some error]"
+                )
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForRerankAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.94
+                        },
+                        {
+                            "index": 1,
+                            "relevance_score": 0.21
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var topN = 3;
+            var query = InferenceString.ofText("query");
+            var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.21f))
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+
+            assertThat(requestMap.size(), is(4));
+
+            assertThat(requestMap.get("documents"), instanceOf(List.class));
+            var requestDocuments = (List<Map<String, String>>) requestMap.get("documents");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestDocuments.get(i), equalTo(inferenceStringToMap(documents.get(i))));
+            }
+
+            assertThat(requestMap.get("top_n"), equalTo(topN));
+
+            assertThat(requestMap.get("query"), equalTo(inferenceStringToMap(query)));
+
+            assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDocumentExtractionAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "content": "# Annual Report 2025",
+                            "format": "markdown",
+                            "metadata": {"title": "Annual Report 2025"}
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var documents = List.of(
+                new InferenceString(DataType.PDF, DataFormat.BASE64, "data:application/pdf;base64," + randomAlphanumericOfLength(16))
+            );
+
+            var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(getUrl(webServer), modelId);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            action.execute(new DocumentExtractionInputs(documents), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    Map.of(
+                        DocumentExtractionResults.DOCUMENT_EXTRACTION,
+                        List.of(
+                            Map.of(
+                                "content",
+                                "# Annual Report 2025",
+                                "format",
+                                "markdown",
+                                "metadata",
+                                Map.of("title", "Annual Report 2025")
+                            )
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var request = webServer.requests().get(0);
+            assertThat(request.getUri().getPath(), is("/api/v1/document-extraction"));
+
+            var requestMap = entityAsMap(request.getBody());
+
+            assertThat(requestMap.size(), is(2));
+
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var requestInput = (List<Map<String, Object>>) requestMap.get("input");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestInput.get(i), equalTo(Map.of("content", inferenceStringToMap(documents.get(i)))));
+            }
+
+            assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForRerankAction_WithAuthHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "index": 0,
+                            "relevance_score": 0.94
+                        },
+                        {
+                            "index": 1,
+                            "relevance_score": 0.21
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = "my-model-id";
+            var topN = 3;
+            var query = InferenceString.ofText("query");
+            var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+
+            var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), modelId);
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            action.execute(new QueryAndDocsInputs(query, documents, null, topN, false), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.94f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.21f))
+                        )
+                    )
+                )
+            );
+
+            assertHeadersWithAuth(webServer.requests(), secret);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+
+            assertThat(requestMap.size(), is(4));
+
+            assertThat(requestMap.get("documents"), instanceOf(List.class));
+            var requestDocuments = (List<Map<String, String>>) requestMap.get("documents");
+            for (int i = 0; i < documents.size(); i++) {
+                assertThat(requestDocuments.get(i), equalTo(inferenceStringToMap(documents.get(i))));
+            }
+
+            assertThat(requestMap.get("top_n"), equalTo(topN));
+            assertThat(requestMap.get("query"), equalTo(inferenceStringToMap(query)));
+            assertThat(requestMap.get("model"), equalTo(modelId));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            2.1259406,
+                            1.7073475,
+                            0.9020516
+                        ],
+                        [
+                            1.8342123,
+                            2.3456789,
+                            0.7654321
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(2));
+
+            var firstEmbedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(firstEmbedding.values(), is(new float[] { 2.1259406f, 1.7073475f, 0.9020516f }));
+
+            var secondEmbedding = textEmbeddingResults.embeddings().get(1);
+            assertThat(secondEmbedding.values(), is(new float[] { 1.8342123f, 2.3456789f, 0.7654321f }));
+
+            assertHeadersWithoutAuth(webServer.requests());
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world", "second text"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_WithAuth() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            2.1259406,
+                            1.7073475,
+                            0.9020516
+                        ],
+                        [
+                            1.8342123,
+                            2.3456789,
+                            0.7654321
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
+            var secret = "secret-token";
+            var action = createAction(sender, model, createApplierFactory(secret));
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world", "second text"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(2));
+
+            var firstEmbedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(firstEmbedding.values(), is(new float[] { 2.1259406f, 1.7073475f, 0.9020516f }));
+
+            var secondEmbedding = textEmbeddingResults.embeddings().get(1);
+            assertThat(secondEmbedding.values(), is(new float[] { 1.8342123f, 2.3456789f, 0.7654321f }));
+
+            assertHeadersWithAuth(webServer.requests(), secret);
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world", "second text"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_WithUsageContext() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        [
+                            0.1234567,
+                            0.9876543
+                        ]
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("search query"), InputType.SEARCH), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(1));
+
+            var embedding = textEmbeddingResults.embeddings().get(0);
+            assertThat(embedding.values(), is(new float[] { 0.1234567f, 0.9876543f }));
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("search query"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+            assertThat(requestMap.get("usage_context"), is("search"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSend_FailsFromInvalidResponseFormat_ForDenseTextEmbeddingsAction() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = createSender(senderFactory)) {
+            // This will fail because the expected output is {"data": [[...]]}
+            String responseJson = """
+                {
+                    "data": {
+                        "embedding": [2.1259406, 1.7073475]
+                    }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-dense-model-id"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testExecute_ReturnsSuccessfulResponse_ForDenseTextEmbeddingsAction_EmptyEmbeddings() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": []
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new EmbeddingsInput(List.of(), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
+            var textEmbeddingResults = (DenseEmbeddingFloatResults) result;
+            assertThat(textEmbeddingResults.embeddings(), hasSize(0));
+
+            assertThat(webServer.requests(), hasSize(1));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.get("input"), instanceOf(List.class));
+            var inputList = (List<String>) requestMap.get("input");
+            assertThat(inputList, hasSize(0));
+        }
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJsonContentTooLarge = """
+                {
+                    "error": "Input validation error: `input` must have less than 512 tokens. Given: 571",
+                    "error_type": "Validation"
+                }
+                """;
+
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), true)
+                        )
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(2));
+            {
+                assertNull(webServer.requests().get(0).getUri().getQuery());
+                assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+                var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
+                var initialInputs = initialRequestAsMap.get("input");
+                assertThat(initialInputs, is(List.of("hello world")));
+            }
+            {
+                assertNull(webServer.requests().get(1).getUri().getQuery());
+                assertThat(webServer.requests().get(1).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+                var truncatedRequest = entityAsMap(webServer.requests().get(1).getBody());
+                var truncatedInputs = truncatedRequest.get("input");
+                assertThat(truncatedInputs, is(List.of("hello")));
+            }
+        }
+    }
+
+    public void testExecute_TruncatesInputBeforeSending() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = createSender(senderFactory)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // truncated to 1 token = 3 characters
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id", 1, null);
+            var action = createAction(sender, model);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(EmbeddingsInput.fromStrings(List.of("hello world"), InputType.UNSPECIFIED), null, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                is(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                        List.of(
+                            new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("hello", 2.1259406f, "greet", 1.7073475f), true)
+                        )
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
+
+            var initialRequestAsMap = entityAsMap(webServer.requests().get(0).getBody());
+            var initialInputs = initialRequestAsMap.get("input");
+            assertThat(initialInputs, is(List.of("hel")));
+        }
+    }
+
+    private TraceContext createTraceContext() {
+        return new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    private static ClusterService mockClusterService() {
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        return clusterService;
+    }
+
+    private static FeatureService featureService(boolean hasFeature) {
+        var featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(InferenceFeatures.INFERENCE_CLEAR_PREFERENCES_CACHE))).thenReturn(hasFeature);
+        return featureService;
+    }
+
+}

@@ -9,11 +9,9 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -55,9 +53,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readOptionalString();
-        }
         id = in.readString();
         path = in.readString();
         index = in.readString();
@@ -66,9 +61,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeString(path);
         out.writeString(index);

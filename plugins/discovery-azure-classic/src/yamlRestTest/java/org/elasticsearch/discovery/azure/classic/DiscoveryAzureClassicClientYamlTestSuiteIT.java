@@ -12,10 +12,15 @@ package org.elasticsearch.discovery.azure.classic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class DiscoveryAzureClassicClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().plugin("discovery-azure-classic").build();
 
     public DiscoveryAzureClassicClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -24,5 +29,10 @@ public class DiscoveryAzureClassicClientYamlTestSuiteIT extends ESClientYamlSuit
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

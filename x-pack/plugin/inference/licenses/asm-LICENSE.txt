@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASM - License</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <input id="nav-trigger" type="checkbox" hidden>
+<div class="header">
+  <label for="nav-trigger" class="nav-trigger">
+    <img src="burger-icon.svg" class="burger-icon">
+  </label>
+  <a href="index.html">
+    <img src="asm-logo.svg" class="asm-icon">
+  </a>
+  <span class="asm-title">ASM</span>
+  <a href="https://gitlab.ow2.org/asm/asm">
+    <img src="gitlab-logo.svg" class="gitlab-icon">
+  </a>
+</div>
+<label for="nav-trigger" class="nav-overlay"></label>
+<nav>
+  <ul>
+    <li><a href="index.html">Home</a></li>
+    <li>
+      <a href="documentation.html">Documentation</a>
+      <ul>
+        <li><a href="asm4-guide.pdf">User guide</a></li>
+        <li><a href="javadoc/overview-summary.html">Javadoc</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+        <li><a href="developer-guide.html">Developer guide</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="about.html">About</a>
+      <ul>
+        <li><a href="license.html">License</a></li>
+        <li><a href="publications.html">Publications</a></li>
+        <li><a href="versions.html">Versions</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+
+  <div class="page-content">
+    <h1>License</h1>
+    <p>ASM is released under the following 3-Clause BSD License:</p>
+    <pre>ASM: a very small and fast Java bytecode manipulation framework
+Copyright (c) 2000-2011 INRIA, France Telecom
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+3. Neither the name of the copyright holders nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+</pre>
+  </div>
+</body>
+</html>

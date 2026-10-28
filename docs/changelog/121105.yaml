@@ -1,5 +1,0 @@
-pr: 121105
-summary: Mark bbq indices as GA and add rolling upgrade integration tests
-area: Vector Search
-type: feature
-issues: []

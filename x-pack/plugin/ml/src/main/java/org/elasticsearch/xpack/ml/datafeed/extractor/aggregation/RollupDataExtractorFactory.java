@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -54,6 +54,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
     private final Job job;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+    private final DatafeedSearchTelemetry searchTelemetry;
 
     private RollupDataExtractorFactory(
         Client client,
@@ -61,7 +62,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter
+        DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
@@ -69,10 +71,11 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         this.job = Objects.requireNonNull(job);
         this.xContentRegistry = xContentRegistry;
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.searchTelemetry = Objects.requireNonNull(searchTelemetry);
     }
 
-    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices, IndicesOptions indicesOptions) {
-        return (searchSourceBuilder) -> {
+    public static AggregatedSearchRequestBuilder requestBuilder(Client client, String[] indices) {
+        return (searchSourceBuilder, indicesOptions) -> {
             SearchRequest searchRequest = new SearchRequest().indices(indices)
                 .indicesOptions(indicesOptions)
                 .allowPartialSearchResults(false)
@@ -100,9 +103,10 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
-        return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter);
+        return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter, searchTelemetry);
     }
 
     public static void create(
@@ -113,6 +117,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         Map<String, RollableIndexCaps> rollupJobsWithCaps,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
+        DatafeedSearchTelemetry searchTelemetry,
         ActionListener<DataExtractorFactory> listener
     ) {
 
@@ -166,7 +171,9 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             return;
         }
 
-        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter));
+        listener.onResponse(
+            new RollupDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter, searchTelemetry)
+        );
     }
 
     private static boolean validInterval(long datafeedInterval, ParsedRollupCaps rollupJobGroupConfig) {

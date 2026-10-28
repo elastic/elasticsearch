@@ -15,20 +15,35 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class StdDevDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
+  private final boolean stdDev;
 
-  public StdDevDoubleAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  private final boolean allowNonFinite;
+
+  public StdDevDoubleAggregatorFunctionSupplier(boolean stdDev, boolean allowNonFinite) {
+    this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
   }
 
   @Override
-  public StdDevDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return StdDevDoubleAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return StdDevDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public StdDevDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return StdDevDoubleGroupingAggregatorFunction.create(channels, driverContext);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return StdDevDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public StdDevDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, stdDev, allowNonFinite);
+  }
+
+  @Override
+  public StdDevDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new StdDevDoubleGroupingAggregatorFunction(channels, driverContext, stdDev, allowNonFinite);
   }
 
   @Override

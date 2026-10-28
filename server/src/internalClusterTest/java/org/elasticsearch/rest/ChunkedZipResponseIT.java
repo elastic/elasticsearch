@@ -26,17 +26,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
@@ -117,13 +111,7 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
 
         @Override
         public Collection<RestHandler> getRestHandlers(
-            Settings settings,
-            NamedWriteableRegistry namedWriteableRegistry,
-            RestController restController,
-            ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings,
-            SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver,
+            RestHandlersServices restHandlersServices,
             Supplier<DiscoveryNodes> nodesInCluster,
             Predicate<NodeFeature> clusterSupportsFeature
         ) {
@@ -136,10 +124,14 @@ public class ChunkedZipResponseIT extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     final var response = new Response(new HashMap<>(), new CountDownLatch(1));
-                    final var maxSize = between(1, ByteSizeUnit.MB.toIntBytes(1));
-                    final var entryCount = between(0, ByteSizeUnit.MB.toIntBytes(10) / maxSize); // limit total size to 10MiB
+
+                    // To avoid exhausting the heap, we cap the total size of the response as well as the max number of entries
+                    final int maxResponseBytes = ByteSizeUnit.MB.toIntBytes(10);
+                    final int maxEntries = 1_000;
+                    final var maxSizeOfEachEntry = between(1, ByteSizeUnit.MB.toIntBytes(1));
+                    final var entryCount = between(0, Math.min(maxEntries, maxResponseBytes / maxSizeOfEachEntry));
                     for (int i = 0; i < entryCount; i++) {
-                        response.entries().put(randomIdentifier(), randomContent(between(1, 10), maxSize));
+                        response.entries().put(randomIdentifier(), randomContent(between(1, 10), maxSizeOfEachEntry));
                     }
                     assertTrue(responseRef.compareAndSet(null, response));
                     handleZipRestRequest(

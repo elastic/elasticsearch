@@ -49,6 +49,11 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     private static final Logger logger = LogManager.getLogger(AbstractJobPersistentTasksExecutor.class);
 
+    @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
     public static List<String> verifyIndicesPrimaryShardsAreActive(
         ClusterState clusterState,
         IndexNameExpressionResolver expressionResolver,
@@ -60,7 +65,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().getProject().hasIndex(index) == false) {
                 if (allowMissing == false) {
                     unavailableIndices.add(index);
                 }

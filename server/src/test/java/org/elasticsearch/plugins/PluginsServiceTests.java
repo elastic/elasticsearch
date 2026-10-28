@@ -11,7 +11,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.spi.BarPlugin;
 import org.elasticsearch.plugins.spi.BarTestService;
 import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -37,7 +36,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -70,7 +68,7 @@ public class PluginsServiceTests extends ESTestCase {
             null,
             PluginsLoader.createPluginsLoader(
                 Set.of(),
-                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
                 Map.of(),
                 false
             )
@@ -151,7 +149,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -281,7 +279,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "extended.plugins",
@@ -302,7 +300,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -361,7 +359,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -380,7 +378,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -410,7 +408,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -439,7 +437,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",
@@ -468,7 +466,22 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
+                    ),
                     extensiblePlugin,
                     null
                 )
@@ -483,7 +496,22 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
+                    new PluginDescriptor(
+                        "extensible",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of(),
+                        false,
+                        false,
+                        false,
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
+                    ),
                     extensiblePlugin,
                     null
                 ),
@@ -500,7 +528,9 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        false
+                        false,
+                        PluginDescriptor.DeploymentTarget.ALL,
+                        List.of()
                     ),
                     testPlugin,
                     null
@@ -672,9 +702,11 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testLoadServiceProviders() throws Exception {
-        URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
-        URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
-        try {
+
+        try (
+            URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+            URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string")
+        ) {
             @SuppressWarnings("unchecked")
             Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
             @SuppressWarnings("unchecked")
@@ -700,9 +732,6 @@ public class PluginsServiceTests extends ESTestCase {
             providers = service.loadServiceProviders(TestService.class);
 
             assertEquals(0, providers.size());
-        } finally {
-            PrivilegedOperations.closeURLClassLoader(fakeClassLoader);
-            PrivilegedOperations.closeURLClassLoader(fakeClassLoader1);
         }
     }
 
@@ -787,7 +816,7 @@ public class PluginsServiceTests extends ESTestCase {
 
         var pluginService = newPluginsService(settings);
         try {
-            assertCriticalWarnings("""
+            assertWarnings("""
                 Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method getShardsAllocators from \
                 plugin interface ClusterPlugin. This method will be removed in a future release.""");
         } finally {
@@ -810,7 +839,7 @@ public class PluginsServiceTests extends ESTestCase {
             "version",
             "1.0.0",
             "elasticsearch.version",
-            Version.CURRENT.toString(),
+            Build.current().version(),
             "java.version",
             System.getProperty("java.specification.version")
         );
@@ -872,34 +901,19 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public void testCanCreateAClassLoader() {
-        assertEquals(
-            "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
-            expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()
-        );
-        var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
-        assertEquals(this.getClass().getClassLoader(), loader.getParent());
-    }
-
-    static final class Loader extends ClassLoader {
-        Loader(ClassLoader parent) {
-            super(parent);
-        }
-    }
-
     // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
     // We can use the direct ClassLoader from the plugin because tests do not use any parent SPI ClassLoaders.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
             if (lp.classLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                    urlClassLoader.close();
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             } else if (lp.classLoader() instanceof UberModuleClassLoader loader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                    loader.getInternalLoader().close();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

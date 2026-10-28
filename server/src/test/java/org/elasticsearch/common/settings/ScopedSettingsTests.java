@@ -14,12 +14,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.transport.TransportSettings;
 import org.mockito.Mockito;
 
@@ -42,12 +44,14 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // Entitlement logging interferes
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testResetSetting() {
@@ -333,6 +337,20 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(e3.getMessage(), equalTo("too long"));
     }
 
+    public void testValidateArchivedSetting() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("archived.index.store.type", "boom").build(), false)
+        );
+        assertThat(
+            e.getMessage(),
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings")
+            )
+        );
+    }
+
     public void testTupleAffixUpdateConsumer() {
         String prefix = randomAlphaOfLength(3) + "foo.";
         String intSuffix = randomAlphaOfLength(3);
@@ -465,8 +483,14 @@ public class ScopedSettingsTests extends ESTestCase {
         String group2 = randomAlphaOfLength(4);
         String group3 = randomAlphaOfLength(5);
         BiConsumer<String, Settings> listConsumer = results::put;
+        BiConsumer<String, Settings> validator = (group, settings) -> {
+            var val = intSetting.getConcreteSettingForNamespace(group).get(settings);
+            if (val > 10) {
+                throw new IllegalArgumentException("int too large");
+            }
+        };
 
-        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer);
+        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer, validator);
         assertEquals(0, results.size());
         service.applySettings(
             Settings.builder()
@@ -539,6 +563,21 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(Arrays.asList(16, 17), listSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings));
         assertEquals(1, results.size());
         assertEquals(2, groupOneSettings.size());
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.applySettings(
+                Settings.builder()
+                    .put(intBuilder.apply(group1), 2)
+                    .put(intBuilder.apply(group2), 11) // fails validation
+                    .putList(listBuilder.apply(group1), "16", "17")
+                    .putList(listBuilder.apply(group3), "5", "6")
+                    .build()
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("int too large"));
+
         results.clear();
     }
 
@@ -1245,8 +1284,21 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
             settings.applySettings(Settings.builder().build());
             assertEquals(property, LogManager.getRootLogger().getLevel());
+            // Resetting root also descends into org.elasticsearch.deprecation (set to TRACE by the
+            // previous call). When property allows WARN-level logging to pass through, a second
+            // deprecation warning fires and must be consumed here.
+            if (property != Level.TRACE && property.intLevel() >= Level.WARN.intLevel()) {
+                assertWarnings(
+                    "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                        + " This behavior is deprecated and will change in a future major version."
+                );
+            }
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
@@ -1255,6 +1307,51 @@ public class ScopedSettingsTests extends ESTestCase {
             Loggers.setLevel(LogManager.getRootLogger(), level);
             Loggers.setLevel(LogManager.getLogger("test"), testLevel);
         }
+    }
+
+    /**
+     * Verifies that a deprecation warning is emitted when a dynamic cluster settings update sets a parent logger and
+     * would override an explicitly-configured child logger. The programmatic {@code Loggers.setLevel} path (used at
+     * startup and in tests) must not emit any warnings — only the API path inside {@code LoggingSettingUpdater} does.
+     */
+    public void testLoggingUpdatesWarnOnChildLoggerOverride() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+            // Set up an explicit Log4j level on the child directly (not via the cluster settings API) to
+            // simulate a child configured in log4j2.properties or by a prior API call that is not part
+            // of the same settings batch. Using applySettings for the child would include the child key in
+            // the diff of the next applySettings call, where it would be processed as a removal (null)
+            // before the parent key is processed, wiping the LoggerConfig before the descent loop runs.
+            Loggers.setLevel(LogManager.getLogger("test.deprecation.parent.child"), Level.TRACE);
+            assertEquals(Level.TRACE, LogManager.getLogger("test.deprecation.parent.child").getLevel());
+
+            // Setting the parent via the cluster settings API should override the child and emit a deprecation warning.
+            settings.applySettings(Settings.builder().put("logger.test.deprecation.parent", "INFO").build());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
+        });
+    }
+
+    /**
+     * Verifies that no deprecation warning is emitted when a parent logger is set and no child logger has an
+     * explicitly-configured level (the common, unaffected case).
+     */
+    public void testLoggingUpdatesNoWarnWithoutChildLoggerOverride() {
+        TestLoggers.runWithLoggersRestored(() -> {
+            final Level parentOriginal = LogManager.getLogger("test.nodeprecation").getLevel();
+            try {
+                ClusterSettings settings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+                // Set a parent logger that has no explicitly-configured children — no deprecation warning expected.
+                settings.applySettings(Settings.builder().put("logger.test.nodeprecation", "DEBUG").build());
+                assertEquals(Level.DEBUG, LogManager.getLogger("test.nodeprecation").getLevel());
+                assertWarnings(); // no warnings
+            } finally {
+                Loggers.setLevel(LogManager.getLogger("test.nodeprecation"), parentOriginal);
+            }
+        });
     }
 
     public void testFallbackToLoggerLevel() {
@@ -1267,6 +1364,10 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
             assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
+            assertWarnings(
+                "A settings update to logger levels overrides child loggers with explicitly configured levels."
+                    + " This behavior is deprecated and will change in a future major version."
+            );
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
             assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {

@@ -12,14 +12,18 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   compileOnly project(':libs:entitlement')
   compileOnly project(':libs:core')
-  implementation 'org.ow2.asm:asm:9.7.1'
+  compileOnly project(':libs:logging')
+  compileOnly project(':libs:entitlement:bridge')
+  implementation 'org.ow2.asm:asm:9.10.1'
+  implementation 'org.ow2.asm:asm-util:9.10.1'
+  implementation 'org.ow2.asm:asm-tree:9.10.1'
+  implementation 'org.ow2.asm:asm-analysis:9.10.1'
   testImplementation project(":test:framework")
   testImplementation project(":libs:entitlement:bridge")
-  testImplementation 'org.ow2.asm:asm-util:9.7.1'
 }
 
-tasks.named('test').configure {
-  systemProperty "tests.security.manager", "false"
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
 }
 
 tasks.named('forbiddenApisMain').configure {

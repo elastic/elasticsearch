@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -21,32 +26,45 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
-public class ToLower extends ChangeCase {
+public class ToLower extends ChangeCase implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLower", ToLower::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLower.class).unaryConfig(ToLower::new).name("to_lower");
+    private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
+        "esql_serialize_source_functions_warnings"
+    );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "keyword" },
+        briefSummary = "Returns a new string converted to lower case.",
         description = "Returns a new string representing the input string converted to lower case.",
-        examples = @Example(file = "string", tag = "to_lower")
+        examples = {
+            @Example(file = "string", tag = "to_lower"),
+            @Example(file = "string", tag = "to_lower_mv", applies_to = "stack: ga 9.1.0") }
     )
-    public ToLower(
-        Source source,
-        @Param(
-            name = "str",
-            type = { "keyword", "text" },
-            description = "String expression. If `null`, the function returns `null`."
-        ) Expression field,
-        Configuration configuration
-    ) {
+
+    public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+        String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
+        or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.
+        """) Expression field, Configuration configuration) {
         super(source, field, configuration, Case.LOWER);
     }
 
     private ToLower(StreamInput in) throws IOException {
-        this(Source.EMPTY, in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
+        this(
+            in.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+                ? Source.readFrom((PlanStreamInput) in)
+                : Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+            source().writeTo(out);
+        }
         out.writeNamedWriteable(field());
     }
 

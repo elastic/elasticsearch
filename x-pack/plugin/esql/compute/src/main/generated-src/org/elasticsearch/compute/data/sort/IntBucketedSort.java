@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.sort;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.IntArray;
@@ -20,11 +21,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.util.Arrays;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
- * Aggregates the top N int values per bucket.
+ * Aggregates the top N {@code int} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
@@ -93,9 +94,10 @@ public class IntBucketedSort implements Releasable {
     public void collect(int value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
-            if (betterThan(value, values.get(rootIndex))) {
+            int rootValue = values.get(rootIndex);
+            if (betterThan(value, rootValue)) {
                 values.set(rootIndex, value);
-                downHeap(rootIndex, 0);
+                downHeap(rootIndex, 0, bucketSize);
             }
             return;
         }
@@ -111,7 +113,7 @@ public class IntBucketedSort implements Releasable {
         values.set(index, value);
         if (next == 0) {
             heapMode.set(bucket);
-            heapify(rootIndex);
+            heapify(rootIndex, bucketSize);
         } else {
             setNextGatherOffset(rootIndex, next - 1);
         }
@@ -154,7 +156,8 @@ public class IntBucketedSort implements Releasable {
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
         for (long i = otherBounds.v1(); i < otherBounds.v2(); i++) {
-            collect(other.values.get(i), groupId);
+            int otherValue = other.values.get(i);
+            collect(otherValue, groupId);
         }
     }
 
@@ -163,23 +166,16 @@ public class IntBucketedSort implements Releasable {
      */
     public Block toBlock(BlockFactory blockFactory, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
-        if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
-            var bounds = this.getBucketValuesIndexes(bucket);
-            var size = bounds.v2() - bounds.v1();
-
-            return size > 0;
-        })) {
+        if (allSelectedGroupsAreEmpty(selected)) {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
-
-        // Used to sort the values in the bucket.
-        var bucketValues = new int[bucketSize];
 
         try (var builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
                 var bounds = getBucketValuesIndexes(bucket);
+                var rootIndex = bounds.v1();
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
@@ -188,31 +184,35 @@ public class IntBucketedSort implements Releasable {
                 }
 
                 if (size == 1) {
-                    builder.appendInt(values.get(bounds.v1()));
+                    builder.appendInt(values.get(rootIndex));
                     continue;
                 }
 
-                for (int i = 0; i < size; i++) {
-                    bucketValues[i] = values.get(bounds.v1() + i);
+                // If we are in the gathering mode, we need to heapify before sorting.
+                if (inHeapMode(bucket) == false) {
+                    heapify(rootIndex, (int) size);
                 }
-
-                // TODO: Make use of heap structures to faster iterate in order instead of copying and sorting
-                Arrays.sort(bucketValues, 0, (int) size);
+                heapSort(rootIndex, (int) size);
 
                 builder.beginPositionEntry();
-                if (order == SortOrder.ASC) {
-                    for (int i = 0; i < size; i++) {
-                        builder.appendInt(bucketValues[i]);
-                    }
-                } else {
-                    for (int i = (int) size - 1; i >= 0; i--) {
-                        builder.appendInt(bucketValues[i]);
-                    }
+                for (int i = 0; i < size; i++) {
+                    builder.appendInt(values.get(rootIndex + i));
                 }
                 builder.endPositionEntry();
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Checks if the selected groups are all empty.
+     */
+    private boolean allSelectedGroupsAreEmpty(IntVector selected) {
+        return IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
+            var bounds = this.getBucketValuesIndexes(bucket);
+            var size = bounds.v2() - bounds.v1();
+            return size > 0;
+        });
     }
 
     /**
@@ -244,7 +244,8 @@ public class IntBucketedSort implements Releasable {
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
     private boolean betterThan(int lhs, int rhs) {
-        return getOrder().reverseMul() * Integer.compare(lhs, rhs) < 0;
+        int res = Integer.compare(lhs, rhs);
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**
@@ -265,7 +266,9 @@ public class IntBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.INT_PAGE_SIZE, Integer.BYTES);
+        int pageSize = PageCacheRecycler.INT_PAGE_SIZE;
+        int bytesPerElement = Integer.BYTES;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, pageSize, bytesPerElement);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);
@@ -305,10 +308,28 @@ public class IntBucketedSort implements Releasable {
      * </ul>
      * @param rootIndex the index the start of the bucket
      */
-    private void heapify(long rootIndex) {
-        int maxParent = bucketSize / 2 - 1;
+    private void heapify(long rootIndex, int heapSize) {
+        int maxParent = heapSize / 2 - 1;
         for (int parent = maxParent; parent >= 0; parent--) {
-            downHeap(rootIndex, parent);
+            downHeap(rootIndex, parent, heapSize);
+        }
+    }
+
+    /**
+     * Sorts all the values in the heap using heap sort algorithm.
+     * This runs in {@code O(n log n)} time.
+     * @param rootIndex index of the start of the bucket
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
+     */
+    private void heapSort(long rootIndex, int heapSize) {
+        while (heapSize > 0) {
+            swap(rootIndex, rootIndex + heapSize - 1);
+            heapSize--;
+            downHeap(rootIndex, 0, heapSize);
         }
     }
 
@@ -318,24 +339,35 @@ public class IntBucketedSort implements Releasable {
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
+     * @param heapSize Number of values that belong to the heap.
+     *                 Can be less than bucketSize.
+     *                 In such a case, the remaining values in range
+     *                 (rootIndex + heapSize, rootIndex + bucketSize)
+     *                 are *not* considered part of the heap.
      */
-    private void downHeap(long rootIndex, int parent) {
+    private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
-            if (leftChild < bucketSize) {
-                if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
+            if (leftChild < heapSize) {
+                int worstValue = values.get(worstIndex);
+                int leftValue = values.get(leftIndex);
+                if (betterThan(worstValue, leftValue)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < bucketSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
-                    worst = rightChild;
-                    worstIndex = rightIndex;
+                if (rightChild < heapSize) {
+                    worstValue = values.get(worstIndex);
+                    int rightValue = values.get(rightIndex);
+                    if (betterThan(worstValue, rightValue)) {
+                        worst = rightChild;
+                        worstIndex = rightIndex;
+                    }
                 }
             }
             if (worst == parent) {

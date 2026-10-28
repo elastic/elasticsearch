@@ -10,19 +10,28 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * A driver-local context that is shared across operators.
@@ -47,8 +56,23 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DriverContext {
 
+    private static final Logger logger = LogManager.getLogger(DriverContext.class);
+
     // Working set. Only the thread executing the driver will update this set.
     Set<Releasable> workingSet = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /**
+     * {@link Warnings} accumulated during the driver run and snapshotted at {@link #finish()}
+     * into {@link #warningsSnapshot}.
+     */
+    private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
+
+    /**
+     * Immutable copy of warnings, copied at {@link #finish()}. This mostly exists out
+     * of paranoia to make sure we don't mutate the list of warnings after we've finished
+     * the driver.
+     */
+    private volatile List<String> warningsSnapshot;
 
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
@@ -60,26 +84,66 @@ public class DriverContext {
 
     private final WarningsMode warningsMode;
 
+    private final @Nullable String driverDescription;
+
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+
     private Runnable earlyTerminationChecker = () -> {};
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, WarningsMode.COLLECT);
+    /**
+     * Hooks fired when the controlling task asks this driver to wind down cleanly while keeping
+     * already-buffered work. Each hook should return {@code true} only when it actually
+     * transitioned a source operator from "still accepting input" to "drain and stop" — that signal
+     * propagates back through {@link Driver#runStopHooks()} and ultimately gates {@code is_partial}
+     * on the response, so hooks that are no-ops at call time (e.g. already-finished buffers) must
+     * report {@code false}. {@link CopyOnWriteArrayList} keeps registration cheap during operator
+     * construction and tolerates late additions interleaved with concurrent {@link #runStopHooks()}.
+     */
+    private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
+
+    /** Thread CPU time this driver used on any thread: in {@link Driver#run} and in {@link #meteredCpu(CheckedSupplier)}. */
+    private final CpuTracker cpuTracker;
+
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, WarningsMode warningsMode) {
+    public DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        String description
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
+    }
+
+    DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, warningsMode, new CpuTracker());
+    }
+
+    /** Visible for testing, so tests can measure with a {@link CpuTracker} that reads a fake CPU clock. */
+    DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode,
+        CpuTracker cpuTracker
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
+        this.driverDescription = description;
         this.warningsMode = warningsMode;
-    }
-
-    public static DriverContext getLocalDriver() {
-        return new DriverContext(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            // TODO maybe this should have a small fixed limit?
-            new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-        );
+        this.cpuTracker = Objects.requireNonNull(cpuTracker);
     }
 
     public BigArrays bigArrays() {
@@ -93,8 +157,34 @@ public class DriverContext {
         return blockFactory.breaker();
     }
 
+    public LocalCircuitBreaker.SizeSettings localBreakerSettings() {
+        return localBreakerSettings;
+    }
+
     public BlockFactory blockFactory() {
         return blockFactory;
+    }
+
+    public BlockFactory createChildBlockFactory() {
+        BlockFactory parent = blockFactory.parent();
+        final var childBreaker = new LocalCircuitBreaker(
+            parent.breaker(),
+            localBreakerSettings.overReservedBytes(),
+            localBreakerSettings.maxOverReservedBytes()
+        );
+        return parent.newChildFactory(childBreaker);
+    }
+
+    public void releaseChildBlockFactory(BlockFactory childFactory) {
+        if (childFactory.breaker() instanceof LocalCircuitBreaker local) {
+            local.close();
+        }
+    }
+
+    /** See {@link Driver#shortDescription}. */
+    @Nullable
+    public String driverDescription() {
+        return driverDescription;
     }
 
     /** A snapshot of the driver context. */
@@ -156,7 +246,30 @@ public class DriverContext {
             releasableSet.add(r);
             itr.remove();
         }
+        synchronized (warnings) {
+            warningsSnapshot = List.copyOf(warnings);
+        }
         snapshot.compareAndSet(null, new Snapshot(releasableSet));
+    }
+
+    /**
+     * Adds a fully-formatted warning string to this context's per-driver sink.
+     * Called mostly single-threaded from the driver loop, but also called by async
+     * operators from other threads.
+     * @return {@code true} if the warning was not already in the sink
+     */
+    public boolean addWarning(String warning) {
+        assert warningsSnapshot == null;
+        return warnings.add(warning);
+    }
+
+    /**
+     * Returns the snapshot of warnings accumulated during the driver run. Must only be called after the context
+     * has been {@link #finish() finished}.
+     */
+    public List<String> warnings() {
+        ensureFinished();
+        return warningsSnapshot;
     }
 
     private void ensureFinished() {
@@ -173,8 +286,57 @@ public class DriverContext {
         asyncActions.addInstance();
     }
 
+    /**
+     * Removing the last async action can let the driver publish its final status, so this first adds what the calling
+     * thread's open {@link #meteredCpu(CheckedSupplier)} measurement has used so far.
+     */
     public void removeAsyncAction() {
+        cpuTracker.checkpoint();
         asyncActions.removeInstance();
+    }
+
+    /**
+     * Returns true if there are pending async actions registered via {@link #addAsyncAction()}.
+     */
+    public boolean hasPendingAsyncActions() {
+        return asyncActions.instances.get() > 1;
+    }
+
+    /**
+     * Runs {@code work} on the current thread and adds the thread CPU time it uses to {@link #cpuNanos()}, which the
+     * driver reports as {@link DriverStatus#cpuNanos()} at its next status update. For work an operator runs on a thread
+     * other than the driver's, such as a background worker.
+     * <p>
+     * Hand off to another thread that can let the driver finish only after {@code work} returns. The driver publishes
+     * its final status once the async actions are done, and CPU time added after that is not counted. Removing an async
+     * action inside {@code work} is safe, see {@link #removeAsyncAction()}.
+     * <p>
+     * Measures nothing when the current thread's innermost open measurement already belongs to this driver, such as
+     * inside {@link Driver#run}. Otherwise pauses the innermost open measurement, such as another driver's, until
+     * {@code work} returns. See {@link CpuTracker}.
+     */
+    public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
+        return cpuTracker.meteredCpu(work);
+    }
+
+    /** {@link #meteredCpu(CheckedSupplier)} for work that returns nothing. */
+    public <E extends Exception> void meteredCpu(CheckedRunnable<E> work) throws E {
+        meteredCpu(() -> {
+            work.run();
+            return null;
+        });
+    }
+
+    /**
+     * Thread CPU time this driver has used on any thread, counting each measurement up to when it was closed or last
+     * {@link CpuTracker#checkpoint() checkpointed}. {@link Driver} reports it as {@link DriverStatus#cpuNanos()}.
+     */
+    public long cpuNanos() {
+        return cpuTracker.cpuNanos();
+    }
+
+    CpuTracker cpuTracker() {
+        return cpuTracker;
     }
 
     /**
@@ -193,6 +355,39 @@ public class DriverContext {
     }
 
     /**
+     * Registers a stop hook to be fired when the controlling task requests a clean wind-down of
+     * this driver (e.g. async STOP). Used by source operators that hold a buffer between the
+     * producer thread and the driver loop — registering a hook that closes the buffer's input side
+     * lets STOP cut off the producer without discarding pages already accepted into the buffer.
+     * Idempotent: the same hook may be registered multiple times and {@link #runStopHooks()} will
+     * fire each registration.
+     */
+    public void addStopHook(BooleanSupplier hook) {
+        stopHooks.add(hook);
+    }
+
+    /**
+     * Fires all registered stop hooks. Returns {@code true} if at least one hook reported that it
+     * cut a still-running unit of work. See {@link #addStopHook(BooleanSupplier)} for the contract
+     * each hook must honor.
+     */
+    public boolean runStopHooks() {
+        boolean anyCut = false;
+        for (BooleanSupplier hook : stopHooks) {
+            try {
+                anyCut |= hook.getAsBoolean();
+            } catch (Exception e) {
+                // Hooks are best-effort signals; a faulty hook must not break the STOP response path
+                // or stop the rest of the chain from firing. The only consequence of swallowing here
+                // is a slightly weaker partial-marking signal — never lost results. Log at debug so a
+                // misbehaving hook is diagnosable in a support bundle rather than silently invisible.
+                logger.debug("stop hook threw during runStopHooks; skipping hook", e);
+            }
+        }
+        return anyCut;
+    }
+
+    /**
      * Evaluators should use this function to decide their warning behavior.
      * @return an appropriate {@link WarningsMode}
      */
@@ -201,11 +396,58 @@ public class DriverContext {
     }
 
     /**
+     * Create a new {@link Warnings} collector using this context's {@link #warningsMode()}. Registered warnings
+     * are written into this context's per-driver sink (see {@link #addWarning(String)}).
+     * @see Warnings#createWarnings(DriverContext, WarningSourceLocation)
+     */
+    public Warnings createWarnings(WarningSourceLocation source) {
+        return Warnings.createWarnings(this, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that it treats the result as {@code false}.
+     * @see Warnings#createWarningsTreatedAsFalse(DriverContext, WarningSourceLocation)
+     */
+    public Warnings createWarningsTreatedAsFalse(WarningSourceLocation source) {
+        return Warnings.createWarningsTreatedAsFalse(this, source);
+    }
+
+    /**
+     * Create a new {@link Warnings} collector, using this context's {@link #warningsMode()}, that warns
+     * that evaluation resulted in warnings.
+     * @see Warnings#createOnlyWarnings(DriverContext, WarningSourceLocation)
+     */
+    public Warnings createOnlyWarnings(WarningSourceLocation source) {
+        return Warnings.createOnlyWarnings(this, source);
+    }
+
+    /**
      * Indicates the behavior Evaluators of this context should use for reporting warnings
      */
     public enum WarningsMode {
         COLLECT,
         IGNORE
+    }
+
+    /**
+     * Marks the beginning of a run loop for assertion purposes.
+     */
+    public boolean assertBeginRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertBeginRunLoop();
+        }
+        return true;
+    }
+
+    /**
+     * Marks the end of a run loop for assertion purposes.
+     */
+    public boolean assertEndRunLoop() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            assert localBreaker.assertEndRunLoop();
+        }
+        return true;
     }
 
     private static class AsyncActions {

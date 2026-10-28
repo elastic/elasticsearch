@@ -16,16 +16,21 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -43,8 +48,8 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 /**
@@ -64,6 +69,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -72,6 +78,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             ExplainRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
@@ -87,7 +94,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            getProjectState().metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis
@@ -98,9 +105,25 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             super.doExecute(task, request, l);
         });
 
+        // Set cluster alias to null because this request targets a single shard and thus there cannot be any multi-cluster resource
+        // conflicts. This is also consistent with the cluster alias value set downstream in the SearchExecutionContext used in this
+        // code path.
+        // Set CCS minimize round-trips to false because this transport implementation runs coordinator rewrite only on the local cluster.
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices, null), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(
+                timeProvider,
+                clusterService.state().getMinTransportVersion(),
+                null,
+                resolvedIndices,
+                null,
+                false
+            ),
+            threadPool.executor(ThreadPool.Names.GET),
+            rewriteListener
+        );
     }
 
     @Override
@@ -109,10 +132,32 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
+        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
+        requireSliceRoutingWhenEnabled(state, request.request(), request.concreteIndex());
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
+            state.metadata(),
+            request.request().index()
+        );
+        @FixForMultiProject
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, ExplainRequest request, String concreteIndex) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().index(concreteIndex))
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "explain request",
+            request.index()
+        );
     }
 
     @Override
@@ -131,12 +176,22 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
-        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
+        ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(
+            shardId,
+            request.nowInMillis,
+            request.filteringAlias(),
+            null,
+            request.getSplitShardCountSummary(),
+            // Provide the slice routing to the search request for downstream filter application
+            request.isRoutingFromSlice() ? request.routing() : null
+        );
         SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         Engine.GetResult result = null;
         try {
-            // No need to check the type, IndexShard#get does it for us
-            result = context.indexShard().get(new Engine.Get(false, false, request.id()));
+            // No need to check the type, IndexShard#get does it for us. For slice indices the routing is the slice
+            // (validated upstream), so the uid is the compound identity term.
+            final Uid uid = Uid.create(context.indexShard().indexSettings().isSliceEnabled(), request.id(), request.routing());
+            result = context.indexShard().get(new Engine.Get(false, false, uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
@@ -152,6 +207,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
+                // SplitShardCountSummary is not relevant since the searcher is reused as well.
                 GetResult getResult = context.indexShard()
                     .getService()
                     .get(result, request.id(), request.storedFields(), request.fetchSourceContext());
@@ -172,22 +228,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
-            .getShards(
-                clusterService.state(),
-                request.concreteIndex(),
-                request.request().id(),
-                request.request().routing(),
-                request.request().preference()
-            );
-    }
+    protected ShardIterator shards(ProjectState state, InternalRequest request) {
+        ShardIterator iterator = clusterService.operationRouting()
+            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
 
-    @Override
-    protected Executor getExecutor(ExplainRequest request, ShardId shardId) {
-        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
+        return iterator != null ? ShardIterator.allSearchableShards(iterator) : null;
     }
 }

@@ -14,8 +14,9 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -58,7 +58,6 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             globalCheckpoint = in.readLong();
             timedOut = in.readBoolean();
         }
@@ -142,6 +141,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             IndicesService indicesService
         ) {
@@ -151,6 +151,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
@@ -162,17 +163,15 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         protected Response shardOperation(Request request, ShardId shardId) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            return new Response(seqNoStats.getGlobalCheckpoint(), false);
+            return new Response(indexShard.getLastKnownGlobalCheckpoint(), false);
         }
 
         @Override
         protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
-            if (request.waitForAdvance() && request.checkpoint() >= seqNoStats.getGlobalCheckpoint()) {
+            if (request.waitForAdvance() && request.checkpoint() >= indexShard.getLastKnownGlobalCheckpoint()) {
                 indexShard.addGlobalCheckpointListener(request.checkpoint() + 1, new GlobalCheckpointListeners.GlobalCheckpointListener() {
 
                     @Override
@@ -214,7 +213,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         ) {
             try {
                 if (e instanceof TimeoutException) {
-                    final long globalCheckpoint = indexShard.seqNoStats().getGlobalCheckpoint();
+                    final long globalCheckpoint = indexShard.getLastKnownGlobalCheckpoint();
                     if (request.checkpoint() >= globalCheckpoint) {
                         listener.onResponse(new Response(globalCheckpoint, true));
                     } else {
@@ -239,7 +238,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             return state.routingTable().shardRoutingTable(request.request().getShardId()).primaryShardIt();
         }
     }

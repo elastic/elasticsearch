@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,17 +43,20 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -73,6 +77,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     record JwtIssuerAndRealm(JwtIssuer issuer, JwtRealm realm, JwtRealmSettingsBuilder realmSettingsBuilder) {}
 
     protected ThreadPool threadPool;
+    protected ThreadPool immediateThreadPool;
     protected ResourceWatcherService resourceWatcherService;
     protected MockLicenseState licenseState;
     protected List<JwtIssuerAndRealm> jwtIssuerAndRealms;
@@ -80,6 +85,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     @Before
     public void init() throws Exception {
         threadPool = new TestThreadPool("JWT realm tests");
+        immediateThreadPool = new FixedDelayThreadPool(TimeValue.timeValueMillis(10));
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
@@ -95,6 +101,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
         resourceWatcherService.close();
         terminate(threadPool);
+        terminate(immediateThreadPool);
     }
 
     protected void verifyAuthenticateFailureHelper(
@@ -118,17 +125,31 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final int usersCount,
         final int rolesCount,
         final int jwtCacheSize,
-        final boolean createHttpsServer
+        final boolean createHttpsServer,
+        final boolean jwkSetReloadEnabled
     ) throws Exception {
         // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
         final List<Realm> allRealms = new ArrayList<>(); // authc and authz realms
         jwtIssuerAndRealms = new ArrayList<>(realmsCount);
         for (int i = 0; i < realmsCount; i++) {
 
-            final JwtIssuer jwtIssuer = createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
+            final JwtIssuer jwtIssuer = createJwtIssuer(
+                i,
+                algsCount,
+                audiencesCount,
+                usersCount,
+                rolesCount,
+                createHttpsServer,
+                jwkSetReloadEnabled
+            );
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
-                final JwtRealmSettingsBuilder realmSettingsBuilder = createJwtRealmSettingsBuilder(jwtIssuer, authzCount, jwtCacheSize);
+                final JwtRealmSettingsBuilder realmSettingsBuilder = createJwtRealmSettingsBuilder(
+                    jwtIssuer,
+                    authzCount,
+                    jwtCacheSize,
+                    jwkSetReloadEnabled
+                );
                 final JwtRealm jwtRealm = createJwtRealm(allRealms, jwtIssuer, realmSettingsBuilder);
 
                 // verify exception before initialize()
@@ -153,14 +174,18 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         final int audiencesCount,
         final int userCount,
         final int roleCount,
-        final boolean createHttpsServer
+        final boolean createHttpsServer,
+        final boolean jwkSetReloadEnabled
     ) throws Exception {
         final String issuer = "iss" + (i + 1) + "_" + randomIntBetween(0, 9999);
         final List<String> audiences = IntStream.range(0, audiencesCount).mapToObj(j -> issuer + "_aud" + (j + 1)).toList();
         final Map<String, User> users = JwtTestCase.generateTestUsersWithRoles(userCount, roleCount);
         // Allow algorithm repeats, to cover testing of multiple JWKs for same algorithm
         final JwtIssuer jwtIssuer = new JwtIssuer(issuer, audiences, users, createHttpsServer);
-        final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
+        final Collection<String> supportsAlgos = jwkSetReloadEnabled
+            ? JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC // only PKC algs supported with JWKSet reload
+            : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS;
+        final List<String> algorithms = randomOfMinMaxNonUnique(algsCount, algsCount, supportsAlgos);
         final boolean areHmacJwksOidcSafe = randomBoolean();
         final List<JwtIssuer.AlgJwkPair> algAndJwks = JwtRealmTestCase.randomJwks(algorithms, areHmacJwksOidcSafe);
         jwtIssuer.setJwks(algAndJwks, areHmacJwksOidcSafe);
@@ -173,13 +198,18 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             logger.trace("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(JwtRealmInspector.getJwkSetPath(jwtIssuerAndRealm.realm));
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);
+            Files.setLastModifiedTime(path, FileTime.from(Instant.now().plusSeconds(1))); // file watcher detects change by mod time
         }
 
         // TODO If x-pack Security plug-in add supports for reloadable settings, update HMAC JWKSet and HMAC OIDC JWK in ES Keystore
     }
 
-    protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
-        throws Exception {
+    protected JwtRealmSettingsBuilder createJwtRealmSettingsBuilder(
+        final JwtIssuer jwtIssuer,
+        final int authzCount,
+        final int jwtCacheSize,
+        final boolean jwkSetReloadEnabled
+    ) throws Exception {
         final String authcRealmName = "realm_" + jwtIssuer.issuerClaimValue;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
@@ -298,6 +328,10 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         }
         authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_SIZE), jwtCacheSize);
 
+        if (jwkSetReloadEnabled) {
+            authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED), true);
+        }
+
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (jwtIssuer.algAndJwksHmac.isEmpty() == false) {
@@ -324,6 +358,20 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return new JwtRealmSettingsBuilder(authcRealmName, authcSettings);
     }
 
+    static class FixedDelayThreadPool extends TestThreadPool {
+        final TimeValue delay;
+
+        FixedDelayThreadPool(TimeValue delay) {
+            super("immediate-test-thread-pool");
+            this.delay = delay;
+        }
+
+        @Override
+        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+            return super.schedule(command, this.delay, executor);
+        }
+    }
+
     protected JwtRealm createJwtRealm(
         final List<Realm> allRealms, // JWT realms and authz realms
         final JwtIssuer jwtIssuer,
@@ -338,8 +386,12 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         );
         final UserRoleMapper userRoleMapper = buildRoleMapper(authzRealmNames.isEmpty() ? jwtIssuer.principals : Map.of());
 
+        // Use immediateThreadPool only if reload is enabled, otherwise use null
+        boolean reloadEnabled = authcConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED);
+        ThreadPool pool = reloadEnabled ? immediateThreadPool : null;
+
         // If authz names is not set, register the users here in the JWT authc realm.
-        final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper);
+        final JwtRealm jwtRealm = new JwtRealm(authcConfig, sslService, userRoleMapper, pool);
         allRealms.add(jwtRealm);
 
         // If authz names is set, register the users here in one of the authz realms.

@@ -10,22 +10,23 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -33,34 +34,85 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
- * and a map of shard ids to shard sizes, see
+ * and a map of shard ids to shard sizes and shard write-loads, see
  * <code>InternalClusterInfoService.shardIdentifierFromRouting(String)</code>
  * for the key used in the shardSizes map
  */
-public class ClusterInfo implements ChunkedToXContent, Writeable {
+public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardSizeEstimator.ShardSizeProvider {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
+    private static final TransportVersion HEAP_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("heap_usage_in_cluster_info");
+    private static final TransportVersion NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "node_usage_stats_for_thread_pools_in_cluster_info"
+    );
+    private static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = TransportVersion.fromName("shard_write_load_in_cluster_info");
+    private static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "max_heap_size_per_node_in_cluster_info"
+    );
+    private static final TransportVersion NODES_WRITE_LOAD_HOTSPOTTING_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "nodes_write_load_hotspotting_in_cluster_info"
+    );
+    private static final TransportVersion SHARD_HEAP_USAGE_IN_CLUSTER_INFO = TransportVersion.fromName("shard_heap_usage_in_cluster_info");
+    private static final TransportVersion DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "default_shard_heap_usage_when_missing_in_cluster_info"
+    );
+    static final TransportVersion CACHE_METADATA_IN_CLUSTER_INFO = TransportVersion.fromName("cache_metadata_in_cluster_info");
+    static final TransportVersion PARTITION_SIZES_IN_CLUSTER_INFO = TransportVersion.fromName("partition_sizes_in_cluster_info");
+    static final TransportVersion SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO = TransportVersion.fromName(
+        "search_lane_requirements_in_cluster_info"
+    );
+    static final TransportVersion SHARD_SEARCH_LOAD_IN_CLUSTER_INFO = TransportVersion.fromName("shard_search_load_in_cluster_info");
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
     final Map<String, Long> shardSizes;
     final Map<ShardId, Long> shardDataSetSizes;
+    private final Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements;
+    private final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments;
+    private final Map<String, Long> hostedShardsPartitionSizeByNodeId;
     final Map<NodeAndShard, String> dataPath;
     final Map<NodeAndPath, ReservedSpace> reservedSpace;
+    final Map<String, NodeHeapMetrics> nodeHeapMetrics;
+    final Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages;
+    final ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics;
+    final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
+    final Map<ShardId, Double> shardWriteLoads;
+    // per-shard search-lane requirement in vCPU, populated by a SearchLaneRequirementsCollector and read by an allocation decider.
+    final Map<ShardId, Double> shardSearchLaneRequirements;
+    final Map<ShardId, Double> shardSearchLoads;
+    // max heap size per node ID
+    final Map<String, ByteSizeValue> maxHeapSizePerNode;
+    final Set<String> nodeIdsWriteLoadHotspotting;
+    private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
-        this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        this(
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            ShardAndIndexHeapUsage.ZERO,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Set.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
     }
 
     /**
@@ -72,7 +124,18 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param shardDataSetSizes a shard id to data set size in bytes mapping per shard
      * @param dataPath the shard routing to datapath mapping
      * @param reservedSpace reserved space per shard broken down by node and data path
+     * @param nodeHeapMetrics estimated heap usage broken down by node
+     * @param estimatedShardHeapUsages estimated heap usage broken down by {@link ShardId}
+     * @param defaultShardHeapUsageForShardsWithoutMetrics estimate for a shard that has no entry in {@code estimatedShardHeapUsages}
+     * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
      * @see #shardIdentifierFromRouting
+     * @param maxHeapSizePerNode node id to max heap size
+     * @param nodeIdsWriteLoadHotspotting set of node ids that are hotspotting
+     * @param nodeCacheSizeAndCommitments cache size and cache commitment stats per node
+     * @param shardCacheRequirements boosted and unboosted cache requirements per shard
+     * @param hostedShardsPartitionSizeByNodeId hosted-shards partition size in bytes per node ID
+     * @param shardSearchLaneRequirements per-shard search-lane requirement in vCPU, for an allocation decider
+     * @param shardSearchLoads the search load per shard, for an allocation decider
      */
     public ClusterInfo(
         Map<String, DiskUsage> leastAvailableSpaceUsage,
@@ -80,7 +143,63 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
         Map<NodeAndShard, String> dataPath,
-        Map<NodeAndPath, ReservedSpace> reservedSpace
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, NodeHeapMetrics> nodeHeapMetrics,
+        Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
+        ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, Double> shardWriteLoads,
+        Map<String, ByteSizeValue> maxHeapSizePerNode,
+        Set<String> nodeIdsWriteLoadHotspotting,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        Map<String, Long> hostedShardsPartitionSizeByNodeId,
+        Map<ShardId, Double> shardSearchLaneRequirements,
+        Map<ShardId, Double> shardSearchLoads
+    ) {
+        this(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeHeapMetrics,
+            estimatedShardHeapUsages,
+            defaultShardHeapUsageForShardsWithoutMetrics,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            nodeIdsWriteLoadHotspotting,
+            computeShardToNodeIds(dataPath),
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements,
+            hostedShardsPartitionSizeByNodeId,
+            shardSearchLaneRequirements,
+            shardSearchLoads
+        );
+    }
+
+    private ClusterInfo(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<ShardId, Long> shardDataSetSizes,
+        Map<NodeAndShard, String> dataPath,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, NodeHeapMetrics> nodeHeapMetrics,
+        Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
+        ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, Double> shardWriteLoads,
+        Map<String, ByteSizeValue> maxHeapSizePerNode,
+        Set<String> nodeIdsWriteLoadHotspotting,
+        Map<ShardId, Set<String>> shardToNodeIds,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        Map<String, Long> hostedShardsPartitionSizeByNodeId,
+        Map<ShardId, Double> shardSearchLaneRequirements,
+        Map<ShardId, Double> shardSearchLoads
     ) {
         this.leastAvailableSpaceUsage = Map.copyOf(leastAvailableSpaceUsage);
         this.mostAvailableSpaceUsage = Map.copyOf(mostAvailableSpaceUsage);
@@ -88,19 +207,138 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.shardDataSetSizes = Map.copyOf(shardDataSetSizes);
         this.dataPath = Map.copyOf(dataPath);
         this.reservedSpace = Map.copyOf(reservedSpace);
+        this.nodeHeapMetrics = Map.copyOf(nodeHeapMetrics);
+        this.estimatedShardHeapUsages = Map.copyOf(estimatedShardHeapUsages);
+        this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
+        this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
+        this.shardWriteLoads = Map.copyOf(shardWriteLoads);
+        this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
+        this.nodeIdsWriteLoadHotspotting = Set.copyOf(nodeIdsWriteLoadHotspotting);
+        this.shardToNodeIds = shardToNodeIds;
+        this.nodeCacheSizeAndCommitments = Map.copyOf(nodeCacheSizeAndCommitments);
+        this.shardCacheRequirements = Map.copyOf(shardCacheRequirements);
+        this.hostedShardsPartitionSizeByNodeId = Map.copyOf(hostedShardsPartitionSizeByNodeId);
+        this.shardSearchLaneRequirements = Map.copyOf(shardSearchLaneRequirements);
+        this.shardSearchLoads = Map.copyOf(shardSearchLoads);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
         this.leastAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readLong);
-        this.shardDataSetSizes = in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)
-            ? in.readImmutableMap(ShardId::new, StreamInput::readLong)
-            : Map.of();
-        this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
-            ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
-            : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
+        this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
+        if (in.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
+            this.nodeHeapMetrics = in.readImmutableMap(NodeHeapMetrics::readFrom);
+        } else {
+            this.nodeHeapMetrics = Map.of();
+        }
+        if (in.getTransportVersion().supports(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+            this.nodeUsageStatsForThreadPools = in.readImmutableMap(NodeUsageStatsForThreadPools::new);
+        } else {
+            this.nodeUsageStatsForThreadPools = Map.of();
+        }
+        if (in.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
+            this.shardWriteLoads = in.readImmutableMap(ShardId::new, StreamInput::readDouble);
+        } else {
+            this.shardWriteLoads = Map.of();
+        }
+        if (in.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+            this.maxHeapSizePerNode = in.readImmutableMap(ByteSizeValue::readFrom);
+        } else {
+            this.maxHeapSizePerNode = Map.of();
+        }
+        if (in.getTransportVersion().supports(NODES_WRITE_LOAD_HOTSPOTTING_IN_CLUSTER_INFO)) {
+            this.nodeIdsWriteLoadHotspotting = in.readCollectionAsImmutableSet(StreamInput::readString);
+        } else {
+            this.nodeIdsWriteLoadHotspotting = Set.of();
+        }
+        if (in.getTransportVersion().supports(SHARD_HEAP_USAGE_IN_CLUSTER_INFO)) {
+            this.estimatedShardHeapUsages = in.readImmutableMap(ShardId::new, ShardAndIndexHeapUsage::new);
+        } else {
+            this.estimatedShardHeapUsages = Map.of();
+        }
+        if (in.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = new ShardAndIndexHeapUsage(in);
+        } else {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
+        }
+        this.shardToNodeIds = computeShardToNodeIds(dataPath);
+        if (in.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
+            this.shardCacheRequirements = in.readImmutableMap(ShardId::new, BoostedAndUnboostedCacheRequirements::new);
+            this.nodeCacheSizeAndCommitments = in.readImmutableMap(StreamInput::readString, NodeCacheSizeAndCommitments::new);
+        } else {
+            this.shardCacheRequirements = Map.of();
+            this.nodeCacheSizeAndCommitments = Map.of();
+        }
+        if (in.getTransportVersion().supports(PARTITION_SIZES_IN_CLUSTER_INFO)) {
+            this.hostedShardsPartitionSizeByNodeId = in.readImmutableMap(StreamInput::readLong);
+        } else {
+            this.hostedShardsPartitionSizeByNodeId = Map.of();
+        }
+        if (in.getTransportVersion().supports(SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO)) {
+            this.shardSearchLaneRequirements = in.readImmutableMap(ShardId::new, StreamInput::readDouble);
+        } else {
+            this.shardSearchLaneRequirements = Map.of();
+        }
+        if (in.getTransportVersion().supports(SHARD_SEARCH_LOAD_IN_CLUSTER_INFO)) {
+            this.shardSearchLoads = in.readImmutableMap(ShardId::new, StreamInput::readDouble);
+        } else {
+            this.shardSearchLoads = Map.of();
+        }
+    }
+
+    ClusterInfo updateWith(
+        Map<String, DiskUsage> leastAvailableSpaceUsage,
+        Map<String, DiskUsage> mostAvailableSpaceUsage,
+        Map<String, Long> shardSizes,
+        Map<NodeAndPath, ReservedSpace> reservedSpace,
+        Map<String, NodeHeapMetrics> nodeHeapMetrics,
+        Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages,
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools,
+        Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements,
+        Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments
+    ) {
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeHeapMetrics,
+            estimatedShardHeapUsages,
+            this.defaultShardHeapUsageForShardsWithoutMetrics,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            // nodes with write load hotspotting remain unchanged during simulation, as they reflect the original state
+            nodeIdsWriteLoadHotspotting,
+            shardToNodeIds,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements,
+            hostedShardsPartitionSizeByNodeId,
+            // search-lane requirements remain unchanged during simulation, as they reflect the original state
+            shardSearchLaneRequirements,
+            shardSearchLoads
+        );
+    }
+
+    private static Map<ShardId, Set<String>> computeShardToNodeIds(Map<NodeAndShard, String> dataPath) {
+        if (dataPath.isEmpty()) {
+            return Map.of();
+        }
+        final var shardToNodeIds = new HashMap<ShardId, Set<String>>();
+        for (NodeAndShard nodeAndShard : dataPath.keySet()) {
+            shardToNodeIds.computeIfAbsent(nodeAndShard.shardId, ignore -> new HashSet<>()).add(nodeAndShard.nodeId);
+        }
+        return Collections.unmodifiableMap(Maps.transformValues(shardToNodeIds, Collections::unmodifiableSet));
+    }
+
+    public Set<String> getNodeIdsForShard(ShardId shardId) {
+        assert shardToNodeIds != null : "shardToNodeIds not computed for simulations, make sure this ClusterInfo is from polling";
+        return shardToNodeIds.getOrDefault(shardId, Set.of());
     }
 
     @Override
@@ -108,31 +346,43 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
         out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
-        if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
-        }
-        if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
-        } else {
-            out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
-        }
+        out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
+        out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         out.writeMap(this.reservedSpace);
-    }
-
-    /**
-     * This creates a fake ShardRouting from limited info available in NodeAndShard.
-     * This will not be the same as real shard, however this is fine as ClusterInfo is only written
-     * in TransportClusterAllocationExplainAction when handling an allocation explain request with includeDiskInfo during upgrade
-     * that is later presented to the user and is not used by any code.
-     */
-    private static ShardRouting createFakeShardRoutingFromNodeAndShard(NodeAndShard nodeAndShard) {
-        return newUnassigned(
-            nodeAndShard.shardId,
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(REINITIALIZED, "fake"),
-            ShardRouting.Role.DEFAULT // ok, this is only used prior to DATA_PATH_NEW_KEY_VERSION which has no other roles
-        ).initialize(nodeAndShard.nodeId, null, 0L).moveToStarted(0L);
+        if (out.getTransportVersion().supports(HEAP_USAGE_IN_CLUSTER_INFO)) {
+            out.writeMap(this.nodeHeapMetrics, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().supports(NODE_USAGE_STATS_FOR_THREAD_POOLS_IN_CLUSTER_INFO)) {
+            out.writeMap(this.nodeUsageStatsForThreadPools, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().supports(SHARD_WRITE_LOAD_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardWriteLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
+        }
+        if (out.getTransportVersion().supports(MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO)) {
+            out.writeMap(this.maxHeapSizePerNode, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().supports(NODES_WRITE_LOAD_HOTSPOTTING_IN_CLUSTER_INFO)) {
+            out.writeStringCollection(this.nodeIdsWriteLoadHotspotting);
+        }
+        if (out.getTransportVersion().supports(SHARD_HEAP_USAGE_IN_CLUSTER_INFO)) {
+            out.writeMap(this.estimatedShardHeapUsages);
+        }
+        if (out.getTransportVersion().supports(DEFAULT_SHARD_HEAP_USAGE_WHEN_MISSING_IN_CLUSTER_INFO)) {
+            out.writeWriteable(this.defaultShardHeapUsageForShardsWithoutMetrics);
+        }
+        if (out.getTransportVersion().supports(CACHE_METADATA_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardCacheRequirements, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
+            out.writeMap(this.nodeCacheSizeAndCommitments, StreamOutput::writeString, StreamOutput::writeWriteable);
+        }
+        if (out.getTransportVersion().supports(PARTITION_SIZES_IN_CLUSTER_INFO)) {
+            out.writeMap(this.hostedShardsPartitionSizeByNodeId, StreamOutput::writeLong);
+        }
+        if (out.getTransportVersion().supports(SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardSearchLaneRequirements, StreamOutput::writeWriteable, StreamOutput::writeDouble);
+        }
+        if (out.getTransportVersion().supports(SHARD_SEARCH_LOAD_IN_CLUSTER_INFO)) {
+            out.writeMap(this.shardSearchLoads, StreamOutput::writeWriteable, StreamOutput::writeDouble);
+        }
     }
 
     @Override
@@ -197,7 +447,67 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 return builder.endObject(); // NodeAndPath
             }),
             endArray() // end "reserved_sizes"
+            // NOTE: We don't serialize estimatedHeapUsages/nodeUsageStatsForThreadPools/shardWriteLoads/maxHeapSizePerNode/
+            // nodeIdsWriteLoadHotspotting/estimatedShardHeapUsages/nodeCacheSizeAndCommitments/shardCacheRequirements/shardSearchLoads at
+            // this stage, to avoid committing to API
+            // payloads until the features are settled
         );
+    }
+
+    /**
+     * Returns a node id to node heap metrics mapping for all nodes that we have such data for.
+     * Note that the estimates in the metrics should be considered minimums. They may be used to determine whether
+     * there IS NOT capacity to do something, but not to determine that there IS capacity to do something.
+     * Also note that the map may not be complete, it may contain none, or a subset of the nodes in
+     * the cluster at any time. It may also contain entries for nodes that have since left the cluster.
+     */
+    public Map<String, NodeHeapMetrics> getNodeHeapMetrics() {
+        return nodeHeapMetrics;
+    }
+
+    public Map<ShardId, BoostedAndUnboostedCacheRequirements> getShardCacheRequirements() {
+        return shardCacheRequirements;
+    }
+
+    public Map<String, NodeCacheSizeAndCommitments> getNodeCacheSizeAndCommitments() {
+        return nodeCacheSizeAndCommitments;
+    }
+
+    /**
+     * Returns the hosted-shards partition size in bytes per node ID. Entries are present only for nodes for which
+     * this information has been collected; absence of an entry should be treated as unknown.
+     */
+    public Map<String, Long> getHostedShardsPartitionSizeByNodeId() {
+        return hostedShardsPartitionSizeByNodeId;
+    }
+
+    /**
+     * Get the shard heap usage estimate for the specified shard, returning the default if no estimate is
+     * present for that shard
+     *
+     * @param shardId The shard ID
+     * @return The estimated heap usage
+     */
+    public ShardAndIndexHeapUsage getEstimatedShardHeapUsage(ShardId shardId) {
+        return estimatedShardHeapUsages.getOrDefault(shardId, defaultShardHeapUsageForShardsWithoutMetrics);
+    }
+
+    public Map<ShardId, ShardAndIndexHeapUsage> getEstimatedShardHeapUsages() {
+        return estimatedShardHeapUsages;
+    }
+
+    /**
+     * Heap usage estimate for a shard that has no entry in {@link #getEstimatedShardHeapUsages()}
+     */
+    public ShardAndIndexHeapUsage getDefaultShardHeapUsageForShardsWithoutMetrics() {
+        return defaultShardHeapUsageForShardsWithoutMetrics;
+    }
+
+    /**
+     * Returns a map containing thread pool usage stats for each node, keyed by node ID.
+     */
+    public Map<String, NodeUsageStatsForThreadPools> getNodeUsageStatsForThreadPools() {
+        return nodeUsageStatsForThreadPools;
     }
 
     /**
@@ -217,33 +527,37 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     }
 
     /**
+     * Returns a map of shard IDs to the write-loads for use in balancing. The write-loads can be interpreted
+     * as the average number of threads that ingestion to the shard will consume.
+     * This information may be partial or missing altogether under some circumstances. The absence of a shard
+     * write load from the map should be interpreted as "unknown".
+     */
+    public Map<ShardId, Double> getShardWriteLoads() {
+        return shardWriteLoads;
+    }
+
+    /**
+     * Returns a map of the per-shard search-lane requirement in vCPU, used by an allocation decider. The absence of a shard
+     * from the map should be interpreted as "unknown", so the shard occupies no lane.
+     */
+    public Map<ShardId, Double> getShardSearchLaneRequirements() {
+        return shardSearchLaneRequirements;
+    }
+
+    /**
+     * Returns a map of the per-shard search load, recently consumed by searches on the shard, used by an
+     * allocation decider. The absence of a shard from the map should be interpreted as "unknown", not as zero load.
+     */
+    public Map<ShardId, Double> getShardSearchLoads() {
+        return shardSearchLoads;
+    }
+
+    /**
      * Returns the shard size for the given shardId or <code>null</code> if that metric is not available.
      */
+    @Override
     public Long getShardSize(ShardId shardId, boolean primary) {
         return shardSizes.get(shardIdentifierFromRouting(shardId, primary));
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>null</code> if that metric is not available.
-     */
-    public Long getShardSize(ShardRouting shardRouting) {
-        return getShardSize(shardRouting.shardId(), shardRouting.primary());
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-        Long shardSize = getShardSize(shardRouting);
-        return shardSize == null ? defaultValue : shardSize;
-    }
-
-    /**
-     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
-     */
-    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
-        Long shardSize = getShardSize(shardId, primary);
-        return shardSize == null ? defaultValue : shardSize;
     }
 
     /**
@@ -269,6 +583,24 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         return result == null ? ReservedSpace.EMPTY : result;
     }
 
+    public Map<String, ByteSizeValue> getMaxHeapSizePerNode() {
+        return this.maxHeapSizePerNode;
+    }
+
+    public boolean nodeIsWriteLoadHotspotting(String nodeId) {
+        return nodeIdsWriteLoadHotspotting.contains(nodeId);
+    }
+
+    /**
+     * Return true if the shard has moved since the time ClusterInfo was created.
+     */
+    public boolean hasShardMoved(ShardRouting shardRouting) {
+        // We use dataPath to find out whether a shard is allocated on a node.
+        // TODO: DataPath is sent with disk usages but thread pool usage is sent separately so that local shard allocation
+        // may change between the two calls.
+        return getDataPath(shardRouting) == null;
+    }
+
     /**
      * Method that incorporates the ShardId for the shard into a string that
      * includes a 'p' or 'r' depending on whether the shard is a primary.
@@ -291,17 +623,48 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             && shardSizes.equals(that.shardSizes)
             && shardDataSetSizes.equals(that.shardDataSetSizes)
             && dataPath.equals(that.dataPath)
-            && reservedSpace.equals(that.reservedSpace);
+            && reservedSpace.equals(that.reservedSpace)
+            && nodeHeapMetrics.equals(that.nodeHeapMetrics)
+            && estimatedShardHeapUsages.equals(that.estimatedShardHeapUsages)
+            && defaultShardHeapUsageForShardsWithoutMetrics.equals(that.defaultShardHeapUsageForShardsWithoutMetrics)
+            && nodeUsageStatsForThreadPools.equals(that.nodeUsageStatsForThreadPools)
+            && shardWriteLoads.equals(that.shardWriteLoads)
+            && maxHeapSizePerNode.equals(that.maxHeapSizePerNode)
+            && nodeIdsWriteLoadHotspotting.equals(that.nodeIdsWriteLoadHotspotting)
+            && nodeCacheSizeAndCommitments.equals(that.nodeCacheSizeAndCommitments)
+            && shardCacheRequirements.equals(that.shardCacheRequirements)
+            && hostedShardsPartitionSizeByNodeId.equals(that.hostedShardsPartitionSizeByNodeId)
+            && shardSearchLaneRequirements.equals(that.shardSearchLaneRequirements)
+            && shardSearchLoads.equals(that.shardSearchLoads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, reservedSpace);
+        return Objects.hash(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes,
+            shardDataSetSizes,
+            dataPath,
+            reservedSpace,
+            nodeHeapMetrics,
+            estimatedShardHeapUsages,
+            defaultShardHeapUsageForShardsWithoutMetrics,
+            nodeUsageStatsForThreadPools,
+            shardWriteLoads,
+            maxHeapSizePerNode,
+            nodeIdsWriteLoadHotspotting,
+            nodeCacheSizeAndCommitments,
+            shardCacheRequirements,
+            hostedShardsPartitionSizeByNodeId,
+            shardSearchLaneRequirements,
+            shardSearchLoads
+        );
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toTruncatedString(this, true, false);
     }
 
     // exposed for tests, computed here rather than exposing all the collections separately
@@ -402,6 +765,144 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 total += reservedBytes;
                 return this;
             }
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private Map<String, DiskUsage> leastAvailableSpaceUsage = Map.of();
+        private Map<String, DiskUsage> mostAvailableSpaceUsage = Map.of();
+        private Map<String, Long> shardSizes = Map.of();
+        private Map<ShardId, Long> shardDataSetSizes = Map.of();
+        private Map<NodeAndShard, String> dataPath = Map.of();
+        private Map<NodeAndPath, ReservedSpace> reservedSpace = Map.of();
+        private Map<String, NodeHeapMetrics> nodeHeapMetrics = Map.of();
+        private Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages = Map.of();
+        private ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics = ShardAndIndexHeapUsage.ZERO;
+        private Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = Map.of();
+        private Map<ShardId, Double> shardWriteLoads = Map.of();
+        private Map<String, ByteSizeValue> maxHeapSizePerNode = Map.of();
+        private Set<String> nodeIdsWriteLoadHotspotting = Set.of();
+        private Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = Map.of();
+        private Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements = Map.of();
+        private Map<String, Long> hostedShardsPartitionSizeByNodeId = Map.of();
+        private Map<ShardId, Double> shardSearchLaneRequirements = Map.of();
+        private Map<ShardId, Double> shardSearchLoads = Map.of();
+
+        public ClusterInfo build() {
+            return new ClusterInfo(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                shardDataSetSizes,
+                dataPath,
+                reservedSpace,
+                nodeHeapMetrics,
+                estimatedShardHeapUsages,
+                defaultShardHeapUsageForShardsWithoutMetrics,
+                nodeUsageStatsForThreadPools,
+                shardWriteLoads,
+                maxHeapSizePerNode,
+                nodeIdsWriteLoadHotspotting,
+                nodeCacheSizeAndCommitments,
+                shardCacheRequirements,
+                hostedShardsPartitionSizeByNodeId,
+                shardSearchLaneRequirements,
+                shardSearchLoads
+            );
+        }
+
+        public Builder defaultShardHeapUsageForShardsWithoutMetrics(ShardAndIndexHeapUsage defaultShardHeapUsageForShardsWithoutMetrics) {
+            this.defaultShardHeapUsageForShardsWithoutMetrics = defaultShardHeapUsageForShardsWithoutMetrics;
+            return this;
+        }
+
+        public Builder leastAvailableSpaceUsage(Map<String, DiskUsage> leastAvailableSpaceUsage) {
+            this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder mostAvailableSpaceUsage(Map<String, DiskUsage> mostAvailableSpaceUsage) {
+            this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
+            return this;
+        }
+
+        public Builder shardSizes(Map<String, Long> shardSizes) {
+            this.shardSizes = shardSizes;
+            return this;
+        }
+
+        public Builder shardDataSetSizes(Map<ShardId, Long> shardDataSetSizes) {
+            this.shardDataSetSizes = shardDataSetSizes;
+            return this;
+        }
+
+        public Builder dataPath(Map<NodeAndShard, String> dataPath) {
+            this.dataPath = dataPath;
+            return this;
+        }
+
+        public Builder reservedSpace(Map<NodeAndPath, ReservedSpace> reservedSpace) {
+            this.reservedSpace = reservedSpace;
+            return this;
+        }
+
+        public Builder nodeHeapMetrics(Map<String, NodeHeapMetrics> nodeHeapMetrics) {
+            this.nodeHeapMetrics = nodeHeapMetrics;
+            return this;
+        }
+
+        public Builder estimatedShardHeapUsages(Map<ShardId, ShardAndIndexHeapUsage> estimatedShardHeapUsages) {
+            this.estimatedShardHeapUsages = estimatedShardHeapUsages;
+            return this;
+        }
+
+        public Builder nodeUsageStatsForThreadPools(Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools) {
+            this.nodeUsageStatsForThreadPools = nodeUsageStatsForThreadPools;
+            return this;
+        }
+
+        public Builder shardWriteLoads(Map<ShardId, Double> shardWriteLoads) {
+            this.shardWriteLoads = shardWriteLoads;
+            return this;
+        }
+
+        public Builder maxHeapSizePerNode(Map<String, ByteSizeValue> maxHeapSizePerNode) {
+            this.maxHeapSizePerNode = maxHeapSizePerNode;
+            return this;
+        }
+
+        public Builder nodeIdsWriteLoadHotspotting(Set<String> nodeIdsWriteLoadHotspotting) {
+            this.nodeIdsWriteLoadHotspotting = nodeIdsWriteLoadHotspotting;
+            return this;
+        }
+
+        public Builder shardCacheRequirements(Map<ShardId, BoostedAndUnboostedCacheRequirements> shardCacheRequirements) {
+            this.shardCacheRequirements = shardCacheRequirements;
+            return this;
+        }
+
+        public Builder nodeCacheSizeAndCommitments(Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments) {
+            this.nodeCacheSizeAndCommitments = nodeCacheSizeAndCommitments;
+            return this;
+        }
+
+        public Builder hostedShardsPartitionSizeByNodeId(Map<String, Long> hostedShardsPartitionSizeByNodeId) {
+            this.hostedShardsPartitionSizeByNodeId = hostedShardsPartitionSizeByNodeId;
+            return this;
+        }
+
+        public Builder shardSearchLaneRequirements(Map<ShardId, Double> shardSearchLaneRequirements) {
+            this.shardSearchLaneRequirements = shardSearchLaneRequirements;
+            return this;
+        }
+
+        public Builder shardSearchLoads(Map<ShardId, Double> shardSearchLoads) {
+            this.shardSearchLoads = shardSearchLoads;
+            return this;
         }
     }
 }

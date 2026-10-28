@@ -33,8 +33,10 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -54,7 +56,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -92,6 +93,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -234,24 +236,26 @@ public class PainlessExecuteAction {
              */
             static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
+                    // TODO consider returning QualifiedIndexExpression directly.
+                    // It is required to make the second argument of the tuple non null below
                     return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
-                String[] parts = RemoteClusterAware.splitIndexName(trimmed);
+                var parts = RemoteClusterAware.splitIndexName(trimmed);
                 // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
                 // because (1) only a single index is allowed for Painless Execute and
                 // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
                 // Instead, it will fail with the inaccurate and confusing error message:
                 // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
                 // which comes later out of the IndexNameExpressionResolver pathway this code uses.
-                if ((parts[0] != null && parts[1].isEmpty())
-                    || parts[1].contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
+                if ((parts.clusterAlias() != null && parts.indexExpression().isEmpty())
+                    || parts.indexExpression().contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
                     throw new IllegalArgumentException(
                         "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
                     );
                 }
 
-                return new Tuple<>(parts[0], parts[1]);
+                return new Tuple<>(parts.clusterAlias(), parts.indexExpression());
             }
 
             public String getClusterAlias() {
@@ -348,7 +352,9 @@ public class PainlessExecuteAction {
 
         private final Script script;
         private final ScriptContext<?> context;
+        @Nullable
         private final ContextSetup contextSetup;
+        private transient IndicesOptions indicesOptions;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -384,8 +390,17 @@ public class PainlessExecuteAction {
             return context;
         }
 
+        @Nullable
         public ContextSetup getContextSetup() {
             return contextSetup;
+        }
+
+        @Override
+        public void markOriginOnly() {
+            assert contextSetup != null
+                : "Painless/execute request without context setup can't have index, this method shouldn't be called";
+            // strip off cluster alias from the index in this request
+            index(contextSetup.getIndex());
         }
 
         @Override
@@ -395,14 +410,38 @@ public class PainlessExecuteAction {
                 validationException = addValidationError("only inline scripts are supported", validationException);
             }
             if (needDocumentAndIndex(context)) {
-                if (contextSetup.index == null) {
-                    validationException = addValidationError("index is a required parameter for current context", validationException);
-                }
-                if (contextSetup.document == null) {
-                    validationException = addValidationError("document is a required parameter for current context", validationException);
+                if (contextSetup == null) {
+                    validationException = addValidationError(
+                        "context_setup is a required parameter for current context",
+                        validationException
+                    );
+                } else {
+                    if (contextSetup.index == null) {
+                        validationException = addValidationError("index is a required parameter for current context", validationException);
+                    }
+                    if (contextSetup.document == null) {
+                        validationException = addValidationError(
+                            "document is a required parameter for current context",
+                            validationException
+                        );
+                    }
                 }
             }
             return validationException;
+        }
+
+        public void enableCrossProjectMode() {
+            this.indicesOptions = IndicesOptions.builder(super.indicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (indicesOptions == null) {
+                return super.indicesOptions();
+            }
+            return indicesOptions;
         }
 
         @Override
@@ -447,7 +486,7 @@ public class PainlessExecuteAction {
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
-            return scriptContext == FilterScript.CONTEXT || scriptContext == ScoreScript.CONTEXT;
+            return scriptContext != PainlessTestScript.CONTEXT;
         }
 
     }
@@ -461,7 +500,6 @@ public class PainlessExecuteAction {
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             result = in.readGenericValue();
         }
 
@@ -505,6 +543,7 @@ public class PainlessExecuteAction {
             ThreadPool threadPool,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ScriptService scriptService,
             ClusterService clusterService,
@@ -516,6 +555,7 @@ public class PainlessExecuteAction {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
@@ -529,14 +569,20 @@ public class PainlessExecuteAction {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            if (request.getContextSetup() == null || request.getContextSetup().getClusterAlias() == null) {
+            // By this point index resolution has completed, and we should not try to resolve indices for child requests
+            // to avoid the second attempt of project authorization in CPS
+            request.indicesOptions = null;
+
+            if (isLocalIndex(request)) {
                 super.doExecute(task, request, listener);
             } else {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
                 removeClusterAliasFromIndexExpression(request);
+                final var contextSetup = request.getContextSetup();
+                assert contextSetup != null : "non-local indices must have context_setup";
                 transportService.getRemoteClusterService()
                     .getRemoteClusterClient(
-                        request.getContextSetup().getClusterAlias(),
+                        contextSetup.getClusterAlias(),
                         EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     )
@@ -544,11 +590,20 @@ public class PainlessExecuteAction {
             }
         }
 
+        private boolean isLocalIndex(Request request) {
+            if (request.getContextSetup() == null) {
+                return true;
+            }
+            String index = request.index();
+            return index == null || RemoteClusterAware.isRemoteIndexName(index) == false;
+        }
+
         // Visible for testing
         static void removeClusterAliasFromIndexExpression(Request request) {
-            if (request.index() != null) {
-                String[] split = RemoteClusterAware.splitIndexName(request.index());
-                if (split[0] != null) {
+            String index = request.index();
+            if (index != null) {
+                var split = RemoteClusterAware.splitIndexName(index);
+                if (split.clusterAlias() != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -556,7 +611,7 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    request.index(split[1]);
+                    request.index(split.indexExpression());
                 }
             }
         }
@@ -567,7 +622,7 @@ public class PainlessExecuteAction {
         }
 
         @Override
-        protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() != null) {
                 return super.checkRequestBlock(state, request);
             }
@@ -580,7 +635,7 @@ public class PainlessExecuteAction {
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() == null) {
                 return null;
             }
@@ -589,7 +644,6 @@ public class PainlessExecuteAction {
 
         @Override
         protected Response shardOperation(Request request, ShardId shardId) throws IOException {
-            IndexService indexService;
             if (request.contextSetup != null && request.contextSetup.getIndex() != null) {
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
@@ -599,20 +653,23 @@ public class PainlessExecuteAction {
                     throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
                 }
                 Index concreteIndex = concreteIndices[0];
-                indexService = indicesServices.indexServiceSafe(concreteIndex);
+                IndexService indexService = indicesServices.indexServiceSafe(concreteIndex);
+                return innerShardOperation(request, scriptService, indexService);
             } else {
-                indexService = null;
+                String errorMessage = "only painless_test scripts are allowed to have no context_setup";
+                if (request.context != PainlessTestScript.CONTEXT) {
+                    assert false : errorMessage;
+                    throw new IllegalStateException(errorMessage);
+                }
+
+                return painlessTestOperation(request, scriptService);
             }
-            return innerShardOperation(request, scriptService, indexService);
         }
 
         static Response innerShardOperation(Request request, ScriptService scriptService, IndexService indexService) throws IOException {
             final ScriptContext<?> scriptContext = request.context;
             if (scriptContext == PainlessTestScript.CONTEXT) {
-                PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
-                PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
-                String result = Objects.toString(painlessTestScript.execute());
-                return new Response(result);
+                return painlessTestOperation(request, scriptService);
             } else if (scriptContext == FilterScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     FilterScript.Factory factory = scriptService.compile(request.script, FilterScript.CONTEXT);
@@ -631,6 +688,7 @@ public class PainlessExecuteAction {
                     ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
+                    assert request.contextSetup != null : "context_setup must be present here, and was validated earlier";
                     if (request.contextSetup.query != null) {
                         Query luceneQuery = request.contextSetup.query.rewrite(context).toQuery(context);
                         IndexSearcher indexSearcher = new IndexSearcher(leafReaderContext.reader());
@@ -796,6 +854,13 @@ public class PainlessExecuteAction {
             }
         }
 
+        private static Response painlessTestOperation(Request request, ScriptService scriptService) {
+            PainlessTestScript.Factory factory = scriptService.compile(request.script, PainlessTestScript.CONTEXT);
+            PainlessTestScript painlessTestScript = factory.newInstance(request.script.getParams());
+            String result = Objects.toString(painlessTestScript.execute());
+            return new Response(result);
+        }
+
         private static Response prepareRamIndex(
             Request request,
             CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
@@ -808,7 +873,7 @@ public class PainlessExecuteAction {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
 
-                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES)
+                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode().isTsdb())
                         ? new SourceToParse(
                             null,
                             document,
@@ -828,7 +893,8 @@ public class PainlessExecuteAction {
                     // This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
                     // nor _source (if there are no mappings there are no metadata fields).
                     ParsedDocument parsedDocument = documentMapper.parse(sourceToParse);
-                    indexWriter.addDocuments(parsedDocument.docs());
+                    // only index the root doc since nested docs are not supported in painless anyways
+                    indexWriter.addDocuments(List.of(parsedDocument.rootDoc()));
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
@@ -839,7 +905,9 @@ public class PainlessExecuteAction {
                             searcher,
                             () -> absoluteStartMillis,
                             null,
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         );
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
@@ -850,6 +918,11 @@ public class PainlessExecuteAction {
 
     @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
+        private final CrossProjectModeDecider crossProjectModeDecider;
+
+        public RestAction(CrossProjectModeDecider crossProjectModeDecider) {
+            this.crossProjectModeDecider = crossProjectModeDecider;
+        }
 
         @Override
         public List<Route> routes() {
@@ -864,7 +937,11 @@ public class PainlessExecuteAction {
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
-            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
+            if (crossProjectModeDecider.crossProjectEnabled()) {
+                request.enableCrossProjectMode();
+            }
+
+            return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 

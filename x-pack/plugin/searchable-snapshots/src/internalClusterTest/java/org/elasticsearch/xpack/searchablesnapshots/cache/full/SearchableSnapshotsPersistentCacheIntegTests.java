@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -105,6 +106,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -205,11 +207,12 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
-        assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));
+        assertTrue(recoveryResponse.shardRecoveryInfos().containsKey(mountedIndexName));
         assertTrue(
-            recoveryResponse.shardRecoveryStates()
+            recoveryResponse.shardRecoveryInfos()
                 .get(mountedIndexName)
                 .stream()
+                .map(ShardRecoveryInfo::recoveryState)
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 
@@ -218,7 +221,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             .setMetadata(true)
             .setIndices(mountedIndexName)
             .get();
-        final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
+        final Index mountedIndex = state.getState().metadata().getProject().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
         for (DiscoveryNode node : getDiscoveryNodes()) {
@@ -249,11 +252,12 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
         recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
-        assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));
+        assertTrue(recoveryResponse.shardRecoveryInfos().containsKey(mountedIndexName));
         assertTrue(
-            recoveryResponse.shardRecoveryStates()
+            recoveryResponse.shardRecoveryInfos()
                 .get(mountedIndexName)
                 .stream()
+                .map(ShardRecoveryInfo::recoveryState)
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 

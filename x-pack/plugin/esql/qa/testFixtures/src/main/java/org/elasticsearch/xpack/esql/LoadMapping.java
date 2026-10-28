@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -36,15 +38,15 @@ import static org.junit.Assert.assertNotNull;
 
 public class LoadMapping {
     public static Map<String, EsField> loadMapping(String name) {
-        InputStream stream = LoadMapping.class.getResourceAsStream("/" + name);
-        assertNotNull("Could not find mapping resource:" + name, stream);
+        var path = "/index/mappings/" + name;
+        InputStream stream = LoadMapping.class.getResourceAsStream(path);
+        assertNotNull("Could not find mapping resource:" + path, stream);
         return loadMapping(stream);
     }
 
-    private static Map<String, EsField> loadMapping(InputStream stream) {
-        try (InputStream in = stream) {
-            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true);
-            return fromEs(map);
+    public static Map<String, EsField> loadMapping(InputStream in) {
+        try (in) {
+            return fromEs(XContentHelper.convertToMap(JsonXContent.jsonXContent, in, true));
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
@@ -99,21 +101,47 @@ public class LoadMapping {
                 properties = fromEs(content);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
+            boolean isDimension = boolSetting(content.get("time_series_dimension"), false);
+            boolean isMetric = content.containsKey("time_series_metric");
+            if (isDimension && isMetric) {
+                throw new IllegalStateException("Field configured as both dimension and metric:" + value);
+            }
+            EsField.TimeSeriesFieldType tsType = EsField.TimeSeriesFieldType.NONE;
+            if (isDimension) {
+                tsType = EsField.TimeSeriesFieldType.DIMENSION;
+            }
+            if (isMetric) {
+                tsType = EsField.TimeSeriesFieldType.METRIC;
+            }
             final EsField field;
             if (esDataType == TEXT) {
-                field = new TextEsField(name, properties, docValues);
+                // Like field caps, which reports the index's [default] analyzer for a mapping that sets none. A null
+                // name would also reset an explicit position_increment_gap.
+                String analyzer = textSetting(content.get("analyzer"), AnalysisRegistry.DEFAULT_ANALYZER_NAME);
+                int positionIncrementGap = intSetting(content.get("position_increment_gap"), TextEsField.DEFAULT_POSITION_INCREMENT_GAP);
+                field = new TextEsField(
+                    name,
+                    properties,
+                    docValues,
+                    false,
+                    tsType,
+                    analyzer,
+                    positionIncrementGap,
+                    TextEsField.UnknownAnalyzer.NONE,
+                    null
+                );
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
-                field = new KeywordEsField(name, properties, docValues, length, normalized);
+                field = new KeywordEsField(name, properties, docValues, length, normalized, false, tsType);
             } else if (esDataType == DATETIME) {
-                field = DateEsField.dateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues, tsType);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
-                field = new UnsupportedEsField(name, type, null, properties);
+                field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
             } else {
-                field = new EsField(name, esDataType, properties, docValues);
+                field = new EsField(name, esDataType, properties, docValues, tsType);
             }
             mapping.put(name, field);
         } else {
@@ -165,9 +193,9 @@ public class LoadMapping {
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {
                     u = (UnsupportedEsField) field;
-                    u = new UnsupportedEsField(u.getName(), originalType, inherited, u.getProperties());
+                    u = new UnsupportedEsField(u.getName(), List.of(originalType), inherited, u.getProperties());
                 } else {
-                    u = new UnsupportedEsField(field.getName(), originalType, inherited, field.getProperties());
+                    u = new UnsupportedEsField(field.getName(), List.of(originalType), inherited, field.getProperties());
                 }
                 entry.setValue(u);
                 propagateUnsupportedType(inherited, originalType, u.getProperties());

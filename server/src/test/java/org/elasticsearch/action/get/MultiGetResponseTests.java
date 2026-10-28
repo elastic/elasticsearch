@@ -11,7 +11,9 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,7 +42,12 @@ public class MultiGetResponseTests extends ESTestCase {
         for (int runs = 0; runs < 20; runs++) {
             MultiGetResponse expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
+            BytesReference shuffled = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(expected),
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                false
+            );
             MultiGetResponse parsed;
             try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
                 parsed = parseInstance(parser);
@@ -129,7 +136,7 @@ public class MultiGetResponseTests extends ESTestCase {
                     if (MultiGetResponse.INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && MultiGetResponse.ID.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                        getResult = GetResult.fromXContentEmbedded(parser, index, id);
+                        getResult = GetResultTests.parseInstanceFromEmbedded(parser, index, id);
                     }
                     break;
                 case VALUE_STRING:

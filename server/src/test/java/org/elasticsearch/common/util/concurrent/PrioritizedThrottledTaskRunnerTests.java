@@ -12,7 +12,10 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,22 +32,20 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
-    private static final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("test");
+    private static final ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("test");
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     private ExecutorService executor;
     private int maxThreads;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createExecutor() throws Exception {
         maxThreads = between(1, 10);
         executor = EsExecutors.newScaling("test", maxThreads, maxThreads, 0, TimeUnit.NANOSECONDS, false, threadFactory, threadContext);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateExecutor() throws Exception {
         TestThreadPool.terminate(executor, 30, TimeUnit.SECONDS);
     }
 

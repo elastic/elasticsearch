@@ -12,6 +12,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
@@ -21,7 +22,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -33,12 +33,12 @@ import java.io.IOException;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AllPermission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -77,7 +77,11 @@ final class BootstrapChecks {
         combinedChecks.addAll(additionalChecks);
         check(
             context,
-            enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings())),
+            enforceLimits(
+                boundTransportAddress,
+                DiscoveryModule.DISCOVERY_TYPE_SETTING.get(context.settings()),
+                Build.current()::isSnapshot
+            ),
             Collections.unmodifiableList(combinedChecks)
         );
     }
@@ -174,17 +178,23 @@ final class BootstrapChecks {
     }
 
     /**
-     * Tests if the checks should be enforced.
+     * Tests if the checks should be enforced. \
+     * Bootstrap checks are enforced (in production builds) if a non-loopback address is configured and a non-snapshot build is used.
      *
      * @param boundTransportAddress the node network bindings
      * @param discoveryType the discovery type
+     * @param isSnapshot provider to test if this build is snapshot or not
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+    static boolean enforceLimits(
+        final BoundTransportAddress boundTransportAddress,
+        final String discoveryType,
+        final BooleanSupplier isSnapshot
+    ) {
         final Predicate<TransportAddress> isLoopbackAddress = t -> t.address().getAddress().isLoopbackAddress();
         final boolean bound = (Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackAddress)
             && isLoopbackAddress.test(boundTransportAddress.publishAddress())) == false;
-        return bound && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
+        return bound && isSnapshot.getAsBoolean() == false && SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false;
     }
 
     // the list of checks to execute
@@ -709,36 +719,6 @@ final class BootstrapChecks {
             return ReferenceDocs.BOOTSTRAP_CHECK_EARLY_ACCESS;
         }
 
-    }
-
-    static class AllPermissionCheck implements BootstrapCheck {
-
-        @Override
-        public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        boolean isAllPermissionGranted() {
-            if (RuntimeVersionFeature.isSecurityManagerAvailable() == false) {
-                return false;
-            }
-            final SecurityManager sm = System.getSecurityManager();
-            assert sm != null;
-            try {
-                sm.checkPermission(new AllPermission());
-            } catch (final SecurityException e) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public ReferenceDocs referenceDocs() {
-            return ReferenceDocs.BOOTSTRAP_CHECK_ALL_PERMISSION;
-        }
     }
 
     static class DiscoveryConfiguredCheck implements BootstrapCheck {

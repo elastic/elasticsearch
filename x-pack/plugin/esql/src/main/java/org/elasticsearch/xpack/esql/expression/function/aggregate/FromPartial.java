@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,17 +18,21 @@ import org.elasticsearch.compute.aggregation.FromPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -37,42 +40,54 @@ import java.util.stream.IntStream;
  * @see ToPartial
  */
 public class FromPartial extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "FromPartial",
-        FromPartial::new
-    );
+    private static final String NAME = "FromPartial";
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, FromPartial::new);
 
     private final Expression function;
 
     public FromPartial(Source source, Expression field, Expression function) {
-        this(source, field, Literal.TRUE, function);
+        this(source, field, Literal.TRUE, NO_WINDOW, function);
     }
 
-    public FromPartial(Source source, Expression field, Expression filter, Expression function) {
-        super(source, field, filter, List.of(function));
+    public FromPartial(Source source, Expression field, Expression filter, Expression window, Expression function) {
+        super(source, List.of(field), filter, window, List.of(function));
         this.function = function;
     }
 
     private FromPartial(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
     @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(function);
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility: source, field, filter, window, parameters
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(CollectionUtils.combine(parameters()));
+    }
+
+    /**
+     * The intermediate (partial-agg) state column this node reads; distinct from {@link #function()}, the
+     * aggregate spec used only to build the delegating aggregator.
+     */
+    public Expression field() {
+        return fields().getFirst();
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return NAME;
     }
 
     public Expression function() {
@@ -95,54 +110,59 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     }
 
     @Override
+    public List<Attribute> aggregateInputReferences(java.util.function.Supplier<List<Attribute>> inputAttributes) {
+        return new ArrayList<>(field().references()); // exclude the function and its argument
+    }
+
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new FromPartial(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new FromPartial(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, FromPartial::new, field(), filter(), function);
+        return NodeInfo.create(this, FromPartial::new, field(), filter(), window(), function);
     }
 
     @Override
-    public FromPartial withFilter(Expression filter) {
-        return new FromPartial(source(), field(), filter, function);
-    }
-
-    @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        final ToAggregator toAggregator = (ToAggregator) function;
-        if (inputChannels.size() != 1) {
-            assert false : "from_partial aggregation requires exactly one input channel; got " + inputChannels;
-            throw new IllegalArgumentException("from_partial aggregation requires exactly one input channel; got " + inputChannels);
-        }
-        final int inputChannel = inputChannels.get(0);
+    public AggregatorFunctionSupplier supplier() {
+        final AggregatorFunctionSupplier supplier = ((ToAggregator) function).supplier();
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return FromPartialAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return FromPartialGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
                 assert false : "aggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
                 assert false : "groupingAggregatorFactory() is override";
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
-                final AggregatorFunctionSupplier supplier;
-                try (var dummy = toAggregator.supplier(inputChannels).aggregator(DriverContext.getLocalDriver())) {
-                    var intermediateChannels = IntStream.range(0, dummy.intermediateBlockCount()).boxed().toList();
-                    supplier = toAggregator.supplier(intermediateChannels);
+            public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+                if (channels.size() != 1) {
+                    assert false : "from_partial aggregation requires exactly one input channel; got " + channels;
+                    throw new IllegalArgumentException("from_partial aggregation requires exactly one input channel; got " + channels);
                 }
+                final int inputChannel = channels.get(0);
+                var intermediateChannels = IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList();
                 return new Aggregator.Factory() {
                     @Override
                     public Aggregator apply(DriverContext driverContext) {
-                        // use groupingAggregator since we can receive intermediate output from a grouping aggregate
-                        final var groupingAggregator = supplier.groupingAggregator(driverContext);
-                        return new Aggregator(new FromPartialAggregatorFunction(driverContext, groupingAggregator, inputChannel), mode);
+                        final AggregatorFunction aggregator = supplier.aggregator(driverContext, intermediateChannels);
+                        return new Aggregator(new FromPartialAggregatorFunction(aggregator, inputChannel), mode);
                     }
 
                     @Override
@@ -153,16 +173,17 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
             }
 
             @Override
-            public GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode) {
-                final AggregatorFunctionSupplier supplier;
-                try (var dummy = toAggregator.supplier(inputChannels).aggregator(DriverContext.getLocalDriver())) {
-                    var intermediateChannels = IntStream.range(0, dummy.intermediateBlockCount()).boxed().toList();
-                    supplier = toAggregator.supplier(intermediateChannels);
+            public GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+                if (channels.size() != 1) {
+                    assert false : "from_partial aggregation requires exactly one input channel; got " + channels;
+                    throw new IllegalArgumentException("from_partial aggregation requires exactly one input channel; got " + channels);
                 }
+                final int inputChannel = channels.get(0);
+                var intermediateChannels = IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).boxed().toList();
                 return new GroupingAggregator.Factory() {
                     @Override
                     public GroupingAggregator apply(DriverContext driverContext) {
-                        final GroupingAggregatorFunction aggregator = supplier.groupingAggregator(driverContext);
+                        final GroupingAggregatorFunction aggregator = supplier.groupingAggregator(driverContext, intermediateChannels);
                         return new GroupingAggregator(new FromPartialGroupingAggregatorFunction(aggregator, inputChannel), mode);
                     }
 

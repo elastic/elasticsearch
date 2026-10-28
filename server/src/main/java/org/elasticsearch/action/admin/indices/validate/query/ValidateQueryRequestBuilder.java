@@ -57,4 +57,20 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
         request.allShards(rewrite);
         return this;
     }
+
+    /**
+     * A comma separated list of routing values to control the shards the validation will execute on.
+     */
+    public ValidateQueryRequestBuilder setRouting(String... routings) {
+        request.routing(routings);
+        return this;
+    }
+
+    /**
+     * Sets slice-routing provenance and the user-provided {@code slice} value.
+     */
+    public ValidateQueryRequestBuilder setSearchSlice(String searchSlice) {
+        request.searchSlice(searchSlice);
+        return this;
+    }
 }

@@ -27,7 +27,6 @@ public class PutConnectorSecretResponse extends ActionResponse implements ToXCon
     }
 
     public PutConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
         result = DocWriteResponse.Result.readFrom(in);
     }
 

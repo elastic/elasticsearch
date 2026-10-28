@@ -9,13 +9,12 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -25,23 +24,36 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.DenseLiveDocs;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LiveDocs;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.SparseLiveDocs;
+import org.apache.lucene.util.bkd.BKDConfig;
+import org.apache.lucene.util.bkd.BKDReader;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.action.support.replication.StaleRequestException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -52,6 +64,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -60,11 +74,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -75,14 +90,18 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.EngineResetLock;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
@@ -110,6 +129,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -127,8 +147,12 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    protected static final String SEGMENTS_STATS_SOURCE = "segments_stats";
+    protected static final String FIELD_HAS_VALUE_SOURCE = "field_has_value";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
+    private static final long BKD_READER_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDReader.class);
+    private static final long BKD_CONFIG_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BKDConfig.class);
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -140,11 +164,19 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    // This should only be enabled in serverless. In stateful clusters, where we have
+    // indexing replicas, if pause throttling gets enabled on replicas, it will indirectly
+    // pause the primary as well which might prevent us from relocating the primary shard.
+    protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
+
+    private final boolean isStateless;
+
+    private final DenseVectorStatsCache denseVectorStatsCache = new DenseVectorStatsCache();
 
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
@@ -171,6 +203,11 @@ public abstract class Engine implements Closeable {
         this.enableRecoverySource = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(
             engineConfig.getIndexSettings().getSettings()
         );
+        this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
+            engineConfig.getIndexSettings().getSettings()
+        );
+
+        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -244,17 +281,127 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the {@link DenseVectorStats} for this engine
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public ShardFieldStats shardFieldStats() {
+        try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+            return shardFieldStats(searcher.getLeafContexts(), isStateless);
+        }
+    }
+
+    /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public FieldInfos shardFieldInfos() {
+        try (var searcher = acquireSearcher(FIELD_HAS_VALUE_SOURCE)) {
+            return FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+        }
+    }
+
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, boolean isStateless) {
+        int numSegments = 0;
+        int totalFields = 0;
+        long usages = 0;
+        long totalPostingBytes = 0;
+        long totalLiveDocsBytes = 0;
+        long totalPointsBytes = 0;
+
+        for (LeafReaderContext leaf : leaves) {
+            numSegments++;
+            var fieldInfos = leaf.reader().getFieldInfos();
+            totalFields += fieldInfos.size();
+            if (fieldInfos instanceof FieldInfosWithUsages ft) {
+                if (usages != -1) {
+                    usages += ft.getTotalUsages();
+                }
+            } else {
+                usages = -1;
+            }
+            if (isStateless) {
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                if (segmentReader != null) {
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
+                    }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
+                    }
+                    totalPointsBytes += getPointsBytes(fieldInfos);
+                }
+            }
+        }
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes, totalPointsBytes);
+    }
+
+    private static long getPointsBytes(FieldInfos fieldInfos) {
+        long totalPointsBytes = 0;
+        for (FieldInfo fieldInfo : fieldInfos) {
+            if (fieldInfo.getPointDimensionCount() > 0) {
+                totalPointsBytes += getBKDReaderBytes(fieldInfo);
+            }
+        }
+        return totalPointsBytes;
+    }
+
+    private static long getBKDReaderBytes(FieldInfo fieldInfo) {
+        // On construction, the BKDReader constructs two byte arrays each of size packedIndexBytesLength. We add that to
+        // the base shallow size of the BKDReader and BKDConfig to get an estimate of the total memory used by the BKDReader.
+        // The IndexInputs in the BKDReader are an abstract class so we don't estimate their size due to differing concrete implementations.
+        int packedIndexBytesLength = fieldInfo.getPointIndexDimensionCount() * fieldInfo.getPointNumBytes();
+        return BKD_READER_BASE_RAM_BYTES_USED + BKD_CONFIG_BASE_RAM_BYTES_USED + 2 * byteArrayRamBytesUsed(packedIndexBytesLength);
+    }
+
+    private static long byteArrayRamBytesUsed(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Byte.BYTES * length);
+    }
+
+    // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
+    // This simulates FixedBitSet#ramBytesUsed() does:
+    private static long getLiveDocsBytes(Bits liveDocs) {
+        if (liveDocs instanceof DenseLiveDocs dld) {
+            return dld.ramBytesUsed();
+        }
+        if (liveDocs instanceof SparseLiveDocs sld) {
+            return sld.ramBytesUsed();
+        }
+        int words = FixedBitSet.bits2words(liveDocs.length());
+        return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words
+        );
+    }
+
+    private static boolean validateLiveDocsClass(Bits liveDocs) {
+        if (liveDocs instanceof LiveDocs) {
+            return true;
+        }
+        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        String fullClassName = liveDocs.getClass().getName();
+        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
+            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$Asserting")
+            || fullClassName.contains("org.apache.lucene.tests.codecs.asserting.AssertLeafReader$Asserting")
+            : "unexpected class [" + fullClassName + "]";
+        return true;
+    }
+
+    /**
+     * Returns the {@link DenseVectorStats} for this engine. On stateless the vector counts are not collected, see
+     * {@link DenseVectorStatsCache}.
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
-            return new DenseVectorStats(0);
+            return new DenseVectorStats();
         }
 
-        List<String> fields = new ArrayList<>();
+        List<DenseVectorFieldMapper> fields = new ArrayList<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
-            if (mapper instanceof DenseVectorFieldMapper) {
-                fields.add(mapper.fullPath());
+            if (mapper instanceof DenseVectorFieldMapper denseVectorFieldMapper) {
+                fields.add(denseVectorFieldMapper);
             }
         }
         if (fields.isEmpty()) {
@@ -265,38 +412,24 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<String> fields) {
-        long valueCount = 0;
+    protected final DenseVectorStats denseVectorStats(IndexReader indexReader, List<DenseVectorFieldMapper> fields) {
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
+        final List<String> fieldNames = new ArrayList<>(fields.size());
+        for (var fieldMapper : fields) {
+            fieldNames.add(fieldMapper.fullPath());
+        }
+        var stats = new DenseVectorStats();
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                valueCount += getDenseVectorValueCount(readerContext.reader(), fields);
+                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
+                // field per segment; off-heap sizes come from field metadata and are always cheap
+                stats.add(denseVectorStatsCache.get(readerContext.reader(), fieldNames, isStateless == false));
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
-        return new DenseVectorStats(valueCount);
-    }
-
-    private long getDenseVectorValueCount(final LeafReader atomicReader, List<String> fields) throws IOException {
-        long count = 0;
-        for (var field : fields) {
-            var info = atomicReader.getFieldInfos().fieldInfo(field);
-            if (info != null && info.getVectorDimension() > 0) {
-                switch (info.getVectorEncoding()) {
-                    case FLOAT32 -> {
-                        FloatVectorValues values = atomicReader.getFloatVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                    case BYTE -> {
-                        ByteVectorValues values = atomicReader.getByteVectorValues(info.name);
-                        count += values != null ? values.size() : 0;
-                    }
-                }
-            }
-        }
-        return count;
+        return stats;
     }
 
     /**
@@ -337,14 +470,15 @@ public abstract class Engine implements Closeable {
 
     private long getSparseVectorValueCount(final LeafReader atomicReader, List<BytesRef> fields) throws IOException {
         long count = 0;
-        Terms terms = atomicReader.terms(FieldNamesFieldMapper.NAME);
-        if (terms == null) {
-            return count;
-        }
-        TermsEnum termsEnum = terms.iterator();
-        for (var fieldName : fields) {
-            if (termsEnum.seekExact(fieldName)) {
-                count += termsEnum.docFreq();
+        for (var fieldNameBR : fields) {
+            var fieldName = fieldNameBR.utf8ToString();
+            var fi = atomicReader.getFieldInfos().fieldInfo(fieldName);
+            if (fi == null) {
+                continue;
+            }
+            Terms terms = atomicReader.terms(fieldName);
+            if (terms != null) {
+                count += terms.getDocCount();
             }
         }
         return count;
@@ -357,7 +491,7 @@ public abstract class Engine implements Closeable {
      */
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        final long maxSeqNo = getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException(
                 "Global checkpoint ["
@@ -402,27 +536,72 @@ public abstract class Engine implements Closeable {
      * is enabled
      */
     protected static final class IndexThrottle {
+        private static final Logger logger = LogManager.getLogger(IndexThrottle.class);
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
         private static final ReleasableLock NOOP_LOCK = new ReleasableLock(new NoOpLock());
+        // This lock throttles indexing to 1 thread (per shard)
         private final ReleasableLock lockReference = new ReleasableLock(new ReentrantLock());
+        // This lock pauses indexing completely (on a per shard basis)
+        private final Lock pauseIndexingLock = new ReentrantLock();
+        private final Condition pauseCondition = pauseIndexingLock.newCondition();
+        private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
+        private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
+
+        // Should throttling pause indexing ? This is decided by the
+        // IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE setting for this node.
+        private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
+        public IndexThrottle(boolean pause) {
+            pauseWhenThrottled = pause;
+        }
+
         public Releasable acquireThrottle() {
-            return lock.acquire();
+            var lockCopy = this.lock;
+            if (lockCopy == pauseLockReference) {
+                try (var ignored = pauseLockReference.acquire()) {
+                    // If pause throttling is activated and not temporarily suspended
+                    while ((lock == pauseLockReference) && (suspendThrottling.getAcquire() == false)) {
+                        logger.trace("Waiting on pause indexing lock");
+                        pauseCondition.await();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                } finally {
+                    logger.trace("Acquired pause indexing lock");
+                }
+                return (() -> {});
+            } else {
+                return lockCopy.acquire();
+            }
         }
 
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
             startOfThrottleNS = System.nanoTime();
-            lock = lockReference;
+            if (pauseWhenThrottled) {
+                lock = pauseLockReference;
+                logger.trace("Activated index throttling pause");
+            } else {
+                lock = lockReference;
+            }
         }
 
         /** Deactivate throttling, which switches the lock to be an always-acquirable NoOpLock */
         public void deactivate() {
             assert lock != NOOP_LOCK : "throttling deactivated but not active";
+
             lock = NOOP_LOCK;
+            if (pauseWhenThrottled) {
+                // Signal the threads that are waiting on pauseCondition
+                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                    pauseCondition.signalAll();
+                }
+                logger.trace("Deactivated index throttling pause");
+            }
 
             assert startOfThrottleNS > 0 : "Bad state of startOfThrottleNS";
             long throttleTimeNS = System.nanoTime() - startOfThrottleNS;
@@ -447,6 +626,30 @@ public abstract class Engine implements Closeable {
 
         boolean isThrottled() {
             return lock != NOOP_LOCK;
+        }
+
+        boolean isIndexingPaused() {
+            return (lock == pauseLockReference);
+        }
+
+        /** Suspend throttling to allow another task such as relocation to acquire all indexing permits */
+        public void suspendThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
+                    suspendThrottling.setRelease(true);
+                    pauseCondition.signalAll();
+                }
+            }
+        }
+
+        /** Reverse what was done in {@link #suspendThrottle()} */
+        public void resumeThrottle() {
+            if (pauseWhenThrottled) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
+                    suspendThrottling.setRelease(false);
+                    pauseCondition.signalAll();
+                }
+            }
         }
 
         boolean throttleLockIsHeldByCurrentThread() { // to be used in assertions and tests only
@@ -521,6 +724,10 @@ public abstract class Engine implements Closeable {
      */
     public abstract IndexResult index(Index index) throws IOException;
 
+    public List<IndexResult> indexBatch(EngineBatch batch) throws IOException {
+        throw new UnsupportedOperationException("batch indexing is not supported by this engine");
+    }
+
     /**
      * Perform document delete operation on the engine
      * @param delete operation to perform
@@ -546,7 +753,7 @@ public abstract class Engine implements Closeable {
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
-        private final Mapping requiredMappingUpdate;
+        private final CompressedXContent requiredMappingUpdate;
         private final String id;
         private Translog.Location translogLocation;
         private long took;
@@ -573,7 +780,7 @@ public abstract class Engine implements Closeable {
             this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
+        protected Result(Operation.TYPE operationType, CompressedXContent requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -609,9 +816,9 @@ public abstract class Engine implements Closeable {
 
         /**
          * If the operation was aborted due to missing mappings, this method will return the mappings
-         * that are required to complete the operation.
+         * that are required to complete the operation as serialized {@link CompressedXContent}.
          */
-        public Mapping getRequiredMappingUpdate() {
+        public CompressedXContent getRequiredMappingUpdate() {
             return requiredMappingUpdate;
         }
 
@@ -686,7 +893,7 @@ public abstract class Engine implements Closeable {
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate, String id) {
+        public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }
@@ -729,19 +936,21 @@ public abstract class Engine implements Closeable {
             super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        // visible for testing
+        protected NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
     }
 
     protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean uncachedLookup) throws EngineException {
+        final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
         final DocIdAndVersion docIdAndVersion;
         try {
             if (uncachedLookup) {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -775,14 +984,37 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion);
+            // an uncached lookup is requested exactly when the searcher reads an ephemeral translog reader
+            return new GetResult(searcher, docIdAndVersion, uncachedLookup);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
         }
     }
 
+    /**
+     * Whether the document is in the live version map or not.
+     *
+     * This is used in stateless so that the {@link org.elasticsearch.action.termvectors.EnsureDocsSearchableAction} can
+     * judge whether a requested document needs to be refreshed to the search shards before executing the term vector
+     * information API on the search shards.
+     */
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        return false;
+    }
+
     public abstract GetResult get(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    );
+
+    /**
+     * Reads a document specifically in the context of performing an update operation.
+     */
+    public abstract GetResult getForUpdate(
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
@@ -802,17 +1034,33 @@ public abstract class Engine implements Closeable {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {
-        return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
+    // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
+    protected void onSearcherCreation(String source, SearcherScope scope) {}
+
+    // Allows subclasses to wrap the DirectoryReader before it is used to create external Searchers
+    protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary ignored) throws IOException {
+        return reader;
     }
 
-    /**
-     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
-     */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public final SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        return acquireSearcherSupplier(
+            wrapper,
+            scope,
+            r -> wrapExternalDirectoryReader(r, splitShardCountSummary),
+            getReferenceManager(scope)
+        );
+    }
+
+    protected SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> externalDirectoryReaderWrapper,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
+    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -821,15 +1069,21 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            ElasticsearchDirectoryReader acquiredReader = referenceManager.acquire();
+            final DirectoryReader maybeWrappedDirectoryReader;
+            if (scope == SearcherScope.EXTERNAL) {
+                maybeWrappedDirectoryReader = externalDirectoryReaderWrapper.apply(acquiredReader);
+            } else {
+                maybeWrappedDirectoryReader = acquiredReader;
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
+                    onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        acquire,
+                        maybeWrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),
@@ -840,7 +1094,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 protected void doClose() {
                     try {
-                        referenceManager.release(acquire);
+                        referenceManager.release(acquiredReader);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to close", e);
                     } catch (AlreadyClosedException e) {
@@ -855,10 +1109,17 @@ public abstract class Engine implements Closeable {
             return reader;
         } catch (AlreadyClosedException ex) {
             throw ex;
+        } catch (StaleRequestException ex) {
+            // This is a special situation that can happen during resharding.
+            // It indicates that the request is not valid rather than the operation
+            // so we need to rethrow it without failing the engine.
+            // It is not ideal to do this check at such a low level
+            // but this is the most convenient place to do it.
+            throw ex;
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire reader", ex);
+            logger.warn("failed to acquire reader", ex);
             throw new EngineException(shardId, "failed to acquire reader", ex);
         } finally {
             Releasables.close(releasable);
@@ -874,11 +1135,21 @@ public abstract class Engine implements Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcher(source, scope, SplitShardCountSummary.UNSET, wrapper);
+    }
+
+    public Searcher acquireSearcher(
+        String source,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Searcher, Searcher> wrapper
+    ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
+            onSearcherCreation(source, scope);
             return new Searcher(
                 source,
                 searcher.getDirectoryReader(),
@@ -893,6 +1164,16 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
+
+    /**
+     * Returns whether this engine has performed a document-id lookup (resolving a document via its {@code _id} to its sequence number /
+     * version, as part of an update, delete, or versioned index operation) within the last {@code recencyThreshold}.
+     * <p>
+     * The default implementation returns {@code false}; engines that track id lookups should override this.
+     */
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        return false;
+    }
 
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
@@ -928,7 +1209,7 @@ public abstract class Engine implements Closeable {
     public abstract void syncTranslog() throws IOException;
 
     /**
-     * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
+     * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
     public abstract Closeable acquireHistoryRetentionLock();
 
@@ -1026,7 +1307,7 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.INTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -1034,7 +1315,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
@@ -1096,16 +1377,20 @@ public abstract class Engine implements Closeable {
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
-        return getSegmentInfo(lastCommittedSegmentInfos, false);
+        return getSegmentInfo(lastCommittedSegmentInfos, false, false);
     }
 
-    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
+    final Segment[] getSegmentInfo(
+        SegmentInfos lastCommittedSegmentInfos,
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
+    ) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo, includeAutoCalibration);
             }
         }
 
@@ -1113,7 +1398,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo, includeAutoCalibration);
                 }
             }
         }
@@ -1153,7 +1438,8 @@ public abstract class Engine implements Closeable {
         SegmentReader segmentReader,
         boolean search,
         Map<String, Segment> segments,
-        boolean includeVectorFormatsInfo
+        boolean includeVectorFormatsInfo,
+        boolean includeAutoCalibration
     ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
@@ -1202,6 +1488,39 @@ public abstract class Engine implements Closeable {
                 segment.attributes.put(entry.getKey(), entry.getValue().toString());
             }
         }
+        try {
+            FieldInfos fieldInfos = segmentReader.getFieldInfos();
+            if (includeAutoCalibration && fieldInfos.hasVectorValues()) {
+                List<String> vectorFieldNames = new ArrayList<>();
+                for (FieldInfo fieldInfo : fieldInfos) {
+                    if (fieldInfo.hasVectorValues()) {
+                        vectorFieldNames.add(fieldInfo.name);
+                    }
+                }
+                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
+                // field per segment; off-heap sizes come from field metadata and are always cheap
+                // this is why vector count is disabled in stateless until we can retrieve that information cheaply
+                DenseVectorStats vectorStats = denseVectorStatsCache.get(segmentReader, vectorFieldNames, isStateless == false);
+                for (Map.Entry<String, List<DenseVectorStats.AutoCalibrationEntry>> fieldEntry : vectorStats.calibrationStats()
+                    .entrySet()) {
+                    for (DenseVectorStats.AutoCalibrationEntry calibrationEntry : fieldEntry.getValue()) {
+                        if (calibrationEntry.parameters == null) {
+                            continue;
+                        }
+                        if (segment.autoCalibrationParams == null) {
+                            segment.autoCalibrationParams = new HashMap<>();
+                            segment.autoCalibrationVectorCounts = new HashMap<>();
+                            segment.autoCalibrationSizeBytes = new HashMap<>();
+                        }
+                        segment.autoCalibrationParams.put(fieldEntry.getKey(), calibrationEntry.parameters);
+                        segment.autoCalibrationVectorCounts.put(fieldEntry.getKey(), calibrationEntry.numberOfVectors);
+                        segment.autoCalibrationSizeBytes.put(fieldEntry.getKey(), calibrationEntry.sizeInBytes);
+                    }
+                }
+            }
+        } catch (AlreadyClosedException | IOException e) {
+            logger.trace(() -> "failed to get auto-calibration stats for segment [" + segmentReader.getSegmentName() + "]", e);
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1211,28 +1530,32 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments();
 
-    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration);
 
     public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since we acquire a searcher and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
-                    return searcher.getDirectoryReader().isCurrent() == false;
-                }
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
+        if (store.tryIncRef() == false) {
+            return false;
         }
-        return false;
+        /*
+          we need to inc the store here since we acquire a directory reader and that might open a file on the store.
+          This violates the assumption that all files are closed when the store is closed so we need to make
+          sure we increment it here.
+         */
+        try {
+            var refManager = getReferenceManager(SearcherScope.EXTERNAL);
+            var reader = refManager.acquire();
+            try {
+                return reader.isCurrent() == false;
+            } finally {
+                refManager.release(reader);
+            }
+        } catch (IOException e) {
+            logger.error("failed to access directory reader", e);
+            failEngine("failed to access directory reader", e);
+            throw new EngineException(shardId, "failed to access directory reader", e);
+        } finally {
+            store.decRef();
+        }
     }
 
     /**
@@ -1254,7 +1577,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Asynchronously refreshes the engine for new search operations to reflect the latest
-     * changes unless another thread is already refreshing the engine concurrently.
+     * changes unless another thread is already refreshing or reseting the engine concurrently.
      */
     @Nullable
     public abstract void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException;
@@ -1295,18 +1618,26 @@ public abstract class Engine implements Closeable {
      *                      indicating no flush and unknown generation.
      */
     public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        flush(force, waitIfOngoing, FlushResultListener.wrap(listener));
+    }
+
+    /**
+     * Flushes the state of the engine, same as {@link #flush(boolean, boolean, ActionListener)}, but accepts a
+     * {@link FlushResultListener} whose {@link FlushResultListener#afterFlushWithLock(long)} method is called after the flush
+     * request is processed and before the flush lock is released. This callback is only invoked when the flush lock
+     * was actually acquired; it is not called when the request is skipped or when the engine does not use a flush lock.
+     */
+    public final void flush(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         try (var ignored = acquireEnsureOpenRef()) {
             flushHoldingLock(force, waitIfOngoing, listener);
         }
     }
 
     /**
-     * The actual implementation of {@link #flush(boolean, boolean, ActionListener)}, to be called either when holding a ref that ensures
-     * the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
-     *
+     * The actual implementation of {@link #flush(boolean, boolean, FlushResultListener)}, to be called either when holding a ref that
+     * ensures the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
      */
-    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
-        throws EngineException;
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1534,6 +1865,17 @@ public abstract class Engine implements Closeable {
             return source;
         }
 
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
+        }
+
         public DirectoryReader getDirectoryReader() {
             if (getIndexReader() instanceof DirectoryReader) {
                 return (DirectoryReader) getIndexReader();
@@ -1723,13 +2065,13 @@ public abstract class Engine implements Closeable {
             return this.doc.docs();
         }
 
-        public BytesReference source() {
+        public DocumentSource source() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + source().length() + 12;
+            return (id().length() * 2) + source().estimatedSizeInBytes() + 12;
         }
 
         /**
@@ -1873,18 +2215,21 @@ public abstract class Engine implements Closeable {
 
     public static class Get {
         private final boolean realtime;
-        private final BytesRef uid;
-        private final String id;
+        private final Uid uid;
         private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private long ifSeqNo = UNASSIGNED_SEQ_NO;
         private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+        /** Convenience for a plain (non-sliced) document; the uid is {@link Uid#of(String)}. */
         public Get(boolean realtime, boolean readFromTranslog, String id) {
+            this(realtime, readFromTranslog, Uid.of(id));
+        }
+
+        public Get(boolean realtime, boolean readFromTranslog, Uid uid) {
             this.realtime = realtime;
-            this.id = id;
-            this.uid = Uid.encodeId(id);
+            this.uid = uid;
             this.readFromTranslog = readFromTranslog;
         }
 
@@ -1893,11 +2238,11 @@ public abstract class Engine implements Closeable {
         }
 
         public String id() {
-            return id;
+            return uid.id();
         }
 
         public BytesRef uid() {
-            return uid;
+            return uid.term();
         }
 
         public long version() {
@@ -1947,18 +2292,30 @@ public abstract class Engine implements Closeable {
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
         private final Engine.Searcher searcher;
+        private final boolean fromTranslog;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null, false);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher, boolean fromTranslog) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
+            this.fromTranslog = fromTranslog;
         }
 
-        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher, fromTranslog);
+        }
+
+        /**
+         * Whether the document was served from an ephemeral, single-use in-memory translog reader rather than an
+         * index reader, in which case holding onto this result pins that reader and the document source it wraps.
+         * Note that a get consulting the translog may still be served from the index (reporting {@code false}) when
+         * the operation's translog location is unknown.
+         */
+        public boolean isFromTranslog() {
+            return fromTranslog;
         }
 
         public boolean exists() {
@@ -2054,7 +2411,7 @@ public abstract class Engine implements Closeable {
                 logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
                     // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                    flushHoldingLock(false, false, ActionListener.noop());
+                    flushHoldingLock(false, false, FlushResultListener.NOOP);
                 } catch (AlreadyClosedException ex) {
                     logger.debug("engine already closed - skipping flushAndClose");
                 }
@@ -2075,7 +2432,7 @@ public abstract class Engine implements Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected final void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {
@@ -2145,12 +2502,32 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
+     * If indexing is throttled to the point where it is paused completely,
+     * another task trying to get indexing permits might want to pause throttling
+     * by letting one thread pass at a time so that it does not get starved.
+     */
+    public abstract void suspendThrottling();
+
+    /**
+     * Reverses a previous {@link #suspendThrottling} call.
+     */
+    public abstract void resumeThrottling();
+
+    /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
      * This ensures that all acknowledged writes are restored correctly when this engine is promoted.
      *
      * @return the number of translog operations have been recovered
      */
     public abstract int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException;
+
+    /**
+     * Returns the decorator to use for parsing documents that are indexed by this engine. Engines that meter documents as they are
+     * indexed can override this to record size information, this includes operations that are replayed from the translog.
+     */
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return XContentMeteringParserDecorator.NOOP;
+    }
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint
@@ -2292,6 +2669,13 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
+    public static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
+        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
+        long maxSeqNo = seqNoStats.maxSeqNo();
+        long localCheckpoint = seqNoStats.localCheckpoint();
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
+    }
+
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      *
@@ -2330,14 +2714,83 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public record FlushResult(boolean flushPerformed, long generation) {
+    /**
+     * The result of a {@link FlushRequest}.
+     *
+     * @param skippedDueToCollision signifies whether the flush request was skipped due to a collision detected. Specifically it is
+     *                              <code>true</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, which means
+     *                              the flush request was skipped, else it is <code>false</code>, which means there was no collision and
+     *                              the flush request was processed (even if in the end it did not actually flush anything).
+     * @param generation            the generation of the index commit of the flush. may be {@link FlushResult#UNKNOWN_GENERATION} if
+     *                              unknown, e.g., if the flush was skipped or not performed ultimately.
+     */
+    public record FlushResult(boolean skippedDueToCollision, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
-        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION = new FlushResult(true, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED = new FlushResult(false, UNKNOWN_GENERATION);
     }
 
     /**
-     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     * An {@link ActionListener} for flush operations that provides a callback to execute while the flush lock is still held.
+     * This allows callers to perform operations such as acquiring an index commit that is guaranteed to be the one created
+     * by the flush.
+     */
+    public interface FlushResultListener extends ActionListener<FlushResult> {
+
+        FlushResultListener NOOP = new FlushResultListener() {
+            @Override
+            public void onResponse(FlushResult result) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+
+            @Override
+            public String toString() {
+                return "NoopFlushResultListener";
+            }
+        };
+
+        /**
+         * Called while the flush lock is still held, after the flush request has been processed. It is invoked regardless
+         * of whether a new commit was actually created, with the generation of the last committed segment infos. It is
+         * <b>NOT</b> called when the flush lock was never acquired, e.g. the request was skipped due to not waiting
+         * for the lock (i.e. {@code waitIfOngoing==false}) or if the engine does not use a flush lock at all.
+         *
+         * @param generation the segment generation of the latest committed segment infos
+         */
+        default void afterFlushWithLock(long generation) {}
+
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate) {
+            return wrap(delegate, NOOP::afterFlushWithLock);
+        }
+
+        /**
+         * Wraps a plain {@link ActionListener} into a {@link FlushResultListener} with the given callback
+         * for {@link #afterFlushWithLock(long)}.
+         */
+        static FlushResultListener wrap(ActionListener<FlushResult> delegate, LongConsumer afterFlushWithLock) {
+            return new FlushResultListener() {
+                @Override
+                public void afterFlushWithLock(long generation) {
+                    afterFlushWithLock.accept(generation);
+                }
+
+                @Override
+                public void onResponse(FlushResult result) {
+                    delegate.onResponse(result);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+            };
+        }
+    }
+
+    /**
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine(Consumer<Engine>)}.
      *
      * In general, resetting the engine should be done with care, to consider any
      * in-progress operations and listeners (e.g., primary term and generation listeners).
@@ -2345,5 +2798,41 @@ public abstract class Engine implements Closeable {
      */
     public void prepareForEngineReset() throws IOException {
         throw new UnsupportedOperationException("does not support engine reset");
+    }
+
+    public long getLastUnsafeSegmentGenerationForGets() {
+        throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
+    }
+
+    protected static <R extends ReferenceManager<ElasticsearchDirectoryReader>> R wrapForAssertions(
+        R referenceManager,
+        EngineConfig engineConfig
+    ) {
+        if (Assertions.ENABLED) {
+            referenceManager.addListener(new AssertRefreshListenerHoldsEngineReadLock(engineConfig.getEngineResetLock()));
+        }
+        return referenceManager;
+    }
+
+    /**
+     * RefreshListener that asserts that the engine read lock is held by the thread refreshing the reference.
+     */
+    private static class AssertRefreshListenerHoldsEngineReadLock implements ReferenceManager.RefreshListener {
+
+        private final EngineResetLock engineLock;
+
+        private AssertRefreshListenerHoldsEngineReadLock(EngineResetLock engineLock) {
+            this.engineLock = Objects.requireNonNull(engineLock);
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            assert engineLock.isReadLockedByCurrentThread() : Thread.currentThread();
+        }
     }
 }

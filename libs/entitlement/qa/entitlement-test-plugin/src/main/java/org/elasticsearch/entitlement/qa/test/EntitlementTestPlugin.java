@@ -8,36 +8,34 @@
  */
 package org.elasticsearch.entitlement.qa.test;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EntitlementTestPlugin extends Plugin implements ActionPlugin {
+
+    private Environment environment;
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        environment = services.environment();
+        return super.createComponents(services);
+    }
+
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        final RestController restController,
-        final ClusterSettings clusterSettings,
-        final IndexScopedSettings indexScopedSettings,
-        final SettingsFilter settingsFilter,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestEntitlementsCheckAction());
+        return List.of(new RestEntitlementsCheckAction(environment));
     }
 }

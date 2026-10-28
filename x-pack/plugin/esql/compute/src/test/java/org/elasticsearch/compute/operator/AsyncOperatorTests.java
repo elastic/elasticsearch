@@ -27,9 +27,10 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -53,6 +54,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AsyncOperatorTests extends ESTestCase {
 
@@ -79,11 +81,17 @@ public class AsyncOperatorTests extends ESTestCase {
         LocalCircuitBreaker localBreaker = null;
         final DriverContext driverContext;
         if (randomBoolean()) {
-            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            int overReserveBytes = between(0, 1024);
+            int maxOverReservedBytes = between(0, 4096);
+            LocalCircuitBreaker.SizeSettings localBreakerSettings = new LocalCircuitBreaker.SizeSettings(
+                overReserveBytes,
+                maxOverReservedBytes
+            );
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), overReserveBytes, maxOverReservedBytes);
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, localBreakerSettings);
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, null);
         }
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
@@ -112,7 +120,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             final LookupService lookupService = new LookupService(threadPool, globalBlockFactory, dict, maxConcurrentRequests);
 
             @Override
@@ -141,7 +149,7 @@ public class AsyncOperatorTests extends ESTestCase {
         if (randomBoolean()) {
             int limit = between(0, ids.size());
             it = ids.subList(0, limit).iterator();
-            intermediateOperators.add(new LimitOperator(limit));
+            intermediateOperators.add(new LimitOperator(new Limiter(limit)));
         } else {
             it = ids.iterator();
         }
@@ -165,12 +173,12 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             sourceOperator,
             intermediateOperators,
             outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
             () -> assertFalse(it.hasNext())
         );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
@@ -182,7 +190,7 @@ public class AsyncOperatorTests extends ESTestCase {
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
 
         TestOp(DriverContext driverContext, int maxOutstandingRequests) {
-            super(driverContext, maxOutstandingRequests);
+            super(driverContext, threadPool.getThreadContext(), maxOutstandingRequests);
         }
 
         @Override
@@ -208,7 +216,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         TestOp operator = new TestOp(driverContext, 2);
         assertTrue(operator.isBlocked().listener().isDone());
         assertTrue(operator.needsInput());
@@ -245,16 +253,130 @@ public class AsyncOperatorTests extends ESTestCase {
         operator.close();
     }
 
+    /**
+     * Once its input finished, the operator still blocks while a request is in flight, and the result unblocks it.
+     */
+    public void testBlockedAfterFinishUntilTheResultArrives() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, between(1, 3));
+        Page input = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+        operator.addInput(input);
+        operator.finish();
+        SubscribableListener<Void> blocked = operator.isBlocked().listener();
+        assertFalse(blocked.isDone());
+        assertFalse(operator.isFinished());
+
+        Page result = new Page(driverContext.blockFactory().newConstantNullBlock(2));
+        operator.handlers.remove(input).onResponse(result);
+        input.releaseBlocks();
+        assertTrue(blocked.isDone());
+        assertTrue(operator.isBlocked().listener().isDone());
+        assertThat(operator.getOutput(), equalTo(result));
+        result.releaseBlocks();
+        assertTrue(operator.isFinished());
+        assertTrue(operator.isBlocked().listener().isDone());
+        operator.close();
+    }
+
+    /**
+     * A failed request unblocks the operator while an earlier request is still in flight, so the failure surfaces at once.
+     * The result that arrives later is released.
+     */
+    public void testFailureUnblocksWhileAnEarlierRequestIsInFlight() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        TestOp operator = new TestOp(driverContext, 2);
+        Page first = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+        Page second = new Page(driverContext.blockFactory().newConstantNullBlock(2));
+        operator.addInput(first);
+        operator.addInput(second);
+        if (randomBoolean()) {
+            operator.finish();
+        }
+        SubscribableListener<Void> blocked = operator.isBlocked().listener();
+        assertFalse(blocked.isDone());
+
+        // the operator releases the input of a failed request
+        operator.handlers.remove(second).onFailure(new ElasticsearchException("simulated"));
+        assertTrue(blocked.isDone());
+        assertTrue(operator.isBlocked().listener().isDone());
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, operator::getOutput);
+        assertThat(e.getMessage(), equalTo("simulated"));
+
+        operator.handlers.remove(first).onResponse(new Page(driverContext.blockFactory().newConstantNullBlock(3)));
+        first.releaseBlocks();
+        operator.close();
+    }
+
+    /**
+     * Once its input finished, the driver waits for the last result instead of calling {@link Operator#getOutput} until
+     * it arrives. The input finishes while the request is in flight, because the operator takes more than one page, so
+     * the driver asks the source for another page.
+     */
+    public void testDriverWaitsForTheLastResult() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        SourceOperator sourceOperator = new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, 10));
+        AtomicInteger getOutputCalls = new AtomicInteger();
+        int maxOutstandingRequests = between(2, 10);
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxOutstandingRequests) {
+            @Override
+            protected void performAsync(Page inputPage, ActionListener<Page> listener) {
+                // a driver that polls would call getOutput thousands of times in the meantime
+                threadPool.schedule(
+                    () -> listener.onResponse(inputPage),
+                    TimeValue.timeValueMillis(100),
+                    threadPool.executor(ESQL_TEST_EXECUTOR)
+                );
+            }
+
+            @Override
+            public Page getOutput() {
+                getOutputCalls.incrementAndGet();
+                return fetchFromBuffer();
+            }
+
+            @Override
+            protected void releaseFetchedOnAnyThread(Page page) {
+                releasePageOnAnyThread(page);
+            }
+
+            @Override
+            protected void doClose() {
+
+            }
+        };
+        AtomicInteger rows = new AtomicInteger();
+        SinkOperator outputOperator = new PageConsumerOperator(page -> {
+            rows.addAndGet(page.getPositionCount());
+            page.releaseBlocks();
+        });
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator);
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10_000), future);
+        future.actionGet(30, TimeUnit.SECONDS);
+        assertThat(rows.get(), equalTo(10));
+        // the source emits up to 10 pages, the driver calls getOutput at most once per page and once per result
+        assertThat(getOutputCalls.get(), lessThanOrEqualTo(20));
+    }
+
     public void testFailure() throws Exception {
         BlockFactory globalBlockFactory = blockFactory();
         LocalCircuitBreaker localBreaker = null;
         final DriverContext driverContext;
         if (randomBoolean()) {
-            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            int overReserveBytes = between(0, 1024);
+            int maxOverReservedBytes = between(0, 4096);
+            LocalCircuitBreaker.SizeSettings localBreakerSettings = new LocalCircuitBreaker.SizeSettings(
+                overReserveBytes,
+                maxOverReservedBytes
+            );
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), overReserveBytes, maxOverReservedBytes);
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, localBreakerSettings);
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, null);
         }
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(
             driverContext.blockFactory(),
@@ -262,7 +384,7 @@ public class AsyncOperatorTests extends ESTestCase {
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -302,7 +424,14 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver("test", driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            sourceOperator,
+            List.of(asyncOperator),
+            outputOperator,
+            Driver.DEFAULT_STATUS_INTERVAL,
+            localBreaker
+        );
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
@@ -322,9 +451,9 @@ public class AsyncOperatorTests extends ESTestCase {
         int iters = iterations(10, 10_000);
         BlockFactory blockFactory = blockFactory();
         for (int i = 0; i < iters; i++) {
-            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
             CyclicBarrier barrier = new CyclicBarrier(2);
-            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, between(1, 10)) {
+            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), between(1, 10)) {
                 @Override
                 protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                     ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -423,9 +552,8 @@ public class AsyncOperatorTests extends ESTestCase {
 
     protected BlockFactory blockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

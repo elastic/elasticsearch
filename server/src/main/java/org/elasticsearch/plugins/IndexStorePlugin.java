@@ -19,6 +19,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -74,10 +75,19 @@ public interface IndexStorePlugin {
     @FunctionalInterface
     interface RecoveryStateFactory {
         /**
-         * Creates a new {@link RecoveryState} per shard. This method is called once per shard on shard creation.
-         * @return a new RecoveryState instance
+         * Creates a new {@link RecoveryState} for the given shard. Called once per shard at creation time.
+         *
+         * @param shardRouting the routing entry for the shard being created
+         * @param localNode    the node on which the shard is being created
+         * @param sourceNode   the node from which the shard is being recovered, or {@code null} for non-peer recoveries
+         * @param localRetries how many times this shard's recovery has already failed and been retried locally on this data node
          */
-        RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode);
+        RecoveryState newRecoveryState(
+            ShardRouting shardRouting,
+            DiscoveryNode localNode,
+            @Nullable DiscoveryNode sourceNode,
+            int localRetries
+        );
     }
 
     /**
@@ -85,7 +95,7 @@ public interface IndexStorePlugin {
      * {@link org.elasticsearch.index.IndexModule#INDEX_RECOVERY_TYPE_SETTING} on the index will be examined and either use the default
      * or looked up among all the recovery state factories from {@link IndexStorePlugin} plugins.
      *
-     * @return a map from recovery type to an recovery state factory
+     * @return a map from recovery type to a recovery state factory
      */
     default Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         return Collections.emptyMap();
@@ -102,8 +112,9 @@ public interface IndexStorePlugin {
          * @param index         the {@link Index} of the index whose folders are going to be deleted
          * @param indexSettings settings for the index whose folders are going to be deleted
          * @param indexPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason);
 
         /**
          * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
@@ -112,8 +123,9 @@ public interface IndexStorePlugin {
          * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
          * @param indexSettings index settings of the shard whose folders are going to be deleted
          * @param shardPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason);
     }
 
     /**

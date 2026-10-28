@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -68,10 +69,20 @@ class JULBridge extends Handler {
         final String message;
         if (rawMessage == null) {
             message = "<null message>";
+        } else if (record.getParameters() != null && record.getParameters().length > 0) {
+            try {
+                message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
+            } catch (Exception e) {
+                logMessage(thrown, logger, level, rawMessage + " " + Arrays.toString(record.getParameters()));
+                return;
+            }
         } else {
-            message = new MessageFormat(rawMessage, Locale.ROOT).format(record.getParameters());
+            message = rawMessage;
         }
+        logMessage(thrown, logger, level, message);
+    }
 
+    private static void logMessage(Throwable thrown, Logger logger, Level level, String message) {
         if (thrown == null) {
             logger.log(level, message);
         } else {

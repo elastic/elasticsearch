@@ -8,28 +8,23 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -107,6 +102,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<ReservedLifecycleAction> reservedLifecycleAction = new SetOnce<>();
+    private final SetOnce<TimeSeriesEligibleWriteWindowLocatorWithIlm> timeSeriesEligibleWriteWindowLocator = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -128,10 +124,14 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING,
             LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING,
+            IndexMetadata.LIFECYCLE_SKIP_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_ACTION_SETTING,
             IlmHealthIndicatorService.MAX_TIME_ON_STEP_SETTING,
-            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING
+            IlmHealthIndicatorService.MAX_RETRIES_PER_STEP_SETTING,
+            // The ILM plugin registers this setting to avoid enabling it on serverless
+            DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING,
+            PreferIlmSettingProvider.ENABLED_SETTING
         );
     }
 
@@ -142,19 +142,31 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         final List<Object> components = new ArrayList<>();
+        PutLifecycleMetadataService putLifecycleMetadataService = new PutLifecycleMetadataService(
+            services.clusterService(),
+            services.xContentRegistry(),
+            services.client(),
+            getLicenseState(),
+            services.threadPool(),
+            services.projectResolver()
+        );
+        components.add(putLifecycleMetadataService);
+
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
             services.clusterService(),
             services.threadPool(),
             services.client(),
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            services.featureService()
         );
         ilmTemplateRegistry.initialize();
         ilmHistoryStore.set(
             new ILMHistoryStore(
                 new OriginSettingClient(services.client(), INDEX_LIFECYCLE_ORIGIN),
                 services.clusterService(),
-                services.threadPool()
+                services.threadPool(),
+                services.projectResolver()
             )
         );
         /*
@@ -174,7 +186,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 nowSupplier,
                 services.xContentRegistry(),
                 ilmHistoryStore.get(),
-                getLicenseState()
+                getLicenseState(),
+                services.dataStreamLifecycleSettings()
             )
         );
         components.add(indexLifecycleInitialisationService.get());
@@ -185,13 +198,16 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 new IlmHealthIndicatorService.StagnatingIndicesFinder(
                     services.clusterService(),
                     IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG.values(),
-                    System::currentTimeMillis
+                    System::currentTimeMillis,
+                    services.dataStreamLifecycleSettings()
                 )
             )
         );
         reservedLifecycleAction.set(
             new ReservedLifecycleAction(services.xContentRegistry(), services.client(), XPackPlugin.getSharedLicenseState())
         );
+        timeSeriesEligibleWriteWindowLocator.set(new TimeSeriesEligibleWriteWindowLocatorWithIlm());
+        components.add(timeSeriesEligibleWriteWindowLocator.get());
 
         return components;
     }
@@ -205,12 +221,12 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return List.of(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(LifecycleOperationMetadata.TYPE),
                 parser -> LifecycleOperationMetadata.PARSER.parse(parser, null)
             ),
@@ -248,13 +264,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -274,26 +284,31 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class),
-            new ActionHandler<>(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class),
-            new ActionHandler<>(ILMActions.PUT, TransportPutLifecycleAction.class),
-            new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
-            new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
-            new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
-            new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
-            new ActionHandler<>(ILMActions.MOVE_TO_STEP, TransportMoveToStepAction.class),
-            new ActionHandler<>(ILMActions.RETRY, TransportRetryAction.class),
-            new ActionHandler<>(ILMActions.START, TransportStartILMAction.class),
-            new ActionHandler<>(ILMActions.STOP, TransportStopILMAction.class),
-            new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class),
+            new ActionHandler(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class),
+            new ActionHandler(ILMActions.PUT, TransportPutLifecycleAction.class),
+            new ActionHandler(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
+            new ActionHandler(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
+            new ActionHandler(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
+            new ActionHandler(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
+            new ActionHandler(ILMActions.MOVE_TO_STEP, TransportMoveToStepAction.class),
+            new ActionHandler(ILMActions.RETRY, TransportRetryAction.class),
+            new ActionHandler(ILMActions.START, TransportStartILMAction.class),
+            new ActionHandler(ILMActions.STOP, TransportStopILMAction.class),
+            new ActionHandler(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
         );
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers() {
         return List.of(reservedLifecycleAction.get());
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(PreferIlmSettingProvider.create(parameters.clusterService().getClusterSettings()));
     }
 
     @Override

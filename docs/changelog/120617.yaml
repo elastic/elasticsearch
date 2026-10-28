@@ -1,5 +1,0 @@
-pr: 120617
-summary: Fix queries with document level security on lookup indexes
-area: ES|QL
-type: bug
-issues: [120509]

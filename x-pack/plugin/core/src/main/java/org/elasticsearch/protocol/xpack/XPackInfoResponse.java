@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +42,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
-        super(in);
         this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
         this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
@@ -329,9 +327,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
             public FeatureSet(StreamInput in) throws IOException {
                 this(in.readString(), in.readBoolean(), in.readBoolean());
-                if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                    in.readGenericMap(); // backcompat reading native code info, but no longer used here
-                }
             }
 
             @Override
@@ -339,9 +334,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 out.writeString(name);
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                    out.writeGenericMap(Collections.emptyMap());
-                }
             }
 
             public String name() {

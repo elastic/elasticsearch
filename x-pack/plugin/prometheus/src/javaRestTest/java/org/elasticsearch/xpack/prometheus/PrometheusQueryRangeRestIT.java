@@ -1,0 +1,671 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.prometheus;
+
+import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+
+import static org.elasticsearch.xpack.prometheus.PromqlResponseSeries.of;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+
+/**
+ * Integration tests for the Prometheus {@code /api/v1/query_range} endpoint.
+ */
+public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
+
+    private static final String METRIC = "test_gauge_labels_qr";
+
+    /**
+     * Verifies that querying when no Prometheus indices exist returns an empty result instead of an error.
+     * ESRestTestCase wipes all indices between test methods, so this test always runs on a clean cluster.
+     */
+    public void testQueryRangeWithNoPrometheusIndicesReturnsEmptyResult() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "nonexistent_metric"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        assertThat(responsePath.evaluate("data.result"), empty());
+    }
+
+    /**
+     * A pure scalar constant requires no index data: each step in the range produces the literal value.
+     */
+    public void testQueryRangeScalarConstantRequiresNoIndexData() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "3.14"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        // one series entry with no labels and one sample per step
+        assertThat(path.evaluate("data.result"), hasSize(1));
+        assertThat(path.evaluate("data.result.0.metric"), equalTo(Map.of()));
+        assertThat(
+            path.evaluate("data.result.0.values"),
+            equalTo(List.of(List.of(1767225600.0, "3.14"), List.of(1767225660.0, "3.14"), List.of(1767225720.0, "3.14")))
+        );
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantQueryDurationLiteralIsSeconds}. */
+    public void testQueryRangeDurationLiteralIsSeconds() throws Exception {
+        assertBinopRangeValues("1h30m", 5400);
+        assertBinopRangeValues("2m + 30s", 150);
+    }
+
+    /** Prometheus rejects a string literal in a range query: "invalid expression type "string" for range query". */
+    public void testQueryRangeStringLiteralIsRejected() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "\"a string\""),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be Scalar or instant Vector"));
+    }
+
+    public void testQueryRangeWithIngestedData() throws Exception {
+        ingestTestData("test_gauge_qr");
+
+        ObjectPath responsePath = executeQueryRange();
+        assertMetricResults(responsePath);
+    }
+
+    public void testQueryRangeWithIndexPattern() throws Exception {
+        ingestTestData("test_gauge_qr");
+
+        ObjectPath responsePath = executeQueryRangeWithIndex("metrics-generic.prometheus-*");
+        assertMetricResults(responsePath);
+    }
+
+    public void testQueryRangeWithTimeout() throws Exception {
+        ingestTestData("test_gauge_qr");
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "test_gauge_qr{job=\"test_job\"}"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s"),
+            new BasicNameValuePair("timeout", "1m")
+        );
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(client().performRequest(request));
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        assertMetricResults(responsePath);
+    }
+
+    public void testQueryRangeWithInvalidTimeoutReturnsBadRequest() throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "up"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s"),
+            new BasicNameValuePair("timeout", "soon")
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        ObjectPath errorPath = ObjectPath.createFromResponse(e.getResponse());
+        assertThat(errorPath.evaluate("status"), equalTo("error"));
+        assertThat(errorPath.evaluate("errorType"), equalTo("bad_data"));
+        assertThat(errorPath.evaluate("error"), equalTo("invalid parameter \"timeout\": cannot parse \"soon\" to a valid duration"));
+    }
+
+    public void testQueryRangeSumByEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(rangeSeries("sum by (cluster) (" + METRIC + ")"), containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0)));
+        assertThat(rangeSeries("sum by (pod) (" + METRIC + ")"), containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0)));
+        assertThat(rangeSeries("sum by (region) (" + METRIC + ")"), containsInAnyOrder(of("region", "r1", 5.0), of("region", "r2", 5.0)));
+        assertThat(rangeSeries("sum by (job) (" + METRIC + ")"), contains(of("job", "test_job", 10.0)));
+        assertThat(rangeSeries("sum by (instance) (" + METRIC + ")"), contains(of("instance", "localhost:9090", 10.0)));
+    }
+
+    public void testQueryRangeSumWithoutEachLabel() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        for (String dropped : LABELLED_SERIES_LABELS) {
+            assertThat(
+                "without(" + dropped + ")",
+                rangeSeries("sum without (" + dropped + ") (" + METRIC + ")"),
+                containsInAnyOrder(expected(series -> series.without(dropped)))
+            );
+        }
+    }
+
+    /** The inner aggregation packs its identity into {@code _timeseries}; the outer one must still resolve pod out of it. */
+    public void testQueryRangeNestedRegrouping() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            rangeSeries("sum by (pod) (sum without (region) (" + METRIC + "))"),
+            containsInAnyOrder(of("pod", "p1", 4.0), of("pod", "p2", 6.0))
+        );
+    }
+
+    public void testQueryRangeChangesCountsValueTransitions() throws Exception {
+        assumePromqlChangesSupported();
+
+        String metric = "test_gauge_changes_qr";
+        RemoteWrite.TimeSeries series = RemoteWrite.TimeSeries.newBuilder()
+            .addLabels(label("__name__", metric))
+            .addLabels(label("job", "test_job"))
+            .addLabels(label("instance", "localhost:9090"))
+            .addSamples(sample(0.0, 1767225600000L))
+            .addSamples(sample(0.0, 1767225660000L))
+            .addSamples(sample(1.0, 1767225720000L))
+            .addSamples(sample(1.0, 1767225780000L))
+            .addSamples(sample(2.0, 1767225840000L))
+            .build();
+        ingestTestData(RemoteWrite.WriteRequest.newBuilder().addTimeseries(series).build());
+
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "changes(" + metric + "[3m])"),
+            new BasicNameValuePair("start", "2026-01-01T00:02:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:04:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        assertThat(path.evaluate("status"), equalTo("success"));
+        assertThat(path.evaluate("data.resultType"), equalTo("matrix"));
+        assertThat(path.evaluate("data.result"), hasSize(1));
+        assertThat(
+            path.evaluate("data.result.0.values"),
+            equalTo(List.of(List.of(1767225720.0, "1.0"), List.of(1767225780.0, "1.0"), List.of(1767225840.0, "1.0")))
+        );
+    }
+
+    /** {@code or} aligns branches by column name, and here neither branch's labelset appears on the other. */
+    public void testQueryRangeUnionOfDifferentlyShapedBranches() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(
+            rangeSeries("sum by (cluster) (" + METRIC + ") or sum by (pod) (" + METRIC + ")"),
+            containsInAnyOrder(of("cluster", "a", 3.0), of("cluster", "b", 7.0), of("pod", "p1", 4.0), of("pod", "p2", 6.0))
+        );
+    }
+
+    public void testQueryRangeArithmeticKeepsSeriesLabels() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        assertThat(rangeSeries(METRIC + " * 2"), containsInAnyOrder(expected(series -> series.withValue(series.value() * 2))));
+    }
+
+    /**
+     * Label selectors: equality, inequality, regex match, regex not-match, and AND combinations.
+     * The AND case ({@code cluster="a",pod!="p1"}) caught a Lucene bug where mixed equality+inequality
+     * filters produced wrong results.
+     */
+    public void testQueryRangeLabelSelectorFilters() throws Exception {
+        ingestLabelledSeries(METRIC);
+
+        // {cluster="a"}: equality
+        assertThat(rangeSeries(METRIC + "{cluster=\"a\"}"), containsInAnyOrder(matching(s -> "a".equals(s.labels().get("cluster")))));
+        // {pod!="p1"}: inequality
+        assertThat(rangeSeries(METRIC + "{pod!=\"p1\"}"), containsInAnyOrder(matching(s -> "p1".equals(s.labels().get("pod")) == false)));
+        // {cluster="a",pod!="p1"}: AND (the Lucene bug case)
+        assertThat(
+            rangeSeries(METRIC + "{cluster=\"a\",pod!=\"p1\"}"),
+            containsInAnyOrder(matching(s -> "a".equals(s.labels().get("cluster")) && "p1".equals(s.labels().get("pod")) == false))
+        );
+        // {region=~"r1"}: regex match
+        assertThat(rangeSeries(METRIC + "{region=~\"r1\"}"), containsInAnyOrder(matching(s -> "r1".equals(s.labels().get("region")))));
+        // {region!~"r1"}: regex not-match
+        assertThat(
+            rangeSeries(METRIC + "{region!~\"r1\"}"),
+            containsInAnyOrder(matching(s -> "r1".equals(s.labels().get("region")) == false))
+        );
+    }
+
+    private static PromqlResponseSeries[] expected(UnaryOperator<PromqlResponseSeries> transform) {
+        return LABELLED_SERIES.stream().map(transform).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private static PromqlResponseSeries[] matching(Predicate<PromqlResponseSeries> predicate) {
+        return LABELLED_SERIES.stream().filter(predicate).toArray(PromqlResponseSeries[]::new);
+    }
+
+    private List<PromqlResponseSeries> rangeSeries(String promql) throws Exception {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", promql),
+            new BasicNameValuePair("start", "2026-01-01T00:01:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:03:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        return PromqlResponseSeries.ofRange(responsePath);
+    }
+
+    private static void assertMetricResults(ObjectPath responsePath) throws IOException {
+        assertThat(responsePath.evaluate("data.result"), hasSize(1));
+        assertThat(responsePath.evaluate("data.result.0.metric.job"), equalTo("test_job"));
+        assertThat(responsePath.evaluate("data.result.0.metric.instance"), equalTo("localhost:9090"));
+        List<List<Object>> values = responsePath.evaluate("data.result.0.values");
+        assertThat(values, hasSize(5));
+
+        // Assert timestamps are in strictly ascending order
+        double prevTimestamp = -1;
+        for (List<Object> point : values) {
+            double timestamp = ((Number) point.getFirst()).doubleValue();
+            assertThat(timestamp, greaterThan(prevTimestamp));
+            prevTimestamp = timestamp;
+        }
+    }
+
+    private ObjectPath executeQueryRange() throws Exception {
+        return executeQueryRangeWithIndex(null);
+    }
+
+    private ObjectPath executeQueryRangeWithIndex(String index) throws Exception {
+        String path = index == null ? "/_prometheus/api/v1/query_range" : "/_prometheus/" + index + "/api/v1/query_range";
+        Request request = prometheusReadRequest(
+            path,
+            new BasicNameValuePair("query", "test_gauge_qr{job=\"test_job\"}"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
+
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        return responsePath;
+    }
+
+    // --- tx/rx queries across ingestion paths through the range query API ---
+    // Ingestion helpers live in the base class.
+
+    private static final String RANGE_START = "2024-05-09T23:59:00Z";
+    private static final String RANGE_END = "2024-05-10T00:00:00Z";
+    private static final String RANGE_STEP = "30s";
+    private static final Instant QUERY_END = Instant.parse(RANGE_END);
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeRawOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / rx", 5, 10, 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeRawAndPairedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / (tx + rx)", 5.0 / 6, 10.0 / 11, 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverCrossMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / rx)", 18);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverSameMetricPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / tx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeSumOverChainedPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("sum(tx / (tx + rx))", 5.0 / 6 + 10.0 / 11 + 3.0 / 4);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverPairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (tx / rx)", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverIncreasePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (increase(tx[1m]) / increase(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeGroupedSumOverIratePairing() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (cluster) (irate(tx[1m]) / irate(rx[1m]))", "cluster", Map.of("prod", 15.0, "qa", 3.0));
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeDefaultMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeIgnoringMatchingExcludesMetricName() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / ignoring () sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesBothOperandSelections() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) + bottomk(1, tx)");
+        assertBinopRangeValues("bottomk(1, tx) + topk(1, tx)");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesRightOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("tx / topk(1, rx)", 3);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMatchingPreservesLeftOperandSelection() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeValues("topk(1, tx) / rx", 10);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateRawMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("tx_dup / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateLeftExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("(tx_dup + 0) / rx_dup");
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/158610")
+    public void testRangeMixedDuplicateRightExpressionMatchKeysAreRejected() throws Exception {
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeDuplicate("tx / (rx + 0)");
+    }
+
+    public void testRangeAggregatedOperandsMatchAcrossIngestionPaths() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeAggGroups();
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeAggGroups();
+    }
+
+    public void testRangeExplicitOnMatchesRetainedMetricNames() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+        wipeDefaultStream();
+        ingestTestDataUsingRemoteWriteAndBulk(QUERY_END);
+        assertBinopRangeGroups("sum by (host, __name__) (tx) / on (host) sum by (host, __name__) (rx)", "host", txRxRatios());
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantOrConstantVector}. */
+    public void testRangeOrConstantVector() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("tx or vector(0)", 10, 30, 12, 0);
+        assertBinopRangeValues("sum(tx) or vector(0)", 52);
+        assertBinopRangeValues("sum(tx{host=~\"nope\"}) or vector(0)", 0);
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantEmptyLabelValueIsAbsent}. */
+    public void testRangeEmptyLabelValueIsAbsent() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        List<PromqlResponseSeries> counted = PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("count by (dst) (label_replace(tx, \"dst\", \"\", \"host\", \".*\"))")
+        );
+        assertThat(counted, hasSize(1));
+        assertThat(counted.getFirst().labels(), equalTo(Map.of()));
+        assertThat(counted.getFirst().value(), closeTo(3.0, 1e-10));
+        Map<String, Double> byHost = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(
+            executeBinopRangeQuery("sum by (host) (label_replace(tx, \"host\", \"\", \"host\", \"a\"))")
+        )) {
+            assertNull("duplicate output group", byHost.put(series.labels().getOrDefault("host", "<absent>"), series.value()));
+        }
+        assertThat(byHost, equalTo(Map.of("<absent>", 10.0, "b", 30.0, "c", 12.0)));
+    }
+
+    private ObjectPath executeBinopRangeQuery(String expression) throws IOException {
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", expression),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        ObjectPath responsePath = ObjectPath.createFromResponse(response);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("matrix"));
+        return responsePath;
+    }
+
+    private void assertBinopRangeValues(String expression, double... expected) throws IOException {
+        ObjectPath response = executeBinopRangeQuery(expression);
+        List<Double> actual = PromqlResponseSeries.ofRange(response).stream().map(PromqlResponseSeries::value).sorted().toList();
+        Arrays.sort(expected);
+        assertEquals(expression + ": " + actual, expected.length, actual.size());
+        for (int i = 0; i < expected.length; i++) {
+            assertThat(expression, actual.get(i), closeTo(expected[i], 1e-10));
+        }
+    }
+
+    private void assertBinopRangeGroups(String expression, String group, Map<String, Double> expected) throws IOException {
+        ObjectPath response = executeBinopRangeQuery(expression);
+        Map<String, Double> actual = new HashMap<>();
+        for (PromqlResponseSeries series : PromqlResponseSeries.ofRange(response)) {
+            assertNull("duplicate output group", actual.put(series.labels().get(group), series.value()));
+        }
+        assertThat(expression, actual.keySet(), equalTo(expected.keySet()));
+        expected.forEach((label, value) -> assertThat(expression + " " + label, actual.get(label), closeTo(value, 1e-10)));
+    }
+
+    private void assertBinopRangeAggGroups() throws IOException {
+        // Default matching exercises folding; explicit matching exercises the join.
+        for (String match : List.of("", "on (host)", "ignoring ()")) {
+            assertBinopRangeGroups("sum by (host) (tx) / " + match + " sum by (host) (rx)", "host", txRxRatios());
+        }
+    }
+
+    private void assertBinopRangeDuplicate(String expression) {
+        ResponseException error = expectThrows(ResponseException.class, () -> executeBinopRangeQuery(expression));
+        assertThat(error.getMessage(), containsString("duplicate"));
+    }
+
+    /**
+     * The range twin of {@code PrometheusInstantQueryRestIT#testInstantRangeVectorIsRejected}: a range query over a range
+     * vector is a type error in Prometheus too, reported with its message.
+     */
+    public void testRangeRangeVectorIsRejected() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "tx[5m]"),
+            new BasicNameValuePair("start", RANGE_START),
+            new BasicNameValuePair("end", RANGE_END),
+            new BasicNameValuePair("step", RANGE_STEP)
+        );
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("for range query, must be scalar or instant vector"));
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantWithoutOverAClosedBinaryOperator}. */
+    public void testRangeWithoutOverAClosedBinaryOperator() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups(
+            "sum without (host) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))",
+            "cluster",
+            Map.of("prod", 15.0, "qa", 3.0)
+        );
+        assertBinopRangeValues("sum without (host, cluster) (sum by (host, cluster) (tx) / sum by (host, cluster) (rx))", 18);
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantFractionalKIsTruncated}. */
+    public void testRangeFractionalKIsTruncated() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeValues("topk(1.5, tx)", 30);
+        assertBinopRangeValues("bottomk(1.5, tx)", 10);
+        assertBinopRangeValues("topk(2.9, tx)", 30, 12);
+        assertBinopRangeValues("topk(0.5, tx)");
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantCountOverNothingIsNoElement}. */
+    public void testRangeCountOverNothingIsNoElement() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        assertBinopRangeGroups("count by (cluster) (tx) - count by (cluster) (rx{host=\"a\"})", "cluster", Map.of("prod", 1.0));
+        assertBinopRangeValues("count(tx{host=~\"nope\"}) - count(rx{host=~\"nope\"})");
+        assertBinopRangeValues("count by (cluster) (tx{cluster=~\"nope\"}) - count by (cluster) (rx{cluster=~\"nope\"})");
+        assertBinopRangeValues("count_over_time(tx{host=~\"nope\"}[5m]) - count_over_time(tx{cluster=~\"nope\"}[5m])");
+    }
+
+    /** The range twin of {@code PrometheusInstantQueryRestIT#testInstantUnmatchedPairsNeverReachTheEnclosingCount}. */
+    public void testRangeUnmatchedPairsNeverReachTheEnclosingCount() throws Exception {
+        ingestTestDataUsingRemoteWrite(QUERY_END);
+        String pairs = "sum by (host, cluster) (tx) / sum by (host, cluster) (rx{host!=\"c\"})";
+        assertBinopRangeGroups("count by (cluster) (" + pairs + ")", "cluster", Map.of("prod", 2.0));
+        assertBinopRangeValues("count(sum by (host) (tx) / sum by (host) (rx{host=~\"nope\"}))");
+    }
+}

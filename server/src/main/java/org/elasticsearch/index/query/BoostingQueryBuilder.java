@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +35,7 @@ import java.util.Objects;
  * multiplied by the supplied "boost" parameter, so this should be less than 1 to achieve a
  * demoting effect
  */
-public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
+public class BoostingQueryBuilder extends LeafQueryBuilder<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
@@ -232,6 +231,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

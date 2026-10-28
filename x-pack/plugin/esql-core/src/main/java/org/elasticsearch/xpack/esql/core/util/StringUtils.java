@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
@@ -179,6 +181,64 @@ public final class StringUtils {
     }
 
     /**
+     * Translates a Lucene wildcard pattern to a Lucene RegExp one.
+     * Note: all RegExp "optional" characters are escaped too (allowing the use of the {@code RegExp.ALL} flag).
+     * @param wildcard Lucene wildcard pattern
+     * @return Lucene RegExp pattern
+     */
+    public static String luceneWildcardToRegExp(String wildcard) {
+        StringBuilder regex = new StringBuilder();
+
+        for (int i = 0, wcLen = wildcard.length(); i < wcLen; i++) {
+            char c = wildcard.charAt(i); // this will work chunking through Unicode as long as all values matched are ASCII
+            switch (c) {
+                case WildcardQuery.WILDCARD_STRING -> regex.append(".*");
+                case WildcardQuery.WILDCARD_CHAR -> regex.append(".");
+                case WildcardQuery.WILDCARD_ESCAPE -> {
+                    if (i + 1 < wcLen) {
+                        // consume the wildcard escaping, consider the next char
+                        char next = wildcard.charAt(i + 1);
+                        i++;
+                        switch (next) {
+                            case WildcardQuery.WILDCARD_STRING, WildcardQuery.WILDCARD_CHAR, WildcardQuery.WILDCARD_ESCAPE ->
+                                // escape `*`, `.`, `\`, since these are special chars in RegExp as well
+                                regex.append("\\");
+                            // default: unnecessary escaping -- just ignore the escaping
+                        }
+                        regex.append(next);
+                    } else {
+                        // "else fallthru, lenient parsing with a trailing \" -- according to WildcardQuery#toAutomaton
+                        regex.append("\\\\");
+                    }
+                }
+                // reserved RegExp characters
+                case '"', '$', '(', ')', '+', '.', '[', ']', '^', '{', '|', '}' -> regex.append("\\").append(c);
+                // reserved optional RegExp characters
+                case '#', '&', '<', '>', '~', '@' -> regex.append("\\").append(c);
+                default -> regex.append(c);
+            }
+        }
+
+        return regex.toString();
+    }
+
+    /**
+     * Escapes Lucene wildcard metacharacters ({@code *}, {@code ?}, {@code \}) in a literal string
+     * so it can be safely embedded in a Lucene wildcard pattern.
+     */
+    public static String escapeWildcardLiteral(String literal) {
+        StringBuilder sb = new StringBuilder(literal.length());
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '?' || c == '\\') {
+                sb.append('\\');
+            }
+            sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
      * Translates a like pattern to a Lucene wildcard.
      * This methods pays attention to the custom escape char which gets converted into \ (used by Lucene).
      * <pre>
@@ -324,7 +384,19 @@ public final class StringUtils {
         return value;
     }
 
+    // Bounds the numeric string length before parsing, whose cost grows with the digit count.
+    private static void checkNumericStringLength(String string) {
+        if (string.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+            throw new InvalidArgumentException(
+                "Numeric value length [{}] exceeds the maximum of [{}]",
+                string.length(),
+                Numbers.MAX_NUMERIC_STRING_LENGTH
+            );
+        }
+    }
+
     public static long parseLong(String string) throws InvalidArgumentException {
+        checkNumericStringLength(string);
         try {
             return Long.parseLong(string);
         } catch (NumberFormatException nfe) {
@@ -343,6 +415,7 @@ public final class StringUtils {
     }
 
     public static Number parseIntegral(String string) throws InvalidArgumentException {
+        checkNumericStringLength(string);
         BigInteger bi;
         try {
             bi = new BigInteger(string);
@@ -376,11 +449,6 @@ public final class StringUtils {
             case 11, 12, 13 -> i + "th";
             default -> i + INTEGER_ORDINALS[i % 10];
         };
-    }
-
-    public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        String[] split = RemoteClusterAware.splitIndexName(indexName);
-        return Tuple.tuple(split[0], split[1]);
     }
 
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {

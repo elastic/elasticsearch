@@ -7,47 +7,83 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.Model;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxRequestUtils;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
-public abstract class IbmWatsonxModel extends Model {
+public abstract class IbmWatsonxModel extends RateLimitGroupingModel {
 
-    private final IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings;
+    /**
+     * This field defines the behaviour used to apply authorization headers to a {@link SimpleHttpRequest}. By default, this is
+     * {@link IbmWatsonxRequestUtils#decorateWithBearerToken(SimpleHttpRequest, DefaultSecretSettings, String)}. Unit tests may provide
+     * different behaviour to allow requests to be created without needing to retrieve credentials.
+     */
+    private final BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator;
+
+    public IbmWatsonxModel(ModelConfigurations configurations, ModelSecrets secrets) {
+        this(
+            configurations,
+            secrets,
+            (httpPost, model) -> IbmWatsonxRequestUtils.decorateWithBearerToken(
+                httpPost,
+                (DefaultSecretSettings) model.getSecretSettings(),
+                model.getInferenceEntityId()
+            )
+        );
+    }
 
     public IbmWatsonxModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.authHeaderDecorator = authHeaderDecorator;
     }
 
     public IbmWatsonxModel(IbmWatsonxModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        authHeaderDecorator = model.authHeaderDecorator();
     }
 
     public IbmWatsonxModel(IbmWatsonxModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        authHeaderDecorator = model.authHeaderDecorator();
     }
 
-    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings);
 
-    public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    @Override
+    public IbmWatsonxServiceSettings getServiceSettings() {
+        return (IbmWatsonxServiceSettings) super.getServiceSettings();
+    }
+
+    public BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator() {
+        return authHeaderDecorator;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return Objects.hash(getServiceSettings());
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return getServiceSettings().rateLimitSettings();
     }
 }

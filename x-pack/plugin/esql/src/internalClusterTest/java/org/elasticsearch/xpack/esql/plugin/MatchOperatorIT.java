@@ -11,13 +11,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -25,7 +31,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex();
+        MatchFunctionIT.createAndPopulateIndices(this::ensureYellow);
     }
 
     public void testSimpleWhereMatch() {
@@ -120,6 +126,119 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/123967
+     */
+    public void testWhereMatchWithScoring_AndRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().must(matchQuery("content", "brown"));
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.4274532794952393),
+                    List.of("The quick brown fox jumps over the lazy dog", 1.1248724460601807)
+                )
+            );
+        }
+    }
+
+    public void testWhereMatchWithScoring_AndNoScoreRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().filter(matchQuery("content", "brown"));
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.156558871269226),
+                    List.of("The quick brown fox jumps over the lazy dog", 0.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testWhereMatchWithScoring_And_MatchAllRequestFilter() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE content:"fox"
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 2.1565589904785156),
+                    List.of("The quick brown fox jumps over the lazy dog", 1.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testScoringOutsideQuery() {
+        var query = """
+            FROM test METADATA _score
+            | SORT _score DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().must(matchQuery("content", "fox"));
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("This is a brown fox", 1.156558871269226),
+                    List.of("The quick brown fox jumps over the lazy dog", 0.9114001989364624)
+                )
+            );
+        }
+    }
+
+    public void testScoring_Zero_OutsideQuery() {
+        var query = """
+            FROM test METADATA _score
+            | SORT content DESC
+            | KEEP content, _score
+            """;
+
+        QueryBuilder filter = boolQuery().filter(matchQuery("content", "fox"));
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).filter(filter))) {
+            assertColumnNames(resp.columns(), List.of("content", "_score"));
+            assertColumnTypes(resp.columns(), List.of("text", "double"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("This is a brown fox", 0.0), List.of("The quick brown fox jumps over the lazy dog", 0.0))
+            );
+        }
+    }
+
     public void testWhereMatchWithScoringDifferentSort() {
         var query = """
             FROM test
@@ -161,34 +280,22 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [something]"));
     }
 
-    public void testWhereMatchEvalColumn() {
-        var query = """
-            FROM test
-            | EVAL upper_content = to_upper(content)
-            | WHERE upper_content:"FOX"
-            | KEEP id
-            """;
-
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [upper_content], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereMatchOverWrittenColumn() {
         var query = """
             FROM test
             | DROP content
-            | EVAL content = CONCAT("document with ID ", to_str(id))
+            | EVAL content = to_text(CONCAT("document with ID ", to_str(id)))
             | WHERE content:"document"
+            | KEEP id, content
+            | SORT id
+            | LIMIT 2
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("[:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(resp.values(), List.of(List.of(1, "document with ID 1"), List.of(2, "document with ID 2")));
+        }
     }
 
     public void testWhereMatchAfterStats() {
@@ -217,19 +324,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWhereMatchWithRow() {
-        var query = """
-            ROW content = "a brown fox"
-            | WHERE content:"fox"
-            """;
-
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
-        );
-    }
-
     public void testMatchWithinEval() {
         var query = """
             FROM test
@@ -237,7 +331,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE and STATS commands"));
     }
 
     public void testMatchWithNonTextField() {
@@ -254,22 +348,314 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void createAndPopulateIndex() {
-        var indexName = "test";
-        var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
-        assertAcked(CreateRequest);
+    public void testRuntimeMatchOperatorAfterLimit() {
+        var query = """
+            FROM test
+            | EVAL summary = to_text(concat("content: ", content))
+            | SORT id
+            | LIMIT 3
+            | WHERE summary : "fox"
+            | KEEP id
+            """;
+
+        // The LIMIT keeps ids 1-3, of which only 1 mentions a fox; id 6 does too but is cut.
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1)));
+        }
+    }
+
+    public void testMatchOperatorAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | EVAL content = to_text(content)
+            | WHERE content : "fox"
+            | SORT id, content
+            | KEEP id, content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content"));
+            assertColumnTypes(resp.columns(), List.of("integer", "text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, "This is a brown fox"), List.of(6, "The quick brown fox jumps over the lazy dog"))
+            );
+        }
+    }
+
+    public void testMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testMatchOperatorAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE content:"fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
+    public void testNotMatchOperatorAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE NOT content:"brown fox"
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
+    }
+
+    public void testMatchOperatorNotPushableAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithMatchOperator() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE content:"fox"
+            """;
+
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    public void testMatchOperatorWithLookupJoin() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND lookup_content : "fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:20: [:] operator cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                    + "in non-STANDARD mode [lookup]"
+            )
+        );
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndex() {
+        createTimeSeriesIndex();
+        // Exact/keyword semantics on the dimension: "web-a" isn't exactly "a".
+        var query = """
+            TS ts_hosts
+            | WHERE host:"a"
+            | KEEP host, status
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(resp.values(), List.of(List.of("a", "ok"), List.of("a", "ok")));
+        }
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndexNotPushedDown() {
+        createTimeSeriesIndex();
+        var query = """
+            TS ts_hosts
+            | WHERE host:"a" OR LENGTH(status) > 5
+            | KEEP host, status
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("host", "status"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "keyword"));
+            assertValues(
+                resp.values(),
+                List.of(List.of("a", "ok"), List.of("a", "ok"), List.of("b", "degraded"), List.of("b", "degraded"))
+            );
+        }
+    }
+
+    public void testMatchOperatorOnTimeSeriesIndexBeforeTimeSeriesAggregation() {
+        createTimeSeriesIndex();
+        var query = """
+            TS ts_hosts
+            | WHERE message:"disk"
+            | STATS max_rate = MAX(RATE(requests)) BY host
+            | SORT host
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("max_rate", "host"));
+            assertColumnTypes(resp.columns(), List.of("double", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1.0, "a"), List.of(10.0, "web-a")));
+        }
+    }
+
+    /**
+     * Creates {@code ts_hosts} with two samples per host, one minute apart. The counter deltas give exact
+     * per-second rates: 1.0 for {@code a}, 2.0 for {@code b} and 10.0 for {@code web-a}.
+     */
+    private void createTimeSeriesIndex() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ts_hosts")
+                .setSettings(Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "status",
+                    "type=keyword",
+                    "message",
+                    "type=text",
+                    "requests",
+                    "type=long,time_series_metric=counter"
+                )
+        );
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "a", "ok", "disk full", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "a", "ok", "disk full", 60))
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "b", "degraded", "network error", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "b", "degraded", "network error", 120))
+            .add(timeSeriesSample("2024-01-01T00:00:00Z", "web-a", "ok", "disk ok", 0))
+            .add(timeSeriesSample("2024-01-01T00:01:00Z", "web-a", "ok", "disk ok", 600))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        ensureYellow(indexName);
+        ensureYellow("ts_hosts");
+    }
+
+    private static IndexRequest timeSeriesSample(String timestamp, String host, String status, String message, long requests) {
+        return new IndexRequest("ts_hosts").source(
+            "@timestamp",
+            timestamp,
+            "host",
+            host,
+            "status",
+            status,
+            "message",
+            message,
+            "requests",
+            requests
+        );
+    }
+
+    public void testMatchWithRow() {
+        var query = """
+            ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+            | MV_EXPAND content
+            | WHERE content:"dog"
+            | SORT content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(resp.values(), List.of(List.of("This dog is really brown"), List.of("This is a brown dog")));
+        }
+    }
+
+    public void testMatchRuntimeExpression() {
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE new_content:"fox"
+            | SORT new_content
+            | KEEP new_content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("new_content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of("The quick brown fox jumps over the lazy dog and a white cat"),
+                    List.of("This is a brown fox and a white cat")
+                )
+            );
+        }
+    }
+
+    public void testMatchRuntimeExpressionWithScore() {
+        var query = """
+            FROM test METADATA _score
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE new_content:"fox cat"
+            | KEEP id, _score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            // Runtime match scores one point per matched query term: every row gains "cat", docs 1 and 6 also
+            // contain "fox".
+            assertValues(
+                resp.values(),
+                List.of(List.of(1, 2.0), List.of(2, 1.0), List.of(3, 1.0), List.of(4, 1.0), List.of(5, 1.0), List.of(6, 2.0))
+            );
+        }
     }
 }

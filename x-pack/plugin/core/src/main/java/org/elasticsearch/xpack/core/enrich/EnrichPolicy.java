@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +40,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
     public static final String ENRICH_INDEX_PATTERN = ENRICH_INDEX_NAME_BASE + "*";
+    /**
+     * Field in the {@code _meta} of an enrich index's mapping that names the policy the index was built for. Unlike the index name,
+     * it survives the system index migration, which renames enrich indices.
+     */
+    public static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
 
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";
@@ -117,10 +120,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.indices = in.readStringCollectionAsList();
         this.matchField = in.readString();
         this.enrichFields = in.readStringCollectionAsList();
-        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            // consume the passed-in meaningless version that old elasticsearch clusters will send
-            Version.readVersion(in);
-        }
     }
 
     public EnrichPolicy(String type, QuerySource query, List<String> indices, String matchField, List<String> enrichFields) {
@@ -208,10 +207,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
-        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
-            // emit the current version of elasticsearch for bwc serialization reasons
-            Version.writeVersion(Version.CURRENT, out);
-        }
     }
 
     @Override

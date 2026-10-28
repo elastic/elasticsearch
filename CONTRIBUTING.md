@@ -49,6 +49,13 @@ We add the `help wanted` label to existing GitHub issues for which community
 contributions are particularly welcome, and we use the `good first issue` label
 to mark issues that we think will be suitable for new contributors.
 
+We generally do not assign issues to contributors outside of Elastic, but
+please check the discussion on the issue to see if anyone else is working on
+the same topic. If there are other active contributors in the same area then it
+is a good idea to reach out to them so you can work together on the issue. If
+there hasn't been any discussion for a while then go ahead and start working on
+the issue yourself.
+
 The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
@@ -92,6 +99,8 @@ Once your changes and tests are ready to submit for review:
 4. Submit a pull request
 
     Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
+
+    The description of your PR must be concise and provide necessary context for the reviewers and future readers. For example, include implementation trade-offs that were considered, unobvious interactions between components, testing notes. Do not paste the output of LLM-based tools verbatim in a PR description. These tools tend to be very verbose, use confusing jargon, and otherwise dilute the attention of the readers. Do not use LLM-based tools for communication with maintainers.
 
 Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch. A yaml changelog entry will be automatically created, there is no need for external contributors to manually edit it, unless requested by the reviewer.
 
@@ -168,16 +177,13 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 #### Checkstyle
 
-If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
-check the Elasticsearch code. However, the Checkstyle configuration file does
-not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing. You can
-manually generate the file with `./gradlew configureIdeCheckstyle` in case
-it is removed due to a `./gradlew clean` or other action.
+IntelliJ should automatically configure checkstyle. It does so by running
+`configureIdeCheckstyle` on import. That makes `.idea/checkstyle-idea.xml`
+configuration file. IntelliJ points checkstyle at that.
 
-IntelliJ should be automatically configured to use the generated rules after
-import via the `.idea/checkstyle-idea.xml` configuration file. No further
-action is required.
+Things like `./gradlew clean` or `git clean -xdf` can nuke the file. You can
+regenerate it by running `./gradlew -Didea.active=true configureIdeCheckstyle`,
+but generally shouldn't have to.
 
 #### Formatting
 
@@ -205,6 +211,18 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
+
+#### Options
+
+When importing to IntelliJ, we offer a few options that can be used to
+configure the behaviour of the import:
+
+| Property                                   | Description                                                                                          | Values (* = default) |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------|
+| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`true`, `false`         |
+| `org.elasticsearch.idea-delegate-to-gradle`  | Should IntelliJ use Gradle for all generated run / test configs or prompt each time                  | `true`, *`false`         |
+
+These options can be set anywhere on the Gradle config path including in `~/.gradle/gradle.properties`
 
 ### REST endpoint conventions
 
@@ -258,10 +276,8 @@ Please follow these formatting guidelines:
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e. `// ...` are.
-* Negative boolean expressions must use the form `foo == false` instead of
-  `!foo` for better readability of the code. This is enforced via
-  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
-  just `if (foo)`.
+* Negative boolean expressions should use the form `foo == false` instead of
+  `!foo` where this improves readability. Conversely, you should not write e.g. `if (foo == true)`, but just `if (foo)`.
 
 #### Editor / IDE support
 
@@ -401,7 +417,8 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> [!NOTE]
+> If you have imported the project into IntelliJ IDEA the project will
 > be automatically configured to add the correct license header to new source
 > files based on the source location.
 
@@ -467,7 +484,7 @@ expensive messages that will usually be discarded:
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
-and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
+and when to log it. You can use a `org.elasticsearch.test.MockLog` to
 make assertions about the logs that are being emitted.
 
 Logging is a powerful diagnostic technique, but it is not the only possibility.
@@ -901,6 +918,15 @@ of rejection. Follow the guidelines listed above when preparing your changes.
 You should add tests that correspond with your changes, and your PR should pass
 affected test suites too. It makes it much easier to review if your code is
 formatted correctly and does not include unnecessary extra changes.
+
+We typically reject PRs that appear to have come fairly directly from a LLM, or
+where any follow-up conversation appears to be copied fairly directly from a
+LLM. This includes cases where the PR description is overly verbose or
+otherwise hard to interpret, as seems to be common for LLM-driven
+contributions. You may use LLMs to assist with your contribution, but you must
+add value to the contribution yourself too. We have access to LLMs ourselves,
+so there is little value in an external contributor acting as a simple proxy
+for one.
 
 We sometimes reject contributions if we find ourselves performing many review
 iterations without making enough progress. Some iteration is expected,

@@ -12,13 +12,14 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -191,7 +192,7 @@ public class ProfileScorerTests extends ESTestCase {
 
     // tests that ProfileWeight correctly propagates the wrapped inner weight
     public void testPropagateSubWeight() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);
@@ -200,8 +201,31 @@ public class ProfileScorerTests extends ESTestCase {
         assertEquals("fake_description", profileWeight.explain(null, 1).getDescription());
     }
 
+    public void testIntoBitSet() throws IOException {
+        int maxDoc = 100;
+        DocIdSetIterator allDocs = DocIdSetIterator.all(maxDoc);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        ProfileScorer profileScorer = new ProfileScorer(new FakeScorer() {
+            @Override
+            public DocIdSetIterator iterator() {
+                return allDocs;
+            }
+        }, profile);
+
+        FixedBitSet bitSet = new FixedBitSet(maxDoc);
+        DocIdSetIterator it = profileScorer.iterator();
+        it.nextDoc();
+        // call to nextDoc initializes iterator
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC + "_count"));
+
+        it.intoBitSet(maxDoc, bitSet, 0);
+        assertEquals(maxDoc, bitSet.cardinality());
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.INTO_BIT_SET + "_count"));
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC + "_count"));
+    }
+
     public void testPropagateTopLevelScoringClause() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
         Weight fakeWeight = new FakeWeight(query);
         QueryProfileBreakdown profile = new QueryProfileBreakdown();
         ProfileWeight profileWeight = new ProfileWeight(query, fakeWeight, profile);

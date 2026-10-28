@@ -305,7 +305,7 @@ public abstract class StringUtils {
         if (count < 0) {
             throw new IllegalArgumentException("negative count: " + count);
         }
-        StringBuffer sb = new StringBuffer(in.length() * count);
+        StringBuilder sb = new StringBuilder(in.length() * count);
         for (int i = 0; i < count; i++) {
             sb.append(in);
         }

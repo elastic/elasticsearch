@@ -1,0 +1,7 @@
+LimitExec[1000[INTEGER],null]
+\_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5#0],FINAL,[$$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$count{r}#1, $$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$seen{r}#2],null]
+  \_ExchangeExec[[$$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$count{r}#1, $$count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5$seen{r}#2],true]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*) where v_cosine(dense_vector, [0.78354394, 0.089722395, 0.88437265]) > 0.5#0]]
+\_Filter[COSINESIMILARITY(dense_vector{f}#3,[0.78354394, 0.089722395, 0.88437265][DENSE_VECTOR]) > 0.5[DOUBLE]]
+  \_EsRelation[all_types][!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, dense_vector{f}#3, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#16, semantic_text{f}#17, short{f}#18, text{f}#19, unsigned_long{f}#20, version{f}#21, wildcard{f}#22]<>]]

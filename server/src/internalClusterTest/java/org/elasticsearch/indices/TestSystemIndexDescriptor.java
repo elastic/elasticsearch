@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -97,6 +98,10 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     public static String getOldMappings() {
+        return getOldMappings(false);
+    }
+
+    public static String getOldMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -112,6 +117,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.startObject("foo");
                     builder.field("type", "text");
                     builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
+                    builder.endObject();
                 }
                 builder.endObject();
             }
@@ -124,6 +141,10 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     public static String getNewMappings() {
+        return getNewMappings(false);
+    }
+
+    public static String getNewMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -131,7 +152,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             {
                 builder.startObject("_meta");
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, NEW_MAPPINGS_VERSION);
-                builder.field("version", Version.CURRENT.toString());
+                builder.field("version", Build.current().version());
                 builder.endObject();
 
                 builder.startObject("properties");
@@ -141,6 +162,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.endObject();
                     builder.startObject("foo");
                     builder.field("type", "text");
+                    builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
                     builder.endObject();
                 }
                 builder.endObject();

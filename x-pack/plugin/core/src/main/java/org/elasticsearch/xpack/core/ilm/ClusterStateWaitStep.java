@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -21,7 +21,7 @@ public abstract class ClusterStateWaitStep extends Step {
         super(key, nextStepKey);
     }
 
-    public abstract Result isConditionMet(Index index, ClusterState clusterState);
+    public abstract Result isConditionMet(Index index, ProjectState currentState);
 
     /**
      * Whether the step can be completed at all. This only affects the

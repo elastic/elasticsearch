@@ -1,0 +1,3 @@
+TS k8s
+| WHERE (cluster, pod) IN (ROW cluster = "my-cluster", pod = "my-pod")
+| STATS max_rate = max(rate(network.total_bytes_in)) BY cluster

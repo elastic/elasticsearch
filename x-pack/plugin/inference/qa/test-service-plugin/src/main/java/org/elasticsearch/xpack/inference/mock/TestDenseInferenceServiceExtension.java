@@ -16,15 +16,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -34,43 +39,86 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
 public class TestDenseInferenceServiceExtension implements InferenceServiceExtension {
+
+    public static final int DEFAULT_EMBEDDING_DIMENSIONS = 128;
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
     }
 
     public static class TestDenseModel extends Model {
-        public TestDenseModel(String inferenceEntityId, TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings) {
+        public TestDenseModel(
+            String inferenceEntityId,
+            TaskType taskType,
+            TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings
+        ) {
             super(
                 new ModelConfigurations(
                     inferenceEntityId,
-                    TaskType.TEXT_EMBEDDING,
+                    taskType,
                     TestDenseInferenceServiceExtension.TestInferenceService.NAME,
                     serviceSettings
                 ),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
             );
+
+            if (taskType != TaskType.TEXT_EMBEDDING && taskType != TaskType.EMBEDDING) {
+                throw new IllegalArgumentException("task type [" + taskType + "] is not supported");
+            }
         }
     }
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "text_embedding_test_service";
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING);
+        /**
+         * Inputs starting with this prefix make an inference request fail. Unlike {@code should_fail_validation}, which is a
+         * task setting and therefore also fails the validation call made when the endpoint is created, this is per-input: the
+         * endpoint registers normally and only the requests carrying such an input fail. That lets a test exercise a partial
+         * inference failure against a real endpoint.
+         */
+        public static final String FAILING_INPUT_PREFIX = "FAIL_INFERENCE";
+
+        public static final String FAILING_INPUT_MESSAGE = "inference intentionally failed based on input";
+
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING);
 
         public TestInferenceService(InferenceServiceFactoryContext context) {}
+
+        private static boolean isFailingInput(String input) {
+            return input != null && input.startsWith(FAILING_INPUT_PREFIX);
+        }
+
+        private static boolean failsOnInput(List<String> inputs) {
+            return inputs != null && inputs.stream().anyMatch(TestInferenceService::isFailingInput);
+        }
 
         @Override
         public String name() {
@@ -108,7 +156,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void infer(
             Model model,
-            @Nullable String query,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettings,
@@ -116,12 +163,19 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING -> {
-                    ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeResults(input, modelServiceSettings.dimensions()));
-                }
-                default -> listener.onFailure(
+            if (Objects.equals((((TestTaskSettings) model.getTaskSettings()).shouldFailValidation()), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+            if (failsOnInput(input)) {
+                listener.onFailure(new RuntimeException(FAILING_INPUT_MESSAGE));
+                return;
+            }
+            if (Objects.requireNonNull(model.getConfigurations().getTaskType()) == TaskType.TEXT_EMBEDDING) {
+                ServiceSettings modelServiceSettings = model.getServiceSettings();
+                listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
@@ -141,19 +195,61 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         }
 
         @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            if (Objects.equals((((TestTaskSettings) model.getTaskSettings()).shouldFailValidation()), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+
+            if (request.inputs()
+                .stream()
+                .flatMap(group -> group.inferenceStrings().stream())
+                .anyMatch(inferenceString -> isFailingInput(inferenceString.value()))) {
+                listener.onFailure(new RuntimeException(FAILING_INPUT_MESSAGE));
+                return;
+            }
+
+            if (model.getConfigurations().getTaskType() == TaskType.EMBEDDING) {
+                ServiceSettings modelServiceSettings = model.getServiceSettings();
+                listener.onResponse(makeGenericEmbeddingResults(request.inputs(), modelServiceSettings));
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }
+
+        @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
-            @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions()));
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -164,31 +260,132 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
         }
 
-        private InferenceTextEmbeddingFloatResults makeResults(List<String> input, int dimensions) {
-            List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddings = new ArrayList<>();
-            for (String inputString : input) {
-                List<Float> floatEmbeddings = generateEmbedding(inputString, dimensions);
-                embeddings.add(InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(floatEmbeddings));
+        @Override
+        public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+            if (model instanceof TestServiceModel testServiceModel) {
+                var serviceSettings = testServiceModel.getServiceSettings();
+
+                var updatedServiceSettings = new TestServiceSettings(
+                    serviceSettings.modelId(),
+                    embeddingSize,
+                    serviceSettings.similarity(),
+                    serviceSettings.elementType()
+                );
+
+                return new TestServiceModel(
+                    testServiceModel.getInferenceEntityId(),
+                    testServiceModel.getTaskType(),
+                    testServiceModel.getConfigurations().getService(),
+                    updatedServiceSettings,
+                    testServiceModel.getTaskSettings(),
+                    testServiceModel.getSecretSettings()
+                );
+            } else {
+                throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
             }
-            return new InferenceTextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input, int dimensions) {
-            InferenceTextEmbeddingFloatResults nonChunkedResults = makeResults(input, dimensions);
-
-            var results = new ArrayList<ChunkedInference>();
-            for (int i = 0; i < input.size(); i++) {
-                results.add(
-                    new ChunkedInferenceEmbeddingFloat(
-                        List.of(
-                            new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
-                                nonChunkedResults.embeddings().get(i).values(),
-                                input.get(i),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
-                        )
+        private DenseEmbeddingResults<?> makeTextEmbeddingResults(List<String> input, ServiceSettings serviceSettings) {
+            List<List<Float>> floatEmbeddings = new ArrayList<>();
+            for (String inputString : input) {
+                floatEmbeddings.add(
+                    generateEmbedding(
+                        inputString,
+                        serviceSettings.dimensions(),
+                        serviceSettings.elementType(),
+                        serviceSettings.similarity()
                     )
                 );
+            }
+
+            return switch (serviceSettings.elementType()) {
+                case FLOAT, BFLOAT16 -> new DenseEmbeddingFloatResults(
+                    floatEmbeddings.stream().map(DenseEmbeddingFloatResults.Embedding::of).toList()
+                );
+                case BYTE -> new DenseEmbeddingByteResults(
+                    floatEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList()
+                );
+                case BIT -> new DenseEmbeddingBitResults(
+                    floatEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList()
+                );
+            };
+        }
+
+        private DenseEmbeddingResults<?> makeGenericEmbeddingResults(List<InferenceStringGroup> input, ServiceSettings serviceSettings) {
+            List<List<Float>> averagedEmbeddings = new ArrayList<>();
+            for (var inputContent : input) {
+                // For multiple inputs that generate one embedding, average the embeddings for each input
+                List<InferenceString> inferenceStrings = inputContent.inferenceStrings();
+                List<Float> averagedFloatEmbeddings = inferenceStrings.stream().map(inferenceString -> {
+                    String inputValue = inferenceString.value();
+                    if (inferenceString.dataFormat() == DataFormat.BASE64) {
+                        // Check for base64 data URI format and extract the base64 content if it exists,
+                        // otherwise treat the entire string as base64 content
+                        String[] split = inputValue.split("base64,");
+                        if (split.length > 1) {
+                            inputValue = split[1];
+                        }
+
+                        inputValue = new String(Base64.getDecoder().decode(inputValue), StandardCharsets.UTF_8);
+                    }
+                    List<Float> embedding = generateEmbedding(
+                        inputValue,
+                        serviceSettings.dimensions(),
+                        serviceSettings.elementType(),
+                        serviceSettings.similarity()
+                    );
+                    if (inferenceString.isImage()) {
+                        return embedding.stream().map(f -> -f).toList();
+                    }
+                    return embedding;
+                }).reduce((list1, list2) -> {
+                    List<Float> summedValues = new ArrayList<>(list1.size());
+                    for (int i = 0; i < list1.size(); i++) {
+                        summedValues.add(list1.get(i) + list2.get(i));
+                    }
+                    return summedValues;
+                }).orElse(Collections.emptyList()).stream().map(f -> f / inferenceStrings.size()).toList();
+                averagedEmbeddings.add(averagedFloatEmbeddings);
+            }
+
+            return switch (serviceSettings.elementType()) {
+                case FLOAT, BFLOAT16 -> {
+                    var floatEmbeddings = averagedEmbeddings.stream().map(GenericDenseEmbeddingFloatResults.Embedding::of).toList();
+                    yield new GenericDenseEmbeddingFloatResults(floatEmbeddings);
+                }
+                case BYTE -> {
+                    var byteEmbeddings = averagedEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList();
+                    yield new GenericDenseEmbeddingByteResults(byteEmbeddings);
+                }
+                case BIT -> {
+                    var bitEmbeddings = averagedEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList();
+                    yield new GenericDenseEmbeddingBitResults(bitEmbeddings);
+                }
+            };
+        }
+
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {
+            var results = new ArrayList<ChunkedInference>();
+            for (ChunkInferenceInput input : inputs) {
+                List<ChunkedInput> chunkedInput = chunkInputs(input);
+                List<EmbeddingResults.Chunk> chunks = chunkedInput.stream()
+                    .map(
+                        c -> new EmbeddingResults.Chunk(
+                            makeTextEmbeddingResults(List.of(c.input()), serviceSettings).embeddings().get(0),
+                            new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
+                        )
+                    )
+                    .toList();
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }
@@ -205,7 +402,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          * <ul>
          *     <li>Unique to the input</li>
          *     <li>Reproducible (i.e given the same input, the same embedding should be generated)</li>
-         *     <li>Valid as both a float and byte embedding</li>
+         *     <li>Valid for the provided element type and similarity measure</li>
          * </ul>
          * <p>
          * The embedding is generated by:
@@ -215,18 +412,30 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          *     <li>converting the hash code value to a string</li>
          *     <li>converting the string to a UTF-8 encoded byte array</li>
          *     <li>repeatedly appending the byte array to the embedding until the desired number of dimensions are populated</li>
+         *     <li>converting the embedding to a unit vector if the similarity measure requires that</li>
          * </ul>
          * <p>
          * Since the hash code value, when interpreted as a string, is guaranteed to only contain digits and the "-" character, the UTF-8
          * encoded byte array is guaranteed to only contain values in the standard ASCII table.
          * </p>
+         * <p>
+         * If a bit embedding is required, the embedding length is 1/8 the dimension count because eight dimensions are encoded into each
+         * embedding byte.
+         * </p>
          *
-         * @param input The input string
-         * @param dimensions The embedding dimension count
+         * @param input             The input string
+         * @param dimensions        The embedding dimension count. If null, {@link #DEFAULT_EMBEDDING_DIMENSIONS} will be used
+         * @param similarityMeasure The similarity measure
          * @return An embedding
          */
-        private static List<Float> generateEmbedding(String input, int dimensions) {
-            List<Float> embedding = new ArrayList<>(dimensions);
+        private static List<Float> generateEmbedding(
+            String input,
+            @Nullable Integer dimensions,
+            ElementType elementType,
+            SimilarityMeasure similarityMeasure
+        ) {
+            int embeddingLength = getEmbeddingLength(elementType, dimensions);
+            List<Float> embedding = new ArrayList<>(embeddingLength);
 
             byte[] byteArray = Integer.toString(input.hashCode()).getBytes(StandardCharsets.UTF_8);
             List<Float> embeddingValues = new ArrayList<>(byteArray.length);
@@ -234,16 +443,28 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 embeddingValues.add((float) value);
             }
 
-            int remainingDimensions = dimensions;
-            while (remainingDimensions >= embeddingValues.size()) {
+            int remainingLength = embeddingLength;
+            while (remainingLength >= embeddingValues.size()) {
                 embedding.addAll(embeddingValues);
-                remainingDimensions -= embeddingValues.size();
+                remainingLength -= embeddingValues.size();
             }
-            if (remainingDimensions > 0) {
-                embedding.addAll(embeddingValues.subList(0, remainingDimensions));
+            if (remainingLength > 0) {
+                embedding.addAll(embeddingValues.subList(0, remainingLength));
+            }
+            if (similarityMeasure == SimilarityMeasure.DOT_PRODUCT) {
+                embedding = toUnitVector(embedding);
             }
 
             return embedding;
+        }
+
+        private static int getEmbeddingLength(ElementType elementType, @Nullable Integer dimensions) {
+            return elementType.vectorLength(dimensions == null ? DEFAULT_EMBEDDING_DIMENSIONS : dimensions);
+        }
+
+        private static List<Float> toUnitVector(List<Float> embedding) {
+            var magnitude = (float) Math.sqrt(embedding.stream().reduce(0f, (a, b) -> a + (b * b)));
+            return embedding.stream().map(v -> v / magnitude).toList();
         }
 
         public static class Configuration {
@@ -266,6 +487,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();
@@ -276,31 +498,26 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
 
     public record TestServiceSettings(
         String model,
-        Integer dimensions,
-        SimilarityMeasure similarity,
-        DenseVectorFieldMapper.ElementType elementType
+        @Nullable Integer dimensions,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable ElementType elementType
     ) implements ServiceSettings {
 
         static final String NAME = "test_text_embedding_service_settings";
 
-        public TestServiceSettings {
-            if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
-                throw new IllegalArgumentException("Test dense inference service does not yet support element type BIT");
-            }
-        }
-
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = (String) map.remove("model");
+            String model = (String) map.remove("model_id");
+
             if (model == null) {
-                validationException.addValidationError("missing model");
+                model = (String) map.remove("model");
+                if (model == null) {
+                    validationException.addValidationError("missing model");
+                }
             }
 
             Integer dimensions = (Integer) map.remove("dimensions");
-            if (dimensions == null) {
-                validationException.addValidationError("missing dimensions");
-            }
 
             SimilarityMeasure similarity = null;
             String similarityStr = (String) map.remove("similarity");
@@ -308,15 +525,13 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 similarity = SimilarityMeasure.fromString(similarityStr);
             }
 
-            DenseVectorFieldMapper.ElementType elementType = null;
+            ElementType elementType = null;
             String elementTypeStr = (String) map.remove("element_type");
             if (elementTypeStr != null) {
-                elementType = DenseVectorFieldMapper.ElementType.fromString(elementTypeStr);
+                elementType = ElementType.fromString(elementTypeStr);
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model, dimensions, similarity, elementType);
         }
@@ -324,9 +539,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public TestServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readOptionalInt(),
+                in.readOptionalVInt(),
                 in.readOptionalEnum(SimilarityMeasure.class),
-                in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
+                in.readOptionalEnum(ElementType.class)
             );
         }
 
@@ -334,7 +549,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("model", model);
-            builder.field("dimensions", dimensions);
+            if (dimensions != null) {
+                builder.field("dimensions", dimensions);
+            }
             if (similarity != null) {
                 builder.field("similarity", similarity);
             }
@@ -358,7 +575,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
-            out.writeInt(dimensions);
+            out.writeOptionalVInt(dimensions);
             out.writeOptionalEnum(similarity);
             out.writeOptionalEnum(elementType);
         }
@@ -374,8 +591,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         }
 
         @Override
-        public DenseVectorFieldMapper.ElementType elementType() {
-            return elementType != null ? elementType : DenseVectorFieldMapper.ElementType.FLOAT;
+        public ElementType elementType() {
+            return elementType != null ? elementType : ElementType.FLOAT;
         }
 
         @Override

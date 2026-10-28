@@ -14,9 +14,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -25,6 +29,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler {
 
     public RestCreateServiceAccountTokenAction(Settings settings, XPackLicenseState licenseState) {
@@ -47,12 +52,13 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final String namespace = request.param("namespace");
         String tokenName = request.param("name");
         if (Strings.isNullOrEmpty(tokenName)) {
             tokenName = "token_" + UUIDs.base64UUID();
         }
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
-            request.param("namespace"),
+            namespace,
             request.param("service"),
             tokenName
         );
@@ -61,10 +67,12 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
             createServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
 
-        return channel -> client.execute(
-            CreateServiceAccountTokenAction.INSTANCE,
-            createServiceAccountTokenRequest,
-            new RestToXContentListener<>(channel)
-        );
+        // One route serves both kinds of account, and the reserved namespace is what tells them apart. Selecting the
+        // action here, ahead of authorization, is what lets the privilege check judge the kind the caller asked for;
+        // nothing downstream of that check may infer the kind from the namespace again.
+        final var action = ServiceAccountSettings.BUILTIN_NAMESPACE.equalsIgnoreCase(namespace)
+            ? CreateServiceAccountTokenAction.INSTANCE
+            : CreateUserManagedServiceAccountTokenAction.INSTANCE;
+        return channel -> client.execute(action, createServiceAccountTokenRequest, new RestToXContentListener<>(channel));
     }
 }

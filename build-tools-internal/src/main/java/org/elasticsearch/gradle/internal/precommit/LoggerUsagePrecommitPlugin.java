@@ -18,6 +18,8 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.util.Map;
+
 public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
@@ -25,7 +27,7 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
         // this makes it easier to test by not requiring this project to be always available in our
         // test sample projects
         if (project.findProject(":test:logger-usage") != null) {
-            project.getDependencies().add("loggerUsagePlugin", project.project(":test:logger-usage"));
+            project.getDependencies().add("loggerUsagePlugin", project.getDependencies().project(Map.of("path", ":test:logger-usage")));
         }
         TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
 

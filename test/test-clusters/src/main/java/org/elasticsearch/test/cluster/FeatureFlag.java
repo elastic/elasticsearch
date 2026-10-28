@@ -17,13 +17,26 @@ import org.elasticsearch.test.cluster.util.Version;
  */
 public enum FeatureFlag {
     TIME_SERIES_MODE("es.index_mode_feature_flag_registered=true", Version.fromString("8.0.0"), null),
-    FAILURE_STORE_ENABLED("es.failure_store_feature_flag_enabled=true", Version.fromString("8.12.0"), null),
-    SUB_OBJECTS_AUTO_ENABLED("es.sub_objects_auto_feature_flag_enabled=true", Version.fromString("8.16.0"), null),
-    INDEX_RECOVERY_USE_SYNTHETIC_SOURCE(
-        "es.index_recovery_use_synthetic_source_feature_flag_enabled=true",
-        Version.fromString("8.18.0"),
+    LOGS_STREAM("es.logs_stream_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
+    SYNTHETIC_VECTORS("es.mapping_synthetic_vectors=true", Version.fromString("9.2.0"), null),
+    INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG(
+        "es.index_dimensions_tsid_optimization_feature_flag_enabled=true",
+        Version.fromString("9.2.0"),
         null
-    );
+    ),
+
+    RANDOM_SAMPLING("es.random_sampling_feature_flag_enabled=true", Version.fromString("9.2.0"), null),
+    TSDB_NO_SEQNO("es.tsdb_no_tsbd_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    PROMETHEUS_FEATURE_FLAG("es.prometheus_feature_flag_enabled=true", Version.fromString("9.4.0"), null),
+    SLICE_INDEXING("es.slice_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_DATASOURCES_LOCAL("es.esql_external_datasources_local_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_DATASOURCES_HTTP("es.esql_external_datasources_http_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_ORC("es.esql_external_orc_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_GCS("es.esql_external_gcs_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_AZURE("es.esql_external_azure_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_EXTERNAL_ICEBERG("es.esql_external_iceberg_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    BATCH_INDEXING("es.batch_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
+    ESQL_DATA_SOURCE_TEST_CONNECTION("es.esql_data_source_test_connection_feature_flag_enabled=true", Version.fromString("9.6.0"), null);
 
     public final String systemProperty;
     public final Version from;

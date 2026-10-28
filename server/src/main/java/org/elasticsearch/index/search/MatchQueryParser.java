@@ -26,9 +26,12 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -36,11 +39,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
@@ -53,12 +58,12 @@ import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MatchQueryParser {
 
@@ -145,7 +150,10 @@ public class MatchQueryParser {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQueryParser(SearchExecutionContext context) {
+    protected final QueryVisitor queryVisitor;
+
+    public MatchQueryParser(SearchExecutionContext context, QueryVisitor queryVisitor) {
+        this.queryVisitor = queryVisitor;
         this.context = context;
     }
 
@@ -244,7 +252,13 @@ public class MatchQueryParser {
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+        MatchQueryBuilder builder = new MatchQueryBuilder(
+            analyzer,
+            fieldType,
+            enablePositionIncrements,
+            autoGenerateSynonymsPhraseQuery,
+            queryVisitor
+        );
         String resolvedFieldName = fieldType.name();
         String stringValue = value.toString();
 
@@ -256,12 +270,16 @@ public class MatchQueryParser {
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
+            final Query keywordAnalyzed;
             if (type == Type.BOOLEAN_PREFIX
                 && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
-                return builder.newPrefixQuery(term);
+                keywordAnalyzed = builder.newPrefixQuery(term);
             } else {
-                return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+                keywordAnalyzed = builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
             }
+            return answersFromValues(fieldType)
+                ? ((TextFamilyFieldType) fieldType).toReanalyzingQuery(keywordAnalyzed, context)
+                : keywordAnalyzed;
         }
 
         Query query = switch (type) {
@@ -270,7 +288,43 @@ public class MatchQueryParser {
             case PHRASE -> builder.createPhraseQuery(resolvedFieldName, stringValue, phraseSlop);
             case PHRASE_PREFIX -> builder.createPhrasePrefixQuery(resolvedFieldName, stringValue, phraseSlop);
         };
-        return query == null ? zeroTermsQuery.asQuery() : query;
+        if (query != null && answersFromValues(fieldType)) {
+            // One wrap for the whole clause, so every term it holds is answered from one read of a document's
+            // values. A phrase the field built has wrapped itself already, which this leaves alone.
+            query = ((TextFamilyFieldType) fieldType).toReanalyzingQuery(query, context);
+        }
+        if (query == null) {
+            query = zeroTermsQuery.asQuery();
+            if (query != null) {
+                query.visit(queryVisitor);
+            }
+        }
+        return query;
+    }
+
+    /**
+     * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+     * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+     */
+    private boolean answersPositionsFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersPositionsFromValues(context);
+    }
+
+    /** Whether {@code fieldType} answers a text query by reading its values rather than an index. */
+    boolean answersFromValues(MappedFieldType fieldType) {
+        return fieldType instanceof TextFamilyFieldType textFamily && textFamily.answersTextQueryFromValues(context);
+    }
+
+    private Query newLenientFieldQuery(String fieldName, RuntimeException e) {
+        Query query = Queries.newLenientFieldQuery(fieldName, e);
+        query.visit(queryVisitor);
+        return query;
+    }
+
+    private Query newUnmappedFieldQuery(String fieldName) {
+        Query query = Queries.newUnmappedFieldQuery(fieldName);
+        query.visit(queryVisitor);
+        return query;
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
@@ -285,6 +339,7 @@ public class MatchQueryParser {
 
     class MatchQueryBuilder extends QueryBuilder {
         private final MappedFieldType fieldType;
+        private final QueryVisitor queryVisitor;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
@@ -293,18 +348,25 @@ public class MatchQueryParser {
             Analyzer analyzer,
             MappedFieldType fieldType,
             boolean enablePositionIncrements,
-            boolean autoGenerateSynonymsPhraseQuery
+            boolean autoGenerateSynonymsPhraseQuery,
+            QueryVisitor queryVisitor
         ) {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
-            if (fieldType.getTextSearchInfo().hasPositions()) {
+            // a field answering from its values reads their positions, so it answers a phrase as an indexed one does
+            if (fieldType.getTextSearchInfo().hasPositions() || answersPositionsFromValues(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
+            this.queryVisitor = queryVisitor;
         }
 
+        /**
+         * Whether {@code fieldType} answers a query about positions by reading its values. A word a synonym replaces
+         * with several is then asked for as a phrase of those, as it is for a field that indexed positions of its own.
+         */
         @Override
         protected Query createFieldQuery(
             Analyzer analyzer,
@@ -447,7 +509,11 @@ public class MatchQueryParser {
 
         private SpanQuery newSpanQuery(Term[] terms, boolean isPrefix) {
             if (terms.length == 1) {
-                return isPrefix ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context) : new SpanTermQuery(terms[0]);
+                SpanQuery query = isPrefix
+                    ? fieldType.spanPrefixQuery(terms[0].text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(terms[0]);
+                query.visit(queryVisitor);
+                return query;
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
@@ -455,7 +521,9 @@ public class MatchQueryParser {
                     ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
                     : new SpanTermQuery(terms[i]);
             }
-            return new SpanOrQuery(spanQueries);
+            SpanQuery query = new SpanOrQuery(spanQueries);
+            query.visit(queryVisitor);
+            return query;
         }
 
         private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
@@ -468,11 +536,11 @@ public class MatchQueryParser {
             SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
             Term lastTerm = null;
             while (in.incrementToken()) {
-                if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
-                }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
+                }
+                if (posIncAtt.getPositionIncrement() > 1) {
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
@@ -483,6 +551,7 @@ public class MatchQueryParser {
                 builder.addClause(spanQuery);
             }
             SpanNearQuery query = builder.build();
+            query.visit(queryVisitor);
             SpanQuery[] clauses = query.getClauses();
             if (clauses.length == 1) {
                 return clauses[0];
@@ -494,7 +563,12 @@ public class MatchQueryParser {
         @Override
         protected Query newTermQuery(Term term, float boost) {
             final Supplier<Query> querySupplier;
-            if (fuzziness != null) {
+            if (answersFromValues(fieldType)) {
+                // The clause only names what it looks for; the wrapper reads the field's values to find it.
+                querySupplier = fuzziness != null
+                    ? () -> new FuzzyQuery(term, fuzziness.asDistance(term.text()), fuzzyPrefixLength, maxExpansions, transpositions)
+                    : () -> new TermQuery(term);
+            } else if (fuzziness != null) {
                 querySupplier = () -> fieldType.fuzzyQuery(
                     term.text(),
                     fuzziness,
@@ -508,7 +582,9 @@ public class MatchQueryParser {
                 querySupplier = () -> fieldType.termQuery(term.bytes(), context);
             }
             try {
-                return querySupplier.get();
+                Query query = querySupplier.get();
+                query.visit(queryVisitor);
+                return query;
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(fieldType.name(), e);
@@ -518,12 +594,25 @@ public class MatchQueryParser {
             }
         }
 
+        @Override
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
+            SynonymQuery.Builder builder = new SynonymQuery.Builder(field);
+            for (TermAndBoost t : terms) {
+                builder.addTerm(t.term(), t.boost());
+            }
+            Query query = builder.build();
+            query.visit(queryVisitor);
+            return query;
+        }
+
         /**
          * Builds a new prefix query instance.
          */
         protected Query newPrefixQuery(Term term) {
             try {
-                return fieldType.prefixQuery(term.text(), null, context);
+                Query query = fieldType.prefixQuery(term.text(), null, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (RuntimeException e) {
                 if (lenient) {
                     return newLenientFieldQuery(term.field(), e);
@@ -594,7 +683,9 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -606,7 +697,9 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                Query query = fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -617,7 +710,9 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
+                Query query = fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
+                query.visit(queryVisitor);
+                return query;
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -709,10 +804,10 @@ public class MatchQueryParser {
              * The articulation points of the graph are visited in order and the queries
              * created at each point are merged in the returned near query.
              */
-            List<SpanQuery> clauses = new ArrayList<>();
+            SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
+            Set<SpanQuery> positionalQueries = Collections.newSetFromMap(new IdentityHashMap<>());
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -729,9 +824,6 @@ public class MatchQueryParser {
                         TokenStream ts = it.next();
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
-                            if (queries.size() >= maxClauseCount) {
-                                throw new IndexSearcher.TooManyClauses();
-                            }
                             queries.add(q);
                         }
                     }
@@ -741,29 +833,52 @@ public class MatchQueryParser {
                         queryPos = null;
                     }
                 } else {
+                    int positionIncrement = getPositionIncrement(graph, start);
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
-                    if (terms.length >= maxClauseCount) {
-                        throw new IndexSearcher.TooManyClauses();
+                    if (positionIncrement > 1) {
+                        builder.addGap(positionIncrement - 1);
                     }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
-                    if (clauses.size() >= maxClauseCount) {
-                        throw new IndexSearcher.TooManyClauses();
-                    }
-                    clauses.add(queryPos);
+                    builder.addClause(queryPos);
+                    positionalQueries.add(queryPos);
                 }
             }
 
-            if (clauses.isEmpty()) {
+            if (positionalQueries.isEmpty()) {
                 return null;
-            } else if (clauses.size() == 1) {
-                return clauses.get(0);
-            } else {
-                return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
             }
+            SpanNearQuery query = builder.build();
+            SpanQuery[] clauses = query.getClauses();
+            if (clauses.length == 1) {
+                return clauses[0];
+            }
+            // the builder inserted a private gap clause for every addGap call; those were not
+            // visited when the positional queries were created, so visit them here to keep the
+            // clause count consistent with a full walk of the final query
+            for (SpanQuery clause : clauses) {
+                if (positionalQueries.contains(clause) == false) {
+                    clause.visit(queryVisitor);
+                }
+            }
+            return query;
+        }
+
+        /**
+         * Returns the position increment of the tokens starting at {@code state}. Stacked tokens
+         * carry the increment of their leading token (see {@link GraphTokenStreamFiniteStrings}),
+         * so all tokens at a state share one value; max selects it regardless of iteration order.
+         */
+        private int getPositionIncrement(GraphTokenStreamFiniteStrings graph, int state) {
+            int positionIncrement = 1;
+            for (AttributeSource attributeSource : graph.getTerms(state)) {
+                PositionIncrementAttribute positionIncrementAttribute = attributeSource.addAttribute(PositionIncrementAttribute.class);
+                positionIncrement = Math.max(positionIncrement, positionIncrementAttribute.getPositionIncrement());
+            }
+            return positionIncrement;
         }
     }
 }

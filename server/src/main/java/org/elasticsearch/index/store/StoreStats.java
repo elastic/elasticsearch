@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,8 +27,6 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
-
     private long sizeInBytes;
     private long totalDataSetSizeInBytes;
     private long reservedSizeInBytes;
@@ -41,11 +37,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public StoreStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
-            totalDataSetSizeInBytes = in.readVLong();
-        } else {
-            totalDataSetSizeInBytes = sizeInBytes;
-        }
+        totalDataSetSizeInBytes = in.readVLong();
         reservedSizeInBytes = in.readZLong();
     }
 
@@ -107,9 +99,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (out.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeVLong(totalDataSetSizeInBytes);
-        }
+        out.writeVLong(totalDataSetSizeInBytes);
         out.writeZLong(reservedSizeInBytes);
     }
 

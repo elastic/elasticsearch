@@ -41,7 +41,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     public void testPreviewTransformWithRemoteIndex() {
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, false);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()
@@ -60,6 +60,8 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
         PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         client().execute(PutTransformAction.INSTANCE, request).actionGet();
+
+        deleteTransform(transformId);
     }
 
     public void testPutTransformWithRemoteIndex_NoDeferValidation() {
@@ -105,6 +107,8 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
         );
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
+
+        deleteTransform(transformId);
     }
 
     public void testUpdateTransformWithRemoteIndex_NoDeferValidation() {
@@ -143,6 +147,8 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
                 containsString("transform requires a remote connection but the node does not have the remote_cluster_client role")
             )
         );
+
+        deleteTransform(transformId);
     }
 
     private static TransformConfig randomConfig(String transformId, String sourceIndex) {

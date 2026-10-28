@@ -13,9 +13,10 @@ import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
@@ -26,18 +27,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * Base class for all services and components that need up-to-date information about the registered remote clusters
+ * Base class for services and components that utilize linked projects.
  */
-public abstract class RemoteClusterAware {
+public abstract class RemoteClusterAware implements LinkedProjectConfigService.LinkedProjectConfigListener {
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
+    public static final String CCS_CHAINING_DEPRECATION_WARNING = "Index name [{}] contains multiple cluster prefixes, which is deprecated";
+    public static final String ALL_INDICES_EXCLUDED_MESSAGE_PREFIX =
+        "The '-' exclusions in the index expression list excludes all indexes. Nothing to search.";
 
     protected final Settings settings;
     private final String nodeName;
     private final boolean isRemoteClusterClientEnabled;
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteClusterAware.class);
 
     /**
      * Creates a new {@link RemoteClusterAware} instance
@@ -49,11 +54,8 @@ public abstract class RemoteClusterAware {
         this.isRemoteClusterClientEnabled = DiscoveryNode.isRemoteClusterClient(settings);
     }
 
-    /**
-     * Returns remote clusters that are enabled in these settings
-     */
-    protected static Set<String> getEnabledRemoteClusters(final Settings settings) {
-        return RemoteConnectionStrategy.getRemoteClusters(settings);
+    protected String getNodeName() {
+        return nodeName;
     }
 
     /**
@@ -75,17 +77,16 @@ public abstract class RemoteClusterAware {
     }
 
     /**
-     * @param indexExpression expects a single index expression at a time (not a csv list of expression)
-     * @return cluster alias in the index expression. If none is present, returns RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+     * Extracts the list of remote index expressions from the given array of index expressions
      */
-    public static String parseClusterAlias(String indexExpression) {
-        assert indexExpression != null : "Must not pass null indexExpression";
-        String[] parts = splitIndexName(indexExpression.trim());
-        if (parts[0] == null) {
-            return RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-        } else {
-            return parts[0];
+    public static List<String> getRemoteIndexExpressions(String... expressions) {
+        List<String> crossClusterIndices = new ArrayList<>();
+        for (int i = 0; i < expressions.length; i++) {
+            if (isRemoteIndexName(expressions[i])) {
+                crossClusterIndices.add(expressions[i]);
+            }
         }
+        return crossClusterIndices;
     }
 
     /**
@@ -95,11 +96,11 @@ public abstract class RemoteClusterAware {
      * There's no guarantee the components actually represent existing remote cluster or index, only
      * rudimentary checks are done on the syntax.
      */
-    public static String[] splitIndexName(String indexExpression) {
+    public static QualifiedIndexExpression splitIndexName(String indexExpression) {
         if (indexExpression.isEmpty() || indexExpression.charAt(0) == '<' || indexExpression.startsWith("-<")) {
             // This is date math, but even if it is not, the remote can't start with '<'.
             // Thus, whatever it is, this is definitely not a remote index.
-            return new String[] { null, indexExpression };
+            return new QualifiedIndexExpression(null, indexExpression);
         }
         int i = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
         if (i == 0) {
@@ -107,9 +108,34 @@ public abstract class RemoteClusterAware {
         }
         if (i < 0 || indexExpression.startsWith(SelectorResolver.SELECTOR_SEPARATOR, i)) {
             // Either no colon present, or the colon was a part of a selector separator (::)
-            return new String[] { null, indexExpression };
+            return new QualifiedIndexExpression(null, indexExpression);
         } else {
-            return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
+            return new QualifiedIndexExpression(indexExpression.substring(0, i), indexExpression.substring(i + 1));
+        }
+    }
+
+    /**
+     * Result of splitting a qualified index expression into its cluster and index parts.
+     * <p>
+     * For local indices, {@link #clusterAlias()} is {@code null}. The index part is always
+     * an expression (may contain wildcards, date math, selectors, etc.), not necessarily a concrete index name.
+     */
+    public record QualifiedIndexExpression(@Nullable String clusterAlias, String indexExpression) {
+
+        public QualifiedIndexExpression {
+            assert indexExpression != null : "index expression must not be null";
+        }
+
+        /**
+         * @return clusterAlias or {@code LOCAL_CLUSTER_GROUP_KEY} if index is local
+         */
+        public String getClusterGroupingKey() {
+            return clusterAlias != null ? clusterAlias : LOCAL_CLUSTER_GROUP_KEY;
+        }
+
+        @Override
+        public String toString() {
+            return clusterAlias != null ? clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexExpression : indexExpression;
         }
     }
 
@@ -119,12 +145,17 @@ public abstract class RemoteClusterAware {
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * This method supports excluding clusters by using the {@code -cluster:*} index expression.
+     * Expressions are processed left to right, and order is significant: a cluster can only be excluded if it has been included
+     * by a preceding expression, and including a cluster after it has been excluded adds it back.
      * For example, if requestIndices is [blogs, *:blogs, -remote1:*] and *:blogs resolves to "remote1:blogs, remote2:blogs"
      * the map returned by the function will not have the remote1 entry. It will have only {"":blogs, remote2:blogs}.
      * The index for the excluded cluster must be '*' to clarify that the entire cluster should be removed.
      * A wildcard in the "-" excludes notation is also allowed. For example, suppose there are three remote clusters,
      * remote1, remote2, remote3, and this index expression is provided: blogs,rem*:blogs,-rem*1:*. That would successfully
      * remove remote1 from the list of clusters to be included.
+     *
+     * This method also supports excluding indices on remote clusters by using {@code -cluster:index} as an alternative
+     * form of {@code cluster:-index}. For example, {@code -remote:foo*} is equivalent to {@code remote:-foo*}.
      *
      * @param remoteClusterNames the remote cluster names. If a clusterAlias is preceded by a minus sign that cluster will be excluded.
      * @param requestIndices the indices in the search request to filter
@@ -133,45 +164,83 @@ public abstract class RemoteClusterAware {
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
-        Set<String> clustersToRemove = new HashSet<>();
+        Set<String> everIncluded = new HashSet<>();
+        boolean hasExclusions = false;
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
             // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
-            String[] split = splitIndexName(index);
-            if (split[0] != null) {
+            var split = splitIndexName(index);
+            if (split.clusterAlias != null) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
-                String remoteClusterName = split[0];
-                String indexName = split[1];
+                String remoteClusterName = split.clusterAlias;
+                String indexName = split.indexExpression;
                 boolean isNegative = remoteClusterName.startsWith("-");
+                if (isRemoteIndexName(indexName)) {
+                    // Double cluster prefixes are deprecated
+                    deprecationLogger.critical(
+                        DeprecationCategory.QUERIES,
+                        "double_cluster_prefixes",
+                        CCS_CHAINING_DEPRECATION_WARNING,
+                        index
+                    );
+                }
                 List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(
                     remoteClusterNames,
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName
                 );
                 if (isNegative) {
                     Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
-                    indexName = indexAndSelector.v1();
+                    String indexPart = indexAndSelector.v1();
                     String selectorString = indexAndSelector.v2();
-                    if (indexName.equals("*") == false) {
+                    hasExclusions = true;
+                    if (indexPart.equals("*")) {
+                        if (selectorString != null) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "To exclude a cluster you must not specify a selector, but found selector: [%s]",
+                                    selectorString
+                                )
+                            );
+                        }
+                        List<String> excludeFailed = new ArrayList<>();
+                        for (String cluster : clusters) {
+                            perClusterIndices.remove(cluster);
+                            if (everIncluded.contains(cluster) == false) {
+                                excludeFailed.add(cluster);
+                            }
+                        }
+                        if (excludeFailed.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included"
+                                        + " (note: the \"include\" expression must precede the \"exclude\" expression)",
+                                    excludeFailed.size() == 1 ? "" : "s",
+                                    excludeFailed,
+                                    excludeFailed.size() == 1 ? "it is" : "they are"
+                                )
+                            );
+                        }
+                    } else if (indexPart.startsWith("-")) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
-                                indexName
+                                "cannot apply exclusion for both the cluster and the index expression, but found: [%s]",
+                                remoteClusterName + ":" + indexPart
                             )
                         );
+                    } else {
+                        // an index exclusion like -remote:logs is syntactic sugar for including the cluster but excluding the index,
+                        // so we need to add the cluster to the list of included clusters
+                        assert indexName.startsWith("-") == false : "index name should not start with - but was [" + indexName + "]";
+                        everIncluded.addAll(clusters);
+                        for (String clusterName : clusters) {
+                            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);
+                        }
                     }
-                    if (selectorString != null && selectorString.equals("*") == false) {
-                        throw new IllegalArgumentException(
-                            Strings.format(
-                                "To exclude a cluster you must specify the '::*' selector or leave it off, but found: [%s]",
-                                selectorString
-                            )
-                        );
-                    }
-                    clustersToRemove.addAll(clusters);
                 } else {
+                    everIncluded.addAll(clusters);
                     for (String clusterName : clusters) {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                     }
@@ -180,62 +249,10 @@ public abstract class RemoteClusterAware {
                 perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
         }
-        List<String> excludeFailed = new ArrayList<>();
-        for (String exclude : clustersToRemove) {
-            List<String> removed = perClusterIndices.remove(exclude);
-            if (removed == null) {
-                excludeFailed.add(exclude);
-            }
-        }
-        if (excludeFailed.size() > 0) {
-            String warning = Strings.format(
-                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included: %s. Input: [%s]",
-                excludeFailed.size() == 1 ? "" : "s",
-                excludeFailed,
-                excludeFailed.size() == 1 ? "it is" : "they are",
-                perClusterIndices.keySet().stream().map(s -> s.equals("") ? "(local)" : s).collect(Collectors.toList()),
-                String.join(",", requestIndices)
-            );
-            throw new IllegalArgumentException(warning);
-        }
-        if (clustersToRemove.size() > 0 && perClusterIndices.size() == 0) {
-            throw new IllegalArgumentException(
-                "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
-                    + String.join(",", requestIndices)
-                    + "]"
-            );
+        if (hasExclusions && perClusterIndices.isEmpty()) {
+            throw new IllegalArgumentException(ALL_INDICES_EXCLUDED_MESSAGE_PREFIX + " Input: [" + String.join(",", requestIndices) + "]");
         }
         return perClusterIndices;
-    }
-
-    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
-        }
-        updateRemoteCluster(clusterAlias, settings);
-    }
-
-    /**
-     * Subclasses must implement this to receive information about updated cluster aliases.
-     */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
-
-    /**
-     * Registers this instance to listen to updates on the cluster settings.
-     */
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

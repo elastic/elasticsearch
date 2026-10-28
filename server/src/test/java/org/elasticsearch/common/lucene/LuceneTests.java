@@ -27,17 +27,19 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
@@ -54,13 +56,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
@@ -305,7 +311,7 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
             IndexSearcher searcher = newSearcher(reader);
-            assertFalse(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertFalse(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
         }
 
         Document doc = new Document();
@@ -316,7 +322,7 @@ public class LuceneTests extends ESTestCase {
 
         try (DirectoryReader reader = w.getReader()) {
             IndexSearcher searcher = newSearcher(reader);
-            assertTrue(Lucene.exists(searcher, new MatchAllDocsQuery()));
+            assertTrue(Lucene.exists(searcher, Queries.ALL_DOCS_INSTANCE));
             assertFalse(Lucene.exists(searcher, new TermQuery(new Term("baz", "bar"))));
             assertTrue(Lucene.exists(searcher, new TermQuery(new Term("foo", "bar"))));
         }
@@ -464,7 +470,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapAllDocsLive() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            );
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         Set<String> liveDocs = new HashSet<>();
@@ -492,7 +500,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
@@ -505,7 +513,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            .setMergePolicy(
+                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, () -> Queries.ALL_DOCS_INSTANCE, newMergePolicy())
+            )
             // disable merges on refresh as we will verify the deleted documents
             .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
@@ -539,7 +549,7 @@ public class LuceneTests extends ESTestCase {
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
             IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
             StoredFields storedFields = reader.storedFields();
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 actualDocs.add(storedFields.document(scoreDoc.doc).get("id"));
@@ -555,19 +565,14 @@ public class LuceneTests extends ESTestCase {
             sortFieldTuple.v1(),
             Lucene::writeSortField,
             Lucene::readSortField,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {
         Object sortValue = randomSortValue();
-        Object deserialized = copyInstance(
-            sortValue,
-            Lucene::writeSortValue,
-            Lucene::readSortValue,
-            TransportVersionUtils.randomVersion(random())
-        );
+        Object deserialized = copyInstance(sortValue, Lucene::writeSortValue, Lucene::readSortValue, TransportVersionUtils.randomVersion());
         assertEquals(sortValue, deserialized);
     }
 
@@ -611,11 +616,9 @@ public class LuceneTests extends ESTestCase {
                 if ((type == SortField.Type.SCORE || type == SortField.Type.DOC) && randomBoolean()) {
                     field = null;
                 }
-                SortField sortField = new SortField(field, type, randomBoolean());
-                Object missingValue = randomMissingValue(sortField.getType());
-                if (missingValue != null) {
-                    sortField.setMissingValue(missingValue);
-                }
+                boolean reverse = randomBoolean();
+                Object missingValue = randomMissingValue(type);
+                SortField sortField = new SortField(field, type, reverse, missingValue);
                 return Tuple.tuple(sortField, sortField);
             default:
                 throw new UnsupportedOperationException();
@@ -627,7 +630,7 @@ public class LuceneTests extends ESTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> comparatorSource = new LongValuesComparatorSource(
                 null,
                 randomBoolean() ? randomLong() : null,
@@ -647,7 +650,13 @@ public class LuceneTests extends ESTestCase {
                 randomFrom(MultiValueMode.values()),
                 null
             );
-            case 3 -> {
+            case 3 -> comparatorSource = new HalfFloatValuesComparatorSource(
+                null,
+                randomBoolean() ? randomFloat() : null,
+                randomFrom(MultiValueMode.values()),
+                null
+            );
+            case 4 -> {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",
@@ -659,37 +668,41 @@ public class LuceneTests extends ESTestCase {
             default -> throw new UnsupportedOperationException();
         }
         SortField sortField = new SortField(field, comparatorSource, reverse);
-        SortField expected = new SortField(field, comparatorSource.reducedType(), reverse);
-        expected.setMissingValue(missingValue);
+        SortField expected = new SortField(field, comparatorSource.reducedType(), reverse, missingValue);
         return Tuple.tuple(sortField, expected);
     }
 
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
-                SortField expected = new SortField(field, SortField.Type.DOUBLE);
-                expected.setMissingValue(Double.POSITIVE_INFINITY);
+                SortField expected = new SortField(field, SortField.Type.DOUBLE, false, Double.POSITIVE_INFINITY);
                 return Tuple.tuple(sortField, expected);
             }
             case 1 -> {
-                SortedSetSortField sortField = new SortedSetSortField(field, randomBoolean(), randomFrom(SortedSetSelector.Type.values()));
-                SortField expected = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
                 Object missingValue = randomMissingValue(SortField.Type.STRING);
-                sortField.setMissingValue(missingValue);
-                expected.setMissingValue(missingValue);
+                SortedSetSortField sortField = new SortedSetSortField(
+                    field,
+                    randomBoolean(),
+                    randomFrom(SortedSetSelector.Type.values()),
+                    missingValue
+                );
+                SortField expected = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse(), missingValue);
                 return Tuple.tuple(sortField, expected);
             }
             case 2 -> {
                 SortField.Type type = randomFrom(SortField.Type.DOUBLE, SortField.Type.INT, SortField.Type.FLOAT, SortField.Type.LONG);
-                SortedNumericSortField sortField = new SortedNumericSortField(field, type, randomBoolean());
-                SortField expected = new SortField(sortField.getField(), sortField.getNumericType(), sortField.getReverse());
+                boolean reverse = randomBoolean();
                 Object missingValue = randomMissingValue(type);
-                if (missingValue != null) {
-                    sortField.setMissingValue(missingValue);
-                    expected.setMissingValue(missingValue);
-                }
+                SortedNumericSortField sortField = new SortedNumericSortField(
+                    field,
+                    type,
+                    reverse,
+                    SortedNumericSelector.Type.MIN,
+                    missingValue
+                );
+                SortField expected = new SortField(sortField.getField(), sortField.getNumericType(), reverse, missingValue);
                 return Tuple.tuple(sortField, expected);
             }
             case 3 -> {
@@ -697,8 +710,185 @@ public class LuceneTests extends ESTestCase {
                 SortField expected = new SortField(ShardDocSortField.NAME, SortField.Type.LONG, sortField.getReverse());
                 return Tuple.tuple(sortField, expected);
             }
+            case 4 -> {
+                // NOTE: rewriteMergeSortField() converts BinarySortField to SortField(STRING) before wire serialization.
+                boolean reverse = randomBoolean();
+                Object missingValue = randomBoolean() ? SortField.STRING_FIRST : SortField.STRING_LAST;
+                MultiValuedBinaryDocValuesSortField sortField = new MultiValuedBinaryDocValuesSortField(
+                    field,
+                    reverse,
+                    missingValue,
+                    randomBoolean(),
+                    randomFrom(BinaryDocValuesFormat.values())
+                );
+                SortField expected = new SortField(field, SortField.Type.STRING, reverse, missingValue);
+                return Tuple.tuple(sortField, expected);
+            }
             default -> throw new UnsupportedOperationException();
         }
+    }
+
+    public void testSearchWithoutBulkScorer() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new KeywordAnalyzer()))) {
+                w.addDocument(new Document());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                // Use a plain IndexSearcher (not newSearcher) to guarantee a deterministic single-threaded
+                // search path that always routes through ScorerSupplier.bulkScorer(). The randomized
+                // newSearcher() may wrap weights in an assertions layer or use concurrent slicing, which
+                // can bypass ThrowingBulkScorerQuery's custom bulkScorer() path.
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // A query that throws AssertionError if bulkScorer() is called from its weight directly
+                Query throwingQuery = new ThrowingBulkScorerQuery(Queries.ALL_DOCS_INSTANCE);
+
+                // Normal search routes through bulkScorer() and hits the assertion
+                expectThrows(AssertionError.class, () -> searcher.search(throwingQuery, 1));
+
+                // searchWithoutBulkScorer wraps in NoBulkScoringQuery, so the custom bulkScorer()
+                // is never reached; the default Weight.bulkScorer() builds from scorerSupplier() instead
+                TopDocs topDocs = Lucene.searchWithoutBulkScorer(searcher, throwingQuery, 1);
+                assertEquals(1, topDocs.scoreDocs.length);
+            }
+        }
+    }
+
+    private static class ThrowingBulkScorerQuery extends Query {
+
+        private final Query delegate;
+
+        ThrowingBulkScorerQuery(Query delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+            final Weight delegateWeight = delegate.createWeight(searcher, scoreMode, boost);
+            return new Weight(this) {
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return false;
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    return delegateWeight.explain(context, doc);
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final ScorerSupplier innerSupplier = delegateWeight.scorerSupplier(context);
+                    if (innerSupplier == null) return null;
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) throws IOException {
+                            return innerSupplier.get(leadCost);
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            throw new AssertionError("bulkScorer() should not be called");
+                        }
+
+                        @Override
+                        public long cost() {
+                            return innerSupplier.cost();
+                        }
+                    };
+                }
+            };
+        }
+
+        @Override
+        public String toString(String field) {
+            return "ThrowingBulkScorer(" + delegate.toString(field) + ")";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ThrowingBulkScorerQuery other && delegate.equals(other.delegate);
+        }
+
+        @Override
+        public int hashCode() {
+            return delegate.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            delegate.visit(visitor);
+        }
+    }
+
+    public void testCanEarlyTerminateColumnarKeywordIndexSortRoundTrip() throws IOException {
+        // NOTE: The sort field is deserialized via MultiValuedBinaryDocValuesSortField.Provider
+        // when read from a real segment; equality between query-sort and index-sort must survive
+        // that round-trip.
+        Sort indexSort = new Sort(
+            new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false),
+            new SortedNumericSortField("ts", SortField.Type.LONG, true)
+        );
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setIndexSort(indexSort);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                Document doc = new Document();
+                doc.add(new org.apache.lucene.document.BinaryDocValuesField("kw", new BytesRef("a")));
+                doc.add(new org.apache.lucene.document.SortedNumericDocValuesField("ts", 1L));
+                writer.addDocument(doc);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                Sort segmentSort = reader.leaves().get(0).reader().getMetaData().sort();
+                assertNotNull("segment sort must be present after index sort is set", segmentSort);
+                Sort querySort = new Sort(new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false));
+                assertTrue(
+                    "canEarlyTerminate must return true after round-trip through segment codec",
+                    Lucene.canEarlyTerminate(querySort, segmentSort)
+                );
+            }
+        }
+    }
+
+    public void testRewriteMergeSortFieldForBinaryDocValues() {
+        for (BinaryDocValuesFormat format : BinaryDocValuesFormat.values()) {
+            for (boolean reverse : new boolean[] { false, true }) {
+                final Object missing = reverse ? SortField.STRING_FIRST : SortField.STRING_LAST;
+                final SortField bsf = new MultiValuedBinaryDocValuesSortField("kw", reverse, missing, false, format);
+                final SortField rewritten = Lucene.rewriteMergeSortField(bsf);
+                assertEquals("format=" + format + " reverse=" + reverse, SortField.Type.STRING, rewritten.getType());
+                assertEquals("format=" + format + " reverse=" + reverse, "kw", rewritten.getField());
+                assertEquals("format=" + format + " reverse=" + reverse, reverse, rewritten.getReverse());
+                assertSame("format=" + format + " reverse=" + reverse, missing, rewritten.getMissingValue());
+            }
+        }
+    }
+
+    public void testCanEarlyTerminateColumnarKeywordIndexSort() {
+        SortField indexField = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        SortField queryFieldAsc = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+
+        assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField)));
+
+        SortField queryFieldDesc = new MultiValuedBinaryDocValuesSortField("kw", true, SortField.STRING_FIRST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldDesc), new Sort(indexField)));
+
+        SortField queryFieldWrongName = new MultiValuedBinaryDocValuesSortField("other", false, SortField.STRING_LAST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldWrongName), new Sort(indexField)));
+
+        SortField indexFieldMissingFirst = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_FIRST, false);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexFieldMissingFirst)));
+
+        SortField sortedSetField = new SortedSetSortField("kw", false);
+        assertTrue(Lucene.canEarlyTerminate(new Sort(sortedSetField), new Sort(sortedSetField)));
+
+        SortField secondField = new MultiValuedBinaryDocValuesSortField("ts", false, SortField.STRING_LAST, false);
+        SortField queryTs = new MultiValuedBinaryDocValuesSortField("ts", false, SortField.STRING_LAST, false);
+        assertTrue(Lucene.canEarlyTerminate(new Sort(queryFieldAsc), new Sort(indexField, secondField)));
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldAsc, queryTs), new Sort(indexField)));
+
+        SortField indexFieldMin = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, false);
+        SortField queryFieldMax = new MultiValuedBinaryDocValuesSortField("kw", false, SortField.STRING_LAST, true);
+        assertFalse(Lucene.canEarlyTerminate(new Sort(queryFieldMax), new Sort(indexFieldMin)));
     }
 
     private static Object randomMissingValue(SortField.Type type) {

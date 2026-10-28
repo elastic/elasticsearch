@@ -9,22 +9,34 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-import java.util.EnumSet;
 import java.util.Locale;
 
 public enum SimilarityMeasure {
-    COSINE,
-    DOT_PRODUCT,
-    L2_NORM;
+    COSINE(DenseVectorFieldMapper.VectorSimilarity.COSINE),
+    DOT_PRODUCT(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT),
+    L2_NORM(DenseVectorFieldMapper.VectorSimilarity.L2_NORM),;
 
-    private static final EnumSet<SimilarityMeasure> BEFORE_L2_NORM_ENUMS = EnumSet.range(COSINE, DOT_PRODUCT);
+    /**
+     * The similarity used when none is configured. Cosine is used since we cannot guarantee that
+     * third-party providers return unit-length vectors.
+     */
+    public static final SimilarityMeasure DEFAULT = COSINE;
+
+    private final DenseVectorFieldMapper.VectorSimilarity vectorSimilarity;
+
+    SimilarityMeasure(DenseVectorFieldMapper.VectorSimilarity vectorSimilarity) {
+        this.vectorSimilarity = vectorSimilarity;
+    }
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public DenseVectorFieldMapper.VectorSimilarity vectorSimilarity() {
+        return vectorSimilarity;
     }
 
     public static SimilarityMeasure fromString(String name) {
@@ -32,18 +44,12 @@ public enum SimilarityMeasure {
     }
 
     /**
-     * Returns a similarity measure that is known based on the transport version provided. If the similarity enum was not yet
-     * introduced it will be defaulted to null.
+     * Returns the given similarity if it is set, otherwise {@link #DEFAULT}.
      *
-     * @param similarityMeasure the value to translate if necessary
-     * @param version the version that dictates the translation
-     * @return the similarity that is known to the version passed in
+     * @param similarityFromModel the similarity configured on the model, may be null
+     * @return the similarity to use
      */
-    public static SimilarityMeasure translateSimilarity(SimilarityMeasure similarityMeasure, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_14_0) && BEFORE_L2_NORM_ENUMS.contains(similarityMeasure) == false) {
-            return null;
-        }
-
-        return similarityMeasure;
+    public static SimilarityMeasure similarityOrDefault(SimilarityMeasure similarityFromModel) {
+        return similarityFromModel == null ? DEFAULT : similarityFromModel;
     }
 }

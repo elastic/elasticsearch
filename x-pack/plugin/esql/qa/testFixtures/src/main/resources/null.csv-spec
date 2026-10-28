@@ -28,10 +28,10 @@ isNullForDocs
 // tag::is-null[]
 FROM employees
 | WHERE birth_date IS NULL
+// end::is-null[]
 | KEEP first_name, last_name
 | SORT first_name
 | LIMIT 3
-// end::is-null[]
 ;
 
 // tag::is-null-result[]
@@ -56,7 +56,7 @@ COUNT(emp_no):long
 // end::is-not-null-result[]
 ;
 
-coalesceSimple#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+coalesceSimple
 // tag::coalesce[]
 ROW a=null, b="b"
 | EVAL COALESCE(a, b)
@@ -192,6 +192,16 @@ emp_no:integer | languages:integer | height:double | x:double | y:double | z:dou
          10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
 ;
 
+greatestOfCoalesceNull
+required_capability: fix_fold_null
+FROM employees | EVAL result = GREATEST(COALESCE(null)) | KEEP result | LIMIT 3
+;
+result:null
+null
+null
+null
+;
+
 whereNull
 FROM employees
 | WHERE NULL and emp_no <= 10021
@@ -202,4 +212,1365 @@ FROM employees
 ;
 
 fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
+;
+
+inConvertedNull
+required_capability: filter_in_converted_null
+required_capability: warn_null_misuse
+FROM employees
+| WHERE emp_no in (10021, 10022, null::int)
+| KEEP emp_no, first_name, last_name
+| SORT emp_no
+;
+warning:Line 2:9: NULL in the IN list of [emp_no in (10021, 10022, null::int)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer | first_name:keyword | last_name:keyword   
+10021          | Ramzi              | Erde
+10022          | Shahaf             | Famili
+;
+
+###############################################
+# Null comparison tests
+###############################################
+
+# Field compared with null returns empty result
+compareFieldWithNull
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+FROM employees | WHERE emp_no == null | KEEP emp_no, first_name | LIMIT 1
+;
+warning:Line 1:24: Expression [emp_no == null] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer | first_name:keyword
+;
+
+
+# ROW with null compared to string value
+rowNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "foo" | WHERE x == y | KEEP x, y
+;
+
+x:null | y:keyword
+;
+
+
+# null == integer evaluates to null
+rowNullEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null != integer evaluates to null
+rowNullNotEqualsInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x != y | KEEP result
+;
+
+result:boolean
+null
+;
+
+# null > integer evaluates to null
+rowNullGreaterThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x > y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null < integer evaluates to null
+rowNullLessThanInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x < y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null >= integer evaluates to null
+rowNullGreaterThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x >= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null <= integer evaluates to null
+rowNullLessThanOrEqualInteger
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1 | EVAL result = x <= y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Two nulls comparison evaluates to null
+rowTwoNullsComparison
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# Value compared with null (null on right side)
+rowValueCompareWithNull
+required_capability: fix_null_comparison_type_check
+
+ROW x = 1, y = null | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with keyword
+rowNullCompareWithKeyword
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "test" | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null compared with datetime
+rowNullCompareWithDatetime
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = now() | EVAL result = x == y | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+###############################################
+# Complex null comparison tests (derived null)
+###############################################
+
+# null derived from arithmetic: null + 1 produces null, then compared with integer
+rowDerivedNullFromAdditionCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | EVAL t = x + 1 > z | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from multiplication: null * 2 compared with integer
+rowDerivedNullFromMultiplicationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 2 | EVAL t = x * 2 == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# chained null propagation: null + 1 - 2 compared with value
+rowChainedNullPropagationCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 5 | EVAL t = (x + 1 - 2) >= y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# null derived from function: to_integer(null) compared with value
+rowDerivedNullFromFunctionCompare
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW y = 10 | EVAL t = to_integer(null) < y | KEEP t
+;
+warning:Line 1:23: Expression [to_integer(null) < y] always evaluates to NULL.
+
+t:boolean
+null
+;
+
+
+# WHERE filters out all rows when derived null is used in condition
+rowDerivedNullInWhereClause
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 1, z = 2 | WHERE x + 1 > z | KEEP x, y, z
+;
+
+x:null | y:integer | z:integer
+;
+
+
+# null propagation through nested arithmetic on both sides
+rowDerivedNullBothSidesCompare
+required_capability: fix_null_comparison_type_check
+
+ROW a = null, b = null | EVAL t = (a + 1) == (b + 2) | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+# non-null side produces value, null side propagates null
+rowDerivedNullOneSideCompare
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = 3 | EVAL left_val = x + 10, right_val = y * 2, t = left_val > right_val | KEEP left_val, right_val, t
+;
+
+left_val:integer    | right_val:integer | t:boolean
+null                | 6                 | null
+;
+
+
+# null from division by zero is different, but null literal through arithmetic should propagate
+rowDerivedNullCompareWithString
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, y = "hello" | EVAL t = concat(x, " world") == y | KEEP t
+;
+
+t:boolean
+null
+;
+
+
+###############################################
+# Null in IN expression tests
+###############################################
+
+# integer value IN list containing null — value matches, result is true
+rowIntegerInWithNullMatch
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = 1 | EVAL result = x IN (1, null) | KEEP result
+;
+warning:Line 1:27: NULL in the IN list of [x IN (1, null)] never matches, add [OR x IS NULL] to also match NULL values.
+
+result:boolean
+true
+;
+
+
+# integer value IN list containing only null — no match, result is null
+rowIntegerInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = 1 | EVAL result = x IN (null) | KEEP result
+;
+warning:Line 1:27: Expression [x IN (null)] always evaluates to NULL, did you mean [x IS NULL]?
+
+result:boolean
+null
+;
+
+
+# integer value IN list with null — value does not match non-null entries, result is null
+rowIntegerInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = 5 | EVAL result = x IN (1, 2, null) | KEEP result
+;
+warning:Line 1:27: NULL in the IN list of [x IN (1, 2, null)] never matches, add [OR x IS NULL] to also match NULL values.
+
+result:boolean
+null
+;
+
+# integer value NOT IN list with null — value matches non-null entries, result is false
+rowIntegerNotInWithNullMatch
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+ROW x = 1 | EVAL tmp = x IN (1,null), NOT(x IN (1,null)), x NOT IN (1,null), NOT(tmp)
+;
+warning:Line 1:24: NULL in the IN list of [x IN (1,null)] never matches, add [OR x IS NULL] to also match NULL values.
+warning:Line 1:39: NULL in the IN list of [NOT(x IN (1,null))] makes the expression never true.
+warning:Line 1:59: NULL in the IN list of [x NOT IN (1,null)] makes the expression never true.
+
+x:integer | tmp:boolean | NOT(x IN (1,null)):boolean | x NOT IN (1,null):boolean | NOT(tmp):boolean
+1         | true        | false                      | false                     | false
+;
+
+# integer value NOT IN list with null — value does not match non-null entries, result is null
+rowIntegerNotInWithNullNoMatch
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+ROW x = 42 | EVAL tmp = x IN (1,null), NOT(x IN (1,null)), x NOT IN (1,null), NOT(tmp)
+;
+warning:Line 1:25: NULL in the IN list of [x IN (1,null)] never matches, add [OR x IS NULL] to also match NULL values.
+warning:Line 1:40: NULL in the IN list of [NOT(x IN (1,null))] makes the expression never true.
+warning:Line 1:60: NULL in the IN list of [x NOT IN (1,null)] makes the expression never true.
+
+x:integer | tmp:boolean | NOT(x IN (1,null)):boolean | x NOT IN (1,null):boolean | NOT(tmp):boolean
+42        | null        | null                       | null                      | null
+;
+
+indexInWithNull
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE emp_no IN (10001, null)
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer
+10001
+;
+
+indexIntegerNotInWithNull
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE emp_no NOT IN (10001, null)
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [emp_no NOT IN (10001, null)] makes the expression never true.
+
+emp_no:integer
+;
+
+indexKeywordNotInWithNull
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE first_name NOT IN ("Georgi", null)
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [first_name NOT IN (\"Georgi\", null)] makes the expression never true.
+
+emp_no:integer
+;
+
+indexDateNotInWithNull
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE hire_date NOT IN (TO_DATETIME("1986-06-26T00:00:00.000Z"), null)
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [hire_date NOT IN (TO_DATETIME(\"1986-06-26T00:00:00.000Z\"), null)] makes the expression never true.
+
+emp_no:integer
+;
+
+indexNullableIntegerNotInWithNull
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE languages NOT IN (1, null)
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [languages NOT IN (1, null)] makes the expression never true.
+
+emp_no:integer
+;
+
+indexInWithNullEqualsFalse
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE (emp_no IN (10001, null)) == false
+| KEEP emp_no
+;
+warning:Line 2:10: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer
+;
+
+indexNotOfInWithNullAnd
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) AND emp_no < 10003)
+| STATS c = COUNT(*), min = MIN(emp_no), max = MAX(emp_no)
+;
+warning:Line 2:14: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+c:long | min:integer | max:integer
+98     | 10003       | 10100
+;
+
+indexNotOfInWithNullOr
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) OR languages == 2)
+| KEEP emp_no
+;
+warning:Line 2:14: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer
+;
+
+indexNotInWithNullOrMatch
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE emp_no NOT IN (10001, null) OR emp_no == 10002
+| KEEP emp_no
+;
+warning:Line 2:9: NULL in the IN list of [emp_no NOT IN (10001, null)] makes the expression never true.
+
+emp_no:integer
+10002
+;
+
+indexNotOfInWithNullOrMatch
+required_capability: fix_fold_null
+required_capability: warn_null_misuse
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) OR emp_no == 10002)
+| KEEP emp_no
+;
+warning:Line 2:14: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer
+;
+
+# null value IN list of integers — result is null
+rowNullInIntegerList
+required_capability: fix_null_comparison_type_check
+
+ROW x = null | EVAL result = x IN (1, 2, 3) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+# null value IN list containing null — result is null (null == null is null, not true)
+rowNullInNullList
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = null | EVAL result = x IN (null) | KEEP result
+;
+warning:Line 1:30: Expression [x IN (null)] always evaluates to NULL, did you mean [x IS NULL]?
+
+result:boolean
+null
+;
+
+
+# keyword value IN list containing null — value matches
+rowKeywordInWithNullMatch
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = "foo" | EVAL result = x IN ("foo", null) | KEEP result
+;
+warning:Line 1:31: NULL in the IN list of [x IN (\"foo\", null)] never matches, add [OR x IS NULL] to also match NULL values.
+
+result:boolean
+true
+;
+
+
+# keyword value IN list with null — no match
+rowKeywordInWithNullNoMatch
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+ROW x = "foo" | EVAL result = x IN ("bar", null) | KEEP result
+;
+warning:Line 1:31: NULL in the IN list of [x IN (\"bar\", null)] never matches, add [OR x IS NULL] to also match NULL values.
+
+result:boolean
+null
+;
+
+
+# field IN list with null — matching rows returned
+fieldInWithNull
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+FROM employees | WHERE emp_no IN (10001, 10002, null) | SORT emp_no | KEEP emp_no | LIMIT 3
+;
+warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, 10002, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer
+10001
+10002
+;
+
+
+# field IN list with only null — no rows match
+fieldInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+FROM employees | WHERE emp_no IN (null) | KEEP emp_no | LIMIT 1
+;
+warning:Line 1:24: Expression [emp_no IN (null)] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer
+;
+
+
+# WHERE with IN containing null filters correctly
+fieldInWithNullWhereFilter
+required_capability: fix_null_comparison_type_check
+required_capability: warn_null_misuse
+
+FROM employees | WHERE emp_no IN (10001, null) AND first_name IS NOT NULL | SORT emp_no | KEEP emp_no, first_name | LIMIT 1
+;
+warning:Line 1:24: NULL in the IN list of [emp_no IN (10001, null)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+sumOfNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| STATS s = SUM(null)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusNullWithEval
+required_capability: fix_sum_of_null_optimization
+required_capability: warn_null_misuse
+
+ROW x = 1
+| STATS s = SUM(null + null)
+| EVAL r = s + 1
+;
+warning:Line 2:17: Expression [null + null] always evaluates to NULL.
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullPlusOneWithEval
+required_capability: warn_null_misuse
+
+ROW x = 1
+| STATS s = SUM(null + 1)
+| EVAL r = s + 1
+;
+warning:Line 2:17: Expression [null + 1] always evaluates to NULL.
+
+s:long | r:long
+null   | null
+;
+
+sumOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS s = SUM(y)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+sumOfNullifiedUnmappedWithEval
+required_capability: fix_sum_of_null_optimization
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS s = SUM(foo)
+| EVAL r = s + 1
+;
+
+s:null | r:integer
+null   | null
+;
+
+avgOfNullWithEval
+
+ROW x = 1
+| STATS a = AVG(null)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullPlusNullWithEval
+required_capability: warn_null_misuse
+
+ROW x = 1
+| STATS a = AVG(null + null)
+| EVAL r = a + 1
+;
+warning:Line 2:17: Expression [null + null] always evaluates to NULL.
+
+a:double | r:double
+null     | null
+;
+
+avgOfEvalNullWithEval
+
+ROW x = 1
+| EVAL y = null
+| STATS a = AVG(y)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+avgOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS a = AVG(foo)
+| EVAL r = a + 1
+;
+
+a:double | r:double
+null     | null
+;
+
+minOfNullWithEval
+
+ROW x = 1
+| STATS m = MIN(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MIN(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+minOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MIN(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullWithEval
+
+ROW x = 1
+| STATS m = MAX(null)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfEvalNullWithEval
+required_capability: fix_sum_of_null_optimization
+
+ROW x = 1
+| EVAL y = null
+| STATS m = MAX(y)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+maxOfNullifiedUnmappedWithEval
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| STATS m = MAX(foo)
+| EVAL r = m + 1
+;
+
+m:null | r:integer
+null   | null
+;
+
+multipleAggsOverNullExpressions
+required_capability: fix_sum_of_null_optimization
+required_capability: warn_null_misuse
+
+ROW x=1, y=2
+| STATS c=count(null + 1),
+    c_d=count_distinct(1 + null),
+    a=avg(null + x),
+    mi=min(y + null),
+    ma=max(y + x * null),
+    s=sum(null)
+;
+warning:Line 2:17: Expression [null + 1] always evaluates to NULL.
+warning:Line 3:20: Expression [1 + null] always evaluates to NULL.
+warning:Line 4:7: Expression [null + x] always evaluates to NULL.
+warning:Line 5:8: Expression [y + null] always evaluates to NULL.
+warning:Line 6:12: Expression [x * null] always evaluates to NULL.
+
+ c:long | c_d:long | a:double | mi:integer | ma:integer | s:null
+0       |0         |null      |null        |null        |null
+;
+
+countOfNullWithGrouping
+required_capability: warn_null_misuse
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+warning:Line 1:35: Expression [null + c] always evaluates to NULL.
+warning:Line 1:81: Expression [null - 1] always evaluates to NULL.
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |1
+0             |0               |0                   |2
+0             |0               |0                   |3
+;
+
+countOfNullGroupedByFoldableNull
+required_capability: warn_null_misuse
+
+ROW a = 1+null, c = 5 | EVAL c = null + c | STATS COUNT(c), COUNT(null), COUNT(null - 1) BY a
+;
+warning:Line 1:34: Expression [null + c] always evaluates to NULL.
+warning:Line 1:80: Expression [null - 1] always evaluates to NULL.
+warning:Line 1:9: Expression [1+null] always evaluates to NULL.
+
+COUNT(c):long |COUNT(null):long|COUNT(null - 1):long|a:integer
+0             |0               |0                   |null
+;
+
+countDistinctOfNullWithGrouping
+required_capability: warn_null_misuse
+
+ROW a = [1,2,3], c = 5 | EVAL c = null + c | STATS COUNT_DISTINCT(c), COUNT_DISTINCT(null), COUNT_DISTINCT(null - 1) BY a
+;
+warning:Line 1:108: Expression [null - 1] always evaluates to NULL.
+warning:Line 1:35: Expression [null + c] always evaluates to NULL.
+
+COUNT_DISTINCT(c):long|COUNT_DISTINCT(null):long|COUNT_DISTINCT(null - 1):long|a:integer
+0                     |0                        |0                            |1
+0                     |0                        |0                            |2
+0                     |0                        |0                            |3
+;
+
+nullLiteralArgInMultiInputAggs
+required_capability: fix_aggs_multiple_input_fields
+
+FROM employees
+| STATS
+    w  = WEIGHTED_AVG(null, 2),
+    t1 = TOP(null, 3, "asc"),
+    t2 = TOP(salary, 3, "asc", null),
+    t3 = TOP(null, 3, "asc", null),
+    f1 = FIRST(null, emp_no),
+    f2 = FIRST(emp_no, null),
+    f3 = FIRST(null, null),
+    l1 = LAST(null, emp_no),
+    l2 = LAST(emp_no, null),
+    l3 = LAST(null, null)
+;
+
+// Regarding f2 and l2: all sort keys are null, so any emp_no may be returned
+w:double | t1:null | t2:null | t3:null | f1:null | f2:integer   | f3:null | l1:null | l2:integer   | l3:null
+null     | null    | null    | null    | null    | 10001..10100 | null    | null    | 10001..10100 | null
+;
+
+nullFieldArgInMultiInputAggs
+required_capability: fix_aggs_multiple_input_fields
+required_capability: warn_null_misuse
+
+FROM employees
+| EVAL x = emp_no * null
+| STATS
+    w  = WEIGHTED_AVG(x, 2),
+    t1 = TOP(x, 3, "asc"),
+    t2 = TOP(salary, 3, "asc", x),
+    t3 = TOP(x, 3, "asc", x),
+    f1 = FIRST(x, emp_no),
+    f2 = FIRST(emp_no, x),
+    f3 = FIRST(x, x),
+    l1 = LAST(x, emp_no),
+    l2 = LAST(emp_no, x),
+    l3 = LAST(x, x)
+;
+warning:Line 2:12: Expression [emp_no * null] always evaluates to NULL.
+
+// Regarding f2 and l2: all sort keys are null, so any emp_no may be returned
+w:double | t1:integer | t2:integer | t3:integer | f1:integer | f2:integer   | f3:integer | l1:integer | l2:integer   | l3:integer
+null     | null       | null       | null       | null       | 10001..10100 | null       | null       | 10001..10100 | null
+;
+
+// Tests for fix: (a IS NOT NULL OR p) AND a IS NULL must not discard the surviving OR branch p.
+// Without the fix, PropagateNullable.nullify() replaced the entire OR with null, returning 0 rows.
+
+isNullWithOrDisjunctionAllRows
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrDisjunctionSurvivingBranchFilters
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10015) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithNestedOrDisjunction
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no > 10000 AND (gender IS NOT NULL OR languages > 4) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10011         |null
+10012         |null
+10014         |null
+10015         |null
+;
+
+isNullWithIsNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no > 10000) AND gender IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+isNullWithOrSalaryFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, salary
+;
+
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10017         |null          |58715
+10018         |null          |56760
+10019         |null          |73717
+;
+
+isNullWithOrLanguageFilter
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, languages
+;
+
+emp_no:integer|gender:keyword|languages:integer
+10010         |null          |4
+10011         |null          |5
+10012         |null          |5
+10014         |null          |5
+10015         |null          |5
+;
+
+isNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NOT NULL OR emp_no > 10015
+| WHERE gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrDisjunctionStatsByLanguage
+required_capability: fix_propagate_nullable_or_disjunction
+required_capability: inline_stats
+
+FROM employees
+| WHERE (gender IS NOT NULL OR languages > 3) AND gender IS NULL
+| INLINE STATS c = COUNT(*) BY languages
+| SORT emp_no
+| KEEP emp_no, gender, languages, c
+;
+
+emp_no:integer|gender:keyword|languages:integer|c:long
+10010         |null          |4                |1
+10011         |null          |5                |4
+10012         |null          |5                |4
+10014         |null          |5                |4
+10015         |null          |5                |4
+;
+
+isNullWithOrThreeBranches
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no > 10017 OR salary > 60000) AND gender IS NULL
+| SORT emp_no
+| KEEP emp_no, gender, salary
+;
+
+emp_no:integer|gender:keyword|salary:integer
+10016         |null          |61358
+10018         |null          |56760
+10019         |null          |73717
+;
+
+isNullWithOrEvalAlias
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL g = gender
+| WHERE (g IS NOT NULL OR emp_no > 10015) AND g IS NULL
+| SORT emp_no
+| KEEP emp_no, g
+;
+
+emp_no:integer|g:keyword
+10016         |null
+10017         |null
+10018         |null
+10019         |null
+;
+
+isNullWithOrCompoundAndRangeEvalSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| EVAL nullable = gender
+| KEEP emp_no, nullable, gender
+| WHERE nullable IS NOT NULL OR (emp_no > 10010 AND emp_no <= 10016)
+| WHERE nullable IS NULL
+| SORT emp_no
+;
+
+emp_no:integer|nullable:keyword|gender:keyword
+10011         |null            |null
+10012         |null            |null
+10013         |null            |null
+10014         |null            |null
+10015         |null            |null
+10016         |null            |null
+;
+
+isNullWithOrDisjunctionMvEvalNull
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE (sc IS NOT NULL OR emp_no > 10011) AND sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
+;
+
+isNullWithOrDisjunctionMvEvalNullSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10015
+| EVAL sc = salary_change + 1
+| WHERE sc IS NOT NULL OR emp_no > 10011
+| WHERE sc IS NULL
+| SORT emp_no
+| KEEP emp_no, salary_change, sc
+;
+warningRegex:Line \d+:\d+: evaluation of \[salary_change \+ 1\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer|salary_change:double|sc:double
+10013         |null                |null
+10014         |[-1.89, 9.07]       |null
+10015         |[12.4, 14.25]       |null
+;
+
+isNotNullWithOrDisjunctionSurvivingBranch
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;
+
+isNotNullWithIsNotNullInsideOr
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE (gender IS NOT NULL OR emp_no <= 10009) AND gender IS NOT NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+90
+;
+
+isNotNullWithOrDisjunctionSeparateWhereClauses
+required_capability: fix_propagate_nullable_or_disjunction
+
+FROM employees
+| WHERE gender IS NULL OR emp_no <= 10009
+| WHERE gender IS NOT NULL
+| SORT emp_no
+| KEEP emp_no, gender
+;
+
+emp_no:integer|gender:keyword
+10001         |M
+10002         |F
+10003         |M
+10004         |M
+10005         |M
+10006         |F
+10007         |F
+10008         |M
+10009         |F
+;
+
+// Arithmetic over a NULL-typed COALESCE must fold to null: the arithmetic evaluator has no NULL branch.
+arithmeticOverNullTypedCoalesce
+required_capability: fix_fold_null
+
+ROW m = COALESCE(null, null) * 2, d = COALESCE(null, null) / 2
+;
+
+m:integer | d:integer
+null      | null
+;
+
+arithmeticOverNullTypedCoalesceOfNullAggregateUnderSort
+required_capability: fix_fold_null
+
+FROM employees
+| STATS m = MAX(null) BY languages
+| EVAL x = COALESCE(m, m) * 2
+| SORT languages
+| LIMIT 3
+;
+
+m:null | languages:integer | x:integer
+null   | 1                 | null
+null   | 2                 | null
+null   | 3                 | null
+;
+
+equalsNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no == NULL
+;
+
+warning:Line 2:12: Expression [emp_no == NULL] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+notEqualsNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no != NULL
+;
+
+warning:Line 2:12: Expression [emp_no != NULL] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+notWrappedEqualsNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = NOT (emp_no == NULL)
+;
+
+warning:Line 2:12: Expression [NOT (emp_no == NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+addNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no + NULL
+;
+
+warning:Line 2:12: Expression [emp_no + NULL] always evaluates to NULL.
+
+emp_no:integer|x:integer
+1             |null
+;
+
+concatNullWarning
+required_capability: warn_null_misuse
+
+ROW name = "a"
+| EVAL x = CONCAT(name, NULL)
+;
+
+warning:Line 2:12: Expression [CONCAT(name, NULL)] always evaluates to NULL.
+
+name:keyword|x:keyword
+a           |null
+;
+
+nullOnLeftEqualsWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = NULL == emp_no
+;
+
+warning:Line 2:12: Expression [NULL == emp_no] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+# The explicit NULL is a direct child of the inner CONCAT, so the warning points there
+# rather than at the enclosing comparison the null later propagates to.
+nestedConcatNullWarning
+required_capability: warn_null_misuse
+
+FROM employees
+| EVAL x = first_name == CONCAT(first_name, CONCAT(NULL, last_name))
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 1
+;
+
+warning:Line 2:45: Expression [CONCAT(NULL, last_name)] always evaluates to NULL.
+
+emp_no:integer|x:boolean
+10001         |null
+;
+
+# Both the outer and the inner CONCAT have their own direct NULL literal: each gets its own warning,
+# pointing at the exact NULL the user wrote, even though one is a child of the other.
+multipleNullsInSameBranchWarnTwice
+required_capability: warn_null_misuse
+
+ROW name = "a"
+| EVAL x = CONCAT(CONCAT(name, NULL), NULL)
+;
+
+warning:Line 2:12: Expression [CONCAT(CONCAT(name, NULL), NULL)] always evaluates to NULL.
+warning:Line 2:19: Expression [CONCAT(name, NULL)] always evaluates to NULL.
+
+name:keyword|x:keyword
+a           |null
+;
+
+# One-element IN is parsed as Equals, so this already warns via the comparison path.
+nullInFieldWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = NULL IN (emp_no)
+;
+
+warning:Line 2:12: Expression [NULL IN (emp_no)] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+# Same Equals rewrite: emp_no IN (NULL) is emp_no == NULL.
+fieldInOnlyNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no IN (NULL)
+;
+
+warning:Line 2:12: Expression [emp_no IN (NULL)] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+# Real In: null probe, multi-element list. Always NULL, no IS NULL rewrite.
+nullInTwoValuesWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1, salary = 2
+| EVAL x = NULL IN (emp_no, salary)
+;
+
+warning:Line 2:12: Expression [NULL IN (emp_no, salary)] always evaluates to NULL.
+
+emp_no:integer|salary:integer|x:boolean
+1             |2             |null
+;
+
+# Real In: every list element is NULL. List NULLs are ignored; suggest IS NULL.
+fieldInAllNullListWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no IN (NULL, NULL)
+;
+
+warning:Line 2:12: Expression [emp_no IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+fieldNotInAllNullListWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no NOT IN (NULL, NULL)
+;
+
+warning:Line 2:12: Expression [emp_no NOT IN (NULL, NULL)] always evaluates to NULL, did you mean [emp_no IS NOT NULL]?
+
+emp_no:integer|x:boolean
+1             |null
+;
+
+# A match still yields true; the list NULL never matches.
+fieldInValueAndNullWarning
+required_capability: warn_null_misuse
+
+ROW emp_no = 1
+| EVAL x = emp_no IN (1, NULL)
+;
+
+warning:Line 2:12: NULL in the IN list of [emp_no IN (1, NULL)] never matches, add [OR emp_no IS NULL] to also match NULL values.
+
+emp_no:integer|x:boolean
+1             |true
 ;

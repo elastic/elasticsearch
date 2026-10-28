@@ -44,13 +44,12 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
     /**
      * To be removed when REST compatibility with {@link org.elasticsearch.Version#V_8_6_0} / {@link RestApiVersion#V_8} no longer needed
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)  // to remove entirely
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)  // to remove entirely
     private final ClusterState state;
     private final RoutingExplanations explanations;
     private final boolean acknowledged;
 
     ClusterRerouteResponse(StreamInput in) throws IOException {
-        super(in);
         acknowledged = in.readBoolean();
         state = ClusterState.readFrom(in, null);
         explanations = RoutingExplanations.readFrom(in);

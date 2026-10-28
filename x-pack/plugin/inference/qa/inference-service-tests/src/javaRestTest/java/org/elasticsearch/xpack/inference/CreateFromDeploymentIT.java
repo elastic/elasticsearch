@@ -11,12 +11,21 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -49,25 +58,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
-
-        var updatedNumAllocations = randomIntBetween(1, 10);
-        var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
-        assertThat(
-            updatedEndpointConfig.get("service_settings"),
-            is(
-                Map.of(
-                    "num_allocations",
-                    updatedNumAllocations,
-                    "num_threads",
-                    1,
-                    "model_id",
-                    "attach_to_deployment",
-                    "deployment_id",
-                    "existing_deployment"
-                )
-            )
-        );
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
 
         deleteModel(inferenceId);
         // assert deployment not stopped
@@ -75,7 +66,60 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var deploymentStats = stats.get(0).get("deployment_stats");
         assertNotNull(stats.toString(), deploymentStats);
 
-        stopMlNodeDeployment(deploymentId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAttachToDeployment_TextEmbedding() throws IOException {
+        var deploymentId = ".multilingual-e5-small";
+
+        putE5TrainedModels(deploymentId);
+        deployE5TrainedModels(deploymentId);
+
+        var inferenceId = "inference_on_existing_e5_deployment";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get("service_settings");
+        assertThat(putModel.toString(), serviceSettings.get("dimensions"), is(384));
+        assertNotNull(putModel.toString(), serviceSettings.get("similarity"));
+        assertNotNull(putModel.toString(), serviceSettings.get("element_type"));
+
+        // Note: on GET, the endpoint is reconstructed from the model_id (a built-in E5 model here), not the
+        // deployment_id, so it does not carry dimensions/similarity/element_type in its response. That is a
+        // pre-existing, unrelated behavior of the built-in E5 model settings.
+        var getModel = getModel(inferenceId);
+        assertThat(
+            getModel.get("service_settings"),
+            is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", ".multilingual-e5-small", "deployment_id", deploymentId))
+        );
+
+        var results = infer(inferenceId, List.of("washing machine"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAttachToDeployment_TextEmbedding_ParsesSimilarityAndElementType() throws IOException {
+        var deploymentId = ".multilingual-e5-small";
+        var similarity = SimilarityMeasure.DOT_PRODUCT;
+        var elementType = DenseVectorFieldMapper.ElementType.BYTE;
+
+        putE5TrainedModels(deploymentId);
+        deployE5TrainedModels(deploymentId);
+
+        var inferenceId = "inference_on_e5_deployment_with_similarity_element_type";
+        var putModel = putModel(inferenceId, endpointConfig(deploymentId, similarity, elementType), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get(ModelConfigurations.SERVICE_SETTINGS);
+        assertThat(putModel.toString(), serviceSettings.get(DIMENSIONS), is(384));
+        assertThat(putModel.toString(), serviceSettings.get(SIMILARITY), is(similarity.toString()));
+        assertThat(putModel.toString(), serviceSettings.get(ELEMENT_TYPE), is(elementType.toString()));
+
+        var results = infer(inferenceId, List.of("washing machine"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(deploymentId);
     }
 
     public void testAttachWithModelId() throws IOException {
@@ -126,27 +170,11 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
 
         var results = infer(inferenceId, List.of("washing machine"));
-        assertNotNull(results.get("sparse_embedding"));
+        assertNotNull(results.get(SparseEmbeddingResults.SPARSE_EMBEDDING));
 
-        var updatedNumAllocations = randomIntBetween(1, 10);
-        var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
-        assertThat(
-            updatedEndpointConfig.get("service_settings"),
-            is(
-                Map.of(
-                    "num_allocations",
-                    updatedNumAllocations,
-                    "num_threads",
-                    1,
-                    "model_id",
-                    "attach_with_model_id",
-                    "deployment_id",
-                    "existing_deployment_with_model_id"
-                )
-            )
-        );
+        deleteModel(inferenceId);
 
-        stopMlNodeDeployment(deploymentId);
+        forceStopMlNodeDeployment(deploymentId);
     }
 
     public void testModelIdDoesNotMatch() throws IOException {
@@ -180,6 +208,30 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         assertThat(e.getMessage(), containsString("Cannot find deployment [missing_deployment]"));
     }
 
+    public void testCreateInferenceUsingSameDeploymentId() throws IOException {
+        var modelId = "conflicting_ids";
+        var deploymentId = modelId;
+        var inferenceId = modelId;
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+        var response = startMlNodeDeploymemnt(modelId, deploymentId);
+        assertStatusOkOrCreated(response);
+
+        var responseException = assertThrows(
+            ResponseException.class,
+            () -> putModel(inferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING)
+        );
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Inference endpoint IDs must be unique. "
+                    + "Requested inference endpoint ID [conflicting_ids] matches existing trained model ID(s) but must not."
+            )
+        );
+
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
     public void testNumAllocationsIsUpdated() throws IOException {
         var modelId = "update_num_allocations";
         var deploymentId = modelId;
@@ -208,7 +260,16 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
-        assertStatusOkOrCreated(updateMlNodeDeploymemnt(deploymentId, 2));
+        var responseException = assertThrows(ResponseException.class, () -> updateInference(inferenceId, TaskType.SPARSE_EMBEDDING, 2));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Cannot update inference endpoint [test_num_allocations_updated] using model deployment [update_num_allocations]. "
+                    + "The model deployment must be updated through the trained models API."
+            )
+        );
+
+        updateMlNodeDeploymemnt(deploymentId, 2);
 
         var updatedServiceSettings = getModel(inferenceId).get("service_settings");
         assertThat(
@@ -227,6 +288,146 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
                 )
             )
         );
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCreatesDeploymentForNotYetDeployedModel_TextEmbedding() throws IOException {
+        var modelId = "text_embedding_model_not_deployed";
+        var inferenceId = "inference_starts_deployment";
+        CustomElandModelIT.createMlNodeTextEmbeddingModel(modelId, client()); // model exists, NOT deployed
+
+        var putModel = putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "num_allocations": 1,
+                "num_threads": 1,
+                "model_id": "%s"
+              }
+            }
+            """, modelId), TaskType.TEXT_EMBEDDING);
+        var serviceSettings = (Map<String, Object>) putModel.get(ModelConfigurations.SERVICE_SETTINGS);
+        assertNotNull(putModel.toString(), serviceSettings.get(ServiceFields.DIMENSIONS)); // set by validation
+
+        var results = infer(inferenceId, List.of("hello"));
+        assertNotNull(results.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING));
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(inferenceId); // endpoint's deployment id == inference id
+    }
+
+    public void testUpdateWhenInferenceEndpointCreatesDeployment() throws IOException {
+        var modelId = "update_num_allocations_from_created_endpoint";
+        var inferenceId = "test_created_endpoint_from_model";
+        var deploymentId = inferenceId;
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+
+        var putModel = putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "num_allocations": %s,
+                "num_threads": %s,
+                "model_id": "%s"
+              }
+            }
+            """, 1, 1, modelId), TaskType.SPARSE_EMBEDDING);
+        var serviceSettings = putModel.get("service_settings");
+        assertThat(putModel.toString(), serviceSettings, is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", modelId)));
+
+        updateInference(inferenceId, TaskType.SPARSE_EMBEDDING, 2);
+
+        var responseException = assertThrows(ResponseException.class, () -> updateMlNodeDeploymemnt(deploymentId, 2));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Cannot update deployment [test_created_endpoint_from_model] as it was created by inference endpoint "
+                    + "[test_created_endpoint_from_model]. This model deployment must be updated through the inference API."
+            )
+        );
+
+        var updatedServiceSettings = getModel(inferenceId).get("service_settings");
+        assertThat(
+            updatedServiceSettings.toString(),
+            updatedServiceSettings,
+            is(Map.of("num_allocations", 2, "num_threads", 1, "model_id", modelId))
+        );
+
+        deleteModel(inferenceId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    public void testCannotUpdateAnotherInferenceEndpointsCreatedDeployment() throws IOException {
+        var modelId = "model_deployment_for_endpoint";
+        var inferenceId = "first_endpoint_for_model_deployment";
+        var deploymentId = inferenceId;
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+
+        putModel(inferenceId, Strings.format("""
+            {
+              "service": "elasticsearch",
+              "service_settings": {
+                "num_allocations": %s,
+                "num_threads": %s,
+                "model_id": "%s"
+              }
+            }
+            """, 1, 1, modelId), TaskType.SPARSE_EMBEDDING);
+
+        var secondInferenceId = "second_endpoint_for_model_deployment";
+        var putModel = putModel(secondInferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING);
+        var serviceSettings = putModel.get("service_settings");
+        assertThat(
+            putModel.toString(),
+            serviceSettings,
+            is(Map.of("num_allocations", 1, "num_threads", 1, "model_id", modelId, "deployment_id", deploymentId))
+        );
+
+        var responseException = assertThrows(
+            ResponseException.class,
+            () -> updateInference(secondInferenceId, TaskType.SPARSE_EMBEDDING, 2)
+        );
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "Cannot update inference endpoint [second_endpoint_for_model_deployment] for model deployment "
+                    + "[first_endpoint_for_model_deployment] as it was created by another inference endpoint. "
+                    + "The model can only be updated using inference endpoint id [first_endpoint_for_model_deployment]."
+            )
+        );
+
+        deleteModel(inferenceId);
+        deleteModel(secondInferenceId);
+        forceStopMlNodeDeployment(deploymentId);
+    }
+
+    public void testStoppingDeploymentAttachedToInferenceEndpoint() throws IOException {
+        var modelId = "try_stop_attach_to_deployment";
+        var deploymentId = "test_stop_attach_to_deployment";
+
+        CustomElandModelIT.createMlNodeTextExpansionModel(modelId, client());
+        var response = startMlNodeDeploymemnt(modelId, deploymentId);
+        assertStatusOkOrCreated(response);
+
+        var inferenceId = "test_stop_inference_on_existing_deployment";
+        putModel(inferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING);
+
+        var stopShouldNotSucceed = expectThrows(ResponseException.class, () -> stopMlNodeDeployment(deploymentId));
+        assertThat(
+            stopShouldNotSucceed.getMessage(),
+            containsString(
+                Strings.format("Cannot stop deployment [%s] as it is used by inference endpoint [%s]", deploymentId, inferenceId)
+            )
+        );
+
+        deleteModel(inferenceId);
+        // Force stop will stop the deployment
+        forceStopMlNodeDeployment(deploymentId);
     }
 
     private String endpointConfig(String deploymentId) {
@@ -252,14 +453,17 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             """, modelId, deploymentId);
     }
 
-    private String updatedEndpointConfig(int numAllocations) {
+    private String endpointConfig(String deploymentId, SimilarityMeasure similarity, DenseVectorFieldMapper.ElementType elementType) {
         return Strings.format("""
             {
+              "service": "elasticsearch",
               "service_settings": {
-                "num_allocations": %d
+                "deployment_id": "%s",
+                "similarity": "%s",
+                "element_type": "%s"
               }
             }
-            """, numAllocations);
+            """, deploymentId, similarity, elementType);
     }
 
     private Response startMlNodeDeploymemnt(String modelId, String deploymentId) throws IOException {
@@ -274,6 +478,22 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         }
 
         Request request = new Request("POST", endPoint);
+        return client().performRequest(request);
+    }
+
+    private Response updateInference(String deploymentId, TaskType taskType, int numAllocations) throws IOException {
+        String endPoint = Strings.format("/_inference/%s/%s/_update", taskType, deploymentId);
+
+        var body = Strings.format("""
+            {
+              "service_settings": {
+                "num_allocations": %d
+              }
+            }
+            """, numAllocations);
+
+        Request request = new Request("PUT", endPoint);
+        request.setJsonEntity(body);
         return client().performRequest(request);
     }
 
@@ -294,12 +514,14 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
     protected void stopMlNodeDeployment(String deploymentId) throws IOException {
         String endpoint = "/_ml/trained_models/" + deploymentId + "/deployment/_stop";
         Request request = new Request("POST", endpoint);
+        client().performRequest(request);
+    }
+
+    protected void forceStopMlNodeDeployment(String deploymentId) throws IOException {
+        String endpoint = "/_ml/trained_models/" + deploymentId + "/deployment/_stop";
+        Request request = new Request("POST", endpoint);
         request.addParameter("force", "true");
         client().performRequest(request);
     }
 
-    protected Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        return entityAsMap(client().performRequest(request));
-    }
 }

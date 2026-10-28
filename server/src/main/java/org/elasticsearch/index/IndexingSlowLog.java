@@ -20,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
+import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -27,37 +29,39 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
     public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.warn",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.info",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.debug",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING = Setting.timeSetting(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".threshold.index.trace",
-        TimeValue.timeValueNanos(-1),
-        TimeValue.timeValueMillis(-1),
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -80,10 +84,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * TODO: Remove in 9.0
      */
     @Deprecated
-    public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING = new Setting<>(
         INDEX_INDEXING_SLOWLOG_PREFIX + ".level",
-        SlowLogLevel.TRACE.name(),
-        SlowLogLevel::parse,
+        "",
+        (s) -> s,
         Property.Dynamic,
         Property.IndexScope,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8
@@ -103,7 +107,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final SlowLogFields slowLogFields;
+    private final ActionLoggingFields loggingFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -125,9 +129,16 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, SlowLogFields slowLogFields) {
-        this.slowLogFields = slowLogFields;
+    IndexingSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
         this.index = indexSettings.getIndex();
+
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING)
+        );
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
+
+        this.loggingFields = slowLogFieldsProvider.create(logContext);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
         this.reformat = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
@@ -177,23 +188,58 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
-            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
-            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
-            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
-            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace(
-                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
-                );
+            logIfSlow(
+                tookInNanos,
+                () -> IndexingSlowLogMessage.of(loggingFields.logFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
+            );
+        }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        // no pre-work; overridden to avoid the delegating to default
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} call.
+     * This method considers the time taken by the batch as the average time for successful operations within a batch.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        long totalTook = 0;
+        int successCount = 0;
+        for (Engine.IndexResult result : results) {
+            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                totalTook += result.getTook();
+                successCount++;
             }
+        }
+        if (successCount == 0) return;
+        final long avgTook = totalTook / successCount;
+        final long startingSeqNo = batch.seqNo(0);
+        final int docCount = batch.docCount();
+        final int finalSuccessCount = successCount;
+        logIfSlow(
+            avgTook,
+            () -> IndexingSlowLogMessage.ofBatch(loggingFields.logFields(), index, startingSeqNo, docCount, finalSuccessCount, avgTook)
+        );
+    }
+
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        // engine level failures are never slow-logged, mirroring the per-op hooks
+    }
+
+    private void logIfSlow(long tookInNanos, Supplier<ESLogMessage> messageProducer) {
+        if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+            indexLogger.warn(messageProducer.get());
+        } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+            indexLogger.info(messageProducer.get());
+        } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+            indexLogger.debug(messageProducer.get());
+        } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+            indexLogger.trace(messageProducer.get());
         }
     }
 
@@ -213,6 +259,25 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             return new ESLogMessage().withFields(jsonFields);
         }
 
+        public static ESLogMessage ofBatch(
+            Map<String, String> additionalFields,
+            Index index,
+            long startingSeqNo,
+            int docCount,
+            int successCount,
+            long avgTookInNanos
+        ) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("elasticsearch.slowlog.message", index);
+            map.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(avgTookInNanos).toString());
+            map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(avgTookInNanos)));
+            map.put("elasticsearch.slowlog.starting_seq_no", startingSeqNo);
+            map.put("elasticsearch.slowlog.doc_count", docCount);
+            map.put("elasticsearch.slowlog.success_count", successCount);
+            map.putAll(additionalFields);
+            return new ESLogMessage().withFields(map);
+        }
+
         private static Map<String, Object> prepareMap(
             Index index,
             ParsedDocument doc,
@@ -229,11 +294,13 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+            DocumentSource sourceObject = doc.source();
+            // TODO: Will materialize to original x-content if rows. Consider if we eventually want to optimize this.
+            if (maxSourceCharsToLog == 0 || sourceObject == null || sourceObject.originalBytes().length() == 0) {
                 return map;
             }
             try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                String source = XContentHelper.convertToJson(sourceObject.originalBytes(), reformat, sourceObject.xContentType());
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb, 0);

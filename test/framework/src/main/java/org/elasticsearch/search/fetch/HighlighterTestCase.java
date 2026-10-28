@@ -15,7 +15,6 @@ import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFields;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,17 +72,15 @@ public class HighlighterTestCase extends MapperServiceTestCase {
             HighlightPhase highlightPhase = new HighlightPhase(getHighlighters());
             FetchSubPhaseProcessor processor = highlightPhase.getProcessor(fetchContext(context, search));
             Map<String, List<Object>> storedFields = storedFields(processor.storedFieldsSpec(), doc);
-            Source source = Source.fromBytes(doc.source());
-            FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-                SearchHit.unpooled(0, "id"),
-                ir.leaves().get(0),
-                0,
-                storedFields,
-                source,
-                null
-            );
-            processor.process(hitContext);
-            highlights.putAll(hitContext.hit().getHighlightFields());
+            Source source = Source.fromBytes(doc.source().originalBytes());
+            SearchHit hit = new SearchHit(0, "id");
+            try {
+                FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(hit, ir.leaves().get(0), 0, storedFields, source, null);
+                processor.process(hitContext);
+                highlights.putAll(hitContext.hit().getHighlightFields());
+            } finally {
+                hit.decRef();
+            }
         });
         return highlights;
     }
@@ -114,7 +112,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
         when(fetchContext.getSearchExecutionContext()).thenReturn(context);
-        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
+        when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(null, false));
         return fetchContext;
     }
 

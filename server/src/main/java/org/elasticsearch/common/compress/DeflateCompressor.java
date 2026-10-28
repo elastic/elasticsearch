@@ -9,13 +9,15 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 
-import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -171,7 +173,7 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public OutputStream threadLocalOutputStream(OutputStream out) throws IOException {
+    public StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException {
         out.write(HEADER);
         final ReleasableReference<Deflater> current = deflaterForStreamRef.get();
         final Releasable releasable;
@@ -191,13 +193,13 @@ public class DeflateCompressor implements Compressor {
                 try {
                     super.close();
                 } finally {
-                    // We are ensured to only call this once since we wrap this stream in a BufferedOutputStream that will only close
+                    // We are ensured to only call this once since we wrap this stream in a BufferedStreamOutput that will only close
                     // its delegate once below
                     releasable.close();
                 }
             }
         };
-        return new BufferedOutputStream(deflaterOutputStream, BUFFER_SIZE);
+        return new BufferedStreamOutput(deflaterOutputStream, new BytesRef(new byte[BUFFER_SIZE], 0, BUFFER_SIZE));
     }
 
     private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);

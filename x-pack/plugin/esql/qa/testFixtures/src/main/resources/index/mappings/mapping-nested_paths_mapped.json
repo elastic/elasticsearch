@@ -1,0 +1,22 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "order": {
+            "properties": {
+                "items": {
+                    "type": "nested",
+                    "properties": {
+                        "name": { "type": "keyword" },
+                        "parts": {
+                            "type": "nested",
+                            "properties": {
+                                "pn": { "type": "keyword" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -18,40 +18,49 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
-  classname ='org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+  classname = 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
 dependencies {
-  api 'com.google.cloud:google-cloud-storage:2.13.1'
-  api 'com.google.cloud:google-cloud-core:2.8.28'
-  api 'com.google.cloud:google-cloud-core-http:2.8.28'
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'com.google.api:api-common:2.3.1'
-  api 'com.google.api:gax:2.20.1'
-  api 'org.threeten:threetenbp:1.6.5'
-  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api 'com.google.code.gson:gson:2.10'
-  api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
-  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
-  api 'com.google.auth:google-auth-library-credentials:1.11.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
-  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
-  api 'com.google.api-client:google-api-client:2.1.1'
-  api 'com.google.http-client:google-http-client:1.42.3'
-  api 'com.google.http-client:google-http-client-gson:1.42.3'
-  api 'com.google.http-client:google-http-client-appengine:1.42.3'
-  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api 'com.google.api:gax-httpjson:0.105.1'
-  api 'io.grpc:grpc-context:1.49.2'
-  api 'io.opencensus:opencensus-api:0.31.1'
-  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
+  // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.71.0'
+  implementation 'com.google.cloud:google-cloud-storage:2.71.0'
+  implementation 'com.google.cloud:google-cloud-core:2.73.0'
+  implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
+  runtimeOnly 'com.google.guava:guava:33.7.2-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
+  implementation 'com.google.api:api-common:2.66.0'
+  implementation 'com.google.api:gax:2.83.0'
+  implementation 'org.threeten:threetenbp:1.7.0'
+  runtimeOnly 'com.google.protobuf:protobuf-java-util:4.33.6'
+  runtimeOnly 'com.google.protobuf:protobuf-java:4.33.6'
+  runtimeOnly 'com.google.code.gson:gson:2.13.2'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.74.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.69.0'
+  implementation 'com.google.auth:google-auth-library-credentials:1.50.0'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.50.0'
+  runtimeOnly 'com.google.oauth-client:google-oauth-client:1.39.0'
+  implementation 'com.google.api-client:google-api-client:2.7.2'
+  implementation 'com.google.http-client:google-http-client:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-gson:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-appengine:2.2.0'
+  runtimeOnly 'com.google.http-client:google-http-client-jackson2:2.2.0'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.3 in bom
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  runtimeOnly "org.codehaus.woodstox:stax2-api:4.2.2"
+  runtimeOnly 'com.google.api:gax-httpjson:2.83.0'
+  runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
+  runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation 'com.google.apis:google-api-services-storage:v1-rev20260524-2.0.0'
+  implementation 'org.checkerframework:checker-qual:3.49.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-common:1.62.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.62.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.71.0'
+  runtimeOnly 'io.grpc:grpc-api:1.82.2'
 
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -62,7 +71,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -74,6 +83,8 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
   mapping from: /jackson.*/, to: 'jackson'
+  mapping from: /woodstox-core.*/, to: 'woodstox-core'
+  mapping from: /stax2-api.*/, to: 'stax2-api'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -86,20 +97,11 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
     'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
   )
 
   ignoreMissingClasses(
@@ -123,11 +125,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    // commons-logging optional dependencies
-    'org.apache.avalon.framework.logger.Logger',
-    'org.apache.log.Hierarchy',
-    'org.apache.log.Logger',
-    'javax.jms.Message',
 
     // optional apache http client dependencies
     'org.apache.http.ConnectionReuseStrategy',
@@ -171,19 +168,65 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
 
-    // commons-logging provided dependencies
-    'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener'
+    // optional Conscrypt TLS provider referenced by gax
+    'org.conscrypt.Conscrypt',
+
+    // grpc/proto stuff
+    'com.google.api.gax.grpc.GrpcCallContext',
+    'com.google.api.gax.grpc.GrpcCallSettings',
+    'com.google.api.gax.grpc.GrpcCallSettings$Builder',
+    'com.google.api.gax.grpc.GrpcInterceptorProvider',
+    'com.google.api.gax.grpc.GrpcStatusCode',
+    'com.google.api.gax.grpc.GrpcStubCallableFactory',
+    'com.google.api.gax.grpc.GrpcTransportChannel',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$Builder',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$HardBoundTokenTypes',
+    'com.google.cloud.grpc.GrpcTransportOptions',
+    'com.google.cloud.grpc.GrpcTransportOptions$Builder',
+    'com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration$Builder',
+    'com.google.storage.v2.StorageClient',
+    'com.google.storage.v2.StorageClient$ListBucketsPagedResponse',
+    'com.google.storage.v2.StorageSettings',
+    'com.google.storage.v2.StorageSettings$Builder',
+    'com.google.storage.v2.stub.GrpcStorageStub',
+    'com.google.storage.v2.stub.StorageStub',
+    'com.google.storage.v2.stub.StorageStubSettings',
+    'com.google.storage.v2.stub.StorageStubSettings$Builder',
+    // opentelemetry implementation stuff
+    'io.grpc.opentelemetry.GrpcOpenTelemetry',
+    'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',
+    'io.grpc.protobuf.ProtoUtils',
+    'io.opentelemetry.contrib.gcp.resource.GCPResourceProvider',
+    'io.opentelemetry.sdk.OpenTelemetrySdk',
+    'io.opentelemetry.sdk.OpenTelemetrySdkBuilder',
+    'io.opentelemetry.sdk.common.CompletableResultCode',
+    'io.opentelemetry.sdk.common.export.MemoryMode',
+    'io.opentelemetry.sdk.metrics.Aggregation',
+    'io.opentelemetry.sdk.metrics.InstrumentSelector',
+    'io.opentelemetry.sdk.metrics.InstrumentSelectorBuilder',
+    'io.opentelemetry.sdk.metrics.InstrumentType',
+    'io.opentelemetry.sdk.metrics.SdkMeterProvider',
+    'io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder',
+    'io.opentelemetry.sdk.metrics.View',
+    'io.opentelemetry.sdk.metrics.ViewBuilder',
+    'io.opentelemetry.sdk.metrics.data.AggregationTemporality',
+    'io.opentelemetry.sdk.metrics.export.DefaultAggregationSelector',
+    'io.opentelemetry.sdk.metrics.export.MetricExporter',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReader',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReaderBuilder',
+    'io.opentelemetry.sdk.resources.Resource',
   )
 
 
-  if(buildParams.graalVmRuntime == false) {
+  if (buildParams.graalVmRuntime == false) {
     ignoreMissingClasses(
-        'org.graalvm.nativeimage.hosted.Feature',
-        'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
-        'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
-        'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
-        'org.graalvm.nativeimage.hosted.RuntimeReflection'
+      'org.graalvm.nativeimage.hosted.Feature',
+      'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+      'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+      'org.graalvm.nativeimage.hosted.RuntimeReflection'
     )
   }
 }
@@ -213,7 +256,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens": expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {
@@ -236,7 +279,6 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
   include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
@@ -249,6 +291,20 @@ tasks.register('gcsThirdPartyTest') {
   dependsOn 'yamlRestTest', gcsThirdPartyTest
 }
 
+// Run the ADC fallback test in its own JVM so the DefaultCredentialsProvider singleton
+// (cachedCredentials, checkedComputeEngine) starts with a clean state. Sharing a JVM with
+// other tests causes flaky failures when the singleton is primed before this test runs.
+tasks.named("test").configure {
+  exclude '**/GoogleCloudStorageAdcTests.class'
+}
+
+def gcsAdcTest = tasks.register("gcsAdcTest", Test) {
+  setTestClassesDirs(sourceSets.test.output.classesDirs)
+  setClasspath(sourceSets.test.runtimeClasspath)
+  include '**/GoogleCloudStorageAdcTests.class'
+  environment.remove('GOOGLE_APPLICATION_CREDENTIALS')
+}
+
 tasks.named('check') {
-  dependsOn gcsThirdPartyTest
+  dependsOn gcsThirdPartyTest, gcsAdcTest
 }

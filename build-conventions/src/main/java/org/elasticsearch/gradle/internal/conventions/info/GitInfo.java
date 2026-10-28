@@ -175,6 +175,50 @@ public class GitInfo {
         return firstLine;
     }
 
+    /**
+     * Returns the full commit hash for a remote tracking reference (e.g. {@code refs/remotes/elastic/9.4})
+     * by reading directly from the local git object store without forking a process.
+     * Returns {@code null} if the reference cannot be resolved.
+     */
+    public static String remoteRefRevision(File rootDir, String remote, String branch) throws IOException {
+        Path dotGit = rootDir.toPath().resolve(".git");
+        if (Files.exists(dotGit) == false) {
+            return null;
+        }
+        final Path gitDir;
+        if (Files.isDirectory(dotGit)) {
+            gitDir = dotGit;
+        } else {
+            final Path reference = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+            if (reference.getParent() != null && reference.getParent().endsWith("modules")) {
+                gitDir = rootDir.toPath().resolve(reference);
+            } else {
+                if (Files.exists(reference) == false) {
+                    return null;
+                }
+                final Path commonDir = Paths.get(readFirstLine(reference.resolve("commondir")));
+                gitDir = commonDir.isAbsolute() ? commonDir : reference.resolve(commonDir);
+            }
+        }
+        String refName = "refs/remotes/" + remote + "/" + branch;
+        Path refFile = gitDir.resolve(refName);
+        if (Files.exists(refFile)) {
+            return readFirstLine(refFile);
+        }
+        Path packedRefs = gitDir.resolve("packed-refs");
+        if (Files.exists(packedRefs)) {
+            Pattern p = Pattern.compile("^([a-f0-9]{40}) " + Pattern.quote(refName) + "$");
+            try (Stream<String> lines = Files.lines(packedRefs, StandardCharsets.UTF_8)) {
+                return lines.map(p::matcher)
+                    .filter(Matcher::matches)
+                    .map(m -> m.group(1))
+                    .findFirst()
+                    .orElse(null);
+            }
+        }
+        return null;
+    }
+
     /** Find the reponame. */
     public String urlFromOrigin() {
         if (origin == null) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -37,18 +38,13 @@ public class ScriptProcessorTests extends ESTestCase {
     @Before
     public void setupScripting() {
         String scriptName = "script";
-        scriptService = new ScriptService(
-            Settings.builder().build(),
-            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> {
-                Integer bytesIn = (Integer) ctx.get("bytes_in");
-                Integer bytesOut = (Integer) ctx.get("bytes_out");
-                ctx.put("bytes_total", bytesIn + bytesOut);
-                ctx.put("_dynamic_templates", Map.of("foo", "bar"));
-                return null;
-            }), Map.of())),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
-        );
+        scriptService = scriptService(scriptName, ctx -> {
+            Integer bytesIn = (Integer) ctx.get("bytes_in");
+            Integer bytesOut = (Integer) ctx.get("bytes_out");
+            ctx.put("bytes_total", bytesIn + bytesOut);
+            ctx.put("_dynamic_templates", Map.of("foo", "bar"));
+            return null;
+        });
         script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Map.of());
         ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
     }
@@ -67,6 +63,16 @@ public class ScriptProcessorTests extends ESTestCase {
         assertIngestDocument(ingestDocument);
     }
 
+    private ScriptService scriptService(String scriptName, java.util.function.Function<Map<String, Object>, Object> script) {
+        return new ScriptService(
+            Settings.builder().build(),
+            Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, script), Map.of())),
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
+    }
+
     private IngestDocument randomDocument() {
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());
@@ -75,11 +81,11 @@ public class ScriptProcessorTests extends ESTestCase {
     }
 
     private void assertIngestDocument(IngestDocument ingestDocument) {
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_in"));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_out"));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_total"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_in"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_out"));
+        assertThat(ingestDocument.getSource(), hasKey("bytes_total"));
         int bytesTotal = ingestDocument.getFieldValue("bytes_in", Integer.class) + ingestDocument.getFieldValue("bytes_out", Integer.class);
-        assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(bytesTotal));
-        assertThat(ingestDocument.getSourceAndMetadata().get("_dynamic_templates"), equalTo(Map.of("foo", "bar")));
+        assertThat(ingestDocument.getSource().get("bytes_total"), is(bytesTotal));
+        assertThat(ingestDocument.getMetadata().getDynamicTemplates(), equalTo(Map.of("foo", "bar")));
     }
 }

@@ -1,0 +1,112 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.completion;
+
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.net.URIBuilder;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchAccount;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchRequest;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchUtils;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+
+public class AlibabaCloudSearchCompletionRequest extends AlibabaCloudSearchRequest implements OutboundCompletionRequest {
+    private final AlibabaCloudSearchAccount account;
+    private final List<String> input;
+    private final URI uri;
+    private final AlibabaCloudSearchCompletionTaskSettings taskSettings;
+    private final String model;
+    private final String host;
+    private final String workspaceName;
+    private final String httpSchema;
+    private final String inferenceEntityId;
+
+    public AlibabaCloudSearchCompletionRequest(
+        AlibabaCloudSearchAccount account,
+        List<String> input,
+        AlibabaCloudSearchCompletionModel completionModel
+    ) {
+        Objects.requireNonNull(completionModel);
+
+        this.account = Objects.requireNonNull(account);
+        this.input = Objects.requireNonNull(input);
+        taskSettings = completionModel.getTaskSettings();
+        model = completionModel.getServiceSettings().getCommonSettings().modelId();
+        host = completionModel.getServiceSettings().getCommonSettings().getHost();
+        workspaceName = completionModel.getServiceSettings().getCommonSettings().getWorkspaceName();
+        httpSchema = completionModel.getServiceSettings().getCommonSettings().getHttpSchema() != null
+            ? completionModel.getServiceSettings().getCommonSettings().getHttpSchema()
+            : "https";
+        uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
+        inferenceEntityId = completionModel.getInferenceEntityId();
+    }
+
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(uri).build();
+
+        httpPost.setBody(
+            Strings.toString(new AlibabaCloudSearchCompletionRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8),
+            ContentType.APPLICATION_JSON
+        );
+
+        httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+    }
+
+    @Override
+    public String getInferenceEntityId() {
+        return inferenceEntityId;
+    }
+
+    @Override
+    public URI getURI() {
+        return uri;
+    }
+
+    @Override
+    public OutboundRequest truncate() {
+        return this;
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        return null;
+    }
+
+    URI buildDefaultUri() throws URISyntaxException {
+        return new URIBuilder().setScheme(httpSchema)
+            .setHost(host)
+            .setPathSegments(
+                AlibabaCloudSearchUtils.VERSION_3,
+                AlibabaCloudSearchUtils.OPENAPI_PATH,
+                AlibabaCloudSearchUtils.WORKSPACE_PATH,
+                workspaceName,
+                AlibabaCloudSearchUtils.COMPLETION_PATH,
+                model
+            )
+            .build();
+    }
+}

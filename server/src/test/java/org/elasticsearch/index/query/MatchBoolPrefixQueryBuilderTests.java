@@ -15,9 +15,11 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -38,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<MatchBoolPrefixQueryBuilder> {
 
@@ -239,7 +242,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testAnalysisSynonym() throws Exception {
-        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext());
+        final MatchQueryParser matchQueryParser = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         final Query query = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
 
@@ -273,5 +276,17 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
+    }
+
+    public void testLongIllegalBooleanIsTruncatedInShardFailure() {
+        String value = "x".repeat(randomIntBetween(100_000, 200_000));
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(new MatchBoolPrefixQueryBuilder(BOOLEAN_FIELD_NAME, value))
+        );
+        assertThat(e.getMessage(), containsString("Can't parse boolean value [xxx"));
+        // Without the truncation the reason holds the value twice
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

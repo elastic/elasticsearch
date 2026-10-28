@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -73,6 +73,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING;
+import static org.elasticsearch.search.SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING;
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -157,6 +159,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private volatile long maxResponseSize;
+    private volatile TimeValue defaultKeepAlive;
+    private volatile TimeValue maxKeepAlive;
     private final ClusterService clusterService;
     private final CircuitBreaker circuitBreaker;
 
@@ -186,6 +190,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
+        this.defaultKeepAlive = ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING, (v) -> defaultKeepAlive = v);
+        this.maxKeepAlive = ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING, (v) -> maxKeepAlive = v);
         this.clusterService = clusterService;
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
@@ -206,6 +214,50 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     public AsyncSearchSecurity getSecurity() {
         return security;
+    }
+
+    /**
+     * Resolves the effective keep-alive duration for a new async request. A {@code null} input means the
+     * caller did not supply a value, so the current value of {@code async_search.default_keep_alive} is returned.
+     * If a maximum is configured ({@code async_search.max_keep_alive} ≥ 0) and the resolved value exceeds it, an
+     * {@link IllegalArgumentException} is thrown.
+     *
+     * @param requested the keep-alive the caller explicitly requested, or {@code null} to use the default
+     * @return the effective keep-alive; never {@code null}
+     * @throws IllegalArgumentException if the resolved value exceeds the configured maximum
+     */
+    public TimeValue resolveKeepAlive(@Nullable TimeValue requested) {
+        TimeValue resolved = requested != null ? requested : defaultKeepAlive;
+        checkMaxKeepAlive(resolved);
+        return resolved;
+    }
+
+    /**
+     * Validates a keep-alive extension on a GET request. A value of {@code null} or ≤ 0 means "no
+     * extension" (the caller is just polling) and is always accepted. Positive values are subject to
+     * the same maximum as submit: when {@code async_search.max_keep_alive} is configured, an extension
+     * that exceeds it is rejected with an {@link IllegalArgumentException}.
+     *
+     * @param keepAlive the extension requested by the GET caller; {@code null} or ≤ 0 means no-op
+     * @throws IllegalArgumentException if the value is positive and exceeds the configured maximum
+     */
+    public void ensureValidKeepAliveExtension(@Nullable TimeValue keepAlive) {
+        if (keepAlive != null && keepAlive.millis() > 0) {
+            checkMaxKeepAlive(keepAlive);
+        }
+    }
+
+    /**
+     * Throws {@link IllegalArgumentException} if {@code value} exceeds the configured maximum keep-alive.
+     * No-op when the maximum is negative (unbounded). The check is inclusive: exactly equal to the
+     * maximum is allowed.
+     */
+    private void checkMaxKeepAlive(TimeValue value) {
+        if (maxKeepAlive.millis() >= 0 && value.millis() > maxKeepAlive.millis()) {
+            throw new IllegalArgumentException(
+                "Keep alive for request (" + value + ") is too large. It must be less than or equal to (" + maxKeepAlive + ")."
+            );
+        }
     }
 
     /**
@@ -299,7 +351,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
+                    logger.warn(() -> "failed to store async-search [" + docId + "]", e);
                     // at end, we should report a failure to the listener
                     updateResponse(
                         docId,
@@ -317,8 +369,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {
         return limitToMaxResponseSize
-            ? new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize)
-            : new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            ? new ReleasableBytesStreamOutputWithLimit(bigArrays.withCircuitBreaking(), maxResponseSize)
+            : new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
     }
 
     private void addResultFieldAndFinish(Writeable response, XContentBuilder source) throws IOException {
@@ -327,10 +379,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             os = Streams.noCloseStream(os);
             TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
             TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-            if (minNodeVersion.onOrAfter(TransportVersions.V_7_15_0)) {
-                os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-            }
-            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(os)) {
                 out.setTransportVersion(minNodeVersion);
                 response.writeTo(out);
             }
@@ -538,7 +587,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
             try {
                 T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-                if (asyncTask != null) { // get status response from task
+                if (asyncTask != null && asyncTask.isCancelled() == false) { // get status response from task
                     if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
                         var response = statusProducerFromTask.apply(asyncTask);
                         outerListener.onResponse(response);
@@ -578,13 +627,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
-        final StreamInput input;
-        if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
-        } else {
-            input = new InputStreamStreamInput(encodedIn);
+        assert TransportVersion.current().supports(version) : version + " >= " + TransportVersion.current();
+        if (TransportVersion.isCompatible(version) == false) {
+            throw new IllegalArgumentException(
+                "Unable to retrieve async search results. Stored results were created with an incompatible version of Elasticsearch."
+            );
         }
+        final StreamInput input;
+        input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
         try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);
@@ -605,8 +655,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
         private final long limit;
 
-        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
-            super(expectedSize, bigArrays);
+        ReleasableBytesStreamOutputWithLimit(BigArrays bigArrays, long limit) {
+            super(bigArrays);
             this.limit = limit;
         }
 

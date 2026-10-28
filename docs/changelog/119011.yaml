@@ -1,5 +1,0 @@
-pr: 119011
-summary: "Add support for knn vector queries on `semantic_text` fields"
-area: Search
-type: enhancement
-issues: []

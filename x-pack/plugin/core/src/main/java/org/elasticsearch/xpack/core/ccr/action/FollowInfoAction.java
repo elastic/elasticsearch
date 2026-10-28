@@ -99,7 +99,6 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             followInfos = in.readCollectionAsList(FollowerInfo::new);
         }
 
@@ -131,7 +130,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toTruncatedString(this);
         }
 
         public static class FollowerInfo implements Writeable, ToXContentObject {

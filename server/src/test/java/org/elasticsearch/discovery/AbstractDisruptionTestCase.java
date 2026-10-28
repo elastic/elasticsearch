@@ -76,10 +76,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     private boolean disableBeforeIndexDeletion;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void configureDisruptionSettings() throws Exception {
         disableBeforeIndexDeletion = false;
     }
 
@@ -131,7 +129,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     ClusterState getNodeClusterState(String node) {
-        return client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+        return client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
     }
 
     void assertNoMaster(final String node) throws Exception {

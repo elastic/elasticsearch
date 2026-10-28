@@ -8,18 +8,23 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.env.EnvironmentBridge;
-import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
-import org.elasticsearch.logstashbridge.threadpool.ThreadPoolBridge;
 
-import java.util.Map;
 import java.util.function.BiConsumer;
 
+/**
+ * An {@link StableBridgeAPI} for {@link Processor}.
+ * As a side-effect of upstream, {@link ProcessorBridge#isAsync()} is expected
+ * to have a constant value for any given instance, <em>AND</em>:
+ * <ul>
+ *   <li>{@code true}: must implement {@link ProcessorBridge#execute(IngestDocumentBridge, BiConsumer)}</li>
+ *   <li>{@code false}: must implement {@link ProcessorBridge#execute(IngestDocumentBridge)}</li>
+ * </ul>
+ */
 public interface ProcessorBridge extends StableBridgeAPI<Processor> {
+
     String getType();
 
     String getTag();
@@ -28,124 +33,57 @@ public interface ProcessorBridge extends StableBridgeAPI<Processor> {
 
     boolean isAsync();
 
-    void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler) throws Exception;
-
-    static ProcessorBridge wrap(final Processor delegate) {
-        return new Wrapped(delegate);
+    default void execute(IngestDocumentBridge ingestDocumentBridge, BiConsumer<IngestDocumentBridge, Exception> handler) {
+        toInternal().execute(
+            StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+            (id, exception) -> handler.accept(IngestDocumentBridge.fromInternalNullable(id), exception)
+        );
     }
 
-    class Wrapped extends StableBridgeAPI.Proxy<Processor> implements ProcessorBridge {
-        public Wrapped(final Processor delegate) {
+    default IngestDocumentBridge execute(IngestDocumentBridge ingestDocumentBridge) throws Exception {
+        IngestDocument internalSourceIngestDocument = ingestDocumentBridge.toInternal();
+        IngestDocument internalResultIngestDocument = toInternal().execute(internalSourceIngestDocument);
+
+        if (internalResultIngestDocument == internalSourceIngestDocument) {
+            return ingestDocumentBridge;
+        }
+        return IngestDocumentBridge.fromInternalNullable(internalResultIngestDocument);
+    }
+
+    static ProcessorBridge fromInternal(final Processor internalProcessor) {
+        if (internalProcessor instanceof AbstractExternalProcessorBridge.ProxyExternal externalProxy) {
+            return externalProxy.getProcessorBridge();
+        }
+        return new ProxyInternal(internalProcessor);
+    }
+
+    /**
+     * An implementation of {@link ProcessorBridge} that proxies to an internal {@link Processor}
+     * @see StableBridgeAPI.ProxyInternal
+     */
+    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Processor> implements ProcessorBridge {
+        public ProxyInternal(final Processor delegate) {
             super(delegate);
         }
 
         @Override
         public String getType() {
-            return unwrap().getType();
+            return toInternal().getType();
         }
 
         @Override
         public String getTag() {
-            return unwrap().getTag();
+            return toInternal().getTag();
         }
 
         @Override
         public String getDescription() {
-            return unwrap().getDescription();
+            return toInternal().getDescription();
         }
 
         @Override
         public boolean isAsync() {
-            return unwrap().isAsync();
-        }
-
-        @Override
-        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler)
-            throws Exception {
-            delegate.execute(
-                StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
-                (id, e) -> handler.accept(IngestDocumentBridge.wrap(id), e)
-            );
+            return toInternal().isAsync();
         }
     }
-
-    class Parameters extends StableBridgeAPI.Proxy<Processor.Parameters> {
-
-        public Parameters(
-            final EnvironmentBridge environmentBridge,
-            final ScriptServiceBridge scriptServiceBridge,
-            final ThreadPoolBridge threadPoolBridge
-        ) {
-            this(
-                new Processor.Parameters(
-                    environmentBridge.unwrap(),
-                    scriptServiceBridge.unwrap(),
-                    null,
-                    threadPoolBridge.unwrap().getThreadContext(),
-                    threadPoolBridge.unwrap()::relativeTimeInMillis,
-                    (delay, command) -> threadPoolBridge.unwrap()
-                        .schedule(command, TimeValue.timeValueMillis(delay), threadPoolBridge.unwrap().generic()),
-                    null,
-                    null,
-                    threadPoolBridge.unwrap().generic()::execute,
-                    IngestService.createGrokThreadWatchdog(environmentBridge.unwrap(), threadPoolBridge.unwrap())
-                )
-            );
-        }
-
-        private Parameters(final Processor.Parameters delegate) {
-            super(delegate);
-        }
-
-        @Override
-        public Processor.Parameters unwrap() {
-            return this.delegate;
-        }
-    }
-
-    interface Factory extends StableBridgeAPI<Processor.Factory> {
-        ProcessorBridge create(
-            Map<String, ProcessorBridge.Factory> registry,
-            String processorTag,
-            String description,
-            Map<String, Object> config
-        ) throws Exception;
-
-        static Factory wrap(final Processor.Factory delegate) {
-            return new Wrapped(delegate);
-        }
-
-        @Override
-        default Processor.Factory unwrap() {
-            final Factory stableAPIFactory = this;
-            return (registry, tag, description, config) -> stableAPIFactory.create(
-                StableBridgeAPI.wrap(registry, Factory::wrap),
-                tag,
-                description,
-                config
-            ).unwrap();
-        }
-
-        class Wrapped extends StableBridgeAPI.Proxy<Processor.Factory> implements Factory {
-            private Wrapped(final Processor.Factory delegate) {
-                super(delegate);
-            }
-
-            @Override
-            public ProcessorBridge create(
-                final Map<String, Factory> registry,
-                final String processorTag,
-                final String description,
-                final Map<String, Object> config
-            ) throws Exception {
-                return ProcessorBridge.wrap(this.delegate.create(StableBridgeAPI.unwrap(registry), processorTag, description, config));
-            }
-
-            @Override
-            public Processor.Factory unwrap() {
-                return this.delegate;
-            }
-        }
-    }
-
 }

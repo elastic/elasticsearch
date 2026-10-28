@@ -10,33 +10,50 @@
 package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomByteSizeValue;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -48,23 +65,24 @@ import static org.junit.Assert.assertTrue;
 public class DataStreamLifecycleFixtures {
 
     public static DataStream createDataStream(
-        Metadata.Builder builder,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle lifecycle,
         Long now
     ) {
-        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, now);
+        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, null, now);
     }
 
     public static DataStream createDataStream(
-        Metadata.Builder builder,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,
         int failureIndicesCount,
         Settings.Builder backingIndicesSettings,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle dataLifecycle,
+        @Nullable DataStreamLifecycle failuresLifecycle,
         Long now
     ) {
         final List<Index> backingIndices = new ArrayList<>();
@@ -99,7 +117,18 @@ public class DataStreamLifecycleFixtures {
             builder.put(indexMetadata, false);
             failureIndices.add(indexMetadata.getIndex());
         }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(
+            dataStreamName,
+            backingIndices,
+            backingIndicesCount,
+            null,
+            false,
+            dataLifecycle,
+            failureIndices,
+            new DataStreamOptions(
+                DataStreamFailureStore.builder().enabled(failureIndices.isEmpty() == false).lifecycle(failuresLifecycle).build()
+            )
+        );
     }
 
     static void putComposableIndexTemplate(
@@ -108,7 +137,7 @@ public class DataStreamLifecycleFixtures {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -127,51 +156,105 @@ public class DataStreamLifecycleFixtures {
         assertTrue(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet().isAcknowledged());
     }
 
-    static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.newBuilder()
-            .dataRetention(randomRetention())
-            .downsampling(randomDownsampling())
+    static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling = randomResettable(
+            DataStreamLifecycleFixtures::randomDownsamplingRounds
+        );
+        return DataStreamLifecycle.dataLifecycleBuilder()
             .enabled(frequently())
+            .dataRetention(randomResettable(ESTestCase::randomTimeValue))
+            .downsamplingRounds(downsampling)
+            .downsamplingMethod(randomResettable(() -> randomSamplingMethod(downsampling.get())))
+            .buildTemplate();
+    }
+
+    public static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> ResettableValue.undefined();
+            case 1 -> ResettableValue.reset();
+            case 2 -> ResettableValue.create(supplier.get());
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
+    }
+
+    private static List<DataStreamLifecycle.DownsamplingRound> randomDownsamplingRounds() {
+        var count = randomIntBetween(0, 9);
+        List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+        var previous = new DataStreamLifecycle.DownsamplingRound(
+            TimeValue.timeValueDays(randomIntBetween(1, 365)),
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
+        );
+        rounds.add(previous);
+        for (int i = 0; i < count; i++) {
+            DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
+            rounds.add(round);
+            previous = round;
+        }
+        return rounds;
+    }
+
+    private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
+        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
+        return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    /**
+     * In order to produce valid data stream lifecycle configurations, the sampling method can be defined only when
+     * the downsampling rounds are also defined.
+     */
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod(List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds) {
+        if (downsamplingRounds == null || between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
+    public static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
             .build();
     }
 
-    @Nullable
-    private static DataStreamLifecycle.Retention randomRetention() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Retention.NULL;
-            default -> new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
-        };
-    }
-
-    @Nullable
-    private static DataStreamLifecycle.Downsampling randomDownsampling() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Downsampling.NULL;
-            default -> {
-                var count = randomIntBetween(0, 9);
-                List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-                var previous = new DataStreamLifecycle.Downsampling.Round(
-                    TimeValue.timeValueDays(randomIntBetween(1, 365)),
-                    new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
-                );
-                rounds.add(previous);
-                for (int i = 0; i < count; i++) {
-                    DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
-                    rounds.add(round);
-                    previous = round;
-                }
-                yield new DataStreamLifecycle.Downsampling(rounds);
-            }
-        };
-    }
-
-    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
-        var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
-        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+    public static DataStreamLifecycleSettings createDataStreamLifecycleSettings(
+        Boolean minimumLifecycleEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        Settings.Builder clusterSettingsBuilder = Settings.builder();
+        if (globalDefaultRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
+        }
+        if (globalMaxRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
+        }
+        if (minimumLifecycleEnabled != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled);
+        }
+        return DataStreamLifecycleSettings.create(new ClusterSettings(clusterSettingsBuilder.build(), settingsSet));
     }
 }

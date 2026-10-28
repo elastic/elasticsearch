@@ -82,7 +82,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                         .build()
                 )
         );
-        GetSettingsResponse response = indicesAdmin().prepareGetSettings("test-idx").get();
+        GetSettingsResponse response = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");
 
         assertThat(settings.get("index.filter_test.foo"), nullValue());

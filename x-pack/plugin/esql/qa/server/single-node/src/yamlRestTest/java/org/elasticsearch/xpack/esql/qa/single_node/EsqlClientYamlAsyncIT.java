@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -20,13 +21,13 @@ import java.util.Map;
  * and it makes sure all the yaml tests work when within the timeout.
  */
 public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
-    public EsqlClientYamlAsyncIT(final ClientYamlTestCandidate testCandidate) {
+    public EsqlClientYamlAsyncIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return updateEsqlQueryDoSections(createParameters(), doSection -> {
+        return updateEsqlQueryDoSections(partialResultsCheckingParameters(), doSection -> {
             ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");
             for (Map<String, Object> body : copy.getBodies()) {
                 body.put("wait_for_completion_timeout", "30m");

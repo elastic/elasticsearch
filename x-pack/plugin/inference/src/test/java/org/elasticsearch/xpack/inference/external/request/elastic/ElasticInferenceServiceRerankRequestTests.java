@@ -1,0 +1,145 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.external.request.elastic;
+
+import org.apache.hc.core5.http.HttpHeaders;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringTests;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
+import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRerankRequest;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
+import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.is;
+
+public class ElasticInferenceServiceRerankRequestTests extends ESTestCase {
+
+    public void testTraceContextPropagatedThroughHTTPHeaders() {
+        var url = "http://eis-gateway.com";
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+        var modelId = "my-model-id";
+        var topN = 3;
+
+        var request = createRequest(url, modelId, query, documents, topN, null);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = httpRequest.httpRequest();
+
+        var traceParent = request.getTraceContext().traceParent();
+        var traceState = request.getTraceContext().traceState();
+
+        assertThat(httpPost.getLastHeader(Task.TRACE_PARENT_HTTP_HEADER).getValue(), is(traceParent));
+        assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
+    }
+
+    public void testTruncate_DoesNotTruncate() throws IOException {
+        var url = "http://eis-gateway.com";
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+        var modelId = "my-model-id";
+        var topN = 3;
+
+        var request = createRequest(url, modelId, query, documents, topN, null);
+        var truncatedRequest = request.truncate();
+
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
+        assertThat(requestMap.get("model"), is(modelId));
+        assertThat(requestMap.get("documents"), is(documents.stream().map(InferenceStringTests::inferenceStringToMap).toList()));
+        assertThat(requestMap.get("top_n"), is(topN));
+    }
+
+    public void testCreateHttpRequest_WithReturnDocuments() throws IOException {
+        var url = "http://eis-gateway.com";
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+        var modelId = "my-model-id";
+        var returnDocuments = randomBoolean();
+
+        var request = createRequest(url, modelId, query, documents, null, returnDocuments);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
+        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap.get("query"), is(InferenceStringTests.inferenceStringToMap(query)));
+        assertThat(requestMap.get("model"), is(modelId));
+        assertThat(requestMap.get("documents"), is(documents.stream().map(InferenceStringTests::inferenceStringToMap).toList()));
+        assertThat(requestMap.get("return_documents"), is(returnDocuments));
+    }
+
+    public void testDecorate_HttpRequest_WithAuthorizationHeader() {
+        var url = "http://eis-gateway.com";
+        var query = InferenceString.ofText("query");
+        var documents = InferenceString.fromStringList(List.of("document 1", "document 2", "document 3"));
+        var modelId = "my-model-id";
+        var topN = 3;
+        var secret = "secret";
+
+        var request = new ElasticInferenceServiceRerankRequest(
+            query,
+            documents,
+            topN,
+            null,
+            ElasticInferenceServiceRerankModelTests.createModel(url, modelId),
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomElasticInferenceServiceRequestMetadata(),
+            null,
+            new CCMAuthenticationApplierFactory.AuthenticationHeaderApplier(secret)
+        );
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = httpRequest.httpRequest();
+
+        var traceParent = request.getTraceContext().traceParent();
+        var traceState = request.getTraceContext().traceState();
+
+        assertThat(httpPost.getLastHeader(Task.TRACE_PARENT_HTTP_HEADER).getValue(), is(traceParent));
+        assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
+        var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
+        assertThat(headers.length, is(1));
+        assertThat(headers[0].getValue(), is(apiKey(secret)));
+    }
+
+    private ElasticInferenceServiceRerankRequest createRequest(
+        String url,
+        String modelId,
+        InferenceString query,
+        List<InferenceString> documents,
+        Integer topN,
+        Boolean returnDocuments
+    ) {
+        var rerankModel = ElasticInferenceServiceRerankModelTests.createModel(url, modelId);
+
+        return new ElasticInferenceServiceRerankRequest(
+            query,
+            documents,
+            topN,
+            returnDocuments,
+            rerankModel,
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            randomElasticInferenceServiceRequestMetadata(),
+            null,
+            CCMAuthenticationApplierFactory.NOOP_APPLIER
+        );
+    }
+
+}

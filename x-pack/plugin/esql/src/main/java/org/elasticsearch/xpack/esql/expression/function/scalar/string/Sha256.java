@@ -9,24 +9,31 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Sha256 extends AbstractHashFunction {
+public class Sha256 extends AbstractHashFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SHA256", Sha256::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sha256.class).unary(Sha256::new).name("sha256");
 
     private static final Hash.HashFunction SHA256 = Hash.HashFunction.create("SHA256");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "keyword",
+        briefSummary = "Computes the SHA256 hash of the input.",
         description = "Computes the SHA256 hash of the input.",
         examples = { @Example(file = "hash", tag = "sha256") }
     )

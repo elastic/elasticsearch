@@ -52,7 +52,7 @@ public class IndexResponseTests extends ESTestCase {
                 }"""), output);
         }
         {
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 7, true);
             indexResponse.setForcedRefresh(true);
             indexResponse.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(indexResponse);
@@ -67,7 +67,9 @@ public class IndexResponseTests extends ESTestCase {
                     "total": 10,
                     "successful": 5,
                     "failed": 0
-                  }
+                  },
+                  "_seq_no": -2,
+                  "_primary_term" : 0
                 }"""), output);
         }
     }

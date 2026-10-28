@@ -1,0 +1,483 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.lucene.query;
+
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.OperatorTests;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ShuffleDocsOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Base class for testing Lucene query evaluators.
+ */
+public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block.Builder> extends ComputeTestCase {
+
+    private static final String FIELD = "g";
+
+    @SuppressWarnings("unchecked")
+    public void testDenseCollectorSmall() throws IOException {
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(0, 2)) {
+            collector.setScorer(getScorer());
+            collector.collect(0);
+            collector.collect(1);
+            collector.collect(2);
+            collector.finish();
+            try (T result = (T) collector.build()) {
+                for (int i = 0; i <= 2; i++) {
+                    assertCollectedResultMatch(result, i, true);
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDenseCollectorSimple() throws IOException {
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(0, 10)) {
+            collector.setScorer(getScorer());
+            collector.collect(2);
+            collector.collect(5);
+            collector.finish();
+            try (T result = (T) collector.build()) {
+                for (int i = 0; i < 11; i++) {
+                    assertCollectedResultMatch(result, i, i == 2 || i == 5);
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDenseCollector() throws IOException {
+        int length = between(1, 10_000);
+        int min = between(0, Integer.MAX_VALUE - length - 1);
+        int max = min + length;
+        boolean[] expected = new boolean[length];
+        try (LuceneQueryEvaluator.DenseCollector<U> collector = createDenseCollector(min, max)) {
+            collector.setScorer(getScorer());
+            for (int i = 0; i < length; i++) {
+                expected[i] = randomBoolean();
+                if (expected[i]) {
+                    collector.collect(min + i);
+                }
+            }
+            collector.finish();
+            try (T result = (T) collector.build()) {
+                for (int i = 0; i < length; i++) {
+                    assertCollectedResultMatch(result, i, expected[i]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Create a dense collector for the given range.
+     */
+    protected abstract LuceneQueryEvaluator.DenseCollector<U> createDenseCollector(int min, int max);
+
+    /**
+     * Chceks that the collected results at the given position corresponds to a match or no match
+     */
+    protected abstract void assertCollectedResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Dense ranges of a single segment can arrive in any order, for example when a
+     * date-bucketed {@code STATS} is split into one query slice per bucket and a
+     * driver handles a later bucket first. Each range must be evaluated correctly
+     * regardless of the ranges seen before it.
+     */
+    public void testDenseRangesInAnyOrder() throws IOException {
+        int docCount = 40;
+        // Preserve insertion order because the expected matches depend on doc ID parity.
+        try (
+            BaseDirectoryWrapper dir = newDirectory();
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(newLogMergePolicy()))
+        ) {
+            for (int i = 0; i < docCount; i++) {
+                writer.addDocument(List.of(new KeywordField(FIELD, i % 2 == 0 ? "even" : "odd", Field.Store.NO)));
+            }
+            writer.forceMerge(1);
+            try (DirectoryReader reader = writer.getReader()) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                IndexSearcher searcher = new IndexSearcher(reader);
+                BlockFactory blockFactory = blockFactory();
+                var shards = new IndexedByShardIdFromSingleton<>(
+                    new LuceneQueryEvaluator.ShardConfig(new TermQuery(new Term(FIELD, "even")), searcher)
+                );
+                try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards)) {
+                    // Later range first, then an earlier one, an overlapping one, a later one and finally the start.
+                    int[][] ranges = { { 20, 25 }, { 5, 10 }, { 8, 22 }, { 30, 39 }, { 0, 3 } };
+                    for (int[] range : ranges) {
+                        int length = range[1] - range[0] + 1;
+                        int[] docs = new int[length];
+                        for (int i = 0; i < length; i++) {
+                            docs[i] = range[0] + i;
+                        }
+                        DocVector docVector = new DocVector(
+                            AlwaysReferencedIndexedByShardId.INSTANCE,
+                            blockFactory.newConstantIntVector(0, length),
+                            blockFactory.newConstantIntVector(0, length),
+                            blockFactory.newIntArrayVector(docs, length),
+                            DocVector.config().singleSegmentNonDecreasing(true)
+                        );
+                        Page page = new Page(docVector.asBlock());
+                        try (@SuppressWarnings("unchecked")
+                        T matches = (T) evaluator.eval(page)) {
+                            for (int i = 0; i < length; i++) {
+                                assertEvaluatedResultMatch(matches, i, docs[i] % 2 == 0);
+                            }
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks that the result of {@link #createEvaluator} at the given position corresponds to a match or no match.
+     */
+    protected abstract void assertEvaluatedResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Create the evaluator to test directly, without an operator around it.
+     */
+    protected abstract ExpressionEvaluator createEvaluator(
+        BlockFactory blockFactory,
+        IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards
+    );
+
+    public void testTermQuery() throws IOException {
+        Set<String> values = values();
+        String term = values.iterator().next();
+        List<Page> results = runQuery(values, new TermQuery(new Term(FIELD, term)), false);
+        assertTermsQuery(results, Set.of(term), 1);
+    }
+
+    public void testTermQueryShuffled() throws IOException {
+        Set<String> values = values();
+        String term = values.iterator().next();
+        List<Page> results = runQuery(values, new ConstantScoreQuery(new TermQuery(new Term(FIELD, term))), true);
+        assertTermsQuery(results, Set.of(term), 1);
+    }
+
+    public void testTermsQuery() throws IOException {
+        testTermsQuery(false);
+    }
+
+    public void testTermsQueryShuffled() throws IOException {
+        testTermsQuery(true);
+    }
+
+    private void testTermsQuery(boolean shuffleDocs) throws IOException {
+        Set<String> values = values();
+        Iterator<String> itr = values.iterator();
+        TreeSet<String> matching = new TreeSet<>();
+        TreeSet<BytesRef> matchingBytes = new TreeSet<>();
+        int expectedMatchCount = between(2, values.size());
+        for (int i = 0; i < expectedMatchCount; i++) {
+            String v = itr.next();
+            matching.add(v);
+            matchingBytes.add(new BytesRef(v));
+        }
+        List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes), shuffleDocs);
+        assertTermsQuery(results, matching, expectedMatchCount);
+    }
+
+    protected void assertTermsQuery(List<Page> results, Set<String> matching, int expectedMatchCount) {
+        int matchCount = 0;
+        for (Page page : results) {
+            int initialBlockIndex = termsBlockIndex(page);
+            BytesRefBlock terms = page.<BytesRefBlock>getBlock(initialBlockIndex);
+            @SuppressWarnings("unchecked")
+            T resultVector = (T) page.getBlock(resultsBlockIndex(page));
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
+                boolean isMatch = matching.contains(termAtPosition.utf8ToString());
+                assertTermResultMatch(resultVector, i, isMatch);
+                if (isMatch) {
+                    matchCount++;
+                }
+            }
+        }
+        assertThat(matchCount, equalTo(expectedMatchCount));
+    }
+
+    /**
+     * Checks that the result at the given position corresponds to a term match or no match
+     */
+    protected abstract void assertTermResultMatch(T resultVector, int position, boolean isMatch);
+
+    /**
+     * Evaluates a page with rows from two shards of two segments each, in reverse shard, segment,
+     * doc order, so the evaluator takes its slow path. Each row must get exactly the result that
+     * the fast path returns for the row's whole segment in doc order.
+     * <p>
+     *     A doc matches when its shard, segment and doc ids add up to an even number. So reading
+     *     a row from the wrong shard or the wrong segment flips whether it matches.
+     * </p>
+     */
+    public void testManyShardsAndSegmentsOutOfOrder() throws IOException {
+        Query query = new TermQuery(new Term(FIELD, "match"));
+        try (
+            BaseDirectoryWrapper dir0 = newDirectory();
+            BaseDirectoryWrapper dir1 = newDirectory();
+            DirectoryReader reader0 = twoSegmentReader(dir0, 0);
+            DirectoryReader reader1 = twoSegmentReader(dir1, 1)
+        ) {
+            var shards = new IndexedByShardIdFromList<>(
+                List.of(
+                    new LuceneQueryEvaluator.ShardConfig(query, new IndexSearcher(reader0)),
+                    new LuceneQueryEvaluator.ShardConfig(query, new IndexSearcher(reader1))
+                )
+            );
+            BlockFactory blockFactory = blockFactory();
+
+            Object[][][] expected = new Object[2][2][2];
+            try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards)) {
+                for (int shard = 0; shard < 2; shard++) {
+                    for (int segment = 0; segment < 2; segment++) {
+                        Page page = docPage(blockFactory, new int[] { shard, shard }, new int[] { segment, segment }, new int[] { 0, 1 });
+                        try (@SuppressWarnings("unchecked")
+                        T result = (T) evaluator.eval(page)) {
+                            for (int doc = 0; doc < 2; doc++) {
+                                assertEvaluatedResultMatch(result, doc, (shard + segment + doc) % 2 == 0);
+                                expected[shard][segment][doc] = BlockUtils.toJavaObject(result, doc);
+                            }
+                        } finally {
+                            page.releaseBlocks();
+                        }
+                    }
+                }
+            }
+
+            // Row 0 is shard 1, segment 1. So misreading shard 0 or segment 0 as a row position finds the wrong one.
+            int[] shardIds = { 1, 1, 1, 1, 0, 0, 0, 0 };
+            int[] segments = { 1, 1, 0, 0, 1, 1, 0, 0 };
+            int[] docs = { 1, 0, 1, 0, 1, 0, 1, 0 };
+            Page page = docPage(blockFactory, shardIds, segments, docs);
+            try (ExpressionEvaluator evaluator = createEvaluator(blockFactory, shards); Block result = evaluator.eval(page)) {
+                for (int p = 0; p < docs.length; p++) {
+                    assertThat("row " + p, BlockUtils.toJavaObject(result, p), equalTo(expected[shardIds[p]][segments[p]][docs[p]]));
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Writes two segments of two docs each. Doc {@code d} of segment {@code s} is {@code "match"}
+     * when {@code shard + s + d} is even.
+     */
+    private static DirectoryReader twoSegmentReader(Directory dir, int shard) throws IOException {
+        try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+            for (int segment = 0; segment < 2; segment++) {
+                for (int doc = 0; doc < 2; doc++) {
+                    String value = (shard + segment + doc) % 2 == 0 ? "match" : "other";
+                    writer.addDocument(List.of(new KeywordField(FIELD, value, Field.Store.NO)));
+                }
+                writer.commit();
+            }
+        }
+        return DirectoryReader.open(dir);
+    }
+
+    private static Page docPage(BlockFactory blockFactory, int[] shards, int[] segments, int[] docs) {
+        int size = docs.length;
+        return new Page(
+            new DocVector(
+                AlwaysReferencedIndexedByShardId.INSTANCE,
+                blockFactory.newIntArrayVector(shards, size),
+                blockFactory.newIntArrayVector(segments, size),
+                blockFactory.newIntArrayVector(docs, size),
+                DocVector.config()
+            ).asBlock()
+        );
+    }
+
+    private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        return withReader(values, reader -> {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            List<Operator> operators = new ArrayList<>();
+            if (shuffleDocs) {
+                operators.add(new ShuffleDocsOperator(blockFactory));
+            }
+            operators.add(
+                new ValuesSourceReaderOperator(
+                    driverContext,
+                    ByteSizeValue.ofGb(1).getBytes(),
+                    List.of(
+                        new ValuesSourceReaderOperator.FieldInfo(
+                            FIELD,
+                            ElementType.BYTES_REF,
+                            false,
+                            (ctx, unused) -> ValuesSourceReaderOperator.load(
+                                new BytesRefsFromOrdsBlockLoader(FIELD, ByteSizeValue.ofBytes(randomLongBetween(1, 1000)))
+                            )
+                        )
+                    ),
+                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
+                        throw new UnsupportedOperationException();
+                    }, 0.2)),
+                    true,
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true),
+                    500,
+                    () -> 0L
+                )
+            );
+            var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            operators.add(createOperator(driverContext, shardConfig));
+            List<Page> results = new ArrayList<>();
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                LuceneQueryEvaluatorTests.luceneOperatorFactory(reader, Queries.ALL_DOCS_INSTANCE, usesScoring()).get(driverContext),
+                operators,
+                new TestResultPageSinkOperator(results::add)
+            );
+            new TestDriverRunner().run(driver);
+            OperatorTests.assertDriverContext(driverContext);
+            return results;
+        });
+    }
+
+    private <T> T withReader(Set<String> values, CheckedFunction<DirectoryReader, T, IOException> run) throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (String value : values) {
+                writer.addDocument(List.of(new KeywordField(FIELD, value, Field.Store.NO)));
+            }
+            writer.commit();
+            try (DirectoryReader reader = writer.getReader()) {
+                return run.apply(reader);
+            }
+        }
+    }
+
+    private Set<String> values() {
+        int maxNumDocs = between(10, 1_000);
+        int keyLength = randomIntBetween(1, 10);
+        Set<String> values = new HashSet<>();
+        for (int i = 0; i < maxNumDocs; i++) {
+            values.add(randomAlphaOfLength(keyLength));
+        }
+        return values;
+    }
+
+    /**
+     * A {@link DriverContext} with a non-breaking-BigArrays.
+     */
+    private DriverContext driverContext() {
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+    }
+
+    // Returns the initial block index, ignoring the score block if scoring is enabled
+    protected int termsBlockIndex(Page page) {
+        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        if (usesScoring()) {
+            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    private static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, boolean scoring) {
+        final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        return new LuceneSourceOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(searchContext),
+            ctx -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT,
+            scoring,
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+            QueryWarnings.EMIT
+        );
+    }
+
+    // Returns the block index for the results to check
+    protected abstract int resultsBlockIndex(Page page);
+
+    /**
+     * Returns a test scorer to use for scoring docs. Can be null
+     */
+    protected abstract Scorable getScorer();
+
+    /**
+     * Create the operator to test
+     */
+    protected abstract Operator createOperator(DriverContext blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
+
+    /**
+     * Should the test use scoring?
+     */
+    protected abstract boolean usesScoring();
+}

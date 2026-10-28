@@ -70,7 +70,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
-        this.processConnectTimeout = Duration.ofMillis(processConnectTimeout.getMillis());
+        this.processConnectTimeout = processConnectTimeout.toDuration();
     }
 
     @Override
@@ -93,7 +93,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             true,
             true,
             params.modelSnapshot() != null,
-            true
+            true,
+            false
         );
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;

@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportMessageTestUtils;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -124,7 +125,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 public void doRun() {
                                     handleResponse(requestId, switch (action) {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, JoinHelper.JOIN_PING_ACTION_NAME ->
-                                            TransportResponse.Empty.INSTANCE;
+                                            ActionResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
                                             Build.current().hash(),
@@ -316,7 +317,8 @@ public class JoinValidationServiceTests extends ESTestCase {
                 );
 
                 try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
-                    request.writeTo(out);
+                    BytesTransportRequest bytesRequest = (BytesTransportRequest) request;
+                    BytesTransportMessageTestUtils.writeThinWithBytes(out, bytesRequest);
                     out.flush();
                     final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);
                     handler.processMessageReceived(
@@ -402,12 +404,12 @@ public class JoinValidationServiceTests extends ESTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded())
             .build();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             serializeClusterState(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -426,9 +428,7 @@ public class JoinValidationServiceTests extends ESTestCase {
     private static BytesTransportRequest serializeClusterState(ClusterState clusterState) {
         try (
             var bytesStream = new BytesStreamOutput();
-            var compressedStream = new OutputStreamStreamOutput(
-                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
-            )
+            var compressedStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))
         ) {
             compressedStream.setTransportVersion(TransportVersion.current());
             clusterState.writeTo(compressedStream);
@@ -470,12 +470,12 @@ public class JoinValidationServiceTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             serializeClusterState(stateForValidation),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -495,7 +495,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinHelper.JOIN_PING_ACTION_NAME, action);
                 assertTrue(pingSeen.compareAndSet(false, true));
-                handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+                handleResponse(requestId, ActionResponse.Empty.INSTANCE);
             }
         };
         final var masterTransportService = masterTransport.createTransportService(

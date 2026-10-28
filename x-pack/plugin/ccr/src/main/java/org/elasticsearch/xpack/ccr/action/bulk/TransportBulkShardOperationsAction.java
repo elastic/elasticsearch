@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +54,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -70,6 +72,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
             systemIndices,
+            projectResolver,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
@@ -91,7 +94,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     }
 
     @Override
-    protected void dispatchedShardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
         BulkShardOperationsRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener
@@ -124,13 +127,18 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         return request.getOperations().size();
     }
 
+    @Override
+    protected long primaryLargestOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).max().orElse(0);
+    }
+
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.id(),
+                    index.uid(),
                     index.seqNo(),
                     primaryTerm,
                     index.version(),
@@ -141,7 +149,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             }
             case DELETE -> {
                 final Translog.Delete delete = (Translog.Delete) operation;
-                operationWithPrimaryTerm = new Translog.Delete(delete.id(), delete.seqNo(), primaryTerm, delete.version());
+                operationWithPrimaryTerm = new Translog.Delete(delete.uid(), delete.seqNo(), primaryTerm, delete.version());
             }
             case NO_OP -> {
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
@@ -183,7 +191,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                 assert result.getSeqNo() == targetOp.seqNo();
                 appliedOperations.add(targetOp);
-                location = locationToSync(location, result.getTranslogLocation());
+                location = locationToSync(location, result.getTranslogLocation(), false);
             } else {
                 if (result.getFailure() instanceof final AlreadyProcessedFollowingEngineException failure) {
                     // The existing operations below the global checkpoint won't be replicated as they were processed
@@ -228,11 +236,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(
-        BulkShardOperationsRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> listener
-    ) {
+    protected void shardOperationOnReplica(BulkShardOperationsRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
@@ -267,7 +271,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 throw ExceptionsHelper.convertToElastic(result.getFailure());
             }
             assert result.getSeqNo() == operation.seqNo();
-            location = locationToSync(location, result.getTranslogLocation());
+            location = locationToSync(location, result.getTranslogLocation(), false);
         }
         assert request.getOperations().size() == 0 || location != null;
         return new WriteReplicaResult<>(request, location, null, replica, logger);

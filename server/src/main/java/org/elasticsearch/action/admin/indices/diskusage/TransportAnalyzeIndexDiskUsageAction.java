@@ -17,10 +17,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -54,6 +57,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeDiskUsageShardResponse> {
     public static final ActionType<AnalyzeIndexDiskUsageResponse> TYPE = new ActionType<>("indices:admin/analyze_disk_usage");
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
 
     @Inject
@@ -62,6 +66,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         TransportService transportService,
         IndicesService indexServices,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -75,6 +80,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             transportService.getThreadPool().executor(ThreadPool.Names.ANALYZE)
         );
         this.indicesService = indexServices;
+        this.projectResolver = projectResolver;
         this.threadPool = transportService.getThreadPool();
     }
 
@@ -213,8 +219,14 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected List<ShardIterator> shards(ClusterState clusterState, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
-        final List<ShardIterator> groups = clusterService.operationRouting().searchShards(clusterState, concreteIndices, null, null);
+    protected List<? extends ShardIterator> shards(
+        ClusterState clusterState,
+        AnalyzeIndexDiskUsageRequest request,
+        String[] concreteIndices
+    ) {
+        ProjectState project = projectResolver.getProjectState(clusterState);
+        final List<SearchShardRouting> groups = clusterService.operationRouting().searchShards(project, concreteIndices, null, null);
+
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {
@@ -231,6 +243,6 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

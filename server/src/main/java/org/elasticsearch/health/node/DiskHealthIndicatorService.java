@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
@@ -25,7 +26,6 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,9 +45,9 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPAR
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.are;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getSortedUniqueValuesString;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedIndices;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.getTruncatedProjectIndices;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indices;
-import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndName;
+import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.indicesComparatorByPriorityAndProjectIndex;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularNoun;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.regularVerb;
 import static org.elasticsearch.health.node.HealthIndicatorDisplayValues.these;
@@ -66,15 +66,18 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
-    private static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
+    // VisibleForTesting
+    public static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
 
-    public DiskHealthIndicatorService(ClusterService clusterService) {
+    public DiskHealthIndicatorService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -102,7 +105,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
         logNodesMissingHealthInfo(diskHealthInfoMap, clusterState);
 
-        DiskHealthAnalyzer diskHealthAnalyzer = new DiskHealthAnalyzer(diskHealthInfoMap, clusterState);
+        DiskHealthAnalyzer diskHealthAnalyzer = new DiskHealthAnalyzer(
+            diskHealthInfoMap,
+            clusterState,
+            projectResolver.supportsMultipleProjects()
+        );
         return createIndicator(
             diskHealthAnalyzer.getHealthStatus(),
             diskHealthAnalyzer.getSymptom(),
@@ -143,25 +150,33 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         public static final String NODES_WITH_UNKNOWN_DISK_STATUS = "nodes_with_unknown_disk_status";
 
         private final ClusterState clusterState;
-        private final Set<String> blockedIndices;
+        private final boolean supportsMultipleProjects;
+        private final Set<ProjectIndexName> blockedIndices;
         private final List<DiscoveryNode> dataNodes = new ArrayList<>();
         // In this context a master node, is a master node that cannot contain data.
         private final Map<HealthStatus, List<DiscoveryNode>> masterNodes = new EnumMap<>(HealthStatus.class);
         // In this context "other" nodes are nodes that cannot contain data and are not masters.
         private final Map<HealthStatus, List<DiscoveryNode>> otherNodes = new EnumMap<>(HealthStatus.class);
         private final Set<DiscoveryNodeRole> affectedRoles = new HashSet<>();
-        private final Set<String> indicesAtRisk;
+        private final Set<ProjectIndexName> indicesAtRisk;
         private final HealthStatus healthStatus;
         private final Map<HealthStatus, Integer> healthStatusNodeCount;
 
-        DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState) {
+        DiskHealthAnalyzer(Map<String, DiskHealthInfo> diskHealthByNode, ClusterState clusterState, boolean supportsMultipleProjects) {
             this.clusterState = clusterState;
-            blockedIndices = clusterState.blocks()
-                .indices()
-                .entrySet()
+            this.supportsMultipleProjects = supportsMultipleProjects;
+            blockedIndices = clusterState.metadata()
+                .projects()
+                .keySet()
                 .stream()
-                .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-                .map(Map.Entry::getKey)
+                .flatMap(
+                    projectId -> clusterState.blocks()
+                        .indices(projectId)
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().contains(IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                        .map(entry -> new ProjectIndexName(projectId, entry.getKey()))
+                )
                 .collect(Collectors.toSet());
             HealthStatus mostSevereStatusSoFar = blockedIndices.isEmpty() ? HealthStatus.GREEN : HealthStatus.RED;
             for (String nodeId : diskHealthByNode.keySet()) {
@@ -273,7 +288,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                         String.format(
                             Locale.ROOT,
                             "Cannot insert or update documents in the affected indices [%s].",
-                            getTruncatedIndices(blockedIndices, clusterState.getMetadata())
+                            getTruncatedProjectIndices(blockedIndices, clusterState.metadata(), supportsMultipleProjects)
                         ),
                         List.of(ImpactArea.INGEST)
                     )
@@ -288,7 +303,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                             String.format(
                                 Locale.ROOT,
                                 "The cluster is at risk of not being able to insert or update documents in the affected indices [%s].",
-                                getTruncatedIndices(indicesAtRisk, clusterState.metadata())
+                                getTruncatedProjectIndices(indicesAtRisk, clusterState.metadata(), supportsMultipleProjects)
                             ),
                             List.of(ImpactArea.INGEST)
                         )
@@ -351,7 +366,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             }
             List<Diagnosis> diagnosisList = new ArrayList<>();
             if (hasBlockedIndices() || hasUnhealthyDataNodes()) {
-                Set<String> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
+                Set<ProjectIndexName> affectedIndices = Sets.union(blockedIndices, indicesAtRisk);
                 List<Diagnosis.Resource> affectedResources = new ArrayList<>();
                 if (dataNodes.size() > 0) {
                     Diagnosis.Resource nodeResources = new Diagnosis.Resource(limitSize(dataNodes, size));
@@ -361,7 +376,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                     Diagnosis.Resource indexResources = new Diagnosis.Resource(
                         Diagnosis.Resource.Type.INDEX,
                         affectedIndices.stream()
-                            .sorted(indicesComparatorByPriorityAndName(clusterState.metadata()))
+                            .sorted(indicesComparatorByPriorityAndProjectIndex(clusterState.metadata(), supportsMultipleProjects))
+                            .map(projectIndex -> projectIndex.toString(supportsMultipleProjects))
                             .limit(Math.min(affectedIndices.size(), size))
                             .collect(Collectors.toList())
                     );
@@ -442,13 +458,18 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
         }
 
         // Non-private for unit testing
-        static Set<String> getIndicesForNodes(List<DiscoveryNode> nodes, ClusterState clusterState) {
+        static Set<ProjectIndexName> getIndicesForNodes(List<DiscoveryNode> nodes, ClusterState clusterState) {
             RoutingNodes routingNodes = clusterState.getRoutingNodes();
             return nodes.stream()
                 .map(node -> routingNodes.node(node.getId()))
                 .filter(Objects::nonNull)
                 .flatMap(routingNode -> Arrays.stream(routingNode.copyIndices()))
-                .map(Index::getName)
+                .flatMap(
+                    index -> clusterState.metadata()
+                        .lookupProject(index)
+                        .map(project -> new ProjectIndexName(project.id(), index.getName()))
+                        .stream()
+                )
                 .collect(Collectors.toSet());
         }
 

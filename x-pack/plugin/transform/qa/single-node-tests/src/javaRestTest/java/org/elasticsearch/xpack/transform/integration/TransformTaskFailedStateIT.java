@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,11 +49,6 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
               }
             }""");
         client().performRequest(addFailureRetrySetting);
-    }
-
-    @After
-    public void cleanUpPotentiallyFailedTransform() throws Exception {
-        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     public void testForceStopFailedTransform() throws Exception {
@@ -179,7 +173,7 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
         stopTransform(transformId, true);
 
-        assertThat(getTransformTasks(), is(empty()));
+        assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
         assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
     }
 

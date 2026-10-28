@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -25,9 +28,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
 public class ToGeoPoint extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -35,16 +37,18 @@ public class ToGeoPoint extends AbstractConvertFunction {
         "ToGeoPoint",
         ToGeoPoint::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoPoint.class).unary(ToGeoPoint::new).name("to_geopoint");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
+        Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToGeoPointFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "geo_point",
+        briefSummary = "Converts a value to a geo_point.",
         description = """
             Converts an input value to a `geo_point` value.
             A string will only be successfully converted if it respects the
@@ -72,6 +76,11 @@ public class ToGeoPoint extends AbstractConvertFunction {
     }
 
     @Override
+    public String functionName() {
+        return "TO_GEOPOINT";
+    }
+
+    @Override
     protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
@@ -93,6 +102,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return stringToSpatial(in.utf8ToString());
+        return stringToGeo(in.utf8ToString());
     }
 }

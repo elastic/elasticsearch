@@ -11,16 +11,19 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.ReshardSplitAwareReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -31,34 +34,65 @@ import java.util.Set;
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
     implements
         Accountable,
-        RawIndexingDataTransportRequest {
+        RawIndexingDataTransportRequest,
+        ReshardSplitAwareReplicationRequest {
+
+    public static final TransportVersion BULK_SHARD_BATCH = TransportVersion.fromName("bulk_shard_batch");
+    /**
+     * The batch payload is encoded as ESCF. Nodes that only support {@link #BULK_SHARD_BATCH} expect the older EIRF layout
+     * and reject ESCF payloads, so coordinators must not build batches unless every node supports this version.
+     */
+    public static final TransportVersion BULK_SHARD_ESCF_BATCH = TransportVersion.fromName("bulk_shard_escf_batch");
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
     private final BulkItemRequest[] items;
     private final boolean isSimulated;
+    private final SplitShardCountSummary splitShardCountSummary;
+    @Nullable
+    private BulkShardBatch bulkShardBatch = null;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            isSimulated = in.readBoolean();
-        } else {
-            isSimulated = false;
+        isSimulated = in.readBoolean();
+        if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
+            bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
+            if (bulkShardBatch != null) {
+                BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
+            }
         }
+        this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
     }
 
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, refreshPolicy, items, false);
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary splitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items
+    ) {
+        this(shardId, splitShardCountSummary, refreshPolicy, items, false);
     }
 
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
+    public BulkShardRequest(
+        ShardId shardId,
+        SplitShardCountSummary splitShardCountSummary,
+        RefreshPolicy refreshPolicy,
+        BulkItemRequest[] items,
+        boolean isSimulated
+    ) {
         super(shardId);
+        this.splitShardCountSummary = splitShardCountSummary;
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         this.isSimulated = isSimulated;
+    }
+
+    @Override
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     /**
@@ -85,22 +119,49 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         return inferenceFieldMap;
     }
 
+    /**
+     * Sets the batch for batch indexing. When non-null, the batch indexing path
+     * will be used instead of the standard per-document parsing path.
+     */
+    public void setBulkShardBatch(@Nullable BulkShardBatch bulkShardBatch) {
+        this.bulkShardBatch = bulkShardBatch;
+    }
+
+    @Nullable
+    public BulkShardBatch getBulkShardBatch() {
+        return bulkShardBatch;
+    }
+
     public long totalSizeInBytes() {
         long totalSizeInBytes = 0;
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                if (((IndexRequest) request).source() != null) {
-                    totalSizeInBytes += ((IndexRequest) request).source().length();
-                }
+                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null && doc.source() != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                if (doc != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
                 }
             }
         }
         return totalSizeInBytes;
+    }
+
+    public long maxOperationSizeInBytes() {
+        long maxOperationSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
+                }
+            }
+        }
+        return maxOperationSizeInBytes;
     }
 
     public BulkItemRequest[] items() {
@@ -130,11 +191,17 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
             throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
         }
+        boolean supportsBatch = out.getTransportVersion().supports(BULK_SHARD_BATCH);
+        if (supportsBatch == false && bulkShardBatch != null) {
+            throw new IllegalStateException("BulkShardBatch should not be set when transport version does not support it");
+        }
         super.writeTo(out);
         out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(isSimulated);
+        out.writeBoolean(isSimulated);
+        if (supportsBatch) {
+            out.writeOptionalWriteable(bulkShardBatch);
         }
+        writeReshardSplitAwareSummary(out, splitShardCountSummary);
     }
 
     @Override
@@ -180,12 +247,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     @Override
-    public void onRetry() {
+    public void onRetry(boolean possiblyExecuted) {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
-                ((ReplicationRequest<?>) item.request()).onRetry();
+                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
             }
         }
     }
@@ -197,6 +264,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public long largestOperationSize() {
+        long maxOperationSize = 0;
+        for (BulkItemRequest item : items) {
+            maxOperationSize = Math.max(maxOperationSize, item.ramBytesUsed());
+        }
+        return maxOperationSize;
     }
 
     public boolean isSimulated() {

@@ -1,0 +1,7 @@
+FROM (FROM employees | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+, (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+, (FROM sample_data | STATS max(@timestamp))
+| WHERE emp_no > 10000
+| STATS count(*) by emp_no, language_code
+| RENAME emp_no AS empNo, language_code AS languageCode
+| MV_EXPAND languageCode

@@ -1,0 +1,2 @@
+FROM employees
+| INLINE STATS s1 = SUM(emp_no + 1), s2 = SUM(emp_no + 2)

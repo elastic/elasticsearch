@@ -1,0 +1,18 @@
+# Minimal custom regex file for testing the USER_AGENT command's regex_file option.
+# This file intentionally uses a simplified set of patterns that produce different
+# results than the default uap-core regexes, so tests can verify the custom file
+# was actually loaded and used.
+#
+# Differences from the default parser for the Chrome UA string used in tests:
+#   - name: "Custom Chrome" instead of "Chrome"
+
+user_agent_parsers:
+  - regex: '(Chrome)/(\d+)\.(\d+)\.(\d+)\.(\d+)'
+    family_replacement: 'Custom Chrome'
+
+os_parsers:
+  - regex: 'Intel (Mac OS X) (\d+)[_.](\d+)(?:[_.](\d+)|)'
+
+device_parsers:
+  - regex: '(Macintosh)'
+    device_replacement: 'Mac'

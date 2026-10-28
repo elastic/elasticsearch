@@ -1,67 +1,78 @@
 {
-  "reindex":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
-      "description":"Allows to copy documents from one index to another, optionally filtering the source\ndocuments by a query, changing the destination index settings, or fetching the\ndocuments from a remote cluster."
+  "reindex": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex",
+      "description": "Reindex documents"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_reindex",
-          "methods":[
+          "path": "/_reindex",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "refresh":{
-        "type":"boolean",
-        "description":"Should the affected indexes be refreshed?"
+    "params": {
+      "refresh": {
+        "type": "boolean",
+        "default": false,
+        "description": "Should the affected indexes be refreshed?"
       },
-      "timeout":{
-        "type":"time",
-        "default":"1m",
-        "description":"Time each individual bulk request should wait for shards that are unavailable."
+      "timeout": {
+        "type": "time",
+        "default": "1m",
+        "description": "Time each individual bulk request should wait for shards that are unavailable."
       },
-      "wait_for_active_shards":{
-        "type":"string",
-        "description":"Sets the number of shard copies that must be active before proceeding with the reindex operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
+      "wait_for_active_shards": {
+        "type": "string",
+        "default": "1",
+        "description": "Sets the number of shard copies that must be active before proceeding with the reindex operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
-      "wait_for_completion":{
-        "type":"boolean",
-        "default":true,
-        "description":"Should the request should block until the reindex is complete."
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": true,
+        "description": "Should the request should block until the reindex is complete."
       },
-      "requests_per_second":{
-        "type":"number",
-        "default":0,
-        "description":"The throttle to set on this request in sub-requests per second. -1 means no throttle."
+      "requests_per_second": {
+        "type": "number",
+        "default": -1,
+        "description": "The throttle to set on this request in sub-requests per second. -1 means no throttle."
       },
-      "scroll":{
-        "type":"time",
-        "description":"Control how long to keep the search context alive",
-        "default":"5m"
+      "scroll": {
+        "type": "time",
+        "description": "Control how long to keep the search context alive",
+        "default": "5m"
       },
-      "slices":{
-        "type":"number|string",
-        "default":1,
-        "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
+      "slices": {
+        "type": "number|string",
+        "default": 1,
+        "description": "The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       },
-      "max_docs":{
-        "type":"number",
-        "description":"Maximum number of documents to process (default: all documents)"
+      "max_docs": {
+        "type": "int",
+        "description": "Maximum number of documents to process (default: all documents)"
+      },
+      "require_alias": {
+        "type": "boolean",
+        "default": false,
+        "description": "When true, requires destination to be an alias."
       }
     },
-    "body":{
-      "description":"The search definition using the Query DSL and the prototype for the index request.",
-      "required":true
+    "body": {
+      "description": "The search definition using the Query DSL and the prototype for the index request.",
+      "required": true
     }
   }
 }

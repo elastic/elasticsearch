@@ -11,7 +11,10 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -31,6 +34,18 @@ import static java.util.stream.Collectors.joining;
 public class HealthIndicatorDisplayValues {
 
     /**
+     * Formats a snapshot repository name for health indicator details and diagnoses.
+     * In multi-project clusters the name is qualified as {@code <project ID>/<repository name>} so that
+     * repositories with the same name in different projects remain distinguishable.
+     */
+    public static String getRepositoryDisplayName(@Nullable ProjectId projectId, String repositoryName, boolean supportsMultipleProjects) {
+        if (supportsMultipleProjects && projectId != null) {
+            return projectId.id() + "/" + repositoryName;
+        }
+        return repositoryName;
+    }
+
+    /**
      * Formats the display name of a discovery node in the following way:
      * - [id][name] or
      * - [id] if name is null
@@ -47,11 +62,34 @@ public class HealthIndicatorDisplayValues {
      * logging or user messages. The indices are sorted by priority and then by name to ensure a
      * deterministic message. If there are more indices than 10, it adds the '...' suffix.
      */
+    @Deprecated
     public static String getTruncatedIndices(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
         String truncatedIndicesString = indices.stream()
             .sorted(indicesComparatorByPriorityAndName(clusterMetadata))
             .limit(maxIndices)
+            .collect(joining(", "));
+        if (maxIndices < indices.size()) {
+            truncatedIndicesString = truncatedIndicesString + ", ...";
+        }
+        return truncatedIndicesString;
+    }
+
+    /**
+     * Creates a string that displays max 10 indices from the given set to be used as examples in
+     * logging or user messages. The indices are sorted by priority and then by name to ensure a
+     * deterministic message. If there are more indices than 10, it adds the '...' suffix.
+     */
+    public static String getTruncatedProjectIndices(
+        Set<ProjectIndexName> indices,
+        Metadata clusterMetadata,
+        boolean supportsMultipleProjects
+    ) {
+        final int maxIndices = 10;
+        String truncatedIndicesString = indices.stream()
+            .sorted(indicesComparatorByPriorityAndProjectIndex(clusterMetadata, supportsMultipleProjects))
+            .limit(maxIndices)
+            .map(projectIndexName -> projectIndexName.toString(supportsMultipleProjects))
             .collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
@@ -119,11 +157,31 @@ public class HealthIndicatorDisplayValues {
      * @param clusterMetadata Used to look up index priority.
      * @return Comparator instance
      */
+    @Deprecated
     public static Comparator<String> indicesComparatorByPriorityAndName(Metadata clusterMetadata) {
         // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
         return Comparator.comparingInt((String indexName) -> {
-            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            IndexMetadata indexMetadata = clusterMetadata.getProject().index(indexName);
             return indexMetadata == null ? -1 : indexMetadata.priority();
         }).reversed().thenComparing(Comparator.naturalOrder());
+    }
+
+    /**
+     * Sorts index names by their priority first, then alphabetically by name. If the priority cannot be determined for an index then
+     * a priority of -1 is used to sort it behind other index names.
+     * @param clusterMetadata Used to look up index priority.
+     * @param supportsMultipleProjects Whether cluster supports multi-project
+     * @return Comparator instance
+     */
+    public static Comparator<ProjectIndexName> indicesComparatorByPriorityAndProjectIndex(
+        Metadata clusterMetadata,
+        boolean supportsMultipleProjects
+    ) {
+        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
+        return Comparator.comparingInt((ProjectIndexName projectIndexName) -> {
+            ProjectMetadata projectMetadata = clusterMetadata.getProject(projectIndexName.projectId());
+            IndexMetadata indexMetadata = projectMetadata.index(projectIndexName.indexName());
+            return indexMetadata == null ? -1 : indexMetadata.priority();
+        }).reversed().thenComparing(projectIndex -> projectIndex.toString(supportsMultipleProjects));
     }
 }

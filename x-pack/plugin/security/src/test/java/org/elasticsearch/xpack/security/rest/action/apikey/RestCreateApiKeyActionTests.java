@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -49,9 +52,8 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         settings = Settings.builder()
             .put("path.home", createTempDir().toString())
             .put("node.name", "test-" + getTestName())
@@ -60,9 +62,8 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
         threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 
@@ -89,7 +90,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
             Instant.now().plus(Duration.ofHours(5))
         );
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

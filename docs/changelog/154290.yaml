@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147671
+pr: 154290
+summary: Allow constant expressions on LIKE/RLIKE RHS
+type: enhancement

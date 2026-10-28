@@ -9,14 +9,14 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
-
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
 public abstract class RankVectorsDocValuesField extends AbstractScriptFieldFactory<RankVectors>
     implements
@@ -38,6 +38,10 @@ public abstract class RankVectorsDocValuesField extends AbstractScriptFieldFacto
 
     public ElementType getElementType() {
         return elementType;
+    }
+
+    public Element getElement() {
+        return Element.getElement(elementType);
     }
 
     /**

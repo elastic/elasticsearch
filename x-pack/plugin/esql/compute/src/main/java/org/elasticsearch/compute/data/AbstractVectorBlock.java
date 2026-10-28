@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 /**
  * A Block view of a Vector.
  */
-abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted implements Block {
+abstract class AbstractVectorBlock extends AbstractBlockRefCounted implements Block {
 
     @Override
     public final int getFirstValueIndex(int position) {

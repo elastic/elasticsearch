@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
@@ -26,12 +23,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConf
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractWireSerializingTransformTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
+public abstract class AbstractWireSerializingTransformTestCase<T extends Writeable> extends AbstractBWCWireSerializationTestCase<T> {
     /**
      * Test case that ensures aggregation named objects are registered
      */
@@ -78,21 +74,8 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
         return namedXContentRegistry;
     }
 
-    protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
-        X original,
-        NamedWriteableRegistry registry,
-        Writeable.Writer<X> writer,
-        Writeable.Reader<Y> reader,
-        TransportVersion version
-    ) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(version);
-            original.writeTo(output);
-
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(version);
-                return reader.read(in);
-            }
-        }
+    @Override
+    protected T mutateInstanceForVersion(T instance, TransportVersion version) {
+        return instance;
     }
 }

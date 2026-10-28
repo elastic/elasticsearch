@@ -79,7 +79,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.WRITE) || name.equals(Names.SYSTEM_WRITE) || name.equals(Names.SYSTEM_CRITICAL_WRITE)) {
+        if (name.equals(ThreadPool.Names.WRITE)
+            || name.equals(Names.SYSTEM_WRITE)
+            || name.equals(Names.SYSTEM_CRITICAL_WRITE)
+            || name.equals(Names.WRITE_COORDINATION)
+            || name.equals(Names.SYSTEM_WRITE_COORDINATION)) {
             return Math.min(size, EsExecutors.allocatedProcessors(settings));
         } else {
             return size;
@@ -142,7 +146,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
             threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-            assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
+            assertEquals(info(threadPool, threadPoolName).getQueueSize(), (Long) 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);
@@ -205,7 +209,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                     assertThat(info.getMin(), equalTo(1));
                     assertThat(info.getMax(), equalTo(1));
-                    assertThat(info.getQueueSize().singles(), equalTo(1L));
+                    assertThat(info.getQueueSize(), equalTo(1L));
                 } else {
                     for (Field field : Names.class.getFields()) {
                         if (info.getName().equalsIgnoreCase(field.getName())) {

@@ -26,6 +26,6 @@ public abstract class LeafPointFieldData<T extends MultiPointValues<? extends Sp
      * A point is encoded as a long that can be decoded by using
      * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
      */
-    public abstract SortedNumericDocValues getSortedNumericDocValues();
+    public abstract SortedNumericLongValues getSortedNumericLongValues();
 
 }

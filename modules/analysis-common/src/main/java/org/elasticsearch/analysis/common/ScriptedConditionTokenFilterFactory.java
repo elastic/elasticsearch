@@ -58,6 +58,14 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     @Override
+    public Object sharingKey() {
+        // Identity: the filters named in [filter] are resolved against the index's own filter map and need
+        // not appear in the analyzer's chain, so the analyzer key does not cover them. Keying on the names
+        // would let two indices whose same-named filters differ share one analyzer.
+        return this;
+    }
+
+    @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
         IndexCreationContext context,
         TokenizerFactory tokenizer,
@@ -65,6 +73,9 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
+        // Guard against a filter referring to itself (directly or via a cycle), which would otherwise
+        // recurse until the stack overflows and takes the node down.
+        allFilters = ReferringFilterResolver.enter(name(), allFilters);
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
         for (String filter : filterNames) {

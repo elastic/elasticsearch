@@ -25,7 +25,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -211,13 +211,13 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     @SuppressWarnings("deprecation") // GeneralScriptException
     public void testDetectMissingParam() {
-        Map<String, String> scriptOptions = Map.ofEntries(Map.entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true"));
+        Map<String, String> scriptOptions = Map.of(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true");
 
         // fails when a param is missing and the DETECT_MISSING_PARAMS_OPTION option is set to true.
         {
             String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
             TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
-            Map<String, Object> params = Collections.emptyMap();
+            Map<String, Object> params = Map.of();
             GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
             assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
             assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
@@ -236,7 +236,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         {
             String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
             TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
-            Map<String, Object> params = Map.ofEntries(Map.entry("query_string", "foo"));
+            Map<String, Object> params = Map.of("query_string", "foo");
             assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
         }
 
@@ -247,16 +247,68 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> params = Map.of();
             assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
         }
+
+        // works as expected when nested params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of("string", "foo"));
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // fails when nested param is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query.string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of("query", Map.of());
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query.string] is missing"));
+        }
+
+        // key present with a null value must not throw — null is a valid present value, not a missing param.
+        {
+            String source = "{{field}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = new HashMap<>();
+            params.put("field", null);
+            assertThat(compiled.newInstance(params).execute(), equalTo(""));
+        }
+
+        // null intermediate in a dot path: the first component is found but cannot be traversed, so throws.
+        {
+            String source = "{{foo.bar}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = new HashMap<>();
+            params.put("foo", null);
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [foo.bar] is missing"));
+        }
+
+        // leaf key present with null value in a dot path must not throw — the key exists, the value happens to be null.
+        {
+            String source = "{{foo.bar}}";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> inner = new HashMap<>();
+            inner.put("bar", null);
+            assertThat(compiled.newInstance(Map.of("foo", inner)).execute(), equalTo(""));
+        }
     }
 
     public void testMissingParam() {
-        Map<String, String> scriptOptions = Collections.emptyMap();
+        Map<String, String> scriptOptions = Map.of();
         String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
         TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
 
         // When the DETECT_MISSING_PARAMS_OPTION is not specified, missing variable is replaced with an empty string.
-        assertThat(compiled.newInstance(Collections.emptyMap()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        assertThat(compiled.newInstance(Map.of()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
         assertThat(compiled.newInstance(null).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+
+        // A key present with a null value also renders as an empty string.
+        Map<String, Object> paramsWithNull = new HashMap<>();
+        paramsWithNull.put("query_string", null);
+        assertThat(compiled.newInstance(paramsWithNull).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
@@ -298,7 +350,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     /**
      * BWC test for some odd reflection edge-cases. It's not really expected that customer code would be exercising this,
      * but maybe it's out there! Who knows!?
-     *
+     * <p>
      * If we change this, we should *know* that we're changing it.
      */
     public void testReflection() {
@@ -342,7 +394,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
-    public void testEscapeJson() throws IOException {
+    public void testEscapeJson() {
         {
             StringWriter writer = new StringWriter();
             factory.encode("hello \n world", writer);
@@ -423,7 +475,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             ex.getCause().getCause(),
             allOf(
                 instanceOf(SizeLimitingStringWriter.SizeLimitExceededException.class),
-                transformedMatch(Throwable::getMessage, endsWith("has exceeded the size limit [1024]"))
+                transformedMatch(Throwable::getMessage, endsWith("has size [1030] which exceeds the size limit [1024]"))
             )
         );
     }
@@ -440,7 +492,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     /**
      * From https://www.ietf.org/rfc/rfc4627.txt:
-     *
+     * <p>
      * All Unicode characters may be placed within the
      * quotation marks except for the characters that must be escaped:
      * quotation mark, reverse solidus, and the control characters (U+0000

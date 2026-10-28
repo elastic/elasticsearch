@@ -243,7 +243,7 @@ class MlMemoryAutoscalingDecider {
             logger.debug(
                 () -> format(
                     "persistent tasks that caused unexpected scaling situation: [%s]",
-                    (mlContext.persistentTasks == null) ? "null" : Strings.toString(mlContext.persistentTasks)
+                    (mlContext.persistentTasks == null) ? "null" : Strings.toTruncatedString(mlContext.persistentTasks)
                 )
             );
             return refreshMemoryTrackerAndBuildEmptyDecision(
@@ -851,7 +851,7 @@ class MlMemoryAutoscalingDecider {
      */
     Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(Collection<DiscoveryNode> mlNodes, ClusterState clusterState) {
         return calculateFutureAvailableCapacity(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
+            clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
             mlNodes.stream()
                 .map(node -> nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto))
                 .toList()

@@ -11,26 +11,39 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
-import java.util.Set;
+import java.util.List;
+import java.util.concurrent.Callable;
+
+import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask.BUNDLED_SIGNATURE_DEFAULTS;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
+
+    private final JavaToolchainService javaToolchains;
+
+    @Inject
+    public ForbiddenApisPrecommitPlugin(JavaToolchainService javaToolchains) {
+        this.javaToolchains = javaToolchains;
+    }
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(JavaBasePlugin.class);
-        var buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        var buildParams = loadBuildParams(project).get();
         // Create a convenience task for all checks (this does not conflict with extension, as it has higher priority in DSL):
         var forbiddenTask = project.getTasks()
             .register(FORBIDDEN_APIS_TASK_NAME, task -> { task.setDescription("Runs forbidden-apis checks."); });
@@ -45,7 +58,10 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
+            t.copy("forbidden/http-signatures-hc5.txt");
             t.copy("forbidden/es-server-signatures.txt");
+            t.copy("forbidden/jdk-foreign-signatures.txt");
+            t.copy("forbidden/jdk-foreign-signatures22.txt");
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {
@@ -58,7 +74,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
                 t.setTargetCompatibility(buildParams.getMinimumRuntimeVersion().getMajorVersion());
-                t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
+                t.setBundledSignatures(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(
                     project.files(
                         resourcesDir.toPath().resolve("forbidden/jdk-signatures.txt"),
@@ -66,7 +82,12 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         resourcesDir.toPath().resolve("forbidden/jdk-deprecated.txt")
                     )
                 );
-                t.getSuppressAnnotations().set(Set.of("**.SuppressForbidden"));
+                t.setSuppressAnnotations(List.of("**.SuppressForbidden"));
+                if (buildParams.getMinimumRuntimeVersion().equals(JavaVersion.current()) == false) {
+                    t.getJavaLauncher().set(javaToolchains.launcherFor(spec -> {
+                        spec.getLanguageVersion().set(JavaLanguageVersion.of(buildParams.getMinimumRuntimeVersion().getMajorVersion()));
+                    }));
+                }
                 if (t.getName().endsWith("Test")) {
                     t.setSignaturesFiles(
                         t.getSignaturesFiles()
@@ -82,6 +103,19 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                         t.getSignaturesFiles().plus(project.files(resourcesDir.toPath().resolve("forbidden/es-server-signatures.txt")))
                     );
                 }
+
+                // Lazily check graph-only (no transforms) to conditionally add hc5 signatures
+                String runtimeConfigName = sourceSet.getRuntimeClasspathConfigurationName();
+                t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files((Callable<List<File>>) () -> {
+                    var config = project.getConfigurations().findByName(runtimeConfigName);
+                    boolean hasHc5 = config != null
+                        && config.getIncoming()
+                            .getResolutionResult()
+                            .getAllComponents()
+                            .stream()
+                            .anyMatch(r -> r.getModuleVersion() != null && "httpcore5".equals(r.getModuleVersion().getName()));
+                    return hasHc5 ? List.of(resourcesDir.toPath().resolve("forbidden/http-signatures-hc5.txt").toFile()) : List.of();
+                })));
             });
             forbiddenTask.configure(t -> t.dependsOn(sourceSetTask));
         });

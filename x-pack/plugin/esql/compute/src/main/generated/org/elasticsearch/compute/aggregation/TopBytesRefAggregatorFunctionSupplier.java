@@ -15,27 +15,35 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class TopBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int limit;
 
   private final boolean ascending;
 
-  public TopBytesRefAggregatorFunctionSupplier(List<Integer> channels, int limit,
-      boolean ascending) {
-    this.channels = channels;
+  public TopBytesRefAggregatorFunctionSupplier(int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
   }
 
   @Override
-  public TopBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
-    return TopBytesRefAggregatorFunction.create(driverContext, channels, limit, ascending);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopBytesRefAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public TopBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return TopBytesRefGroupingAggregatorFunction.create(channels, driverContext, limit, ascending);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public TopBytesRefAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new TopBytesRefAggregatorFunction(driverContext, channels, limit, ascending);
+  }
+
+  @Override
+  public TopBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new TopBytesRefGroupingAggregatorFunction(channels, driverContext, limit, ascending);
   }
 
   @Override

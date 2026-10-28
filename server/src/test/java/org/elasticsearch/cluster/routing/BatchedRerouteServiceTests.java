@@ -193,7 +193,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         assertTrue(rerouteExecuted.get()); // see above for assertion that it's only called once
     }
 
-    public void testNotifiesOnFailure() throws InterruptedException {
+    public void testNotifiesOnFailure() {
 
         final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
             if (rarely()) {
@@ -203,40 +203,45 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             return randomBoolean() ? s : ClusterState.builder(s).build();
         });
 
-        final int iterations = between(1, 100);
-        final CountDownLatch countDownLatch = new CountDownLatch(iterations);
-        for (int i = 0; i < iterations; i++) {
-            batchedRerouteService.reroute(
-                "iteration " + i,
-                randomFrom(EnumSet.allOf(Priority.class)),
-                ActionListener.runAfter(ActionListener.wrap(r -> {
-                    if (rarely()) {
-                        throw new ElasticsearchException("failure during notification");
-                    }
-                }, e -> {}), countDownLatch::countDown)
-            );
-            if (rarely()) {
-                clusterService.getMasterService()
-                    .setClusterStatePublisher(
-                        randomBoolean()
-                            ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
-                            : (event, publishListener, ackListener) -> publishListener.onFailure(
-                                new FailedToCommitClusterStateException("simulated")
-                            )
-                    );
+        BatchedRerouteService.allowRerouteExceptions = true;
+        try {
+            final int iterations = between(1, 100);
+            final CountDownLatch countDownLatch = new CountDownLatch(iterations);
+            for (int i = 0; i < iterations; i++) {
+                batchedRerouteService.reroute(
+                    "iteration " + i,
+                    randomFrom(EnumSet.allOf(Priority.class)),
+                    ActionListener.runAfter(ActionListener.wrap(r -> {
+                        if (rarely()) {
+                            throw new ElasticsearchException("failure during notification");
+                        }
+                    }, e -> {}), countDownLatch::countDown)
+                );
+                if (rarely()) {
+                    clusterService.getMasterService()
+                        .setClusterStatePublisher(
+                            randomBoolean()
+                                ? ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService())
+                                : (event, publishListener, ackListener) -> publishListener.onFailure(
+                                    new FailedToCommitClusterStateException("simulated")
+                                )
+                        );
+                }
+
+                if (rarely()) {
+                    clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
+                        ClusterState state = clusterService.state();
+                        return ClusterState.builder(state)
+                            .nodes(state.nodes().withMasterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
+                            .build();
+                    }, ActionListener.noop());
+                }
             }
 
-            if (rarely()) {
-                clusterService.getClusterApplierService().onNewClusterState("simulated", () -> {
-                    ClusterState state = clusterService.state();
-                    return ClusterState.builder(state)
-                        .nodes(state.nodes().withMasterNodeId(randomBoolean() ? null : state.nodes().getLocalNodeId()))
-                        .build();
-                }, ActionListener.noop());
-            }
+            safeAwait(countDownLatch); // i.e. it doesn't leak any listeners
+        } finally {
+            BatchedRerouteService.allowRerouteExceptions = false;
         }
-
-        safeAwait(countDownLatch); // i.e. it doesn't leak any listeners
     }
 
     @TestLogging(reason = "testing log output", value = "org.elasticsearch.cluster.routing.BatchedRerouteService:DEBUG")
@@ -264,12 +269,20 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 throw new ElasticsearchException("simulated");
             });
             final var rerouteFailureFuture = new PlainActionFuture<Void>();
-            failingRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), rerouteFailureFuture);
-            assertThat(
-                expectThrows(ExecutionException.class, ElasticsearchException.class, () -> rerouteFailureFuture.get(10, TimeUnit.SECONDS))
-                    .getMessage(),
-                equalTo("simulated")
-            );
+            try {
+                BatchedRerouteService.allowRerouteExceptions = true;
+                failingRerouteService.reroute("publish failure", randomFrom(EnumSet.allOf(Priority.class)), rerouteFailureFuture);
+                assertThat(
+                    expectThrows(
+                        ExecutionException.class,
+                        ElasticsearchException.class,
+                        () -> rerouteFailureFuture.get(10, TimeUnit.SECONDS)
+                    ).getMessage(),
+                    equalTo("simulated")
+                );
+            } finally {
+                BatchedRerouteService.allowRerouteExceptions = false;
+            }
             mockLog.assertAllExpectationsMatched();
 
             // None of the other cases should yield any log messages by default
@@ -296,7 +309,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "publish failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "unexpected failure"
+                    "publication failure"
                 )
             );
 
@@ -321,7 +334,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     "not-master failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
-                    "unexpected failure"
+                    "publication failure"
                 )
             );
             final var notMasterFuture = new PlainActionFuture<Void>();
@@ -330,5 +343,27 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    public void testDoesNotReadClusterStateFromClusterApplierThreadOnRejection() {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r, l) -> {
+            l.onResponse(null);
+            return s;
+        });
+
+        final PlainActionFuture<Void> rerouteFuture = new PlainActionFuture<>();
+        clusterService.addStateApplier(
+            event -> batchedRerouteService.reroute("from applier", randomFrom(EnumSet.allOf(Priority.class)), rerouteFuture)
+        );
+
+        clusterService.getMasterService().stop();
+        clusterService.getClusterApplierService()
+            .onNewClusterState(
+                "simulated",
+                () -> ClusterState.builder(clusterService.state()).version(clusterService.state().version() + 1).build(),
+                ActionListener.noop()
+            );
+
+        expectThrows(ExecutionException.class, NotMasterException.class, () -> rerouteFuture.get(10, TimeUnit.SECONDS));
     }
 }

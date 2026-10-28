@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
@@ -179,7 +181,27 @@ public interface RuntimeField extends ToXContentFragment {
                 }
                 Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on runtime field [" + fieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on runtime field ["
+                            + fieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
+                }
+                if (parserContext.getNamespaceValidator() != null) {
+                    parserContext.getNamespaceValidator().validateNamespace(null, fieldName);
+                }
+                if (parserContext.getIndexSettings().isSliceEnabled() && SliceIndexing.isReservedFieldName(fieldName)) {
+                    throw new MapperParsingException(
+                        "["
+                            + fieldName
+                            + "] is a reserved field name and cannot be used when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
                 }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");

@@ -66,7 +66,7 @@ public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.Opt
         return e;
     }
 
-    private static Expression unwrapCase(Expression e) {
+    static Expression unwrapCase(Expression e) {
         for (; e instanceof ChangeCase cc; e = cc.field()) {
         }
         return e;

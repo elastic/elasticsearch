@@ -37,11 +37,11 @@ public class RankFeatureResult extends SearchPhaseResult {
 
     @SuppressWarnings("this-escape")
     public RankFeatureResult(StreamInput in) throws IOException {
-        super(in);
         contextId = new ShardSearchContextId(in);
         rankShardResult = in.readOptionalWriteable(RankFeatureShardResult::new);
-        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        readShardSearchRequest(in);
         setSearchShardTarget(in.readOptionalWriteable(SearchShardTarget::new));
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -49,8 +49,9 @@ public class RankFeatureResult extends SearchPhaseResult {
         assert hasReferences();
         contextId.writeTo(out);
         out.writeOptionalWriteable(rankShardResult);
-        out.writeOptionalWriteable(getShardSearchRequest());
+        writeShardSearchRequest(out);
         out.writeOptionalWriteable(getSearchShardTarget());
+        writeDirectoryMetrics(out);
     }
 
     @Override

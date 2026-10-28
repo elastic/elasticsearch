@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -19,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,6 +29,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -39,6 +38,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -73,7 +74,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
      */
     @SuppressForbidden(reason = "Uses a HttpServer to emulate a cloud-based storage service")
     protected interface BlobStoreHttpHandler extends HttpHandler {
-        Map<String, BytesReference> blobs();
+        Set<String> blobsKeyset();
     }
 
     private static final byte[] BUFFER = new byte[1024];
@@ -87,11 +88,13 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]");
+        ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory(
+            "[" + ESMockAPIBasedRepositoryIntegTestCase.class.getName() + "]"
+        );
         // the EncryptedRepository can require more than one connection open at one time
         executorService = EsExecutors.newScaling(
             ESMockAPIBasedRepositoryIntegTestCase.class.getName(),
-            0,
+            1,
             2,
             60,
             TimeUnit.SECONDS,
@@ -136,14 +139,14 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
                     h = ((DelegatingHttpHandler) h).getDelegate();
                 }
                 if (h instanceof BlobStoreHttpHandler) {
-                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobs());
+                    assertEmptyRepo(((BlobStoreHttpHandler) h).blobsKeyset());
                 }
             }
         }
     }
 
-    protected static void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
-        List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
+    protected static void assertEmptyRepo(Set<String> blobsKeyset) {
+        List<String> blobs = blobsKeyset.stream().filter(blob -> blob.contains("index") == false).toList();
         assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }
 
@@ -154,7 +157,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * Test the snapshot and restore of an index which has large segments files.
      */
-    public final void testSnapshotWithLargeSegmentFiles() throws Exception {
+    public void testSnapshotWithLargeSegmentFiles() throws Exception {
         final String repository = createRepository(randomRepositoryName());
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
@@ -228,10 +231,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
-        // Since no abort request is made, filter it out from the stats (also ensure it is 0) before comparing to the mock counts
         Map<String, Long> sdkRequestCounts = repositoryStats.actionStats.entrySet()
             .stream()
-            .filter(entry -> false == ("AbortMultipartObject".equals(entry.getKey()) && entry.getValue().requests() == 0L))
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().requests()));
 
         final Map<String, Long> mockCalls = getMockRequestCounts();
@@ -262,6 +263,21 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
+    protected static String httpServerUrlLocalhost() {
+        return "http://" + serverUrlLocalhost();
+    }
+
+    protected static String serverUrlLocalhost() {
+        InetSocketAddress address = httpServer.getAddress();
+        // Use "localhost" for loopback addresses to avoid issues with IPv6 addresses
+        // in URLs that some SDKs (like Azure) cannot properly parse
+        InetAddress inetAddress = address.getAddress();
+        String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
+            ? "localhost"
+            : InetAddresses.toUriString(inetAddress);
+        return host + ":" + address.getPort();
+    }
+
     /**
      * Consumes and closes the given {@link InputStream}
      */
@@ -283,7 +299,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         // value is the number of times the request has been seen
         private final Map<String, AtomicInteger> requests;
 
-        private final HttpHandler delegate;
+        protected final HttpHandler delegate;
         private final int maxErrorsPerRequest;
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
@@ -291,7 +307,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             this.requests = new ConcurrentHashMap<>();
             this.delegate = delegate;
             this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+            assert maxErrorsPerRequest > 0;
         }
 
         @Override
@@ -347,7 +363,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * HTTP handler that allows collect request stats per request type.
      *
-     * Implementors should keep track of the desired requests on {@link #maybeTrack(String, Headers)}.
+     * Implementors should keep track of the desired requests on {@link #maybeTrack(HttpExchange)}.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
@@ -356,8 +372,11 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         private final Map<String, Long> operationCount = new HashMap<>();
 
-        public HttpStatsCollectorHandler(HttpHandler delegate) {
+        public HttpStatsCollectorHandler(HttpHandler delegate, String[] operations) {
             this.delegate = delegate;
+            for (String operation : operations) {
+                operationCount.put(operation, 0L);
+            }
         }
 
         @Override
@@ -370,15 +389,12 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
 
         protected synchronized void trackRequest(final String requestType) {
-            operationCount.put(requestType, operationCount.getOrDefault(requestType, 0L) + 1);
+            operationCount.put(requestType, operationCount.get(requestType) + 1);
         }
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-
-            maybeTrack(request, exchange.getRequestHeaders());
-
+            maybeTrack(exchange);
             delegate.handle(exchange);
         }
 
@@ -388,10 +404,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
          * The request is represented as:
          * Request = Method SP Request-URI
          *
-         * @param request the request to be tracked if it matches the criteria
-         * @param requestHeaders the http request headers
+         * @param exchange the exchange to possibly track
          */
-        protected abstract void maybeTrack(String request, Headers requestHeaders);
+        protected abstract void maybeTrack(HttpExchange exchange);
     }
 
     /**

@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
@@ -41,7 +40,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -50,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -81,7 +78,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> verify meta _routing required exists");
-        MappingMetadata mappingMd = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").mapping();
+        MappingMetadata mappingMd = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index("test")
+            .mapping();
         assertThat(mappingMd.routingRequired(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -91,7 +94,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").mapping();
+        mappingMd = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject().index("test").mapping();
         assertThat(mappingMd.routingRequired(), equalTo(true));
     }
 
@@ -108,7 +111,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -122,7 +125,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test"));
 
         stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> verifying that the state is green");
@@ -148,7 +151,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -162,7 +165,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
         stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> restarting nodes...");
@@ -171,7 +174,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> trying to index into a closed index ...");
@@ -189,7 +192,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
@@ -230,7 +233,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify we have an index");
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("test").get();
-        assertThat(clusterStateResponse.getState().metadata().hasIndex("test"), equalTo(true));
+        assertThat(clusterStateResponse.getState().metadata().getProject().hasIndex("test"), equalTo(true));
     }
 
     public void testJustMasterNodeAndJustDataNode() {
@@ -272,7 +275,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareClose("test"));
 
         ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(stateResponse.getState().metadata().getProject().index("test").getState(), equalTo(IndexMetadata.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), notNullValue());
 
         logger.info("--> opening the index...");
@@ -377,39 +380,23 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
-        final IndexMetadata metadata = state.getMetadata().index("test");
+        final IndexMetadata metadata = state.getMetadata().getProject().index("test");
         final IndexMetadata.Builder brokenMeta = IndexMetadata.builder(metadata)
             .settings(
                 Settings.builder()
                     .put(metadata.getSettings())
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_COMPATIBLE)
-                    // this is invalid but should be archived
-                    .put("index.similarity.BM25.type", "boolean")
                     // this one is not validated ahead of time and breaks allocation
                     .put("index.analysis.filter.myCollator.type", "icu_collation")
             );
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        assertBusy(() -> {
-            final RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
-            final IndexRoutingTable indexRoutingTable = routingTable.index("test");
-            assertNotNull(indexRoutingTable);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                assertTrue(shardRoutingTable.primaryShard().unassigned());
-                assertEquals(
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
-                );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
-            }
-        }, 60, TimeUnit.SECONDS);
+        awaitFailedAllocations("test");
         indicesAdmin().prepareClose("test").get();
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().index(metadata.getIndex()).getState());
-        assertEquals("boolean", state.getMetadata().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
+        assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().getProject().index(metadata.getIndex()).getState());
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
@@ -454,26 +441,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
-        final IndexMetadata metadata = state.getMetadata().index("test");
+        final IndexMetadata metadata = state.getMetadata().getProject().index("test");
         final IndexMetadata.Builder brokenMeta = IndexMetadata.builder(metadata)
             .settings(metadata.getSettings().filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false));
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        assertBusy(() -> {
-            final RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
-            final IndexRoutingTable indexRoutingTable = routingTable.index("test");
-            assertNotNull(indexRoutingTable);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                assertTrue(shardRoutingTable.primaryShard().unassigned());
-                assertEquals(
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
-                );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
-            }
-        }, 60, TimeUnit.SECONDS);
+        awaitFailedAllocations("test");
         indicesAdmin().prepareClose("test").get();
 
         // try to open it with the broken setting - fail again!
@@ -531,6 +505,30 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             state.metadata().persistentSettings().get("archived." + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey())
         );
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
+    }
+
+    private void awaitFailedAllocations(String indexName) {
+        awaitClusterState(state -> {
+            IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
+            if (indexRoutingTable == null) {
+                return false;
+            }
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+                if (shardRoutingTable.primaryShard().assignedToNode()) {
+                    return false;
+                }
+                if (shardRoutingTable.primaryShard()
+                    .unassignedInfo()
+                    .lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                    return false;
+                }
+                if (shardRoutingTable.primaryShard().unassignedInfo().failedAllocations() <= 0) {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 
 }

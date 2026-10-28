@@ -14,16 +14,23 @@ import java.io.IOException;
 public class MinSerializationTests extends AbstractExpressionSerializationTests<Min> {
     @Override
     protected Min createTestInstance() {
-        return new Min(randomSource(), randomChild());
+        return new Min(randomSource(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * {@code createTestInstance} randomizes the non-finite flag, so a single generic round-trip only exercises one of
+     * the two forms; this covers both.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        Min nonFinite = new Min(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(nonFinite).allowNonFinite());
+
+        Min strict = new Min(randomSource(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override
     protected Min mutateInstance(Min instance) throws IOException {
         return new Min(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
-    }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
     }
 }

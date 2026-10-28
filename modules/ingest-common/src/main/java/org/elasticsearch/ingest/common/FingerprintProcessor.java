@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.util.ByteUtils;
@@ -227,7 +228,8 @@ public final class FingerprintProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
             if (fields.size() < 1) {

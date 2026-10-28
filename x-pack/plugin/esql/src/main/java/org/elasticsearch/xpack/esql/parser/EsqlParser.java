@@ -14,24 +14,39 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.TokenSource;
+import org.antlr.v4.runtime.VocabularyImpl;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
+import java.util.EmptyStackException;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
+
+    /** Maximum number of commands in a statement when the caller does not provide one. */
+    public static final int DEFAULT_MAX_COMMAND_COUNT = QueryPragmas.MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
@@ -44,37 +59,179 @@ public class EsqlParser {
      */
     public static final int MAX_LENGTH = 1_000_000;
 
-    private EsqlConfig config = new EsqlConfig();
-
-    public EsqlConfig config() {
-        return config;
+    private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
+        for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
+            String symName = symbolicNames[i];
+            if (symName != null) {
+                String replacement = symbolReplacements.get(symName);
+                if (replacement != null && literalNames[i] == null) {
+                    // literals are single quoted
+                    literalNames[i] = "'" + replacement + "'";
+                    replacements--;
+                }
+            }
+        }
     }
 
-    public void setEsqlConfig(EsqlConfig config) {
+    /**
+     * Add the literal name to a number of tokens that due to ANTLR internals/ATN
+     * have their symbolic name returns instead during error reporting.
+     * When reporting token errors, ANTLR uses the Vocabulary class to get the displayName
+     * (if set), otherwise falls back to the literal one and eventually uses the symbol name.
+     * Since the Vocabulary is static and not pluggable, this code modifies the underlying
+     * arrays by setting the literal string manually based on the token index.
+     * This is needed since some symbols, especially around setting up the mode, end up losing
+     * their literal representation.
+     * NB: this code is highly dependent on the ANTLR internals and thus will likely break
+     * during upgrades.
+     * NB: Can't use this for replacing DEV_ since the Vocabular is static while DEV_ replacement occurs per runtime configuration
+     */
+    static {
+        Map<String, String> symbolReplacements = Map.of("LP", "(", "OPENING_BRACKET", "[");
+
+        // the vocabularies have the same content however are different instances
+        // for extra reliability, perform the replacement for each map
+        VocabularyImpl parserVocab = (VocabularyImpl) EsqlBaseParser.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, parserVocab.getLiteralNames(), parserVocab.getSymbolicNames());
+
+        VocabularyImpl lexerVocab = (VocabularyImpl) EsqlBaseLexer.VOCABULARY;
+        replaceSymbolWithLiteral(symbolReplacements, lexerVocab.getLiteralNames(), lexerVocab.getSymbolicNames());
+    }
+
+    private final EsqlConfig config;
+
+    public EsqlParser(EsqlConfig config) {
         this.config = config;
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query) {
+    public LogicalPlan parseQuery(String query) {
+        return parseQuery(query, new QueryParams());
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params) {
+        return parseQuery(query, params, new InferenceSettings(Settings.EMPTY));
+    }
+
+    // testing utility
+    public LogicalPlan parseQuery(String query, QueryParams params, InferenceSettings inferenceSettings) {
+        if (log.isDebugEnabled()) {
+            log.debug("Parsing as statement: {}", query);
+        }
+        return invokeParser(
+            query,
+            params,
+            inferenceSettings,
+            null,
+            DEFAULT_MAX_COMMAND_COUNT,
+            EsqlBaseParser::singleStatement,
+            AstBuilder::plan
+        );
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query) {
         return createStatement(query, new QueryParams());
     }
 
     // testing utility
-    public LogicalPlan createStatement(String query, QueryParams params) {
-        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
+        return createStatement(query, params, new InferenceSettings(Settings.EMPTY), null, DEFAULT_MAX_COMMAND_COUNT);
     }
 
-    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
+    // testing utility
+    public EsqlStatement createStatement(String query, QueryParams params) {
+        var parsed = parse(query, params, new InferenceSettings(Settings.EMPTY));
+        QuerySettings.validate(parsed, new SettingsValidationContext(false, config.isDevVersion())); // TODO: wire CPS in
+        return parsed;
+    }
+
+    /**
+     * Parses the given query into an {@link EsqlStatement}. Note that query settings (accessible via
+     * {@link EsqlStatement#settings()}) are <em>not</em> validated by this method — the caller is responsible for
+     * performing any necessary validation before using them.
+     */
+    public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings) {
+        return parse(query, params, inferenceSettings, DEFAULT_MAX_COMMAND_COUNT);
+    }
+
+    /**
+     * Like {@link #parse(String, QueryParams, InferenceSettings)}, but with the maximum number of commands the statement may have,
+     * counting the main query and all its subqueries together.
+     */
+    public EsqlStatement parse(String query, QueryParams params, InferenceSettings inferenceSettings, int maxCommandCount) {
+        var parsed = createStatement(query, params, inferenceSettings, null, maxCommandCount);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed logical plan:\n{}", parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        return parsed;
+    }
+
+    /**
+     * Parse a view query with the given view name. The view name is used to tag all Source objects
+     * so they can be correctly deserialized when the view positions exceed the outer query's length.
+     * A view definition may {@code SET} only the settings that are scoped at view boundaries for callers
+     * ({@code unmapped_fields}, {@code wildcards_match_views}, {@code wildcards_match_datasets}); any other
+     * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
+     * definition does not {@code SET} takes its cluster default, such as {@code esql.query.settings.unmapped_fields}, as it
+     * would in a query run on its own; see {@link ViewQuerySettings}.
+     */
+    public EsqlStatement parseView(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount
+    ) {
+        var parsed = createStatement(query, params, inferenceSettings, viewName, maxCommandCount);
+        if (log.isDebugEnabled()) {
+            log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
+            log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
+        }
+        ViewQuerySettings.validate(parsed.settings(), parsed);
+        return parsed;
+    }
+
+    private EsqlStatement createStatement(
+        String query,
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, inferenceSettings, viewName, maxCommandCount, EsqlBaseParser::statements, AstBuilder::statement);
     }
 
+    private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}
+
+    private ParserPipeline createParserPipeline(String query, QueryParams params) {
+        EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        lexer.setEsqlConfig(config);
+        TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
+        CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
+        EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
+        parser.addParseListener(new PostProcessor());
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        parser.setEsqlConfig(config);
+        return new ParserPipeline(tokenStream, parser);
+    }
+
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
     private <T> T invokeParser(
         String query,
         QueryParams params,
-        PlanTelemetry metrics,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        int maxCommandCount,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -82,35 +239,52 @@ public class EsqlParser {
             throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
         try {
-            EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
+            ParserPipeline pipeline = createParserPipeline(query, params);
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
+            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // recursive-descent parser.
+            try {
+                pipeline.tokenStream().fill();
+                int depth = 0;
+                int prefixChain = 0;
+                for (Token token : pipeline.tokenStream().getTokens()) {
+                    switch (token.getType()) {
+                        case EsqlBaseLexer.LP -> depth++;
+                        case EsqlBaseLexer.RP -> depth--;
+                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                        default -> prefixChain = 0;
+                    }
+                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                        throw new ParsingException(
+                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                        );
+                    }
+                }
+            } catch (ParsingException pe) {
+                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
+                    throw pe;
+                }
+                // Lexer error during fill() — rebuild the entire pipeline from scratch so the
+                // parser runs lazily and reports the same error as without this depth check.
+                pipeline = createParserPipeline(query, params);
+            }
 
-            lexer.setEsqlConfig(config);
-
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, params);
-            CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
-            EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor());
-
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
-
-            parser.setEsqlConfig(config);
-
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(pipeline.parser());
 
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
-        } catch (StackOverflowError e) {
+            return result.apply(
+                new AstBuilder(new ExpressionBuilder.ParsingContext(params, inferenceSettings, viewName, maxCommandCount)),
+                tree
+            );
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
+            // likely thrown by an invalid popMode (such as extra closing parenthesis)
+        } catch (EmptyStackException ese) {
+            throw new ParsingException("Invalid query [{}]", query);
         }
     }
 
@@ -141,11 +315,14 @@ public class EsqlParser {
             String message,
             RecognitionException e
         ) {
-            if (recognizer instanceof EsqlBaseParser parser && parser.isDevVersion() == false) {
-                Matcher m = REPLACE_DEV.matcher(message);
-                message = m.replaceAll(StringUtils.EMPTY);
-            }
+            if (recognizer instanceof EsqlBaseParser parser) {
+                Matcher m;
 
+                if (parser.isDevVersion() == false) {
+                    m = REPLACE_DEV.matcher(message);
+                    message = m.replaceAll(StringUtils.EMPTY);
+                }
+            }
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };
@@ -172,7 +349,7 @@ public class EsqlParser {
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
-            if (token.getType() == EsqlBaseLexer.PARAM) {
+            if (token.getType() == EsqlBaseLexer.PARAM || token.getType() == EsqlBaseLexer.DOUBLE_PARAMS) {
                 checkAnonymousParam(token);
                 if (param > params.size()) {
                     throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
@@ -181,8 +358,9 @@ public class EsqlParser {
                 param++;
             }
 
-            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
-                if (isInteger(token.getText().substring(1))) {
+            String nameOrPosition = nameOrPosition(token);
+            if (nameOrPosition.isBlank() == false) {
+                if (isInteger(nameOrPosition)) {
                     checkPositionalParam(token);
                 } else {
                     checkNamedParam(token);

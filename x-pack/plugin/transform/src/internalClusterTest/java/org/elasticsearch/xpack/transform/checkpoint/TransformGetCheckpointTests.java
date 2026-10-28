@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -19,7 +19,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,10 +31,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -46,8 +49,14 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.TransformNode;
+import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -73,7 +82,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Client client;
-    private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
     private String[] testIndices;
@@ -85,10 +93,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private TestTransportGetCheckpointNodeAction getCheckpointNodeAction;
     private ClusterState clusterStateWithIndex;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setupTransportService() throws Exception {
         numberOfNodes = randomIntBetween(1, 10);
         numberOfIndices = randomIntBetween(1, 10);
         // create at least as many shards as nodes, so every node has at least 1 shard
@@ -97,7 +103,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         indexNameExpressionResolver = new MockResolver();
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
-        mockTransport = new MockTransport() {
+        MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
@@ -132,7 +138,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
+            .putCompatibilityVersions("node01", TransportVersion.minimumCompatible(), Map.of())
             .build();
 
         client = mock(Client.class);
@@ -149,12 +155,10 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         getCheckpointNodeAction = new TestTransportGetCheckpointNodeAction();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void cleanupThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
-        super.tearDown();
     }
 
     public void testEmptyCheckpoint() throws InterruptedException {
@@ -163,7 +167,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
@@ -178,7 +184,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
 
         assertCheckpointAction(request, response -> {
@@ -199,7 +207,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             IndicesOptions.LENIENT_EXPAND_OPEN,
             null,
             null,
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueSeconds(5),
+            null,
+            false
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
@@ -218,12 +228,32 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
 
         TestTransportGetCheckpointAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver, client);
+            super(
+                transportService,
+                ActionFilters.EMPTY,
+                indicesService,
+                clusterService,
+                indexNameExpressionResolver,
+                client,
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    DefaultProjectResolver.INSTANCE,
+                    mock(TransformCloudCredentialManager.class),
+                    Clock.systemUTC()
+                ),
+                DefaultProjectResolver.INSTANCE
+            );
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
+            resolveIndicesAndGetCheckpoint(task, request, clusterStateWithIndex, listener);
         }
     }
 
@@ -233,20 +263,19 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         private int calls;
 
         TestTransportGetCheckpointNodeAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService);
+            super(transportService, ActionFilters.EMPTY, indicesService);
             calls = 0;
             mockIndicesService = mock(IndicesService.class);
             for (int i = 0; i < numberOfIndices; ++i) {
                 IndexService mockIndexService = mock(IndexService.class);
-                IndexMetadata indexMeta = clusterStateWithIndex.metadata().index(indexNamePattern + i);
+                IndexMetadata indexMeta = clusterStateWithIndex.metadata().getProject().index(indexNamePattern + i);
 
                 IndexSettings mockIndexSettings = new IndexSettings(indexMeta, clusterService.getSettings());
                 when(mockIndexService.getIndexSettings()).thenReturn(mockIndexSettings);
                 for (int j = 0; j < numberOfShards; ++j) {
                     IndexShard mockIndexShard = mock(IndexShard.class);
                     when(mockIndexService.getShard(j)).thenReturn(mockIndexShard);
-                    SeqNoStats seqNoStats = new SeqNoStats(42 + i + j, 42 + i + j, 42 + i + j);
-                    when(mockIndexShard.seqNoStats()).thenReturn(seqNoStats);
+                    when(mockIndexShard.getLastKnownGlobalCheckpoint()).thenReturn(42L + i + j);
                 }
 
                 when(mockIndicesService.indexServiceSafe(indexMeta.getIndex())).thenReturn(mockIndexService);
@@ -270,17 +299,17 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     static class MockResolver extends IndexNameExpressionResolver {
         MockResolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
         public String[] concreteIndexNames(
-            ClusterState state,
+            ProjectMetadata project,
             IndicesOptions options,
             boolean includeDataStreams,
             String... indexExpressions
@@ -289,7 +318,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        public Index[] concreteIndices(ProjectMetadata project, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

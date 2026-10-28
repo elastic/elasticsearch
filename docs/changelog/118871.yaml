@@ -1,5 +1,0 @@
-pr: 118871
-summary: "[Elastic Inference Service] Add ElasticInferenceService Unified ChatCompletions Integration"
-area: Inference
-type: enhancement
-issues: []

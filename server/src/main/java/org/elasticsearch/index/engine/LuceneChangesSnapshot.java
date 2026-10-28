@@ -10,22 +10,35 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.SourceLoader.SyntheticVectorsLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -41,6 +54,10 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
 
     private int storedFieldsReaderOrd = -1;
     private StoredFieldsReader storedFieldsReader = null;
+    private final SyntheticVectorsLoader syntheticVectorPatchLoader;
+    private SyntheticVectorsLoader.Leaf syntheticVectorPatchLoaderLeaf;
+
+    private final DocValuesOrdinalToRoutingLookup ordinalToRoutingLookup;
 
     private final Thread creationThread; // for assertion
 
@@ -55,7 +72,6 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
-     * @param indexVersionCreated the version on which this index was created
      */
     public LuceneChangesSnapshot(
         MapperService mapperService,
@@ -65,16 +81,19 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
-        this.parallelArray = new ParallelArray(this.searchBatchSize);
+        this.parallelArray = new ParallelArray(this.searchBatchSize, columnarId);
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
+        this.syntheticVectorPatchLoader = mapperService.mappingLookup().syntheticVectorsLoader(null);
+        RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
+        boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
+        this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 
@@ -152,6 +171,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             int readerIndex = 0;
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
+            SortedDocValues routingDocValues = null;
+            BinaryDocValues idDocValues = null;
             for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
@@ -160,6 +181,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         maxDoc = leaf.reader().maxDoc();
                     } while (scoreDoc.doc >= docBase + maxDoc);
                     combinedDocValues = new CombinedDocValues(leaf.reader());
+                    if (ordinalToRoutingLookup != null) {
+                        routingDocValues = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                    }
+                    if (parallelArray.columnarIds != null) {
+                        idDocValues = DocValues.getBinary(leaf.reader(), IdFieldMapper.NAME);
+                    }
                 }
                 final int segmentDocID = scoreDoc.doc - docBase;
                 final int index = scoreDoc.shardIndex;
@@ -170,6 +197,22 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
                 parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
+                if (ordinalToRoutingLookup != null) {
+                    // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
+                    // This why this docId check is required here.
+                    if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+                        parallelArray.routingOrdinals[index] = routingDocValues.ordValue();
+                    } else {
+                        parallelArray.routingOrdinals[index] = -1;
+                    }
+                }
+                if (idDocValues != null) {
+                    if (idDocValues.advanceExact(segmentDocID)) {
+                        parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
+                    } else {
+                        parallelArray.columnarIds[index] = null;
+                    }
+                }
             }
             // now sort back based on the shardIndex. we use this to store the previous index
             if (parallelArray.useSequentialStoredFieldsReader == false) {
@@ -187,12 +230,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return true;
     }
 
-    static int countOperations(Engine.Searcher engineSearcher, long fromSeqNo, long toSeqNo, IndexVersion indexVersionCreated)
+    static int countOperations(Engine.Searcher engineSearcher, IndexSettings indexSettings, long fromSeqNo, long toSeqNo)
         throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        return newIndexSearcher(engineSearcher).count(rangeQuery(fromSeqNo, toSeqNo, indexVersionCreated));
+        return newIndexSearcher(engineSearcher).count(rangeQuery(indexSettings, fromSeqNo, toSeqNo));
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {
@@ -217,7 +260,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
                     storedFieldsReader = ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader();
                     storedFieldsReaderOrd = leaf.ord;
-                    setNextSourceMetadataReader(leaf);
+                    setNextSyntheticFieldsReader(leaf);
                 } else {
                     storedFieldsReader = null;
                     storedFieldsReaderOrd = -1;
@@ -231,21 +274,39 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
-            setNextSourceMetadataReader(leaf);
+            setNextSyntheticFieldsReader(leaf);
             leaf.reader().storedFields().document(segmentDocID, fields);
         }
-        final BytesReference source = fields.source() != null ? addSourceMetadata(fields.source(), segmentDocID) : null;
+        final BytesReference source = fields.source() != null && fields.source().length() > 0
+            ? addSyntheticFields(Source.fromBytes(fields.source()), segmentDocID).internalSourceRef()
+            : fields.source();
+
+        String routing;
+        if (ordinalToRoutingLookup != null) {
+            assert fields.routing() == null : "routing shouldn't exist in stored fields if doc_values is enabled for routing field";
+            int routingOrdinal = parallelArray.routingOrdinals[docIndex];
+            routing = ordinalToRoutingLookup.lookupRoutingOrdinal(leaf, routingOrdinal);
+        } else {
+            routing = fields.routing();
+        }
+
+        // The raw _id bytes are the uid for both non-slice (Uid.encodeId) and slice (compound) indices.
+        final String fieldId = fields.id();
+        final BytesRef idBytes = parallelArray.columnarIds != null ? parallelArray.columnarIds[docIndex]
+            : fieldId != null ? Uid.encodeId(fieldId)
+            : null;
+        final boolean isTombstone = parallelArray.isTombStone[docIndex];
 
         final Translog.Operation op;
-        final boolean isTombstone = parallelArray.isTombStone[docIndex];
-        if (isTombstone && fields.id() == null) {
+        if (isTombstone && idBytes == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, fields.source().utf8ToString());
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
-            final String id = fields.id();
             if (isTombstone) {
-                op = new Translog.Delete(id, seqNo, primaryTerm, version);
+                // idBytes is already a stable copy: columnar ids are deep-copied into the parallel array, and the
+                // document-mode branch allocates a fresh BytesRef via Uid.encodeId.
+                op = new Translog.Delete(idBytes, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 if (source == null) {
@@ -262,7 +323,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 }
                 // TODO: pass the latest timestamp from engine.
                 final long autoGeneratedIdTimestamp = -1;
-                op = new Translog.Index(id, seqNo, primaryTerm, version, source, fields.routing(), autoGeneratedIdTimestamp);
+                op = new Translog.Index(idBytes, seqNo, primaryTerm, version, source, routing, autoGeneratedIdTimestamp);
             }
         }
         assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo()
@@ -280,6 +341,49 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return op;
     }
 
+    @Override
+    protected void setNextSyntheticFieldsReader(LeafReaderContext context) throws IOException {
+        super.setNextSyntheticFieldsReader(context);
+        if (syntheticVectorPatchLoader != null) {
+            syntheticVectorPatchLoaderLeaf = syntheticVectorPatchLoader.leaf(context);
+        }
+    }
+
+    @Override
+    protected Source addSyntheticFields(Source source, int segmentDocID) throws IOException {
+        if (syntheticVectorPatchLoaderLeaf == null) {
+            return super.addSyntheticFields(source, segmentDocID);
+        }
+        List<SourceLoader.SyntheticVectorPatch> patches = new ArrayList<>();
+        syntheticVectorPatchLoaderLeaf.load(segmentDocID, patches);
+        if (patches.size() == 0) {
+            return super.addSyntheticFields(source, segmentDocID);
+        }
+        var newSource = SourceLoader.applySyntheticVectors(source, patches);
+        return super.addSyntheticFields(newSource, segmentDocID);
+    }
+
+    private static final class DocValuesOrdinalToRoutingLookup {
+
+        private int routingDocValuesOrd = -1;
+        private SortedDocValues routingDocValuesReader;
+
+        String lookupRoutingOrdinal(LeafReaderContext leaf, int routingOrdinal) throws IOException {
+            if (routingOrdinal == -1) {
+                return null;
+            }
+
+            if (routingDocValuesOrd != leaf.ord) {
+                routingDocValuesReader = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                routingDocValuesOrd = leaf.ord;
+            }
+            if (routingDocValuesReader != null) {
+                return routingDocValuesReader.lookupOrd(routingOrdinal).utf8ToString();
+            }
+            return null;
+        }
+    }
+
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final int[] docID;
@@ -288,16 +392,25 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final long[] primaryTerm;
         final boolean[] isTombStone;
         final boolean[] hasRecoverySource;
+        final int[] routingOrdinals;
+        final BytesRef[] columnarIds;
         boolean useSequentialStoredFieldsReader = false;
 
-        ParallelArray(int size) {
+        ParallelArray(int size, boolean columnarId) {
             docID = new int[size];
             version = new long[size];
             seqNo = new long[size];
             primaryTerm = new long[size];
             isTombStone = new boolean[size];
             hasRecoverySource = new boolean[size];
+            routingOrdinals = new int[size];
+            Arrays.fill(routingOrdinals, -1);
             leafReaderContexts = new LeafReaderContext[size];
+            if (columnarId) {
+                columnarIds = new BytesRef[size];
+            } else {
+                columnarIds = null;
+            }
         }
     }
 

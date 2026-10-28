@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
@@ -280,10 +281,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     private void finishJob() {
         isJobFinishing.set(true);
-        doSaveState(finishAndSetState(), position.get(), () -> {
-            afterFinishOrFailure();
-            isJobFinishing.set(false);
-        });
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private <T> ActionListener<T> finishJobListener() {
@@ -434,7 +432,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * This will be called before the internal state changes from {@link IndexerState#INDEXING} to {@link IndexerState#STARTED} or
      * from {@link IndexerState#STOPPING} to {@link IndexerState#STOPPED}.
      */
-    protected void afterFinishOrFailure() {}
+    protected void afterFinishOrFailure() {
+        isJobFinishing.set(false);
+    }
 
     /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
@@ -617,7 +617,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             if (executionDelay.duration() > 0) {
                 logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, currentMaxDocsPerSecond, lastDocCount);
-                scheduledNextSearch = new ScheduledRunnable(threadPool, executionDelay, () -> triggerNextSearch(executionDelay.getNanos()));
+                try {
+                    scheduledNextSearch = new ScheduledRunnable(
+                        threadPool,
+                        executionDelay,
+                        () -> triggerNextSearch(executionDelay.getNanos())
+                    );
+                } catch (EsRejectedExecutionException e) {
+                    if (e.isExecutorShutdown()) {
+                        return;
+                    }
+                    throw e;
+                }
 
                 // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
                 if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {

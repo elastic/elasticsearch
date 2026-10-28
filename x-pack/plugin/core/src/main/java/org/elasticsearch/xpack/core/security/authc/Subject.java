@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
@@ -28,12 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CLOUD_SERVICE_ACCOUNT;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLUSTER_ACCESS;
 
 /**
@@ -47,6 +49,8 @@ public class Subject {
     public enum Type {
         USER,
         API_KEY,
+        CLOUD_API_KEY,
+        CLOUD_SERVICE_ACCOUNT,
         SERVICE_ACCOUNT,
         CROSS_CLUSTER_ACCESS,
     }
@@ -72,6 +76,13 @@ public class Subject {
         } else if (AuthenticationField.API_KEY_REALM_TYPE.equals(realm.getType())) {
             assert AuthenticationField.API_KEY_REALM_NAME.equals(realm.getName()) : "api key realm name mismatch";
             this.type = Type.API_KEY;
+        } else if (AuthenticationField.CLOUD_API_KEY_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CLOUD_API_KEY_REALM_NAME.equals(realm.getName()) : "cloud api key realm name mismatch";
+            this.type = Type.CLOUD_API_KEY;
+        } else if (AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CLOUD_SERVICE_ACCOUNT_REALM_NAME.equals(realm.getName())
+                : "cloud service account realm name mismatch";
+            this.type = Type.CLOUD_SERVICE_ACCOUNT;
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
@@ -104,20 +115,37 @@ public class Subject {
         return version;
     }
 
+    /**
+     * Whether this subject is a user-managed service account rather than one of the built-in {@code elastic/*} accounts.
+     * Both kinds authenticate through the same realm, so the only thing distinguishing them is the marker that the
+     * account model writes into the authenticated user's metadata. The distinction decides where the subject's
+     * privileges come from; see {@link #getRoleReferenceIntersection}.
+     */
+    public boolean isUserManagedServiceAccount() {
+        return type == Type.SERVICE_ACCOUNT
+            && Boolean.TRUE.equals(user.metadata().get(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
+    /**
+     * Whether this subject carries a cloud identity-provider cap on its assigned roles. A capped subject produces two
+     * role references.
+     */
+    public boolean hasCloudLimitedByRoles() {
+        return metadata.containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
-        switch (type) {
-            case USER:
-                return buildRoleReferencesForUser(anonymousUser);
-            case API_KEY:
-                return buildRoleReferencesForApiKey();
-            case SERVICE_ACCOUNT:
-                return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
-            case CROSS_CLUSTER_ACCESS:
-                return buildRoleReferencesForCrossClusterAccess();
-            default:
-                assert false : "unknown subject type: [" + type + "]";
-                throw new IllegalStateException("unknown subject type: [" + type + "]");
-        }
+        assert type == CLOUD_API_KEY
+            || type == Type.USER
+            || type == CLOUD_SERVICE_ACCOUNT
+            || false == metadata.containsKey(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY)
+            : "cloud limited-by roles cannot be enforced for subject type [" + type + "]";
+        return switch (type) {
+            case CLOUD_API_KEY, CLOUD_SERVICE_ACCOUNT, USER -> maybeLimitedByCloudRoles(buildRoleReferencesForUser(anonymousUser));
+            case API_KEY -> buildRoleReferencesForApiKey();
+            case SERVICE_ACCOUNT -> buildRoleReferencesForServiceAccount();
+            case CROSS_CLUSTER_ACCESS -> buildRoleReferencesForCrossClusterAccess();
+        };
     }
 
     public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
@@ -138,6 +166,20 @@ public class Subject {
                 );
             } else {
                 // A cross cluster access subject can never share resources with non-cross cluster access
+                return false;
+            }
+        } else if (eitherIsACloudApiKey(resourceCreatorSubject)) {
+            if (bothAreCloudApiKeys(resourceCreatorSubject)) {
+                return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
+            } else {
+                // a cloud API Key cannot access resources created by non-Cloud API Keys or vice versa
+                return false;
+            }
+        } else if (eitherIsACloudServiceAccount(resourceCreatorSubject)) {
+            if (bothAreCloudServiceAccounts(resourceCreatorSubject)) {
+                return getUser().principal().equals(resourceCreatorSubject.getUser().principal());
+            } else {
+                // a cloud service account cannot access resources created by other subject types or vice versa
                 return false;
             }
         } else {
@@ -194,6 +236,22 @@ public class Subject {
         return CROSS_CLUSTER_ACCESS.equals(getType()) && CROSS_CLUSTER_ACCESS.equals(resourceCreatorSubject.getType());
     }
 
+    private boolean eitherIsACloudApiKey(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) || CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCloudApiKeys(Subject resourceCreatorSubject) {
+        return CLOUD_API_KEY.equals(getType()) && CLOUD_API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean eitherIsACloudServiceAccount(Subject resourceCreatorSubject) {
+        return CLOUD_SERVICE_ACCOUNT.equals(getType()) || CLOUD_SERVICE_ACCOUNT.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCloudServiceAccounts(Subject resourceCreatorSubject) {
+        return CLOUD_SERVICE_ACCOUNT.equals(getType()) && CLOUD_SERVICE_ACCOUNT.equals(resourceCreatorSubject.getType());
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -244,8 +302,43 @@ public class Subject {
         return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(allRoleNames));
     }
 
+    /**
+     * Caps a cloud subject's assigned roles with the limited-by role names captured at authentication time, if any. This works like
+     * the roles of an ES API key: the cap is applied when the roles are materialized (each set of role names builds its own
+     * {@code Role} and the results are combined with {@code Role#limitedBy}), rather than by intersecting the role names themselves.
+     */
+    private RoleReferenceIntersection maybeLimitedByCloudRoles(RoleReferenceIntersection assigned) {
+        final List<String> limitedByRoleNames = getCloudLimitedByRoleNames();
+        if (limitedByRoleNames == null) {
+            return assigned;
+        }
+        return new RoleReferenceIntersection(
+            CollectionUtils.appendToCopy(
+                assigned.getRoleReferences(),
+                new RoleReference.NamedRoleReference(limitedByRoleNames.toArray(String[]::new))
+            )
+        );
+    }
+
+    /**
+     * Role names that cap this subject's assigned roles, as reported by the cloud identity provider, or {@code null}
+     * if the subject is uncapped.
+     */
+    @Nullable
+    public List<String> getCloudLimitedByRoleNames() {
+        final Object value = metadata.get(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY);
+        if (value == null) {
+            return null;
+        }
+        assert value instanceof List<?> && ((List<?>) value).stream().allMatch(String.class::isInstance)
+            : "cloud limited-by roles metadata must be a list of role names";
+        @SuppressWarnings("unchecked")
+        final List<String> limitedByRoleNames = (List<String>) value;
+        return limitedByRoleNames;
+    }
+
     private RoleReferenceIntersection buildRoleReferencesForApiKey() {
-        if (version.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
+        if (version.supports(VERSION_API_KEY_ROLES_AS_BYTES) == false) {
             return buildRolesReferenceForApiKeyBwc();
         }
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
@@ -271,9 +364,19 @@ public class Subject {
         );
     }
 
+    private RoleReferenceIntersection buildRoleReferencesForServiceAccount() {
+        // A built-in account's privileges are fixed by the account definition and are looked up from its principal, so the
+        // user carries no roles. A user-managed account instead has roles assigned to it at creation, and is authorized
+        // from those names through the same role stores as a native user.
+        if (isUserManagedServiceAccount()) {
+            return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));
+        }
+        return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+    }
+
     // Package private for testing
     RoleReference.CrossClusterApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
-        assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        assert version.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
@@ -383,8 +486,8 @@ public class Subject {
 
     private ApiKey.Type getApiKeyType() {
         final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+        assert (typeString != null) || version.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false
+            : "API key type must be non-null except for versions older than " + Authentication.VERSION_CROSS_CLUSTER_ACCESS;
 
         // A null type string can only be for the REST type because it is not possible to
         // create cross-cluster API keys for mixed cluster with old nodes.

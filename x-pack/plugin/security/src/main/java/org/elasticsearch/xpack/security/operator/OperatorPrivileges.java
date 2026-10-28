@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 
+import static org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil.isOperator;
+
 public class OperatorPrivileges {
 
     private static final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
@@ -34,12 +36,6 @@ public class OperatorPrivileges {
         false,
         Setting.Property.NodeScope
     );
-
-    public static boolean isOperator(ThreadContext threadContext) {
-        return AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-            threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
-        );
-    }
 
     public interface OperatorPrivilegesService {
         /**

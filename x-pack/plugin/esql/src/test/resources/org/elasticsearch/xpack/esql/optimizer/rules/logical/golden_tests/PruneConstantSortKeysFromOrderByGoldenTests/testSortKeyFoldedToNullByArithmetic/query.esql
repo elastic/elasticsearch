@@ -1,0 +1,3 @@
+FROM employees
+| SORT emp_no + null, emp_no
+| LIMIT 20

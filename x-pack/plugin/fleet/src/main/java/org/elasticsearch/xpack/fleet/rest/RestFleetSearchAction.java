@@ -20,6 +20,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.usage.SearchUsageHolder;
 
 import java.io.IOException;
@@ -51,7 +52,12 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_fleet/_fleet_search"), new Route(POST, "/{index}/_fleet/_fleet_search"));
+        return List.of(
+            new Route(GET, "/{index}/_fleet/_fleet_search"),
+            new Route(POST, "/{index}/_fleet/_fleet_search"),
+            new Route(GET, "/{index}/{_slice}/_fleet/_fleet_search"),
+            new Route(POST, "/{index}/{_slice}/_fleet/_fleet_search")
+        );
     }
 
     @Override
@@ -81,6 +87,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
                 throw new IllegalArgumentException(
                     "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices1) + "]."
                 );
+            }
+            if (RemoteClusterService.isRemoteIndexName(indices1[0])) {
+                throw new IllegalArgumentException("Fleet search API does not support remote indices. Found: [" + indices1[0] + "].");
             }
             if (waitForCheckpoints.length != 0) {
                 searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices1[0], waitForCheckpoints));

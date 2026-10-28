@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -53,18 +52,13 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
     private static final String TIMING_STATS = "timing_stats";
     private static final String RUNNING_STATE = "running_state";
+    private static final String REMOTE_CLUSTER_STATS = "remote_cluster_stats";
 
     private GetDatafeedsStatsAction() {
         super(NAME);
     }
 
-    // This needs to be a MasterNodeReadRequest even though the corresponding transport
-    // action is a HandledTransportAction so that in mixed version clusters it can be
-    // serialized to older nodes where the transport action was a MasterNodeReadAction.
-    // TODO: Make this a simple request in a future version where there is no possibility
-    // of this request being serialized to another node.
-    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends UntypedActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -72,7 +66,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
@@ -226,6 +219,9 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
+                    if (runningState.getCrossClusterStats() != null) {
+                        builder.field(REMOTE_CLUSTER_STATS, runningState.getCrossClusterStats());
+                    }
                 }
                 builder.endObject();
                 return builder;
@@ -338,9 +334,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
             public Builder setDatafeedIds(Collection<String> datafeedIds) {
-                this.statsBuilders = datafeedIds.stream()
-                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
-                    .collect(Collectors.toList());
+                this.statsBuilders = datafeedIds.stream().map(DatafeedStats::builder).collect(Collectors.toList());
                 return this;
             }
 

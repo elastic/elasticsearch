@@ -15,7 +15,6 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,9 +22,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -54,7 +57,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public abstract class IntervalsSourceProvider implements NamedWriteable, ToXContentFragment {
 
-    public abstract IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException;
+    public abstract IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) throws IOException;
 
     public abstract void extractFields(Set<String> fields);
 
@@ -63,6 +66,26 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
     @Override
     public abstract boolean equals(Object other);
+
+    /**
+     * Rejects patterns longer than {@link IndexSettings#MAX_REGEX_LENGTH_SETTING} before compilation is attempted.
+     */
+    protected static void checkRegexLength(String pattern, String ruleName, SearchExecutionContext context) {
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (pattern.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of ["
+                    + pattern.length()
+                    + "] used in the ["
+                    + ruleName
+                    + "] rule of the Intervals Query request has exceeded the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+    }
 
     public static IntervalsSourceProvider fromXContent(XContentParser parser) throws IOException {
         assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
@@ -103,6 +126,19 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         return isp;
     }
 
+    private static TextFamilyFieldType useField(MappedFieldType fieldType) {
+        if (fieldType instanceof TextFamilyFieldType) {
+            return (TextFamilyFieldType) fieldType;
+        }
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on ["
+                + fieldType.name()
+                + "] which is of type ["
+                + fieldType.typeName()
+                + "]"
+        );
+    }
+
     public static class Match extends IntervalsSourceProvider {
 
         public static final String NAME = "match";
@@ -133,7 +169,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         private static IntervalsSource intervals(
-            MappedFieldType fieldType,
+            TextFamilyFieldType fieldType,
             String text,
             int maxGaps,
             boolean ordered,
@@ -150,14 +186,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
@@ -296,7 +331,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext ctx, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext ctx, TextFamilyFieldType fieldType) throws IOException {
             List<IntervalsSource> sources = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 sources.add(provider.getSource(ctx, fieldType));
@@ -407,7 +442,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext ctx, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext ctx, TextFamilyFieldType fieldType) throws IOException {
             List<IntervalsSource> ss = new ArrayList<>();
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
@@ -534,14 +569,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
@@ -652,14 +686,15 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) {
+            checkRegexLength(pattern, NAME, context);
+
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
@@ -770,20 +805,31 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) {
+            checkRegexLength(pattern, NAME, context);
+
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
-            IntervalsSource source = fieldType.regexpIntervals(normalizedPattern, context);
+            IntervalsSource source;
+            try {
+                source = fieldType.regexpIntervals(normalizedPattern, context);
+            } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+                throw new QueryShardException(
+                    context,
+                    "The [{}] rule of the Intervals Query request has a pattern that is too deeply nested",
+                    NAME
+                );
+            }
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }
@@ -819,7 +865,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -902,14 +948,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
@@ -1063,14 +1108,13 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
-        public IntervalsSource getSource(SearchExecutionContext context, MappedFieldType fieldType) {
+        public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
                 analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             if (useField != null) {
-                fieldType = context.getFieldType(useField);
-                assert fieldType != null;
+                fieldType = useField(context.getFieldType(useField));
             }
             if (analyzer == null) {
                 analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
@@ -1123,7 +1167,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override
@@ -1264,9 +1308,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
         }
 
-        public IntervalsSource filter(IntervalsSource input, SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
+        public IntervalsSource filter(IntervalsSource input, SearchExecutionContext context, TextFamilyFieldType fieldType)
+            throws IOException {
             if (script != null) {
                 IntervalFilterScript ifs = context.compile(script, IntervalFilterScript.CONTEXT).newInstance();
+                ifs._setCancellationCheck((context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null);
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);

@@ -1,5 +1,0 @@
-pr: 119922
-summary: "[Inference API] fix spell words: covertToString to convertToString"
-area: Machine Learning
-type: enhancement
-issues: []

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -41,6 +42,7 @@ import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -57,6 +59,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,6 +84,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.admin.cluster.node.tasks.TestTaskPlugin.TEST_TASK_ACTION;
 import static org.elasticsearch.action.admin.cluster.node.tasks.TestTaskPlugin.UNBLOCK_TASK_ACTION;
+import static org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME;
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
@@ -377,6 +382,11 @@ public class TasksIT extends ESIntegTestCase {
         // check that if we have any shard-level requests they all have non-zero length description
         List<TaskInfo> shardTasks = findEvents(TransportSearchAction.TYPE.name() + "[*]", Tuple::v1);
         for (TaskInfo taskInfo : shardTasks) {
+            // During batched query execution, if a partial reduction was done on the data node, a task will be created to free the reader.
+            // These tasks don't have descriptions or parent tasks, so they're ignored for this test.
+            if (taskInfo.action().equals(FREE_CONTEXT_SCROLL_ACTION_NAME)) {
+                continue;
+            }
             assertThat(taskInfo.parentTaskId(), notNullValue());
             assertEquals(mainTask.get(0).taskId(), taskInfo.parentTaskId());
             assertTaskHeaders(taskInfo);
@@ -391,14 +401,14 @@ public class TasksIT extends ESIntegTestCase {
                 );
                 case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
-                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
+                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null], shardId[[test][*]]", taskInfo.description())
                 );
+                case NODE_SEARCH_ACTION_NAME -> assertEquals("NodeQueryRequest", taskInfo.description());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }
             // assert that all task descriptions have non-zero length
             assertThat(taskInfo.description().length(), greaterThan(0));
         }
-
     }
 
     public void testSearchTaskHeaderLimit() {
@@ -670,9 +680,14 @@ public class TasksIT extends ESIntegTestCase {
             Iterable<? extends Throwable> failures = wait.apply(taskId);
 
             for (Throwable failure : failures) {
-                assertNotNull(
-                    ExceptionsHelper.unwrap(failure, ElasticsearchTimeoutException.class, ReceiveTimeoutTransportException.class)
+                final Throwable cause = ExceptionsHelper.unwrap(
+                    failure,
+                    ElasticsearchTimeoutException.class,
+                    ReceiveTimeoutTransportException.class
                 );
+                assertNotNull(cause);
+                assertThat(asInstanceOf(ElasticsearchException.class, cause).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                assertTrue(asInstanceOf(ElasticsearchException.class, cause).isTimeout());
             }
         } finally {
             // Now we can unblock those requests
@@ -890,15 +905,14 @@ public class TasksIT extends ESIntegTestCase {
         assertNull(response.getTask().getResponse());
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void removeTaskManagerListeners() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
             ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager()).removeListener(
                 entry.getValue()
             );
         }
         listeners.clear();
-        super.tearDown();
     }
 
     /**

@@ -9,11 +9,10 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * An indexing listener for indexing, delete, events.
@@ -43,6 +42,38 @@ public interface IndexingOperationListener {
     default void postIndex(ShardId shardId, Engine.Index index, Exception ex) {}
 
     /**
+     * Batch variant of {@link #preIndex}. The default delegates to {@link #preIndex} per operation.
+     */
+    default IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        for (Engine.Index operation : batch.materializeIndexOps()) {
+            preIndex(shardId, operation);
+        }
+        return batch;
+    }
+
+    /**
+     * Batch variant of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)}.
+     * See {@link #postIndexBatch(ShardId, IndexOperationBatch, Exception)} for
+     * engine level failures.
+     */
+    default void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        final List<Engine.Index> operations = batch.materializeIndexOps();
+        for (int i = 0; i < results.size(); i++) {
+            postIndex(shardId, operations.get(i), results.get(i));
+        }
+    }
+
+    /**
+     * Batch variant of {@link #postIndex(ShardId, Engine.Index, Exception)}.
+     * See {@link #postIndexBatch(ShardId, IndexOperationBatch, List)} for document related failures.
+     */
+    default void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        for (Engine.Index operation : batch.materializeIndexOps()) {
+            postIndex(shardId, operation, ex);
+        }
+    }
+
+    /**
      * Called before the delete occurs.
      */
     default Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
@@ -63,18 +94,6 @@ public interface IndexingOperationListener {
      * related failures
      */
     default void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {}
-
-    /**
-     * Called when a {@link org.elasticsearch.action.bulk.TransportShardBulkAction} is about to perform index and/or delete operation(s)
-     * on a primary shard.
-     *
-     * This is called from a transport thread and therefore the function should be lightweight and not block the thread. The acquired
-     * listener(s) can be asynchronously completed on another thread at a later time.
-     *
-     * @param indexShard the shard the bulk is about to be performed on
-     * @param proceedListenerSupplier call this immediately to get a listener which must be completed so that the bulk can proceed.
-     */
-    default void preBulkOnPrimary(IndexShard indexShard, Supplier<ActionListener<Void>> proceedListenerSupplier) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -127,6 +146,44 @@ public interface IndexingOperationListener {
         }
 
         @Override
+        public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+            assert batch != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.preIndexBatch(shardId, batch);
+                } catch (Exception e) {
+                    logger.warn(() -> "preIndexBatch listener [" + listener + "] failed", e);
+                }
+            }
+            return batch;
+        }
+
+        @Override
+        public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+            assert batch != null && results != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postIndexBatch(shardId, batch, results);
+                } catch (Exception e) {
+                    logger.warn(() -> "postIndexBatch listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+            assert batch != null && ex != null;
+            for (IndexingOperationListener listener : listeners) {
+                try {
+                    listener.postIndexBatch(shardId, batch, ex);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn(() -> "postIndexBatch listener [" + listener + "] failed", inner);
+                }
+            }
+        }
+
+        @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
             assert delete != null;
             for (IndexingOperationListener listener : listeners) {
@@ -160,17 +217,6 @@ public interface IndexingOperationListener {
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
                     logger.warn(() -> "postDelete listener [" + listener + "] failed", inner);
-                }
-            }
-        }
-
-        @Override
-        public void preBulkOnPrimary(IndexShard indexShard, Supplier<ActionListener<Void>> proceedListenerSupplier) {
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.preBulkOnPrimary(indexShard, proceedListenerSupplier);
-                } catch (Exception e) {
-                    logger.warn(() -> "preBulkOnPrimary listener [" + listener + "] failed", e);
                 }
             }
         }

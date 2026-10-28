@@ -135,7 +135,8 @@ public final class DestinationIndex {
         String[] destIndexAllowedSettings,
         ActionListener<CreateIndexRequest> listener
     ) {
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(config.getSource().getIndex())
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT)
+            .indices(config.getSource().getIndex())
             .indicesOptions(IndicesOptions.lenientExpandOpen())
             .names(PRESERVED_SETTINGS);
         ClientHelper.executeWithHeadersAsync(

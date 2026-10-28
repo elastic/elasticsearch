@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -32,7 +34,16 @@ public class ListConnectorSyncJobsActionResponseBWCSerializingTests extends Abst
 
     @Override
     protected ListConnectorSyncJobsAction.Response mutateInstance(ListConnectorSyncJobsAction.Response instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        QueryPage<ConnectorSyncJobSearchResult> originalQueryPage = instance.queryPage;
+        QueryPage<ConnectorSyncJobSearchResult> mutatedQueryPage = randomValueOtherThan(
+            originalQueryPage,
+            () -> new QueryPage<>(
+                randomList(10, ConnectorSyncJobTestUtils::getRandomSyncJobSearchResult),
+                randomLongBetween(0, 100),
+                ListConnectorSyncJobsAction.Response.RESULTS_FIELD
+            )
+        );
+        return new ListConnectorSyncJobsAction.Response(mutatedQueryPage.results(), mutatedQueryPage.count());
     }
 
     @Override

@@ -1,5 +1,0 @@
-pr: 120494
-summary: Update grammar to rely on `indexPattern` instead of identifier in join target
-area: ES|QL
-type: enhancement
-issues: []

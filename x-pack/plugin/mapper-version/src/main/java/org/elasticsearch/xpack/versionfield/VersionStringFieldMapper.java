@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -35,15 +37,24 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnBuilder;
+import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfColumnTransforms;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -53,6 +64,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -67,7 +79,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -116,6 +127,11 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
@@ -132,7 +148,13 @@ public class VersionStringFieldMapper extends FieldMapper {
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
         private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
+            super(
+                name,
+                IndexType.terms(true, true),
+                false,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                meta
+            );
         }
 
         @Override
@@ -198,6 +220,17 @@ public class VersionStringFieldMapper extends FieldMapper {
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
                             BytesRef decoded = VersionEncoder.decodeVersion(term);
+                            if (compiled.runAutomaton == null) {
+                                return switch (compiled.type) {
+                                    case SINGLE -> decoded.equals(compiled.term) ? AcceptStatus.YES : AcceptStatus.NO;
+                                    case ALL -> AcceptStatus.YES;
+                                    case NONE -> AcceptStatus.NO;
+                                    default -> {
+                                        assert false : "Unexpected automaton type: " + compiled.type;
+                                        yield AcceptStatus.NO;
+                                    }
+                                };
+                            }
                             boolean accepted = compiled.runAutomaton.run(decoded.bytes, decoded.offset, decoded.length);
                             if (accepted) {
                                 return AcceptStatus.YES;
@@ -231,13 +264,16 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            return new FuzzyQuery(
-                new Term(name(), (BytesRef) value),
+            MultiTermQuery.RewriteMethod effectiveRewrite = rewriteMethod != null
+                ? rewriteMethod
+                : FuzzyQuery.defaultRewriteMethod(maxExpansions);
+            FuzzyQuery query = new FuzzyQuery(
+                new Term(name(), BytesRefs.toBytesRef(value)),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
                 transpositions,
-                rewriteMethod == null ? defaultRewriteMethod(maxExpansions) : rewriteMethod
+                effectiveRewrite
             ) {
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -257,6 +293,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                     };
                 }
             };
+            return query;
         }
 
         @Override
@@ -294,7 +331,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
         }
 
         @Override
@@ -373,6 +410,84 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        // version fields have no store/null_value/ignore_malformed/dimension parameters and are always
+        // both indexed and doc-valued. script, copy_to, mode gate, and legacy-version gate are handled
+        // by the base class. TIME_SERIES is allowed by the mode gate: the emitted doc-values field is
+        // always plain SortedSetDocValuesField.TYPE (see mapColumnBatch and parseCreateField), with no
+        // doc-values-skipper variant, so the Lucene output does not vary with the index mode.
+        return true;
+    }
+
+    /**
+     * Encodes one UTF-8 version value into the sortable binary form used by both the inverted index
+     * and doc values. Wraps {@link IllegalArgumentException} (digit group longer than 127 characters)
+     * in {@link UnsupportedOperationException} so that {@code ShardBatchMapper} falls back to the row
+     * path, which raises the correct per-document error.
+     * <p>
+     * TODO: {@link VersionEncoder#encodeVersion(String)} is String/regex based end to end, so this
+     * costs one String allocation per value. A future byte-level encoder entry point would remove it.
+     */
+    private static BytesRef encodeVersionValue(BytesRef utf8) {
+        try {
+            return encodeVersion(utf8.utf8ToString()).bytesRef;
+        } catch (IllegalArgumentException e) {
+            throw new UnsupportedOperationException("mapColumnBatch: cannot encode version [" + utf8.utf8ToString() + "]", e);
+        }
+    }
+
+    /**
+     * Columnar bulk-indexing path for {@code version} fields.
+     *
+     * <p>The source column is stringified via {@link EscfColumnTransforms#utf8Cursor}: strings pass
+     * through as-is, JSON arrays are flattened to one tuple per element (with the same doc-id
+     * repeated), absent rows and empty arrays emit nothing, and JSON {@code null} emits a tuple whose
+     * {@code value()} is {@code null}.
+     *
+     * <p><b>IMPORTANT — non-canonical numeric literals diverge from the row path.</b>
+     * {@code utf8Cursor} converts non-STRING ESCF leaves (longs, doubles, booleans) using their
+     * canonical {@code toString} form. This means a source document written as {@code {"f": 1.50}}
+     * produces the columnar term {@code "1.5"}, whereas the row path captures the original source
+     * text {@code "1.50"} via {@code parser.getText()} — indexing a <em>different</em> term for the
+     * same document. Similarly, {@code 1e3} → {@code "1000.0"} on the columnar path. The fix requires
+     * a future option that keeps source columns as raw strings instead of re-parsing them. A test for
+     * this case is muted with {@code @AwaitsFix} until that option is available.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final int docCount = ctx.docCount();
+        // retainValues=false: every value is encoded within one loop iteration, before the cursor advances.
+        final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
+        try (EscfColumnBuilder encoded = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler())) {
+            encoded.lockScalar(EscfColumnKind.STRING);
+
+            int doc;
+            while ((doc = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                final BytesRef utf8Value = cursor.value();
+                if (utf8Value == null) {
+                    // JSON null emits nothing, mirroring parseCreateField's VALUE_NULL / textOrNull() == null
+                    // early returns. version has no null_value parameter.
+                    continue;
+                }
+                // Repeated setString for the same doc promotes the row to an ARRAY cell (CollisionPolicy.MERGE),
+                // which becomes a SPARSE column emitting one tuple per element — matching the row path, which
+                // adds one Field + one SortedSetDocValuesField per array element.
+                encoded.setString(doc, encodeVersionValue(utf8Value));
+            }
+
+            if (encoded.isEmpty() == false) {
+                // One serialization, two field-type wrappers with disjoint Lucene feature masks: the frozen
+                // mapper FieldType carries inversion (docValuesType == NONE) and SortedSetDocValuesField.TYPE
+                // carries doc values (indexOptions == NONE). Ownership is registered once for the two wrappers.
+                final EscfColumnData data = encoded.finish(docCount);
+                ctx.addResource(data);
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), fieldType));
+                ctx.addColumn(LuceneBinaryColumn.of(data, fieldType().name(), SortedSetDocValuesField.TYPE));
+            }
+        }
     }
 
     @Override

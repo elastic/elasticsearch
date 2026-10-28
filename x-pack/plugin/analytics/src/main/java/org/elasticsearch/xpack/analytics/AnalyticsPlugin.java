@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;
@@ -24,6 +22,7 @@ import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLongValue;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -127,11 +127,11 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
-            new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
+            new ActionHandler(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
+            new ActionHandler(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }
 
@@ -142,7 +142,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
+        return Map.of(
+            HistogramFieldMapper.CONTENT_TYPE,
+            HistogramFieldMapper.PARSER,
+            TDigestFieldMapper.CONTENT_TYPE,
+            TDigestFieldMapper.PARSER,
+            ExponentialHistogramFieldMapper.CONTENT_TYPE,
+            ExponentialHistogramFieldMapper.PARSER
+        );
     }
 
     @Override
@@ -156,7 +163,16 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMaxggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedRangeAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedRangeAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramValueCountAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramSumAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramAvgAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramHistogramAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramMinAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramMaxAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramRangeAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramPercentilesAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramPercentileRanksAggregator
         );
     }
 

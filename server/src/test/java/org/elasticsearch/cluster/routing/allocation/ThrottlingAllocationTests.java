@@ -199,8 +199,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
-        assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+        assertWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
         logger.info("Building initial routing table");
 
@@ -364,7 +365,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (IndexMetadata im : metadata.indices().values()) {
+        for (IndexMetadata im : metadata.getProject().indices().values()) {
             Index index = im.getIndex();
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(im);
             final int recoveryType = randomInt(5);
@@ -457,7 +458,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 primary,
                 primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
             );
             ShardRouting started = ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassigned, node1.getId()));
             indexMetadata.putInSyncAllocationIds(shard, Collections.singleton(started.allocationId().getId()));

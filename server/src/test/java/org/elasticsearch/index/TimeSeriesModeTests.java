@@ -10,8 +10,12 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.Script;
@@ -19,6 +23,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -27,7 +32,9 @@ import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
 
@@ -70,16 +77,20 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testWithoutRoutingPath() {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithEmptyRoutingPath() {
         Settings s = getSettings("");
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(IndexSettingsTests.newIndexMeta("test", s), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithoutStartTime() {
@@ -268,6 +279,74 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             };
         }
         return super.compileScript(script, context);
+    }
+
+    public void testTemporalityFieldValid() throws IOException {
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+    }
+
+    public void testTemporalityFieldAddedToDefaultMapping() throws IOException {
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        var mapperService = createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        var fieldType = mapperService.fieldType("temporality");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertTrue(fieldType.isDimension());
+    }
+
+    public void testTemporalityFieldOverrideWithWrongType() throws IOException {
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceLikeIndexCreation(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "integer").field("time_series_dimension", true).endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("[index.time_series.temporality_field] field [temporality] must be of type [keyword] but is [integer]")
+        );
+    }
+
+    public void testTemporalityFieldOverrideWithoutDimension() throws IOException {
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperServiceLikeIndexCreation(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "keyword").endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("[index.time_series.temporality_field] field [temporality] must be a [time_series_dimension]"));
+    }
+
+    public void testIndexDisabledByDefault() {
+        assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(getSettings()));
+    }
+
+    private MapperService createMapperServiceLikeIndexCreation(Settings settings, XContentBuilder userMapping) throws IOException {
+        var mapperService = new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build();
+        var indexSettings = mapperService.getIndexSettings();
+        var defaultMapping = indexSettings.getMode().getDefaultMapping(indexSettings);
+        var allMappings = new java.util.ArrayList<CompressedXContent>();
+        if (defaultMapping != null) {
+            allMappings.add(defaultMapping);
+        }
+        allMappings.add(new CompressedXContent(BytesReference.bytes(userMapping)));
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+        return mapperService;
     }
 
     private Settings getSettings() {

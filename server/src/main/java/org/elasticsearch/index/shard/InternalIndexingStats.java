@@ -9,21 +9,46 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.util.ThreadUtilizationTracker;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
  * Internal class that maintains relevant indexing statistics / metrics.
  * @see IndexShard
  */
-final class InternalIndexingStats implements IndexingOperationListener {
+public final class InternalIndexingStats implements IndexingOperationListener {
 
-    private final StatsHolder totalStats = new StatsHolder();
+    private static final Logger logger = LogManager.getLogger(InternalIndexingStats.class);
+
+    private final LongSupplier relativeTimeInNanosSupplier;
+    private final StatsHolder totalStats;
+
+    InternalIndexingStats(LongSupplier relativeTimeInNanosSupplier, IndexingStatsSettings settings, int numIndexingThreads) {
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.totalStats = new StatsHolder(
+            relativeTimeInNanosSupplier,
+            settings.getRecentWriteLoadHalfLifeForNewShards(),
+            numIndexingThreads
+        );
+    }
 
     /**
      * Returns the stats, including type specific stats. If the types are null/0 length, then nothing
@@ -34,19 +59,43 @@ final class InternalIndexingStats implements IndexingOperationListener {
         boolean isThrottled,
         long currentThrottleInMillis,
         long indexingTimeBeforeShardStartedInNanos,
-        long timeSinceShardStartedInNanos
+        long indexingLoadBeforeShardStartedInNanos,
+        long timeSinceShardStartedInNanos,
+        long currentTimeInNanos,
+        double recentIndexingLoadAtShardStarted
     ) {
         IndexingStats.Stats total = totalStats.stats(
             isThrottled,
             currentThrottleInMillis,
             indexingTimeBeforeShardStartedInNanos,
-            timeSinceShardStartedInNanos
+            indexingLoadBeforeShardStartedInNanos,
+            timeSinceShardStartedInNanos,
+            currentTimeInNanos,
+            recentIndexingLoadAtShardStarted
         );
         return new IndexingStats(total);
     }
 
+    /**
+     * Returns the average thread utilization since the last time this method was called, as a value between 0 and 1 (inclusive).
+     */
+    public double pollUtilization() {
+        return totalStats.indexingUtilizationTracker.pollUtilization();
+    }
+
     long totalIndexingTimeInNanos() {
         return totalStats.indexMetric.sum();
+    }
+
+    long totalIndexingExecutionTimeInNanos() {
+        return totalStats.indexMetric.sum() + totalStats.writeIndexingBufferTime.sum();
+    }
+
+    /**
+     * Returns an exponentially-weighted moving rate which measures the indexing load, favoring more recent load.
+     */
+    double recentIndexingLoad(long timeInNanos) {
+        return totalStats.recentIndexMetric.getRate(timeInNanos);
     }
 
     @Override
@@ -64,6 +113,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 if (index.origin().isRecovery() == false) {
                     long took = result.getTook();
                     totalStats.indexMetric.inc(took);
+                    totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
+                    totalStats.totalExecutionTimeNanos.add(took);
                     totalStats.indexCurrent.dec();
                 }
                 break;
@@ -83,6 +134,64 @@ final class InternalIndexingStats implements IndexingOperationListener {
             if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
                 totalStats.indexFailedDueToVersionConflicts.inc();
             }
+        }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        if (batch.origin().isRecovery() == false) {
+            totalStats.indexCurrent.inc(batch.docCount());
+        }
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} calls. Successes and Failures are
+     * aggregated without materializing per-operation {@link Engine.Index} instances.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        if (batch.origin().isRecovery()) {
+            return;
+        }
+        long tookTotal = 0;
+        long failed = 0;
+        long versionConflicts = 0;
+        for (Engine.IndexResult result : results) {
+            switch (result.getResultType()) {
+                case SUCCESS -> {
+                    long took = result.getTook();
+                    tookTotal += took;
+                    totalStats.indexMetric.inc(took);
+                }
+                case FAILURE -> {
+                    failed++;
+                    if (ExceptionsHelper.unwrapCause(result.getFailure()) instanceof VersionConflictEngineException) {
+                        versionConflicts++;
+                    }
+                }
+                default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+            }
+        }
+        if (tookTotal > 0) {
+            totalStats.recentIndexMetric.addIncrement(tookTotal, relativeTimeInNanosSupplier.getAsLong());
+            totalStats.totalExecutionTimeNanos.add(tookTotal);
+        }
+        totalStats.indexCurrent.dec(results.size());
+        totalStats.indexFailed.inc(failed);
+        totalStats.indexFailedDueToVersionConflicts.inc(versionConflicts);
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Exception)}, the engine
+     * level exception fails the whole batch, so every operation counts as failed.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        if (batch.origin().isRecovery() == false) {
+            final int docCount = batch.docCount();
+            totalStats.indexCurrent.dec(docCount);
+            totalStats.indexFailed.inc(docCount);
         }
     }
 
@@ -124,8 +233,26 @@ final class InternalIndexingStats implements IndexingOperationListener {
         totalStats.noopUpdates.inc();
     }
 
+    /**
+     * Increment relevant stats when indexing buffers are written to disk using indexing threads,
+     * in order to apply back-pressure on indexing.
+     * @param took   time taken to write buffers
+     * @see org.elasticsearch.indices.IndexingMemoryController
+     */
+    void writeIndexingBuffersTime(long took) {
+        totalStats.writeIndexingBufferTime.add(took);
+        totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
+    }
+
     static class StatsHolder {
+        // Used for the count and total 'took' time (in ns) of index operations
         private final MeanMetric indexMetric = new MeanMetric();
+        // Used for the total time taken to flush indexing buffers to disk (on indexing threads) (in ns)
+        private final LongAdder writeIndexingBufferTime = new LongAdder();
+        // An EWMR of the total 'took' time of index operations (indexMetric) plus the writeIndexingBufferTime (in ns)
+        private final ExponentiallyWeightedMovingRate recentIndexMetric;
+        // The peak value of the EWMR (recentIndexMetric) observed in any stats() call
+        private final AtomicReference<Double> peakIndexMetric;
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
@@ -133,14 +260,62 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
+        private LongAdder totalExecutionTimeNanos = new LongAdder();
+        private ThreadUtilizationTracker indexingUtilizationTracker;
+
+        StatsHolder(LongSupplier timeSupplierInNanos, TimeValue recentWriteLoadHalfLife, int numIndexingThreads) {
+            double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();
+            logger.debug(
+                "Initialized stats for new shard calculating recent indexing load with half-life {} (decay parameter {} ns^-1)",
+                recentWriteLoadHalfLife,
+                lambdaInInverseNanos
+            );
+            this.recentIndexMetric = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, timeSupplierInNanos.getAsLong());
+            this.peakIndexMetric = new AtomicReference<>(0.0);
+            this.indexingUtilizationTracker = new ThreadUtilizationTracker(
+                timeSupplierInNanos,
+                totalExecutionTimeNanos,
+                numIndexingThreads
+            );
+        }
+
         IndexingStats.Stats stats(
             boolean isThrottled,
             long currentThrottleMillis,
             long indexingTimeBeforeShardStartedInNanos,
-            long timeSinceShardStartedInNanos
+            long indexingLoadBeforeShardStartedInNanos,
+            long timeSinceShardStartedInNanos,
+            long currentTimeInNanos,
+            double recentIndexingLoadAtShardStarted
         ) {
             final long totalIndexingTimeInNanos = indexMetric.sum();
             final long totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeInNanos - indexingTimeBeforeShardStartedInNanos;
+            // This is different from indexing time as it also includes the time taken to write indexing buffers to disk
+            // on the same thread as the indexing thread. This happens when we are running low on memory and want to push
+            // back on indexing, see IndexingMemoryController#writePendingIndexingBuffers()
+            final long totalIndexingExecutionTimeInNanos = totalIndexingTimeInNanos + writeIndexingBufferTime.sum();
+            final long totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeInNanos
+                - indexingLoadBeforeShardStartedInNanos;
+            final double recentIndexingLoadSinceShardStarted = recentIndexMetric.calculateRateSince(
+                currentTimeInNanos,
+                recentIndexMetric.getRate(currentTimeInNanos),
+                // The recentIndexingLoadAtShardStarted passed in should have been calculated at this time:
+                currentTimeInNanos - timeSinceShardStartedInNanos,
+                recentIndexingLoadAtShardStarted
+            );
+            double peakIndexingLoad = peakIndexMetric.accumulateAndGet(recentIndexingLoadSinceShardStarted, Math::max);
+            logger.debug(
+                () -> Strings.format(
+                    "Generating stats for an index shard with indexing time %s and active time %s giving unweighted write load %g, "
+                        + "while the recency-weighted write load is %g using a half-life of %s and the peak write load is %g",
+                    timeValueNanos(totalIndexingTimeSinceShardStartedInNanos),
+                    timeValueNanos(timeSinceShardStartedInNanos),
+                    1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
+                    recentIndexingLoadSinceShardStarted,
+                    timeValueNanos((long) recentIndexMetric.getHalfLife()),
+                    peakIndexingLoad
+                )
+            );
             return new IndexingStats.Stats(
                 indexMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
@@ -154,7 +329,10 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
                 totalIndexingTimeSinceShardStartedInNanos,
-                timeSinceShardStartedInNanos
+                totalIndexingExecutionTimeSinceShardStartedInNanos,
+                timeSinceShardStartedInNanos,
+                recentIndexingLoadSinceShardStarted,
+                peakIndexingLoad
             );
         }
     }

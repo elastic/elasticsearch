@@ -9,12 +9,10 @@
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
-import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
 import org.elasticsearch.gradle.test.YamlRestTestPlugin;
@@ -48,6 +46,7 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -76,7 +75,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
 
         final Path compatRestResourcesDir = Path.of("restResources").resolve("compat");
@@ -96,13 +95,13 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         // determine the previous rest compatibility version and BWC project path
         int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
-        Version lastMinor = buildParams.getBwcVersions()
+        String lastMinorProjectPath = buildParams.getBwcVersions()
             .getUnreleased()
             .stream()
             .filter(v -> v.getMajor() == currentMajor - 1)
             .min(Comparator.reverseOrder())
-            .get();
-        String lastMinorProjectPath = buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+            .map(v -> buildParams.getBwcVersions().unreleasedInfo(v).gradleProjectPath())
+            .orElseGet(() -> buildParams.getBwcVersions().getUnmaintainedPreviousMajor().get().gradleProjectPath());
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
@@ -258,7 +257,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             );
 
             // run compatibility tests after "normal" tests
-            testTask.mustRunAfter(project.getTasks().named(LegacyYamlRestTestPlugin.SOURCE_SET_NAME));
+            testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             onlyIfBwcEnabled(testTask, extraProperties);
         });
 

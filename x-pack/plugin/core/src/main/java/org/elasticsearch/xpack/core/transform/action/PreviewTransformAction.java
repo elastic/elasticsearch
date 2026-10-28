@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -17,7 +19,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -28,10 +34,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST;
 
 public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
@@ -53,21 +62,40 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, Releasable {
 
+        static final TransportVersion PREVIEW_AS_INDEX_REQUEST = TransportVersion.fromName("transform_preview_as_index_request");
         private final TransformConfig config;
+        private final boolean previewAsIndexRequest;
 
-        public Request(TransformConfig config, TimeValue timeout) {
+        // Caller's UIAM cloud credential carried on the request so it survives coordinator -> executing-node
+        // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
+        @Nullable
+        private CloudCredential cloudCredential;
+
+        public Request(TransformConfig config, TimeValue timeout, boolean previewAsIndexRequest) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
+            this.previewAsIndexRequest = previewAsIndexRequest;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
+            this.previewAsIndexRequest = in.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST) ? in.readBoolean() : false;
+            if (in.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                this.cloudCredential = null;
+            }
         }
 
-        public static Request fromXContent(final XContentParser parser, TimeValue timeout) throws IOException {
+        public static Request fromXContent(
+            final XContentParser parser,
+            TimeValue timeout,
+            boolean previewAsIndexRequest,
+            TransformParsingContext transformParsingContext
+        ) throws IOException {
             Map<String, Object> content = parser.map();
             // dest.index is not required for _preview, so we just supply our own
             Map<String, String> tempDestination = new HashMap<>();
@@ -89,7 +117,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                     XContentType.JSON
                 )
             ) {
-                return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
+                return new Request(
+                    TransformConfig.fromXContent(newParser, null, false, transformParsingContext),
+                    timeout,
+                    previewAsIndexRequest
+                );
             }
         }
 
@@ -115,15 +147,55 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             return config;
         }
 
+        public boolean previewAsIndexRequest() {
+            return previewAsIndexRequest;
+        }
+
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        /**
+         * Sets the credential this request carries and hands ownership of the previously-held
+         * credential back to the caller, which is responsible for closing it. Returns {@code null}
+         * when the credential is unchanged.
+         */
+        @Nullable
+        public CloudCredential setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            var previous = this.cloudCredential == cloudCredential ? null : this.cloudCredential;
+            this.cloudCredential = cloudCredential;
+            return previous;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
+            if (out.getTransportVersion().supports(PREVIEW_AS_INDEX_REQUEST)) {
+                out.writeBoolean(previewAsIndexRequest);
+            } else if (previewAsIndexRequest) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a _preview request with "
+                        + TransformField.PREVIEW_AS_INDEX_REQUEST.getPreferredName()
+                        + " to an outdated node. Please upgrade the node to 9.3.0+ and try again.",
+                    RestStatus.BAD_REQUEST
+                );
+            }
+            if (out.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
+                out.writeOptionalWriteable(cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config);
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
+            return Objects.hash(config, previewAsIndexRequest);
         }
 
         @Override
@@ -135,7 +207,8 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
+            return Objects.equals(config, other.config) && (previewAsIndexRequest == other.previewAsIndexRequest);
         }
 
         @Override
@@ -168,10 +241,6 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
 
         public List<Map<String, Object>> getDocs() {
             return docs;
-        }
-
-        public TransformDestIndexSettings getGeneratedDestIndexSettings() {
-            return generatedDestIndexSettings;
         }
 
         @Override

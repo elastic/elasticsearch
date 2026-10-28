@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
@@ -53,7 +55,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -72,7 +76,10 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
@@ -88,8 +95,12 @@ import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -279,16 +290,17 @@ public class ProfileServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetProfileSubjectsNoIndex() throws Exception {
-        when(profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
         ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
         assertThat(resultsAndErrors.results().size(), is(0));
         assertThat(resultsAndErrors.errors().size(), is(0));
-        when(profileIndex.indexExists()).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
-        when(profileIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-        when(profileIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
@@ -298,7 +310,7 @@ public class ProfileServiceTests extends ESTestCase {
         resultsAndErrors = future3.get();
         assertThat(resultsAndErrors.results().size(), is(0));
         assertThat(resultsAndErrors.errors().size(), is(0));
-        verify(profileIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        verify(projectIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -348,7 +360,8 @@ public class ProfileServiceTests extends ESTestCase {
         profileService.getProfileSubjects(allProfileUids, future);
 
         ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
-        verify(profileIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        verify(projectIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         assertThat(resultsAndErrors.errors().size(), equalTo(missingProfileUids.size()));
         resultsAndErrors.errors().forEach((uid, e) -> {
             assertThat(missingProfileUids, hasItem(uid));
@@ -556,7 +569,7 @@ public class ProfileServiceTests extends ESTestCase {
             final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
             var resp = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
-                    new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                    new MultiSearchResponse.Item(SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(), null) },
                 1L
             );
             try {
@@ -1012,7 +1025,8 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public void testUsageStatsWhenNoIndex() {
-        when(profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         profileService.usageStats(future);
         assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
@@ -1286,7 +1300,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testProfilesIndexMissingOrUnavailableWhenRetrievingProfilesOfApiKeyOwners() throws Exception {
         // profiles index missing
-        when(this.profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         String realmName = "realmName_" + randomAlphaOfLength(8);
         String realmType = "realmType_" + randomAlphaOfLength(8);
         String username = "username_" + randomAlphaOfLength(8);
@@ -1308,14 +1323,144 @@ public class ProfileServiceTests extends ESTestCase {
         Collection<String> profileUids = listener.get();
         assertThat(profileUids, nullValue());
         // profiles index unavailable
-        when(this.profileIndex.indexExists()).thenReturn(true);
-        when(this.profileIndex.isAvailable(any())).thenReturn(false);
-        when(this.profileIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException("test unavailable"));
+        Mockito.reset(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(any())).thenReturn(false);
+        when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException("test unavailable"));
         listener = new PlainActionFuture<>();
         profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
         PlainActionFuture<Collection<String>> finalListener = listener;
         ExecutionException e = expectThrows(ExecutionException.class, () -> finalListener.get());
         assertThat(e.getMessage(), containsString("test unavailable"));
+    }
+
+    /**
+     * Authors who are the same person share one lookup, an author from a realm this node does not have resolves to
+     * no profile without one, and a found profile's uid is reported for every author it belongs to, in author order.
+     */
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForServiceAccountAuthors() throws Exception {
+        // The sample profile document is for realm_name_1 of realm_type_1, so the author has to be from there.
+        final ServiceAccountAuthor alice = new ServiceAccountAuthor("alice", "Alice", null, "realm_name_1", "realm_type_1", null);
+        // The same person as recorded by a later write, after a full name was added: one subject, two authors.
+        final ServiceAccountAuthor aliceRenamed = new ServiceAccountAuthor("alice", "Alice B.", null, "realm_name_1", "realm_type_1", null);
+        final ServiceAccountAuthor aliceViaApiKey = ServiceAccountAuthor.fromAuthentication(
+            AuthenticationTestHelper.builder()
+                .apiKey()
+                .user(new User("alice"))
+                .metadata(
+                    Map.of(
+                        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                        "realm_name_1",
+                        AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+                        "realm_type_1"
+                    )
+                )
+                .build(false)
+        );
+        final ServiceAccountAuthor bob = new ServiceAccountAuthor("bob", null, null, "unconfigured_realm", "ldap", null);
+        realmRefLookup = realmIdentifier -> {
+            if (realmIdentifier.getName().equals("realm_name_1")) {
+                assertThat(realmIdentifier.getType(), is("realm_type_1"));
+                // The same realm ref every time, so that the two lookups for alice are recognised as one subject.
+                return new Authentication.RealmRef("realm_name_1", "realm_type_1", "nodeName");
+            }
+            assertThat(realmIdentifier.getName(), is("unconfigured_realm"));
+            return null;
+        };
+        final SearchHit hit = SearchHit.unpooled(0, "profile_u_alice");
+        hit.sourceRef(new BytesArray(getSampleProfileDocumentSource("u_alice", "alice", List.of("role_a"), 1L)));
+        final SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits), null) },
+            randomNonNegativeLong()
+        );
+        try {
+            doAnswer(invocation -> {
+                assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+                final MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                // one search for alice, who is both creator and updater; none for bob, whose realm is not configured
+                assertThat(multiSearchRequest.requests(), iterableWithSize(1));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    containsInAnyOrder(
+                        new TermQueryBuilder("user_profile.user.username.keyword", "alice"),
+                        new TermQueryBuilder("user_profile.user.realm.type", "realm_type_1"),
+                        new TermQueryBuilder("user_profile.user.realm.name", "realm_name_1")
+                    )
+                );
+                final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForServiceAccountAuthors(List.of(alice, bob, aliceRenamed, alice, aliceViaApiKey), listener);
+            assertThat(listener.get(), contains("u_alice", null, "u_alice", "u_alice", "u_alice"));
+        } finally {
+            multiSearchResponse.decRef();
+            hits.decRef();
+        }
+    }
+
+    public void testProfilesIndexMissingWhenRetrievingProfilesOfServiceAccountAuthors() throws Exception {
+        when(profileIndex.forCurrentProject().indexExists()).thenReturn(false);
+        realmRefLookup = realmIdentifier -> new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), "nodeName");
+        final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+        profileService.resolveProfileUidsForServiceAccountAuthors(
+            List.of(new ServiceAccountAuthor("alice", null, null, "native1", "native", null)),
+            listener
+        );
+        assertThat(listener.get(), nullValue());
+    }
+
+    public void testSerializationSize() {
+        assertThat(ProfileService.serializationSize(Map.of()), is(2));
+        assertThat(ProfileService.serializationSize(Map.of("foo", "bar")), is(13));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> ProfileService.serializationSize(Map.of("bad", new ByteArrayInputStream(new byte[0])))
+        );
+    }
+
+    public void testMapFromBytesReference() {
+        assertThat(ProfileService.mapFromBytesReference(null), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(BytesReference.fromByteBuffer(ByteBuffer.allocate(0))), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(newBytesReference("{}")), is(Map.of()));
+        assertThat(ProfileService.mapFromBytesReference(newBytesReference("{\"foo\":\"bar\"}")), is(Map.of("foo", "bar")));
+    }
+
+    public void testCombineMaps() {
+        assertThat(ProfileService.combineMaps(null, Map.of("a", 1)), is(Map.of("a", 1)));
+        assertThat(
+            ProfileService.combineMaps(new HashMap<>(Map.of("a", 1, "b", 2)), Map.of("b", 3, "c", 4)),
+            is(Map.of("a", 1, "b", 3, "c", 4))
+        );
+        assertThat(
+            ProfileService.combineMaps(new HashMap<>(Map.of("a", new HashMap<>(Map.of("b", "c")))), Map.of("a", Map.of("d", "e"))),
+            is(Map.of("a", Map.of("b", "c", "d", "e")))
+        );
+    }
+
+    public void testValidateProfileSize() {
+        var pd = new ProfileDocument("uid", true, 0L, null, Map.of(), newBytesReference("{}"));
+        var vd = new ProfileService.VersionedDocument(pd, 1L, 1L);
+        var up = new UpdateProfileDataRequest(
+            "uid",
+            Map.of("key", "value"),
+            Map.of("key", "value"),
+            1L,
+            1L,
+            WriteRequest.RefreshPolicy.NONE
+        );
+        assertThrows(ElasticsearchException.class, () -> ProfileService.validateProfileSize(vd, up, ByteSizeValue.ZERO));
+        ProfileService.validateProfileSize(vd, up, ByteSizeValue.ofBytes(100));
+        ProfileService.validateProfileSize(null, up, ByteSizeValue.ZERO);
+    }
+
+    private static BytesReference newBytesReference(String str) {
+        return BytesReference.fromByteBuffer(ByteBuffer.wrap(str.getBytes(StandardCharsets.UTF_8)));
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}
@@ -1408,6 +1553,7 @@ public class ProfileServiceTests extends ESTestCase {
                     null
                 )
             ),
+            null,
             null
         );
     }
@@ -1430,6 +1576,8 @@ public class ProfileServiceTests extends ESTestCase {
                 0L,
                 ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
+                null,
+                null,
                 null
             );
         }

@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * This class exists as a workaround for using SourceProvider in the compute engine.
@@ -25,10 +26,17 @@ import java.util.function.Supplier;
  */
 final class ReinitializingSourceProvider implements SourceProvider {
 
+    private final SourceFilter sourceFilter;
     private PerThreadSourceProvider perThreadProvider;
-    private final Supplier<SourceProvider> sourceProviderFactory;
+    private final Function<SourceFilter, SourceProvider> sourceProviderFactory;
 
-    ReinitializingSourceProvider(Supplier<SourceProvider> sourceProviderFactory) {
+    ReinitializingSourceProvider(Function<SourceFilter, SourceProvider> sourceProviderFactory) {
+        this.sourceFilter = null;
+        this.sourceProviderFactory = sourceProviderFactory;
+    }
+
+    private ReinitializingSourceProvider(SourceFilter sourceFilter, Function<SourceFilter, SourceProvider> sourceProviderFactory) {
+        this.sourceFilter = sourceFilter;
         this.sourceProviderFactory = sourceProviderFactory;
     }
 
@@ -37,11 +45,16 @@ final class ReinitializingSourceProvider implements SourceProvider {
         var currentThread = Thread.currentThread();
         PerThreadSourceProvider provider = perThreadProvider;
         if (provider == null || provider.creatingThread != currentThread || doc < provider.lastSeenDocId) {
-            provider = new PerThreadSourceProvider(sourceProviderFactory.get(), currentThread);
+            provider = new PerThreadSourceProvider(sourceProviderFactory.apply(sourceFilter), currentThread);
             this.perThreadProvider = provider;
         }
         provider.lastSeenDocId = doc;
         return provider.source.getSource(ctx, doc);
+    }
+
+    @Override
+    public SourceProvider optimizedSourceProvider(SourceFilter sourceFilter) {
+        return new ReinitializingSourceProvider(sourceFilter, sourceProviderFactory);
     }
 
     private static final class PerThreadSourceProvider {

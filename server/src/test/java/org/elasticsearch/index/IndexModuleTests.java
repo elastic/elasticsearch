@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +51,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -59,16 +62,21 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -76,17 +84,17 @@ import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.rewriter.MockQueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -96,6 +104,8 @@ import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -140,36 +150,37 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
-        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {}
+        public void deleteShardStore(String reasonText, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason) {}
 
         @Override
-        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {}
+        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason reason) {}
     };
 
     private IndexStorePlugin.IndexFoldersDeletionListener indexDeletionListener = new IndexStorePlugin.IndexFoldersDeletionListener() {
         @Override
-        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {}
+        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason) {}
 
         @Override
-        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {}
+        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason) {}
     };
 
-    private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {
-    };
+    private final IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {};
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private FeatureService featureService;
     private IndexNameExpressionResolver indexNameExpressionResolver;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndexModuleTestFixtures() throws Exception {
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -191,18 +202,35 @@ public class IndexModuleTests extends ESTestCase {
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
-        scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        scriptService = new ScriptService(
+            settings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, ClusterSettings.createBuiltInClusterSettings(settings));
+        featureService = new FeatureService(List.of());
         nodeEnvironment = new NodeEnvironment(settings, environment);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            nodeEnvironment
+        );
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanupIndexModuleTestFixtures() throws Exception {
         IOUtils.close(nodeEnvironment, indicesQueryCache, clusterService);
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        // USE_THREAD_POOL_MERGE_SCHEDULER_SETTING is deprecated and used in setUp to exercise both enabled/disabled paths
+        return List.of(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey());
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
@@ -214,18 +242,19 @@ public class IndexModuleTests extends ESTestCase {
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeExecutorService,
             scriptService,
             clusterService,
+            featureService,
             null,
             indicesQueryCache,
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             null,
             indexDeletionListener,
-            emptyMap(),
-            new MockQueryRewriteInterceptor()
+            emptyMap()
         );
     }
 
@@ -239,9 +268,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -267,9 +300,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final IndexService indexService = newIndexService(module);
@@ -293,9 +330,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -524,6 +565,26 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT,
+            IndexMode.VECTORDB_COLUMNAR
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
+    public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
+        // vectordb_columnar is isStrictColumnar() but intentionally keeps the query cache enabled
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
@@ -573,6 +634,11 @@ public class IndexModuleTests extends ESTestCase {
             @Override
             public AnalyzerScope scope() {
                 return AnalyzerScope.INDEX;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
             }
 
             @Override
@@ -636,7 +702,7 @@ public class IndexModuleTests extends ESTestCase {
         RecoveryState recoveryState = mock(RecoveryState.class);
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
             "test_recovery",
-            (shardRouting, targetNode, sourceNode) -> recoveryState
+            (shardRouting, targetNode, sourceNode, localRetries) -> recoveryState
         );
 
         final IndexModule module = new IndexModule(
@@ -647,16 +713,23 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final IndexService indexService = newIndexService(module);
 
         ShardRouting shard = createInitializedShardRouting();
 
-        assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
+        assertThat(
+            indexService.getRecoveryStateFactory().newRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class), 0),
+            is(recoveryState)
+        );
 
         closeIndexService(indexService);
     }
@@ -670,9 +743,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -706,17 +783,24 @@ public class IndexModuleTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             ).initialize("_node_id", null, -1);
 
             IndexService indexService = newIndexService(module);
             closeables.add(() -> closeIndexService(indexService));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, IndexShardTestCase.NOOP_GCP_SYNCER, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                DiscoveryNodeUtils.create("_node_id", "_node_id"),
+                null,
+                IndexShardTestCase.NOOP_GCP_SYNCER,
+                RetentionLeaseSyncer.EMPTY
+            );
             closeables.add(() -> flushAndCloseShardNoCheck(indexShard));
-            indexShard.markAsRecovering("test", new RecoveryState(shardRouting, DiscoveryNodeUtils.create("_node_id", "_node_id"), null));
+            indexShard.markAsRecovering("test");
 
-            final PlainActionFuture<Boolean> recoveryFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Void> recoveryFuture = new PlainActionFuture<>();
             indexShard.recoverFromStore(recoveryFuture);
             recoveryFuture.get();
 
@@ -754,7 +838,8 @@ public class IndexModuleTests extends ESTestCase {
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shard = shard.initialize("node1", null, -1);
         return shard;
@@ -773,9 +858,13 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
     }
 

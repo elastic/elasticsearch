@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -166,20 +166,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii as semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
-            String text = randomAlphaOfLengthBetween(1, 64);
-            int length = between(1, text.length());
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
-                ),
-                "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(unicodeRightSubstring(text, length)))
-            );
-        }));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static String unicodeRightSubstring(String str, int length) {
@@ -214,7 +201,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
 
     private String process(String str, int length) {
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+            ExpressionEvaluator eval = evaluator(
                 new Right(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, length, DataType.INTEGER))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str))))

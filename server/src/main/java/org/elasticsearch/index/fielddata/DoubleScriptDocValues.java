@@ -18,6 +18,7 @@ public final class DoubleScriptDocValues extends SortedNumericDoubleValues {
     private int cursor;
 
     DoubleScriptDocValues(DoubleFieldScript script) {
+        super(null);
         this.script = script;
     }
 

@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -33,12 +34,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -47,6 +50,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -85,11 +89,21 @@ public class MockRepository extends FsRepository {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 "mock",
-                (metadata) -> new MockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new MockRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    snapshotMetrics
+                )
             );
         }
 
@@ -176,14 +190,25 @@ public class MockRepository extends FsRepository {
     private volatile boolean failOnDeleteContainer = false;
 
     public MockRepository(
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+        super(
+            projectId,
+            overrideSettings(metadata, environment),
+            environment,
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            snapshotMetrics
+        );
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();
@@ -577,8 +602,10 @@ public class MockRepository extends FsRepository {
                     deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
-                blobStore().blobContainer(path().parent())
-                    .deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(path().parts().get(path().parts().size() - 1)));
+                // Delete this container's directory via the underlying FsBlobContainer.delete()
+                try {
+                    super.delete(purpose);
+                } catch (NoSuchFileException ignored) {}
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 

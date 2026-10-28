@@ -23,7 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -121,9 +121,9 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         // sampled doc count is NOT scaled, and thus should be lower
         testCase(RandomSamplerAggregatorTests::writeTestDocs, (InternalRandomSampler result) -> {
             long sampledDocCount = result.getDocCount();
-            Filter agg = result.getAggregations().get("filter_outer");
+            SingleBucketAggregation agg = result.getAggregations().get("filter_outer");
             long outerFilterDocCount = agg.getDocCount();
-            Filter innerAgg = agg.getAggregations().get("filter_inner");
+            SingleBucketAggregation innerAgg = agg.getAggregations().get("filter_inner");
             long innerFilterDocCount = innerAgg.getDocCount();
             if (sampledDocCount == 0) {
                 // in case 0 docs get sampled, which can rarely happen

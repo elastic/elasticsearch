@@ -11,6 +11,7 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
@@ -21,7 +22,6 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     private final QuerySearchResult result;
 
     public ScrollQuerySearchResult(StreamInput in) throws IOException {
-        super(in);
         SearchShardTarget shardTarget = new SearchShardTarget(in);
         // This was created with refCount = 1, doesn't need to be incRef'd
         result = new QuerySearchResult(in);
@@ -49,6 +49,15 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     @Override
     public QuerySearchResult queryResult() {
         return result;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        result.setDirectoryMetrics(directoryMetrics);
+    }
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return result.getDirectoryMetrics();
     }
 
     @Override

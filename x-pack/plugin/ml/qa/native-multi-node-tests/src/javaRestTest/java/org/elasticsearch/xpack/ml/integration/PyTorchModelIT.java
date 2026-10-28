@@ -31,10 +31,12 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -305,7 +307,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLiveDeploymentStats() throws IOException {
+    public void testLiveDeploymentStats() throws Exception {
         String modelId = "live_deployment_stats";
         createPassThroughModel(modelId);
         putVocabulary(List.of("once", "twice"), modelId);
@@ -365,6 +367,66 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
             assertThat(inferenceCount, equalTo(5));
+
+            // The native process reports its resident set size (current and OS peak) periodically. Elasticsearch surfaces
+            // these, summed across nodes, as runtime_native_memory_bytes / peak_runtime_native_memory_bytes in
+            // model_size_stats.
+            assertBusy(() -> assertNativeRuntimeMemorySurfaced(modelId), 30, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Enforces the RSS accounting chain end to end. The native process's periodic report carries the OS peak RSS
+     * (high-water mark), which is available on every platform, whereas the current RSS is not reported on macOS
+     * ({@code CProcessStats::residentSetSize()} returns 0 there). We therefore use the peak as the "a measurement has
+     * arrived" signal so this assertion is portable: the summed per-node peak must be surfaced as
+     * peak_runtime_native_memory_bytes in model_size_stats, and where the current RSS is reported it must be surfaced as
+     * runtime_native_memory_bytes and never exceed the peak. A missing report fails (driving the surrounding assertBusy
+     * to retry) rather than being tolerated. Used only when the native process is known to emit periodic RSS.
+     */
+    @SuppressWarnings("unchecked")
+    private void assertNativeRuntimeMemorySurfaced(String modelId) throws IOException {
+        Response statsResponse = getTrainedModelStats(modelId);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(statsResponse).get("trained_model_stats");
+        assertThat(stats, hasSize(1));
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "deployment_stats.nodes",
+            stats.get(0)
+        );
+
+        long summedAvgRss = 0;
+        long summedPeakRss = 0;
+        for (var node : nodes) {
+            Number nodeAvgRss = (Number) node.get("average_inference_process_memory_rss_bytes");
+            Number nodePeakRss = (Number) node.get("peak_inference_process_memory_rss_bytes");
+            if (nodeAvgRss != null) {
+                summedAvgRss += nodeAvgRss.longValue();
+            }
+            if (nodePeakRss != null) {
+                summedPeakRss += nodePeakRss.longValue();
+            }
+        }
+        // The peak RSS is reported on every platform, so use it as the signal that a measurement has arrived. Failing
+        // here (rather than skipping) drives the surrounding assertBusy to keep polling until the first report lands.
+        assertThat("native peak RSS not yet reported", summedPeakRss, greaterThan(0L));
+
+        Number peakRuntimeNativeMemory = (Number) XContentMapValues.extractValue(
+            "model_size_stats.peak_runtime_native_memory_bytes",
+            stats.get(0)
+        );
+        assertThat(peakRuntimeNativeMemory, notNullValue());
+        assertThat(peakRuntimeNativeMemory.longValue(), equalTo(summedPeakRss));
+
+        Number runtimeNativeMemory = (Number) XContentMapValues.extractValue("model_size_stats.runtime_native_memory_bytes", stats.get(0));
+        if (summedAvgRss > 0) {
+            // Current RSS is reported on this platform (e.g. Linux): it must be surfaced and never exceed the peak.
+            assertThat(runtimeNativeMemory, notNullValue());
+            assertThat(runtimeNativeMemory.longValue(), equalTo(summedAvgRss));
+            assertThat(peakRuntimeNativeMemory.longValue(), greaterThanOrEqualTo(runtimeNativeMemory.longValue()));
+        } else {
+            // Current RSS is not supported on this platform (macOS): the API omits runtime_native_memory_bytes rather
+            // than implying the deployment is using no memory.
+            assertThat(runtimeNativeMemory, nullValue());
         }
     }
 
@@ -559,15 +621,6 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
                 List<Double> embedding = (List<Double>) inferenceResults.get(i).get("predicted_value");
                 assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
             }
-        }
-        {
-            // the deprecated deployment/_infer endpoint does not support multiple docs
-            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-            request.setJsonEntity(String.format(Locale.ROOT, """
-                {  "docs": [%s] }
-                """, docsBuilder));
-            Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-            assertThat(ex.getMessage(), containsString("multiple documents are not supported"));
         }
     }
 
@@ -923,7 +976,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         stopDeployment(modelId2);
     }
 
-    public void testNotifications() throws IOException {
+    public void testNotifications() throws Exception {
         String modelId1 = "test_notifications_1";
         createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
@@ -958,6 +1011,34 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
+    public void testStartDeployment_ModelTooBig() throws IOException {
+        String modelId = "test_start_deployment_too_big_model";
+        // Create a model with memory requirements that exceed available node native memory
+        long perDeploymentMemoryBytes = ByteSizeValue.ofGb(100).getBytes();
+        long perAllocationMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
+        createPassThroughModel(modelId, perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
         );
 
         Response response = getTrainedModelStats(modelId);

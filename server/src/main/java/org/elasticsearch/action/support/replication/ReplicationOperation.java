@@ -12,23 +12,27 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.NoLongerPrimaryShardException;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
@@ -148,6 +152,14 @@ public class ReplicationOperation<
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
+            // We have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
+            // is valid for the replication group. If we sample in the reverse, the global checkpoint might be based on a subset
+            // of the sampled replication group, and advanced further than what the given replication group would allow it to.
+            // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
+            final long globalCheckpoint = primary.computedGlobalCheckpoint();
+            // We have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
+            // We have to make sure that every operation indexed into the primary after recovery start will also be replicated
+            // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
 
             ActionListener.run(pendingActionsListener.acquire(), primaryOperationPendingActionListener -> {
@@ -169,22 +181,16 @@ public class ReplicationOperation<
                     })
                 );
             });
-
-            // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
-            // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
-            // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
-            // we also have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
-            // is valid for this replication group. If we would sample in the reverse, the global checkpoint might be based on a subset
-            // of the sampled replication group, and advanced further than what the given replication group would allow it to.
-            // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
-            final long globalCheckpoint = primary.computedGlobalCheckpoint();
             // we have to capture the max_seq_no_of_updates after this request was completed on the primary to make sure the value of
             // max_seq_no_of_updates on replica when this request is executed is at least the value on the primary when it was executed
             // on.
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup, pendingActionsListener);
+            // pending replication actions immediately cancels requests for any allocation id that's been removed from the replication group
+            // pending replication actions is also notified of any replication group changes, BEFORE the global checkpoint is updated
+            // this means that replicas can't possibly receive replication requests with a global checkpoint > local checkpoint
+            final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             performOnReplicas(
                 replicaRequest,
                 globalCheckpoint,
@@ -383,12 +389,14 @@ public class ReplicationOperation<
         try {
             primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
             primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
-        } catch (final AlreadyClosedException e) {
-            // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-        } catch (final Exception e) {
+        } catch (final AlreadyClosedException | IndexShardClosedException e) {
+            // the index was deleted, this shard was closed, or this shard was never activated after a relocation; fall through and finish
+            // normally
+        } catch (final Exception updateFailure) {
             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
+                    e.addSuppressed(updateFailure);
                     assert false : e;
                 }
 
@@ -398,9 +406,27 @@ public class ReplicationOperation<
                 }
 
                 @Override
+                public void onRejection(Exception e) {
+                    if (e instanceof EsRejectedExecutionException rejectedException && rejectedException.isExecutorShutdown()) {
+                        logger.debug(
+                            () -> format(
+                                "node is shutting down, not failing primary after update checkpoints failure for replica %s",
+                                shard
+                            ),
+                            updateFailure
+                        );
+                    } else {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
                 protected void doRun() {
                     // fail the primary but fall through and let the rest of operation processing complete
-                    primary.failShard(String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard), e);
+                    primary.failShard(
+                        String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard),
+                        updateFailure
+                    );
                 }
 
                 @Override
@@ -435,7 +461,7 @@ public class ReplicationOperation<
                     )
                 );
             } else {
-                assert failure instanceof ShardStateAction.NoLongerPrimaryShardException : failure;
+                assert failure instanceof NoLongerPrimaryShardException : failure;
                 threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() {
@@ -452,6 +478,26 @@ public class ReplicationOperation<
                     @Override
                     public boolean isForceExecution() {
                         return true;
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        // If the node is shutting down, follow the same path as nodeIsClosing above
+                        if (e instanceof EsRejectedExecutionException rejectedException && rejectedException.isExecutorShutdown()) {
+                            l.onFailure(
+                                new RetryOnPrimaryException(
+                                    primary.routingEntry().shardId(),
+                                    String.format(
+                                        Locale.ROOT,
+                                        "node with primary [%s] is shutting down while failing replica shard",
+                                        primary.routingEntry()
+                                    ),
+                                    failure
+                                )
+                            );
+                        } else {
+                            onFailure(e);
+                        }
                     }
 
                     @Override
@@ -689,17 +735,40 @@ public class ReplicationOperation<
     }
 
     public static final class RetryOnPrimaryException extends ElasticsearchException {
+        private static final TransportVersion OPERATION_APPLIED_ON_PRIMARY = TransportVersion.fromName(
+            "retry_on_primary_flag_possible_execution"
+        );
+        private final boolean possiblyExecutedOnPrimary;
+
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }
 
         RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
+            this(shardId, msg, cause, true);
+        }
+
+        RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause, boolean possiblyExecutedOnPrimary) {
             super(msg, cause);
             setShard(shardId);
+            this.possiblyExecutedOnPrimary = possiblyExecutedOnPrimary;
         }
 
         public RetryOnPrimaryException(StreamInput in) throws IOException {
             super(in);
+            possiblyExecutedOnPrimary = in.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY) ? in.readBoolean() : true;
+        }
+
+        @Override
+        protected void writeTo(StreamOutput out, Writeable.Writer<Throwable> nestedExceptionsWriter) throws IOException {
+            super.writeTo(out, nestedExceptionsWriter);
+            if (out.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY)) {
+                out.writeBoolean(possiblyExecutedOnPrimary);
+            }
+        }
+
+        public boolean possiblyExecutedOnPrimary() {
+            return possiblyExecutedOnPrimary;
         }
     }
 
@@ -720,5 +789,4 @@ public class ReplicationOperation<
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
     }
-
 }

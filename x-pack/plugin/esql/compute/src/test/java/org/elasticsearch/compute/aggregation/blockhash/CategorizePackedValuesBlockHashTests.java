@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -31,6 +32,8 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -49,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -69,6 +71,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorize_withDriver() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         runWithDriver(bigArrays);
     }
 
@@ -87,14 +90,18 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
     }
 
     public void runWithDriver(BigArrays bigArrays) {
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
+        BlockHash.CategorizeDef categorizeDef = new BlockHash.CategorizeDef(
+            null,
+            randomFrom(BlockHash.CategorizeDef.OutputFormat.values()),
+            70
+        );
 
         List<BlockHash.GroupSpec> groupSpecs = List.of(
-            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true),
-            new BlockHash.GroupSpec(1, ElementType.INT, false)
+            new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef),
+            new BlockHash.GroupSpec(1, ElementType.INT, null)
         );
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
@@ -164,61 +171,68 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
 
         List<Page> intermediateOutput = new ArrayList<>();
 
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    groupSpecs,
-                    AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    groupSpecs,
-                    AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    groupSpecs,
-                    AggregatorMode.FINAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(2)).groupingAggregatorFactory(AggregatorMode.FINAL)),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(groupSpecs)
+                    .mode(AggregatorMode.FINAL)
+                    .aggregators(
+                        List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2)))
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
-            new PageConsumerOperator(finalOutput::add),
-            () -> {}
+            new PageConsumerOperator(finalOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         assertThat(finalOutput, hasSize(1));
         assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
@@ -251,8 +265,12 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
         }
         Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
 
+        List<String> keys = switch (categorizeDef.outputFormat()) {
+            case REGEX -> List.of(".*?connected.+?to.*?", ".*?connection.+?error.*?", ".*?disconnected.*?");
+            case TOKENS -> List.of("connected to", "connection error", "disconnected");
+        };
         Map<String, Map<Integer, Set<String>>> expectedResult = Map.of(
-            ".*?connected.+?to.*?",
+            keys.get(0),
             Map.of(
                 7,
                 Set.of("connected to 1.1.1", "connected to 1.1.2", "connected to 1.1.4", "connected to 2.1.2"),
@@ -261,9 +279,9 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                 111,
                 Set.of("connected to 2.1.1")
             ),
-            ".*?connection.+?error.*?",
+            keys.get(1),
             Map.of(7, Set.of("connection error"), 42, Set.of("connection error")),
-            ".*?disconnected.*?",
+            keys.get(2),
             Map.of(7, Set.of("disconnected"))
         );
         if (withNull) {

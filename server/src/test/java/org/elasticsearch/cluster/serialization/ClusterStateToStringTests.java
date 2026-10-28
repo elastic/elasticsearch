@@ -40,7 +40,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test_idx"))
+            .addAsNew(metadata.getProject().index("test_idx"))
             .build();
 
         DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -60,7 +60,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
             .build();
 
-        String clusterStateString = Strings.toString(clusterState);
+        String clusterStateString = Strings.toTruncatedString(clusterState);
         assertNotNull(clusterStateString);
 
         assertThat(clusterStateString, containsString("test_idx"));

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
@@ -17,11 +18,15 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,6 +85,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Only relevant for indexes configured with synthetic source mode. Otherwise, it has no effect.
     // Controls the default behavior for storing the source of leaf fields and objects, in singleton or array form.
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
+    public static final String SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY = "index.mapping.synthetic_source_keep";
     public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         SourceKeepMode.class,
         settings -> {
@@ -90,10 +96,30 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return SourceKeepMode.NONE.toString();
             }
         },
-        "index.mapping.synthetic_source_keep",
-        value -> {
-            if (value == SourceKeepMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
+        SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY,
+        new Setting.Validator<SourceKeepMode>() {
+            @Override
+            public void validate(SourceKeepMode value) {
+                if (value == SourceKeepMode.ALL) {
+                    throw new IllegalArgumentException(SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + " can't be set to [" + value + "]");
+                }
+            }
+
+            @Override
+            public void validate(SourceKeepMode value, Map<Setting<?>, Object> settings) {
+                // Strict-columnar index modes preserve array ordering via the .offsets sidecar; the legacy synthetic_source_keep mechanism
+                // is redundant and writes the same data to _ignored_source as well. Forbid any non-default value in strict-columnar modes.
+                IndexMode mode = (IndexMode) settings.get(IndexSettings.MODE);
+                if (mode != null && mode.isStrictColumnar() && value != SourceKeepMode.NONE) {
+                    throw new IllegalArgumentException(
+                        "[" + SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + mode + "] index mode"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(IndexSettings.MODE).iterator();
             }
         },
         Setting.Property.IndexScope,
@@ -115,6 +141,20 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
 
+        /**
+         * Returns the total number of fields that this builder will create.
+         * Used for field budget accounting during merges.
+         */
+        int getTotalFieldsCount() {
+            return 1;
+        }
+
+        /**
+         * Merges an incoming builder into this builder. Returns the merged builder, which may be
+         * a different instance if a type conversion is needed (e.g., ObjectMapper -> PassThroughObjectMapper).
+         */
+        public abstract Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext);
+
         void setLeafName(String leafName) {
             this.leafName = leafName;
         }
@@ -129,6 +169,128 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
             return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
+    }
+
+    /**
+     * This class models the ignore_above parameter in indices.
+     */
+    public static final class IgnoreAbove {
+        // We use Integer.MAX_VALUE to represent a no-op, accepting all values.
+        public static final int IGNORE_ABOVE_DEFAULT_VALUE = Integer.MAX_VALUE;
+        public static final int IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES = 8191;
+
+        private final Integer value;
+        private final Integer defaultValue;
+        private final int limit;
+
+        public IgnoreAbove(Integer value) {
+            this(Objects.requireNonNull(value), IndexMode.STANDARD, IndexVersion.current());
+        }
+
+        public IgnoreAbove(Integer value, IndexMode indexMode) {
+            this(value, indexMode, IndexVersion.current());
+            assert indexMode == null || indexMode.isStrictColumnar() == false;
+        }
+
+        public IgnoreAbove(Integer value, IndexMode indexMode, IndexVersion indexCreatedVersion) {
+            if (value != null && value < 0) {
+                throw new IllegalArgumentException("[ignore_above] must be positive, got [" + value + "]");
+            }
+
+            this.value = value;
+            this.defaultValue = getIgnoreAboveDefaultValue(indexMode, indexCreatedVersion);
+            this.limit = isNoOp(indexMode, indexCreatedVersion) ? Integer.MAX_VALUE : (value != null ? value : this.defaultValue);
+        }
+
+        public int get() {
+            return value != null ? value : defaultValue;
+        }
+
+        /**
+         * Returns whether ignore_above is set; at field or index level.
+         */
+        public boolean isSet() {
+            // if ignore_above equals default, its not considered to be set, even if it was explicitly set to the default value
+            return Integer.valueOf(get()).equals(defaultValue) == false;
+        }
+
+        /** Returns {@link Integer#MAX_VALUE} when {@code ignore_above} is inert (strictly columnar at or after the gate), else the limit.*/
+        public int limit() {
+            return limit;
+        }
+
+        /**
+         * Returns whether values are potentially ignored, either by an explicitly configured ignore_above or by the default value.
+         */
+        public boolean valuesPotentiallyIgnored() {
+            // We use Integer.MAX_VALUE to represent accepting all values. If the value is anything else, then either we have an
+            // explicitly configured ignore_above, or we have a non no-op default.
+            return limit != Integer.MAX_VALUE;
+        }
+
+        /**
+         * Returns whether the given string will be ignored.
+         */
+        public boolean isIgnored(final String s) {
+            if (s == null) return false;
+            return lengthExceedsIgnoreAbove(s.length());
+        }
+
+        public boolean isIgnored(final XContentString s) {
+            if (s == null) {
+                return false;
+            } else if (s instanceof Text text) {
+                // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+                // that lower bound doesn't exceed the limit, the true code-point count won't either.
+                if (text.hasBytes() && lengthExceedsIgnoreAbove(text.bytes().length()) == false) {
+                    return false;
+                }
+                return lengthExceedsIgnoreAbove(text.stringLength());
+            } else {
+                return lengthExceedsIgnoreAbove(s.stringLength());
+            }
+        }
+
+        public boolean isIgnored(final BytesRef utf8Ref) {
+            if (utf8Ref == null) return false;
+            // Treat byte length as code-point count (assuming all ASCII, 1 byte per char): if even
+            // that lower bound doesn't exceed the limit, the true code-point count won't either.
+            if (lengthExceedsIgnoreAbove(utf8Ref.length) == false) {
+                return false;
+            }
+            return lengthExceedsIgnoreAbove(
+                new Text(new XContentString.UTF8Bytes(utf8Ref.bytes, utf8Ref.offset, utf8Ref.length)).stringLength()
+            );
+        }
+
+        private boolean lengthExceedsIgnoreAbove(int strLength) {
+            return strLength > limit;
+        }
+
+        public static int getIgnoreAboveDefaultValue(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            if (diffIgnoreAboveDefaultForLogs(indexMode, indexCreatedVersion)) {
+                return IGNORE_ABOVE_DEFAULT_VALUE_FOR_LOGSDB_INDICES;
+            } else {
+                return IGNORE_ABOVE_DEFAULT_VALUE;
+            }
+        }
+
+        /**
+         * Returns {@code true} when {@code ignore_above} is inert: strictly columnar indices at or after
+         * {@link IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR} store only binary doc values, so no value may be dropped.
+         */
+        public static boolean isNoOp(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            return indexMode != null
+                && indexMode.isStrictColumnar()
+                && indexCreatedVersion != null
+                && indexCreatedVersion.onOrAfter(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR);
+        }
+
+        private static boolean diffIgnoreAboveDefaultForLogs(final IndexMode indexMode, final IndexVersion indexCreatedVersion) {
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR)
+                && (indexCreatedVersion != null && indexCreatedVersion.onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB));
+        }
+
     }
 
     private final String leafName;
@@ -155,12 +317,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
-
-    /**
-     * Return the merge of {@code mergeWith} into this.
-     * Both {@code this} and {@code mergeWith} will be left unmodified.
-     */
-    public abstract Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -212,4 +368,39 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
     public abstract int getTotalFieldsCount();
+
+    /**
+     * @return whether this mapper supports storing leaf array elements natively when synthetic source is enabled.
+     */
+    public final boolean supportStoringArrayOffsets() {
+        return getOffsetFieldName() != null;
+    }
+
+    /**
+     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets()} returns
+     * <code>true</code>.
+     */
+    public String getOffsetFieldName() {
+        return null;
+    }
+
+    /**
+     * @return whether this mapper stores its multi-valued leaf array elements in document order directly in its own binary doc-values
+     * field (the {@link MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format), with no sidecar offsets field.
+     * Like {@link #supportStoringArrayOffsets()}, this signals to the document parser that the field handles array storage natively and
+     * must not be diverted to {@code _ignored_source}.
+     */
+    public boolean storesArrayValuesInOrder() {
+        return false;
+    }
+
+    /**
+     * Records an empty array for a mapper that {@link #storesArrayValuesInOrder() stores its array elements in order}: the
+     * {@code .counts} companion alone, at zero, with no binary blob. Overridable because the accumulator registered on the document
+     * is per-format, and a field whose doc values go to the ColumNAR codec registers a different one.
+     */
+    public void recordEmptyArrayInOrder(LuceneDocument doc) {
+        assert storesArrayValuesInOrder() : "only an in-order mapper records an empty array this way";
+        MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordEmptyArray(doc, fullPath());
+    }
 }

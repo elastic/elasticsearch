@@ -34,6 +34,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -44,6 +45,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private NameType nametype;
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
+    private final Object sharingKey;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -94,9 +96,9 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik();
+                this.encoder = new KoelnerPhonetik(maxVariations(settings));
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik();
+                this.encoder = new HaasePhonetik(maxVariations(settings));
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -105,6 +107,33 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
+        // The commons-codec encoders are built with their defaults, so the class identifies the encoding; the
+        // language set is used as a set, so its order and duplicates do not matter.
+        this.sharingKey = new Key(
+            encoder == null ? null : encoder.getClass(),
+            replace,
+            maxcodelength,
+            languageset == null ? null : Set.copyOf(languageset),
+            nametype,
+            ruletype,
+            isDaitchMokotoff
+        );
+    }
+
+    // Only the koelnerphonetik and haasephonetik encoders generate spelling variations; the limit is ignored
+    // for every other encoder, like the other encoder-specific settings above.
+    private static int maxVariations(Settings settings) {
+        int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+        if (maxVariations < 1 || maxVariations > KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "[max_variations] must be between 1 and "
+                    + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND
+                    + " for phonetic token filter, got ["
+                    + maxVariations
+                    + "]"
+            );
+        }
+        return maxVariations;
     }
 
     @Override
@@ -133,4 +162,19 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        Class<? extends Encoder> encoder,
+        boolean replace,
+        int maxCodeLength,
+        Set<String> languageSet,
+        NameType nameType,
+        RuleType ruleType,
+        boolean daitchMokotoff
+    ) {}
 }

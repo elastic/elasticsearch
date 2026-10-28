@@ -7,205 +7,98 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DROP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.EVAL;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LET;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT_BY;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_EXPRESSION;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.PROMQL;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SUBQUERY;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.TS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FPREFIX;
-import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
-    private EsqlParser parser = new EsqlParser();
-
     public void testDissectQuery() {
         Counters c = esql("from employees | dissect concat(first_name, \" \", last_name) \"%{a} %{b}\"");
-        assertEquals(1L, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("concat", c));
+        assertMetrics(c, Map.of(DISSECT, 1L, FROM, 1L), Map.of("concat", 1L));
     }
 
     public void testEvalQuery() {
         Counters c = esql("from employees | eval name_len = length(first_name)");
-        assertEquals(0, dissect(c));
-        assertEquals(1L, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("length", c));
+        assertMetrics(c, Map.of(EVAL, 1L, FROM, 1L), Map.of("length", 1L));
     }
 
     public void testGrokQuery() {
         Counters c = esql("from employees | grok concat(first_name, \" \", last_name) \"%{WORD:a} %{WORD:b}\"");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(1L, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("concat", c));
+        assertMetrics(c, Map.of(GROK, 1L, FROM, 1L), Map.of("concat", 1L));
     }
 
     public void testLimitQuery() {
         Counters c = esql("from employees | limit 2");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(1L, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(LIMIT, 1L, FROM, 1L));
+    }
+
+    public void testLimitByQuery() {
+        Counters c = esql("from employees | sort first_name | limit 3 by gender");
+        assertMetrics(c, Map.of(LIMIT_BY, 1L, SORT, 1L, FROM, 1L));
     }
 
     public void testSortQuery() {
         Counters c = esql("from employees | sort first_name desc nulls first");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(1L, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(SORT, 1L, FROM, 1L));
     }
 
     public void testStatsQuery() {
         Counters c = esql("from employees | stats l = max(languages)");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("max", c));
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L), Map.of("max", 1L));
     }
 
     public void testWhereQuery() {
         Counters c = esql("from employees | where languages > 2");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(1L, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(WHERE, 1L, FROM, 1L));
     }
 
     public void testTwoWhereQuery() {
         Counters c = esql("from employees | where languages > 2 | limit 5 | sort first_name | where first_name == \"George\"");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(1L, limit(c));
-        assertEquals(1L, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(1L, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(LIMIT, 1L, SORT, 1L, WHERE, 1L, FROM, 1L));
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -226,33 +119,15 @@ public class VerifierMetricsTests extends ESTestCase {
               | stats y = min(x) by x
             """, verifier);
         Counters c = metrics.stats();
-        assertEquals(1L, dissect(c));
-        assertEquals(1L, eval(c));
-        assertEquals(1L, grok(c));
-        assertEquals(1L, limit(c));
-        assertEquals(2L, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(2L, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(2L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("length", c));
-        assertEquals(1, function("concat", c));
-        assertEquals(1, function("max", c));
-        assertEquals(1, function("min", c));
-
-        assertEquals(0, function("sin", c));
-        assertEquals(0, function("cos", c));
+        assertMetrics(
+            c,
+            Map.of(DISSECT, 1L, EVAL, 1L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L),
+            Map.of("length", 1L, "concat", 1L, "max", 1L, "min", 1L)
+        );
     }
 
     public void testMultipleFunctions() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -264,8 +139,7 @@ public class VerifierMetricsTests extends ESTestCase {
             """, verifier);
 
         Counters c = metrics.stats();
-        assertEquals(1, function("length", c));
-        assertEquals(0, function("concat", c));
+        assertMetrics(c, Map.of(EVAL, 1L, LIMIT, 1L, SORT, 1L, WHERE, 1L, FROM, 1L), Map.of("length", 1L));
 
         esqlWithVerifier("""
               from employees
@@ -280,25 +154,11 @@ public class VerifierMetricsTests extends ESTestCase {
             """, verifier);
         c = metrics.stats();
 
-        assertEquals(2, function("length", c));
-        assertEquals(1, function("concat", c));
-        assertEquals(1, function("max", c));
-        assertEquals(1, function("min", c));
-
-        EsqlFunctionRegistry fr = new EsqlFunctionRegistry().snapshotRegistry();
-        Map<Class<?>, String> functions = new HashMap<>();
-        for (FunctionDefinition func : fr.listFunctions()) {
-            if (functions.containsKey(func.clazz()) == false) {
-                functions.put(func.clazz(), func.name());
-            }
-        }
-        for (String value : functions.values()) {
-            if (Set.of("length", "concat", "max", "min").contains(value) == false) {
-                assertEquals(0, function(value, c));
-            }
-        }
-        Map<?, ?> map = (Map<?, ?>) c.toNestedMap().get("functions");
-        assertEquals(functions.size(), map.size());
+        assertMetrics(
+            c,
+            Map.of(DISSECT, 1L, EVAL, 2L, GROK, 1L, LIMIT, 1L, SORT, 2L, STATS, 1L, WHERE, 2L, FROM, 2L),
+            Map.of("length", 2L, "concat", 1L, "max", 1L, "min", 1L)
+        );
     }
 
     public void testEnrich() {
@@ -309,23 +169,7 @@ public class VerifierMetricsTests extends ESTestCase {
             | eval x = to_string(languages)
             | enrich languages on x
             | keep emp_no, language_name""");
-        assertEquals(0, dissect(c));
-        assertEquals(1L, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(1L, limit(c));
-        assertEquals(1L, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(1L, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(1L, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("to_string", c));
+        assertMetrics(c, Map.of(EVAL, 1L, LIMIT, 1L, SORT, 1L, ENRICH, 1L, FROM, 1L, KEEP, 1L), Map.of("to_string", 1L));
     }
 
     public void testMvExpand() {
@@ -339,82 +183,22 @@ public class VerifierMetricsTests extends ESTestCase {
             | limit 2
             | where job LIKE \"*a*\"
             | limit 3""");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(1L, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(1L, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(1L, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(1L, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(LIMIT, 1L, WHERE, 1L, MV_EXPAND, 1L, FROM, 1L, KEEP, 1L));
     }
 
     public void testShowInfo() {
         Counters c = esql("show info |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(1L, mvExpand(c));
-        assertEquals(1L, show(c));
-        assertEquals(0, row(c));
-        assertEquals(0, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-
-        assertEquals(1, function("count", c));
+        assertMetrics(c, Map.of(STATS, 1L, MV_EXPAND, 1L, SHOW, 1L), Map.of("count", 1L));
     }
 
     public void testRow() {
         Counters c = esql("row a = [\"1\", \"2\"] | enrich languages on a with a_lang = language_name");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(1L, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(1L, row(c));
-        assertEquals(0, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(ENRICH, 1L, ROW, 1L));
     }
 
     public void testDropAndRename() {
         Counters c = esql("from employees | rename gender AS foo | stats bar = count(*) by foo | drop foo | sort bar | drop bar");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(1L, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(1L, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(1L, rename(c));
-
-        assertEquals(1, function("count", c));
+        assertMetrics(c, Map.of(SORT, 1L, STATS, 1L, FROM, 1L, DROP, 1L, RENAME, 1L), Map.of("count", 1L));
     }
 
     public void testKeep() {
@@ -424,93 +208,241 @@ public class VerifierMetricsTests extends ESTestCase {
             | where languages is null or emp_no <= 10030
             | where languages in (2, 3, emp_no)
             | keep languages""");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(0, stats(c));
-        assertEquals(1L, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(0, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(1L, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(1L, keep(c));
-        assertEquals(0, rename(c));
+        assertMetrics(c, Map.of(WHERE, 1L, FROM, 1L, KEEP, 1L));
     }
 
-    private long dissect(Counters c) {
-        return c.get(FPREFIX + DISSECT);
+    public void testCategorize() {
+        Counters c = esql("""
+            from employees
+            | keep emp_no, languages, gender
+            | where languages is null or emp_no <= 10030
+            | STATS COUNT() BY CATEGORIZE(gender)""");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, KEEP, 1L), Map.of("count", 1L, "categorize", 1L));
     }
 
-    private long eval(Counters c) {
-        return c.get(FPREFIX + EVAL);
+    public void testInlineStatsStandalone() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Counters c = esql("""
+            from employees
+            | inline stats max(salary) by gender
+            | where languages is not null""");
+        assertMetrics(c, Map.of(WHERE, 1L, FROM, 1L, INLINE_STATS, 1L), Map.of("max", 1L));
     }
 
-    private long grok(Counters c) {
-        return c.get(FPREFIX + GROK);
+    public void testInlineStatsWithOtherStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Counters c = esql("""
+            from employees
+            | inline stats m = max(salary) by gender
+            | where languages is not null
+            | stats max(m) by languages""");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, INLINE_STATS, 1L), Map.of("max", 1L));
     }
 
-    private long limit(Counters c) {
-        return c.get(FPREFIX + LIMIT);
+    public void testBinaryPlanAfterStats() {
+        Counters c = esql("""
+            from employees
+            | eval language_code = languages
+            | stats m = max(salary) by language_code
+            | lookup join languages_lookup on language_code""");
+        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, FROM, 1L, LOOKUP_JOIN, 1L), Map.of("max", 1L));
     }
 
-    private long sort(Counters c) {
-        return c.get(FPREFIX + SORT);
+    public void testBinaryPlanAfterStatsExpressionJoin() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        Counters c = esql("""
+            from employees
+            | eval language_code = languages
+            | stats m = max(salary) by language_code
+            | rename language_code as language_code_left
+            | lookup join languages_lookup on language_code_left >= language_code""");
+        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, FROM, 1L, RENAME, 1L, LOOKUP_JOIN_ON_EXPRESSION, 1L), Map.of("max", 1L));
     }
 
-    private long stats(Counters c) {
-        return c.get(FPREFIX + STATS);
+    public void testBinaryPlanAfterInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        Counters c = esql("""
+            from employees
+            | eval language_code = languages
+            | inline stats m = max(salary) by language_code
+            | lookup join languages_lookup on language_code""");
+        assertMetrics(c, Map.of(EVAL, 1L, FROM, 1L, INLINE_STATS, 1L, LOOKUP_JOIN, 1L), Map.of("max", 1L));
     }
 
-    private long where(Counters c) {
-        return c.get(FPREFIX + WHERE);
+    public void testTimeSeriesAggregate() {
+        assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        Counters c = esql("""
+            TS k8s
+            | STATS sum(avg_over_time(network.cost))""");
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L), Map.of("sum", 1L, "avg", 1L));
     }
 
-    private long enrich(Counters c) {
-        return c.get(FPREFIX + ENRICH);
+    public void testTimeSeriesNoAggregate() {
+        assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        Counters c = esql("""
+            TS metrics
+            | KEEP salary""");
+        assertMetrics(c, Map.of(TS, 1L, KEEP, 1L));
     }
 
-    private long mvExpand(Counters c) {
-        return c.get(FPREFIX + MV_EXPAND);
+    public void testBinaryPlanAfterSubqueryInFromCommand() {
+        Counters c = esql("""
+             from employees
+                      , (from employees | stats max = max(salary) by languages)
+                      , (from employees | stats min = min(salary) by languages)
+            | where min > 0 and max < 100000
+            """);
+        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
-    private long show(Counters c) {
-        return c.get(FPREFIX + SHOW);
+    public void testPromql() {
+        Counters c = esql("""
+            PROMQL index=k8s step=5m sum(network.cost)""");
+        var expectedFeatures = Map.of(PROMQL, 1L, FROM, 1L, EVAL, 1L, WHERE, 1L);
+        assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "bucket", 1L));
     }
 
-    private long row(Counters c) {
-        return c.get(FPREFIX + ROW);
+    public void testInSubquery() {
+        Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
     }
 
-    private long from(Counters c) {
-        return c.get(FPREFIX + FROM);
+    public void testNotInSubquery() {
+        Counters c = esql("from employees | where emp_no NOT IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
     }
 
-    private long drop(Counters c) {
-        return c.get(FPREFIX + DROP);
+    public void testMixedInAndNotInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no IN (from employees | stats max(emp_no))
+              and languages NOT IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
-    private long keep(Counters c) {
-        return c.get(FPREFIX + KEEP);
+    public void testMultipleNotInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no NOT IN (from employees | stats max(emp_no))
+            | where languages NOT IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
-    private long rename(Counters c) {
-        return c.get(FPREFIX + RENAME);
+    public void testMultipleInSubqueries() {
+        Counters c = esql("""
+            from employees
+            | where emp_no IN (from employees | stats max(emp_no))
+              and languages IN (from employees | stats min(languages))
+            """);
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
-    private long function(String function, Counters c) {
-        return c.get(FUNC_PREFIX + function);
+    public void testInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | keep languages)");
+        assertMetrics(c, Map.of(EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of());
     }
 
-    private void assertNullFunction(String function, Counters c) {
-        try {
-            c.get(FUNC_PREFIX + function);
-            fail();
-        } catch (NullPointerException npe) {
+    public void testNotInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no NOT IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
 
+    public void testInSubqueryInEvalBeforeWhere() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | stats max(emp_no)) | where salary > 50000");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInCaseInEval() {
+        Counters c = esql("from employees | eval m = case(emp_no IN (from employees | stats max(emp_no)), \"yes\", \"no\")");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "case", 1L));
+    }
+
+    public void testInSubqueryInCoalesceInEval() {
+        Counters c = esql("from employees | eval m = coalesce(emp_no IN (from employees | stats max(emp_no)), false)");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "coalesce", 1L));
+    }
+
+    public void testInSubqueryInIsNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInIsNotNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NOT NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInStatsWhereDoesNotCountWhere() {
+        Counters c = esql("from employees | stats c = count(*) where emp_no in (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testInSubqueryInStatsWhereAndWhereCountWhere() {
+        Counters c = esql("from employees | where salary > 0 | stats c = count(*) where emp_no in (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no IN (from employees | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testInSubqueryInInlineStatsWhereBeforeWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count = count(*) where emp_no IN (from employees | stats max(emp_no))
+                | where count > 1
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, WHERE, 1L, STATS, 1L), Map.of("count", 1L, "max", 1L));
+    }
+
+    public void testNotInSubqueryInInlineStatsWhere() {
+        Counters c = esql("""
+                from employees
+                | inline stats count(*) where emp_no NOT IN (from employees | SORT emp_no | LIMIT 3 | KEEP emp_no)
+            """);
+        assertMetrics(c, Map.of(INLINE_STATS, 1L, FROM, 1L, IN_SUBQUERY, 1L, SORT, 1L, LIMIT, 1L, KEEP, 1L), Map.of("count", 1L));
+    }
+
+    public void testLet() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        Counters c = esql("""
+            LET top = (from employees | sort salary DESC | limit 3);
+            LET bottom = (from employees | sort salary ASC | limit 3);
+            from top, (from bottom)
+            """);
+        assertMetrics(c, Map.of(LET, 1L, SORT, 1L, LIMIT, 1L, FROM, 1L, SUBQUERY, 1L));
+    }
+
+    private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures) {
+        assertMetrics(c, expectedFeatures, Map.of());
+    }
+
+    /**
+     * Asserts that every counter in {@code c} equals the value declared in {@code expectedFeatures} or
+     * {@code expectedFunctions}, defaulting to {@code 0} for anything absent from the maps.
+     */
+    private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures, Map<String, Long> expectedFunctions) {
+        for (FeatureMetric metric : FeatureMetric.values()) {
+            long expectedValue = expectedFeatures.getOrDefault(metric, 0L);
+            assertEquals("Counter [" + metric + "]", expectedValue, c.get(FEATURES_PREFIX + metric));
+        }
+        Map<?, ?> functionCounters = (Map<?, ?>) c.toNestedMap().get("functions");
+        for (var entry : functionCounters.entrySet()) {
+            String name = (String) entry.getKey();
+            long expectedValue = expectedFunctions.getOrDefault(name, 0L);
+            assertEquals("Function [" + name + "]", expectedValue, ((Number) entry.getValue()).longValue());
+        }
+        for (String name : expectedFunctions.keySet()) {
+            assertNotNull("Expected function [" + name + "] is not a registered function", functionCounters.get(name));
         }
     }
 
@@ -526,10 +458,30 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics(new EsqlFunctionRegistry());
+            metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
-        analyzer(verifier).analyze(parser.createStatement(esql));
+        // Mirror EsqlSession: LET and IN_SUBQUERY are not visible to the analyzer/verifier plan walk, so each is incremented
+        // once per query from the parsed statement. LET is counted when the statement has bindings, before LetResolver
+        // substitutes them into the plan. IN_SUBQUERY is counted on the LET-resolved plan, before InSubquery is resolved into
+        // SemiJoin/AntiJoin/MarkJoin. Then analyze.
+        // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching Filter/SemiJoin/AntiJoin in the
+        // post-resolution plan; a WHERE-originating MarkJoin retains its enclosing Filter.
+        var statement = TEST_PARSER.createStatement(esql);
+        if (metrics != null && statement.letBindings().isEmpty() == false) {
+            metrics.inc(LET);
+        }
+        var parsed = LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT);
+        if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
+            metrics.inc(IN_SUBQUERY);
+        }
+        analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)
+            .addK8s()
+            .addEmployees()
+            .addAnalysisTestsEnrichResolution()
+            .addLanguagesLookup()
+            .buildAnalyzer(verifier)
+            .analyze(InSubqueryResolver.resolve(parsed));
 
         return metrics == null ? null : metrics.stats();
     }

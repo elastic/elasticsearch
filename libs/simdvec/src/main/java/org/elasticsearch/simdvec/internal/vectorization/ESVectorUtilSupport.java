@@ -9,13 +9,195 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.search.TaskExecutor;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ByteOrder;
+
 public interface ESVectorUtilSupport {
 
+    /**
+     * The number of bits in bit-quantized query vectors
+     */
     short B_QUERY = 4;
 
+    /** Converts bfloat16s to floats */
+    void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder);
+
+    /** Converts floats to bfloat16s */
+    void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder);
+
+    /** Calculates the dot product of the given float arrays. */
+    float dotProduct(float[] a, float[] b);
+
+    /** Calculates the dot product over {@code [[ab]Offset, [ab]Offset + length)}. */
+    float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length);
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. A zero prefix is a no-op.
+     * @return the squared normalization factor
+     */
+    float l2Normalize(float[] v, int offset, int length);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(float[] a, float[] b);
+
+    /** Returns the sum of squared differences over {@code [offset, offset + length)}. */
+    float squareDistance(float[] a, float[] b, int offset, int length);
+
+    /** Calculates the cosine of the given byte arrays. */
+    float cosine(byte[] a, byte[] b);
+
+    /** Calculates the dot product of the given byte arrays. */
+    float dotProduct(byte[] a, byte[] b);
+
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(byte[] a, byte[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real components. */
+    void l2Normalize(byte[] v, int offset, int length);
+
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(byte[] a, byte[] b);
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    float squareDistance(byte[] a, byte[] b, int offset, int length);
+
+    /** Returns the sum of squared differences between a byte vector and a float vector. */
+    float squareDistance(byte[] a, float[] b);
+
+    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
+
+    /**
+     * Compute dot product between {@code q} and {@code d}
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
+     * @param d data vector, 1-bit quantized
+     */
     long ipByteBinByte(byte[] q, byte[] d);
 
     int ipByteBit(byte[] q, byte[] d);
 
-    float ipFloatBit(float[] q, byte[] d);
+    float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength);
+
+    float ipFloatByte(float[] q, byte[] d);
+
+    float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
+
+    float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm);
+
+    void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
+
+    void squareDistanceBulk(
+        float[] query,
+        int vectorOffset,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    );
+
+    void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void squareDistanceBulk(
+        byte[] query,
+        int vectorOffset,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int distancesOffset,
+        float[] distances,
+        int length
+    );
+
+    void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    );
+
+    void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    );
+
+    void pack1BitValues(int[] vector, byte[] packed);
+
+    void stride2BitValues(int[] vector, byte[] packed);
+
+    void pack2BitValues(int[] vector, byte[] packed);
+
+    void stride4BitValues(int[] vector, byte[] packed);
+
+    int indexOf(byte[] bytes, int offset, int length, byte marker);
+
+    /**
+     * See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfLineTerminatorLeadByte}. Specialized
+     * (rather than a general "index of any of N marker bytes" method) so implementations backed by
+     * fixed marker constants (e.g. SIMD broadcasts) can be built once rather than reconstructed on
+     * every call.
+     */
+    int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length);
+
+    int codePointCount(BytesRef bytesRef);
+
+    boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#mayContainIgnoringAsciiCase}. */
+    boolean mayContainIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#indexOfCandidateIgnoringAsciiCase}. */
+    int indexOfCandidateIgnoringAsciiCase(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
+
+    /** See {@link org.elasticsearch.simdvec.ESVectorUtil#anyNonAscii}. */
+    boolean anyNonAscii(byte[] value, int offset, int length);
+
+    void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
+
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float scaleDest, float[] dest, int destOffset, int length);
+
+    void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length);
+
+    void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, byte[] other, float[] dest);
+
+    float logSumExpNQT(float[] vector);
+
+    float logSumExpNQTDiff(float[] v1, float[] v2, float eps);
+
+    void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result);
+
+    void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
+
+    void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor);
+
+    void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
+
+    void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result);
 }

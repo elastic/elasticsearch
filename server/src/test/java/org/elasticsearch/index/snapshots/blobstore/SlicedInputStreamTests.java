@@ -178,7 +178,8 @@ public class SlicedInputStreamTests extends ESTestCase {
         // Reset
         input.reset();
         int slicesOpenedAfterReset = streamsOpened.size();
-        assert moreBytes > 0 || mark == 0 || slicesOpenedAfterReset == slicesOpenedAtMark : "Reset at mark should not re-open slices";
+        assert moreBytes > 0 || mark == 0 || mark == bytes.length || slicesOpenedAfterReset == slicesOpenedAtMark
+            : "Reset at mark should not re-open slices";
 
         // Read all remaining bytes, which should be the bytes from mark up to the end
         final int remainingBytes = bytes.length - mark;
@@ -311,6 +312,22 @@ public class SlicedInputStreamTests extends ESTestCase {
         input.mark(randomNonNegativeInt());
         input.reset();
         assertThat(input.read(), equalTo(-1));
+        input.close();
+    }
+
+    public void testReadNBytesAcrossSlices() throws IOException {
+        final int sliceSize = randomIntBetween(10000, 20000);
+        final int numSlices = randomIntBetween(2, 5);
+        final byte[] data = randomByteArrayOfLength(sliceSize * numSlices);
+
+        final SlicedInputStream input = new SlicedInputStream(numSlices) {
+            @Override
+            protected InputStream openSlice(int slice) {
+                return new ByteArrayInputStream(data, slice * sliceSize, sliceSize);
+            }
+        };
+
+        assertArrayEquals(data, input.readNBytes(data.length));
         input.close();
     }
 

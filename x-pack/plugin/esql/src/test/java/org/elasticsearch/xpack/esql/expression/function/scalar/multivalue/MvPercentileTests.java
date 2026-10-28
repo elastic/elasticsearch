@@ -143,6 +143,67 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             closeTo(0, 0.0000001)
                         )
                     ),
+                    new TestCaseSupplier("double precision issue (#145886)", List.of(DOUBLE, percentileType), () -> {
+                        // 51 values + percentile 58 makes 58/100*50 = 28.999…96 in double
+                        // (fraction ~= 1) so interpolation between sorted[28] and sorted[29]
+                        // must stay precise even when their magnitudes differ vastly.
+                        var field = new ArrayList<Number>(51);
+                        for (int i = 1; i <= 29; i++) {
+                            field.add((double) -i); // sorted[0..28], sorted[28] = -1.0
+                        }
+                        for (int i = 1; i <= 22; i++) {
+                            field.add(-i * 1e-15); // sorted[29..50], sorted[29] = -2.2e-14
+                        }
+                        return new TestCaseSupplier.TestCase(
+                            List.of(new TestCaseSupplier.TypedData(field, DOUBLE, "field"), percentileWithType(58, percentileType)),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            makePercentileMatcher(field, 58)
+                        );
+                    }),
+                    new TestCaseSupplier(
+                        "equal values double",
+                        List.of(DOUBLE, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            // (1 - 0.08) * 5.5 + 0.08 * 5.5 rounds to 5.500000000000001; the result must be exactly 5.5
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(5.5, 5.5), DOUBLE, "field"),
+                                percentileWithType(8, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            equalTo(5.5)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "equal values double with an outlier",
+                        List.of(DOUBLE, percentileType),
+                        () -> new TestCaseSupplier.TestCase(
+                            // percentile 15 of 3 values interpolates between sorted[0] and sorted[1], both 0.1;
+                            // (1 - 0.3) * 0.1 + 0.3 * 0.1 rounds to 0.09999999999999999
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(0.1, 10., 0.1), DOUBLE, "field"),
+                                percentileWithType(15, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            equalTo(0.1)
+                        )
+                    ),
+                    new TestCaseSupplier("adjacent values double", List.of(DOUBLE, percentileType), () -> {
+                        // Values one ulp apart: the interpolation rounding could land outside [lower, upper]
+                        double lower = -2.9154525951404085E-21;
+                        double upper = Math.nextUp(lower);
+                        return new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(List.of(lower, upper), DOUBLE, "field"),
+                                percentileWithType(20, percentileType)
+                            ),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            anyOf(equalTo(lower), equalTo(upper))
+                        );
+                    }),
 
                     // Int
                     new TestCaseSupplier(
@@ -324,9 +385,11 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                                 evaluatorString(fieldType, percentileType),
                                 fieldType,
                                 nullValue()
-                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                            ).withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
                                 .withWarning(
-                                    "Line -1:-1: java.lang.IllegalArgumentException: Percentile parameter must be "
+                                    "Line 1:1: java.lang.IllegalArgumentException: Percentile parameter must be "
                                         + "a number between 0 and 100, found ["
                                         + percentile.doubleValue()
                                         + "]"
@@ -347,12 +410,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                     ),
                     evaluatorString(DOUBLE, INTEGER),
                     DOUBLE,
-                    equalTo(1.325)
+                    closeTo(1.325, 1e-7)
                 )
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL && nullPosition == 0
                 ? DataType.NULL
                 : original.expectedType(),
@@ -453,7 +516,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                     .doubleValue();
             }
 
-            return closeTo(expected, Math.abs(expected * 0.0000001));
+            return closeTo(expected, Math.abs(expected * 1e-7));
         }
 
         throw new IllegalArgumentException("Unsupported type: " + rawValues.get(0).getClass());

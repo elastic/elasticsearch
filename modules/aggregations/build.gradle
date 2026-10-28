@@ -26,12 +26,18 @@ restResources {
   }
 }
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
   tasks.named("internalClusterTest").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+  tasks.named("yamlRestTest").configure {
+    // text doc_values feature flag not available in non-snapshot builds
+    systemProperty 'tests.rest.blacklist', [
+      "aggregations/terms_text_docvalues/*"
+    ].join(',')
   }
 }
 

@@ -7,20 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link FloatArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
+public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FloatArrayBlock.class);
 
@@ -86,14 +89,20 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public float getFloat(int valueIndex) {
         return vector.getFloat(valueIndex);
     }
 
     @Override
-    public FloatBlock filter(int... positions) {
-        try (var builder = blockFactory().newFloatBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public FloatBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newFloatBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;
@@ -130,15 +139,11 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
         try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
-                if (false == mask.getBoolean(p)) {
+                if (false == mask.getBoolean(p) || isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
-                }
                 int start = getFirstValueIndex(p);
                 if (valueCount == 1) {
                     builder.appendFloat(getFloat(start));
@@ -181,17 +186,25 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
         long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
         blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
-        FloatArrayBlock expanded = new FloatArrayBlock(
-            vector,
-            expandedPositionCount,
-            null,
-            shiftNullsToExpandedPositions(),
-            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
-        );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
-        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
-        vector.incRef();
-        return expanded;
+        boolean success = false;
+        try {
+            FloatArrayBlock expanded = new FloatArrayBlock(
+                vector,
+                expandedPositionCount,
+                null,
+                shiftNullsToExpandedPositions(),
+                MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+            );
+            blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+            // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+            vector.incRef();
+            success = true;
+            return expanded;
+        } finally {
+            if (success == false) {
+                blockFactory().adjustBreaker(-bitSetRamUsedEstimate);
+            }
+        }
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -230,6 +243,7 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

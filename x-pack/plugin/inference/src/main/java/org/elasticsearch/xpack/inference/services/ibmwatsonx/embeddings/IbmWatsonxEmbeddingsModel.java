@@ -7,29 +7,30 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.EMBEDDINGS;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.EMBEDDINGS;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.TEXT;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.V1;
 
 public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
 
@@ -52,7 +53,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
             IbmWatsonxEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -60,8 +61,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
-    IbmWatsonxEmbeddingsModel(
+    public IbmWatsonxEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -70,35 +70,42 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         ChunkingSettings chunkingsettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingsettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public IbmWatsonxEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
         try {
+            var serviceSettings = (IbmWatsonxEmbeddingsServiceSettings) modelConfigurations.getServiceSettings();
             this.uri = buildUri(serviceSettings.url().toString(), serviceSettings.apiVersion());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
-    // Should only be used directly for testing
+    // Should only be used directly for testing.
+    // This constructor allows tests to override the behaviour when setting the auth header, which by default requires making a call to
+    // IBM's token provider API. It also allows a custom URL to be set for unit testing.
     IbmWatsonxEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        String uri,
+        @Nullable String url,
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets,
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            authHeaderDecorator
         );
         try {
-            this.uri = new URI(uri);
+            this.uri = url == null ? buildUri(serviceSettings.url().toString(), serviceSettings.apiVersion()) : new URI(url);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -119,7 +126,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
     }
 
     @Override
-    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

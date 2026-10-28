@@ -14,27 +14,24 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http2.HttpVersionPolicy;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressLoggerChecks;
@@ -42,8 +39,8 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -51,28 +48,31 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.MessageDigest;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.text.ParseException;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_HOST;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_PORT;
+import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.HTTP_PROXY_SCHEME;
 
 /**
  * Utilities for JWT realm.
@@ -207,9 +207,9 @@ public class JwtUtil {
         final String jwkSetConfigKeyPkc,
         final URI jwkSetPathPkcUri,
         final CloseableHttpAsyncClient httpClient,
-        final ActionListener<byte[]> listener
+        final ActionListener<JwksResponse> listener
     ) {
-        JwtUtil.readBytes(
+        JwtUtil.readResponse(
             httpClient,
             jwkSetPathPkcUri,
             ActionListener.wrap(
@@ -228,7 +228,7 @@ public class JwtUtil {
         throws SettingsException {
         try {
             final Path path = JwtUtil.resolvePath(environment, jwkSetPathPkc);
-            byte[] bytes = AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> Files.readAllBytes(path));
+            byte[] bytes = Files.readAllBytes(path);
             return bytes;
         } catch (Exception e) {
             throw new SettingsException(
@@ -256,43 +256,47 @@ public class JwtUtil {
     }
 
     /**
-     * Creates a {@link CloseableHttpAsyncClient} that uses a {@link PoolingNHttpClientConnectionManager}
+     * Creates a {@link CloseableHttpAsyncClient} backed by a {@link PoolingAsyncClientConnectionManagerBuilder}.
      * @param realmConfig Realm config for a JWT realm.
      * @param sslService Realm config for SSL.
      * @return Initialized HTTPS client.
      */
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
-        try {
-            SpecialPermission.check();
-            return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
-                final ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
-                final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-                final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-                final Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-                    .register("https", new SSLIOSessionStrategy(clientContext, verifier))
-                    .build();
-                final PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
-                connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS));
-                connectionManager.setMaxTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS));
-                final RequestConfig requestConfig = RequestConfig.custom()
-                    .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
-                    .setConnectionRequestTimeout(
-                        Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
-                    )
-                    .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
-                    .build();
-                final HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
-                    .setConnectionManager(connectionManager)
-                    .setDefaultRequestConfig(requestConfig);
-                final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
-                httpAsyncClient.start();
-                return httpAsyncClient;
-            });
-        } catch (PrivilegedActionException e) {
-            throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
+        final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
+        final SslProfile sslProfile = sslService.profile(sslKey);
+        final var connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
+            .setTlsStrategy(sslProfile.clientTlsStrategy())
+            .setMaxConnPerRoute(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS))
+            .setMaxConnTotal(realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS))
+            .setDefaultConnectionConfig(
+                ConnectionConfig.custom()
+                    .setConnectTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis()))
+                    .setSocketTimeout(Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis()))
+                    .build()
+            )
+            .setDefaultTlsConfig(TlsConfig.custom().setVersionPolicy(HttpVersionPolicy.FORCE_HTTP_1).build())
+            .build();
+        final RequestConfig requestConfig = RequestConfig.custom()
+            .setConnectionRequestTimeout(
+                Timeout.ofMilliseconds(realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT).getMillis())
+            )
+            .build();
+        final var httpAsyncClientBuilder = HttpAsyncClients.custom()
+            .setConnectionManager(connectionManager)
+            .setDefaultRequestConfig(requestConfig)
+            .disableAutomaticRetries();
+        if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+            httpAsyncClientBuilder.setProxy(
+                new HttpHost(
+                    realmConfig.getSetting(HTTP_PROXY_SCHEME),
+                    realmConfig.getSetting(HTTP_PROXY_HOST),
+                    realmConfig.getSetting(HTTP_PROXY_PORT)
+                )
+            );
         }
+        final CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
+        httpAsyncClient.start();
+        return httpAsyncClient;
     }
 
     /**
@@ -300,41 +304,44 @@ public class JwtUtil {
      * @param httpClient Configured HTTP/HTTPS client.
      * @param uri URI to download.
      */
-    public static void readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, ActionListener<byte[]> listener) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
-                @Override
-                public void completed(final HttpResponse result) {
-                    final StatusLine statusLine = result.getStatusLine();
-                    final int statusCode = statusLine.getStatusCode();
-                    if (statusCode == 200) {
-                        final HttpEntity entity = result.getEntity();
-                        try (InputStream inputStream = entity.getContent()) {
-                            listener.onResponse(inputStream.readAllBytes());
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
-                    } else {
-                        listener.onFailure(
-                            new ElasticsearchSecurityException(
-                                "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + statusLine.getReasonPhrase() + "]."
-                            )
-                        );
-                    }
+    public static void readResponse(final CloseableHttpAsyncClient httpClient, final URI uri, ActionListener<JwksResponse> listener) {
+        final SimpleHttpRequest request = SimpleRequestBuilder.get(uri).build();
+        httpClient.execute(request, new FutureCallback<>() {
+            @Override
+            public void completed(final SimpleHttpResponse result) {
+                final int statusCode = result.getCode();
+                if (statusCode == 200) {
+                    listener.onResponse(
+                        new JwksResponse(
+                            result.getBodyBytes(),
+                            firstHeaderValue(result, "Expires"),
+                            firstHeaderValue(result, "Cache-Control")
+                        )
+                    );
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "Get [" + uri + "] failed, status [" + statusCode + "], reason [" + result.getReasonPhrase() + "]."
+                        )
+                    );
                 }
+            }
 
-                @Override
-                public void failed(Exception e) {
-                    listener.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] failed.", e));
-                }
+            @Override
+            public void failed(Exception e) {
+                listener.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] failed.", e));
+            }
 
-                @Override
-                public void cancelled() {
-                    listener.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] was cancelled."));
-                }
-            });
-            return null;
+            @Override
+            public void cancelled() {
+                listener.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] was cancelled."));
+            }
         });
+    }
+
+    private static String firstHeaderValue(final SimpleHttpResponse response, final String headerName) {
+        final Header header = response.getFirstHeader(headerName);
+        return header != null ? header.getValue() : null;
     }
 
     public static Path resolvePath(final Environment environment, final String jwkSetPath) {
@@ -460,5 +467,54 @@ public class JwtUtil {
             }
         }
         return false;
+    }
+
+    record JwksResponse(byte[] content, @Nullable Instant expires, @Nullable Integer maxAgeSeconds) {
+        private static final Pattern MAX_AGE_PATTERN = Pattern.compile("\\bmax-age\\s*=\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
+
+        JwksResponse(byte[] content, @Nullable String expires, @Nullable String cacheControl) {
+            this(content, parseExpires(expires), parseMaxAge(cacheControl));
+        }
+
+        /**
+         * Parse the Expires header to an Instant.
+         * The Expires header follows RFC 7231 format (e.g., "Thu, 01 Jan 2024 00:00:00 GMT").
+         * @return the parsed Instant, or null if the header is null or cannot be parsed
+         */
+        static Instant parseExpires(@Nullable String expires) {
+            if (expires == null) {
+                return null;
+            }
+
+            try {
+                // HTTP dates are in RFC 1123 format
+                return ZonedDateTime.parse(expires, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+            } catch (DateTimeParseException e) {
+                LOGGER.debug("Failed to parse Expires HTTP response header", e);
+                return null;
+            }
+        }
+
+        /**
+         * Parse the Cache-Control header to extract the max-age value defined in RFC 7234.
+         * @return the parsed max-age value as Integer, or null if the header is null or cannot be parsed
+         */
+        static Integer parseMaxAge(@Nullable String cacheControl) {
+            if (cacheControl == null) {
+                return null;
+            }
+
+            Matcher matcher = MAX_AGE_PATTERN.matcher(cacheControl);
+            if (matcher.find() == false) {
+                return null;
+            }
+
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException e) {
+                LOGGER.debug("Failed to parse max-age value from Cache-Control HTTP response header", e);
+                return null;
+            }
+        }
     }
 }

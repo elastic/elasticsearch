@@ -1,0 +1,382 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.telemetry;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
+
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.SETTINGS_PREFIX;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
+public class SettingsMetricsTests extends ESTestCase {
+
+    /**
+     * Creates a Metrics instance with all settings enabled (snapshot + serverless mode).
+     */
+    private Metrics createMetricsWithAllSettings() {
+        return new Metrics(TEST_FUNCTION_REGISTRY, true, true);
+    }
+
+    /**
+     * Creates a Metrics instance for stateful non-snapshot environment (most restrictive).
+     */
+    private Metrics createMetricsStatefulNonSnapshot() {
+        return new Metrics(TEST_FUNCTION_REGISTRY, false, false);
+    }
+
+    /**
+     * Creates a Metrics instance for stateful snapshot environment.
+     */
+    private Metrics createMetricsStatefulSnapshot() {
+        return new Metrics(TEST_FUNCTION_REGISTRY, true, false);
+    }
+
+    /**
+     * Creates a Metrics instance for serverless non-snapshot environment.
+     */
+    private Metrics createMetricsServerlessNonSnapshot() {
+        return new Metrics(TEST_FUNCTION_REGISTRY, false, true);
+    }
+
+    /**
+     * Helper method to check if a metric exists in the counters.
+     * Returns true if the metric exists, false otherwise.
+     */
+    private boolean hasMetric(Counters counters, String metricName) {
+        Map<String, Object> nestedMap = counters.toNestedMap();
+        // The metric name is like "settings.time_zone", so we need to navigate the nested map
+        String[] parts = metricName.split("\\.");
+        Object current = nestedMap;
+        for (String part : parts) {
+            if (current instanceof Map) {
+                current = ((Map<?, ?>) current).get(part);
+                if (current == null) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void testSettingsMetricsInitialized_AllEnabled() {
+        Metrics metrics = createMetricsWithAllSettings();
+        Counters stats = metrics.stats();
+
+        // With all flags enabled, all settings should be registered
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
+            assertTrue("Missing metric for setting: " + settingName, hasMetric(stats, SETTINGS_PREFIX + settingName));
+            assertThat(stats.get(SETTINGS_PREFIX + settingName), equalTo(0L));
+        }
+    }
+
+    public void testSettingsMetricsInitialized_StatefulNonSnapshot() {
+        Metrics metrics = createMetricsStatefulNonSnapshot();
+        Counters stats = metrics.stats();
+
+        // In stateful non-snapshot mode:
+        // - time_zone, unmapped_fields, approximation should be registered (not restricted)
+        // - project_routing should NOT be registered (serverless-only)
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "time_zone"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "unmapped_fields"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "approximation"));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
+
+        assertFalse("project_routing should not be registered in stateful", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+    }
+
+    public void testSettingsMetricsInitialized_StatefulSnapshot() {
+        Metrics metrics = createMetricsStatefulSnapshot();
+        Counters stats = metrics.stats();
+
+        // In stateful snapshot mode:
+        // - time_zone, unmapped_fields, approximation should be registered
+        // - project_routing should NOT be registered (serverless-only)
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "time_zone"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "unmapped_fields"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "approximation"));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
+
+        assertFalse("project_routing should not be registered in stateful", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+    }
+
+    public void testSettingsMetricsInitialized_ServerlessNonSnapshot() {
+        Metrics metrics = createMetricsServerlessNonSnapshot();
+        Counters stats = metrics.stats();
+
+        // In serverless non-snapshot mode:
+        // - time_zone, unmapped_fields, project_routing, approximation should be registered
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "time_zone"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "unmapped_fields"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+        assertTrue(hasMetric(stats, SETTINGS_PREFIX + "approximation"));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "approximation"), equalTo(0L));
+
+    }
+
+    public void testIncSettingByName() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Initial values should be 0
+        Counters stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+
+        // Increment unmapped_fields
+        metrics.incSetting("unmapped_fields");
+        stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(1L));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+
+        // Increment time_zone twice
+        metrics.incSetting("time_zone");
+        metrics.incSetting("time_zone");
+        stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(1L));
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(2L));
+    }
+
+    public void testIncUnknownSettingIsIgnored() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Unknown setting should be silently ignored
+        metrics.incSetting("unknown_setting");
+
+        // Should not throw and other metrics should remain unchanged
+        Counters stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+    }
+
+    public void testIncAllKnownSettings() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Increment all known settings
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
+            metrics.incSetting(settingName);
+        }
+
+        // Verify all settings are now 1
+        Counters stats = metrics.stats();
+        for (String settingName : QuerySettings.all().stream().map(QuerySettingDef::name).toList()) {
+            assertThat("Wrong count for setting: " + settingName, stats.get(SETTINGS_PREFIX + settingName), equalTo(1L));
+        }
+    }
+
+    public void testIncProjectRoutingSetting_Serverless() {
+        Metrics metrics = createMetricsServerlessNonSnapshot();
+
+        // Initial value should be 0
+        Counters stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(0L));
+
+        // Increment project_routing
+        metrics.incSetting("project_routing");
+        stats = metrics.stats();
+        assertThat(stats.get(SETTINGS_PREFIX + "project_routing"), equalTo(1L));
+
+        // Verify project_routing is serverless-only
+        assertTrue("project_routing should be a serverless-only setting", QuerySettings.lookup("project_routing").serverlessOnly());
+    }
+
+    public void testIncProjectRoutingSetting_Stateful() {
+        Metrics metrics = createMetricsStatefulNonSnapshot();
+        Counters stats = metrics.stats();
+
+        // project_routing metric should not exist in stateful deployments
+        assertFalse("project_routing should not be registered", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+
+        // Incrementing should be silently ignored (no counter registered)
+        metrics.incSetting("project_routing");
+        stats = metrics.stats();
+        assertFalse("project_routing should still not be registered", hasMetric(stats, SETTINGS_PREFIX + "project_routing"));
+    }
+
+    private static String valueKey(String setting, String label) {
+        return Metrics.RESOLVED_SETTINGS_PREFIX + setting + "." + label;
+    }
+
+    public void testResolvedSettingsInitialized() {
+        Counters stats = createMetricsWithAllSettings().stats();
+
+        // Every label of every setting has a counter, and the counters sit apart from the settings.<name> ones.
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            assertThat(def.telemetryLabels(), not(empty()));
+            for (String label : def.telemetryLabels()) {
+                assertTrue("Missing metric for " + valueKey(def.name(), label), hasMetric(stats, valueKey(def.name(), label)));
+                assertThat(stats.get(valueKey(def.name(), label)), equalTo(0L));
+            }
+        }
+    }
+
+    public void testResolvedSettingsDependOnEnvironment() {
+        // project_routing only applies on serverless
+        String key = valueKey("project_routing", "set");
+        assertFalse(hasMetric(createMetricsStatefulNonSnapshot().stats(), key));
+        assertTrue(hasMetric(createMetricsServerlessNonSnapshot().stats(), key));
+        assertThat(createMetricsServerlessNonSnapshot().stats().get(key), equalTo(0L));
+    }
+
+    public void testIncResolvedSettings() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Every applicable setting is counted, each under the value it resolved to, the ones left at their default included.
+        ResolvedSettings tuned = ResolvedSettings.EMPTY.withOverride(QuerySettings.UNMAPPED_FIELDS, UnmappedResolution.NULLIFY)
+            .withOverride(QuerySettings.TIME_ZONE, ZoneId.of("Europe/Rome"))
+            .withOverride(QuerySettings.APPROXIMATION, new ApproximationSettings(20_000, 0.95));
+        metrics.incResolvedSettings(tuned);
+
+        Counters stats = metrics.stats();
+        assertThat(stats.get(valueKey("unmapped_fields", "nullify")), equalTo(1L));
+        assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(0L));
+        assertThat(stats.get(valueKey("time_zone", "set")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "default")), equalTo(0L));
+        assertThat(stats.get(valueKey("approximation", "map")), equalTo(1L));
+        assertThat(stats.get(valueKey("column_metadata", "false")), equalTo(1L));
+        // the counters for the settings supplied are separate from the ones for the values they resolved to
+        assertThat(stats.get(SETTINGS_PREFIX + "time_zone"), equalTo(0L));
+
+        // a second query that leaves everything at its default adds to the default counters, and nothing else
+        metrics.incResolvedSettings(ResolvedSettings.EMPTY);
+        stats = metrics.stats();
+        assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(1L));
+        assertThat(stats.get(valueKey("unmapped_fields", "nullify")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "default")), equalTo(1L));
+        assertThat(stats.get(valueKey("time_zone", "set")), equalTo(1L));
+        assertThat(stats.get(valueKey("approximation", "false")), equalTo(1L));
+        assertThat(stats.get(valueKey("column_metadata", "false")), equalTo(2L));
+    }
+
+    public void testIncResolvedSettingsDefaultsEverySetting() {
+        Metrics metrics = createMetricsWithAllSettings();
+        metrics.incResolvedSettings(ResolvedSettings.EMPTY);
+
+        // exactly one label of each setting was counted
+        Counters stats = metrics.stats();
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            long total = 0;
+            for (String label : def.telemetryLabels()) {
+                total += stats.get(valueKey(def.name(), label));
+            }
+            assertThat("Wrong total for setting: " + def.name(), total, equalTo(1L));
+        }
+    }
+
+    public void testIncResolvedSettingsIgnoresSettingsNotApplicable() {
+        // project_routing only applies on serverless: on stateful it has no counter, and counting still works
+        Metrics stateful = createMetricsStatefulNonSnapshot();
+        stateful.incResolvedSettings(ResolvedSettings.EMPTY);
+        assertFalse(hasMetric(stateful.stats(), valueKey("project_routing", "default")));
+        assertThat(stateful.stats().get(valueKey("time_zone", "default")), equalTo(1L));
+
+        Metrics serverless = createMetricsServerlessNonSnapshot();
+        serverless.incResolvedSettings(ResolvedSettings.EMPTY);
+        assertThat(serverless.stats().get(valueKey("project_routing", "default")), equalTo(1L));
+    }
+
+    private static String viewValueKey(String setting, String label) {
+        return Metrics.VIEW_RESOLVED_SETTINGS_PREFIX + setting + "." + label;
+    }
+
+    public void testViewSettingsInitialized() {
+        Counters stats = createMetricsWithAllSettings().stats();
+
+        // Only the settings a view definition may SET get view counters.
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            boolean viewScoped = ViewQuerySettings.SETTINGS.contains(def);
+            assertThat(def.name(), hasMetric(stats, Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(viewScoped));
+            for (String label : def.telemetryLabels()) {
+                assertThat(def.name(), hasMetric(stats, viewValueKey(def.name(), label)), equalTo(viewScoped));
+            }
+        }
+        for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+            assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(0L));
+        }
+    }
+
+    public void testIncViewSettings() {
+        Metrics metrics = createMetricsWithAllSettings();
+
+        // Two views SET unmapped_fields to different values. Only what a definition SETs counts as a usage, but every
+        // view's resolved values count, the third view's defaults included, each once per query, per value.
+        metrics.incViewSettings(
+            List.of(
+                new ViewQuerySettings(UnmappedResolution.NULLIFY, false, false, Set.of("unmapped_fields")),
+                new ViewQuerySettings(UnmappedResolution.DEFAULT, true, false, Set.of("unmapped_fields", "wildcards_match_views")),
+                ViewQuerySettings.DEFAULTS
+            )
+        );
+
+        Counters stats = metrics.stats();
+        assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + "unmapped_fields"), equalTo(1L));
+        assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + "wildcards_match_views"), equalTo(1L));
+        assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + "wildcards_match_datasets"), equalTo(0L));
+        assertThat(stats.get(viewValueKey("unmapped_fields", "nullify")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("unmapped_fields", "default")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("wildcards_match_views", "true")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("wildcards_match_views", "false")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("wildcards_match_datasets", "false")), equalTo(1L));
+        assertThat(stats.get(viewValueKey("wildcards_match_datasets", "true")), equalTo(0L));
+
+        // the caller's counters are untouched by what views set
+        assertThat(stats.get(SETTINGS_PREFIX + "unmapped_fields"), equalTo(0L));
+        assertThat(stats.get(valueKey("unmapped_fields", "nullify")), equalTo(0L));
+        assertThat(stats.get(valueKey("unmapped_fields", "default")), equalTo(0L));
+    }
+
+    public void testIncViewSettingsWithoutViewsCountsNothing() {
+        Metrics metrics = createMetricsWithAllSettings();
+        metrics.incViewSettings(List.of());
+        Counters stats = metrics.stats();
+        for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+            assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(0L));
+            for (String label : def.telemetryLabels()) {
+                assertThat(stats.get(viewValueKey(def.name(), label)), equalTo(0L));
+            }
+        }
+    }
+
+    /** Views that SET nothing count no usage, but their bodies still resolve every setting to its default, once per query. */
+    public void testIncViewSettingsOfViewsThatSetNothingCountsDefaults() {
+        Metrics metrics = createMetricsWithAllSettings();
+        metrics.incViewSettings(List.of(ViewQuerySettings.DEFAULTS, ViewQuerySettings.DEFAULTS));
+        Counters stats = metrics.stats();
+        for (QuerySettingDef<?> def : ViewQuerySettings.SETTINGS) {
+            assertThat(stats.get(Metrics.VIEW_SETTINGS_PREFIX + def.name()), equalTo(0L));
+            String defaultLabel = def.telemetryLabel(ResolvedSettings.EMPTY);
+            for (String label : def.telemetryLabels()) {
+                assertThat(
+                    def.name() + "." + label,
+                    stats.get(viewValueKey(def.name(), label)),
+                    equalTo(label.equals(defaultLabel) ? 1L : 0L)
+                );
+            }
+        }
+    }
+}

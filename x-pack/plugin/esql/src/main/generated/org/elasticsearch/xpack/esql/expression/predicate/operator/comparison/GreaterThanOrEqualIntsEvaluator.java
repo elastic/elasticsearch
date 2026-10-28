@@ -7,35 +7,38 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link GreaterThanOrEqual}.
+ * {@link ExpressionEvaluator} implementation for {@link GreaterThanOrEqual}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class GreaterThanOrEqualIntsEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(GreaterThanOrEqualIntsEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator lhs;
+  private final ExpressionEvaluator lhs;
 
-  private final EvalOperator.ExpressionEvaluator rhs;
+  private final ExpressionEvaluator rhs;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public GreaterThanOrEqualIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+  public GreaterThanOrEqualIntsEvaluator(Source source, ExpressionEvaluator lhs,
+      ExpressionEvaluator rhs, DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
@@ -59,6 +62,14 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lhs.baseRamBytesUsed();
+    baseRamBytesUsed += rhs.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -66,25 +77,29 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        if (lhsBlock.getValueCount(p) != 1) {
-          if (lhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (lhsBlock.getValueCount(p)) {
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
         if (rhsBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (rhsBlock.getValueCount(p) != 1) {
-          if (rhsBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (rhsBlock.getValueCount(p)) {
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        result.appendBoolean(GreaterThanOrEqual.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThanOrEqual.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -93,7 +108,9 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
+        result.appendBoolean(p, GreaterThanOrEqual.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -111,25 +128,20 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+    private final ExpressionEvaluator.Factory lhs;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+    private final ExpressionEvaluator.Factory rhs;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
-        EvalOperator.ExpressionEvaluator.Factory rhs) {
+    public Factory(Source source, ExpressionEvaluator.Factory lhs,
+        ExpressionEvaluator.Factory rhs) {
       this.source = source;
       this.lhs = lhs;
       this.rhs = rhs;

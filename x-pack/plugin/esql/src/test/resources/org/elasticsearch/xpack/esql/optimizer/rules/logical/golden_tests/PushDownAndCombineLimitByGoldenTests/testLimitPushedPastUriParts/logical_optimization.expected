@@ -1,0 +1,4 @@
+UriParts[uri{f}#0,[domain, fragment, path, extension, port, query, scheme, user_info, username, password],[p.domain{r}#1, p.fragment{r}#2, p.path{r}#3, p.extension{r}#4, p.port{r}#5, p.query{r}#6, p.scheme{r}#7, p.user_info{r}#8, p.username{r}#9, p.password{r}#10]]
+\_Limit[1000[INTEGER],false,false]
+  \_TopNBy[[Order[uri{f}#0,ASC,LAST]],1[INTEGER],[uri{f}#0]]
+    \_EsRelation[web_logs][domain{f}#11, public_ip{f}#12, timestamp{f}#13, uri{f}#0, user_agent{f}#14]

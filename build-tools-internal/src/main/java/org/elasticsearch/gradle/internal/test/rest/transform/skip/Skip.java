@@ -87,8 +87,14 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     @Override
     public void transformTest(ObjectNode parent) {
         if (testName.isBlank() == false) {
-            assert parent.get(testName) instanceof ArrayNode;
-            addSkip((ArrayNode) parent.get(testName));
+            JsonNode value = parent.get(testName);
+            // Only apply skip to test documents where the key is the test name and value is the steps array.
+            // Do not apply to nested keys with the same name (e.g. "do: get: { ... }" request body).
+            // This makes it possible to skip tests where the test name is an overloaded term such as
+            // task.skipTest("tsdb/25_id_generation/delete",...)
+            if (value instanceof ArrayNode) {
+                addSkip((ArrayNode) value);
+            }
         }
     }
 

@@ -1,0 +1,106 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.inference.textembedding;
+
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
+
+/**
+ * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
+ * It evaluates a text expression for each input row, constructs text embedding inference requests,
+ * and emits the dense vector embeddings as output.
+ */
+public class TextEmbeddingOperator extends InferenceOperator {
+
+    private final int batchSize;
+
+    TextEmbeddingOperator(
+        DriverContext driverContext,
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator inputEvaluator,
+        InputType inputType,
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
+    ) {
+        super(
+            driverContext,
+            inferenceService,
+            new TextEmbeddingRequestIterator.Factory(
+                inferenceId,
+                TaskType.TEXT_EMBEDDING,
+                inputEvaluator,
+                inputType,
+                batchSize,
+                timeout,
+                Warnings.createOnlyWarnings(driverContext, source)
+            ),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
+            source,
+            tolerateFailures
+        );
+        this.batchSize = batchSize;
+    }
+
+    @Override
+    public String toString() {
+        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "], batch_size=[" + batchSize + "]]";
+    }
+
+    /**
+     * Factory for creating {@link TextEmbeddingOperator} instances.
+     *
+     * @param inputType The inference request's document/query mode.
+     * @param batchSize The maximum number of input texts coalesced into a single embedding inference request.
+     * @param source The source location used for per-row failure warnings (only relevant when {@code tolerateFailures} is true).
+     * @param tolerateFailures When true, a failed inference request warns, nulls that row and continues, instead of failing the query.
+     *                         Set by the DENSE_VECTOR command; the fold-based TEXT_EMBEDDING function leaves it false (fail-fast).
+     */
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory textEvaluatorFactory,
+        InputType inputType,
+        int batchSize,
+        TimeValue timeout,
+        Source source,
+        boolean tolerateFailures
+    ) implements OperatorFactory {
+
+        @Override
+        public String describe() {
+            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "], batch_size=[" + batchSize + "]]";
+        }
+
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new TextEmbeddingOperator(
+                driverContext,
+                inferenceService,
+                inferenceId,
+                textEvaluatorFactory.get(driverContext),
+                inputType,
+                batchSize,
+                timeout,
+                source,
+                tolerateFailures
+            );
+        }
+    }
+}

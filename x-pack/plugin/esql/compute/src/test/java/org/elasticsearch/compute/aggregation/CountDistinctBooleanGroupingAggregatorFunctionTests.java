@@ -13,8 +13,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongBooleanTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongBooleanTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctBooleanGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctBooleanAggregatorFunctionSupplier();
     }
 
     @Override

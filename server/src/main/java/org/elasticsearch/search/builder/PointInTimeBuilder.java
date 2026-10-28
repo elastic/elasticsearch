@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -36,6 +36,7 @@ import java.util.Objects;
 public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField KEEP_ALIVE_FIELD = new ParseField("keep_alive");
+    private static final ParseField SLICE_FIELD = new ParseField(SliceIndexing.FIELD_NAME);
     private static final ObjectParser<XContentParams, Void> PARSER;
 
     static {
@@ -47,37 +48,39 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
             KEEP_ALIVE_FIELD,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareString((params, slice) -> params.searchSlice = slice, SLICE_FIELD);
     }
 
     private static final class XContentParams {
         private BytesReference encodedId;
         private TimeValue keepAlive;
+        private String searchSlice;
     }
 
     private final BytesReference encodedId;
     private transient SearchContextId searchContextId; // lazily decoded from the encodedId
     private TimeValue keepAlive;
+    /**
+     * The optional {@code _slice} supplied inside the {@code pit} object. A point-in-time search targets no index and therefore
+     * cannot carry the slice as a {@code /{index}/{_slice}/_search} path segment; it is instead provided here and applied to the
+     * search request by the REST layer. It is intentionally not serialized: the coordinator translates it into the search request's
+     * slice routing before dispatching to data nodes, so it does not need to cross the wire as part of the PIT.
+     */
+    @Nullable
+    private transient String searchSlice;
 
     public PointInTimeBuilder(BytesReference pitID) {
         this.encodedId = Objects.requireNonNull(pitID, "Point in time ID must be provided");
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            encodedId = in.readBytesReference();
-        } else {
-            encodedId = new BytesArray(Base64.getUrlDecoder().decode(in.readString()));
-        }
+        encodedId = in.readBytesReference();
         keepAlive = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBytesReference(encodedId);
-        } else {
-            out.writeString(Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(encodedId)));
-        }
+        out.writeBytesReference(encodedId);
         out.writeOptionalTimeValue(keepAlive);
     }
 
@@ -87,6 +90,9 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
         if (keepAlive != null) {
             builder.field(KEEP_ALIVE_FIELD.getPreferredName(), keepAlive.getStringRep());
         }
+        if (searchSlice != null) {
+            builder.field(SLICE_FIELD.getPreferredName(), searchSlice);
+        }
         return builder;
     }
 
@@ -95,7 +101,7 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
         if (params.encodedId == null) {
             throw new IllegalArgumentException("point in time id is not provided");
         }
-        return new PointInTimeBuilder(params.encodedId).setKeepAlive(params.keepAlive);
+        return new PointInTimeBuilder(params.encodedId).setKeepAlive(params.keepAlive).setSearchSlice(params.searchSlice);
     }
 
     /**
@@ -124,17 +130,25 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
         return this;
     }
 
-    /**
-     * If specified, the search layer will keep this point in time around for at least the given keep-alive.
-     * Otherwise, the point in time will be kept around until the original keep alive elapsed.
-     */
-    public PointInTimeBuilder setKeepAlive(String keepAlive) {
-        return setKeepAlive(TimeValue.parseTimeValue(keepAlive, "keep_alive"));
-    }
-
     @Nullable
     public TimeValue getKeepAlive() {
         return keepAlive;
+    }
+
+    /**
+     * Sets the optional {@code _slice} supplied inside the {@code pit} object. See {@link #searchSlice}.
+     */
+    public PointInTimeBuilder setSearchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        return this;
+    }
+
+    /**
+     * Returns the optional {@code _slice} supplied inside the {@code pit} object, or {@code null} if none was provided.
+     */
+    @Nullable
+    public String getSearchSlice() {
+        return searchSlice;
     }
 
     /**

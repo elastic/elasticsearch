@@ -1,0 +1,220 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.logsdb;
+
+import org.elasticsearch.Build;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.test.RollingUpgradePerformer;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
+    private static final String USER = "admin-user";
+    private static final String PASS = "x-pack-test-password";
+
+    private static TestFeatureService oldClusterTestFeatureService;
+
+    @Before
+    public void retainOldClusterTestFeatureService() {
+        if (oldClusterTestFeatureService == null) {
+            assert testFeatureServiceInitialized() : "testFeatureService must be initialized, see ESRestTestCase#initClient";
+            oldClusterTestFeatureService = testFeatureService;
+        }
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterTestFeatureService != null
+            : "testFeatureService of old cluster cannot be accessed before initialization is complete";
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
+    }
+
+    private final ElasticsearchCluster cluster;
+
+    @Rule
+    public final TestRule clusterRule;
+
+    protected AbstractLogsdbRollingUpgradeTestCase() {
+        this(Clusters.oldVersionCluster(USER, PASS));
+    }
+
+    /**
+     * @param cluster a new, unstarted cluster for this test instance. Each test method performs its own rolling upgrade, so it
+     *                needs its own cluster starting on the old version.
+     */
+    protected AbstractLogsdbRollingUpgradeTestCase(ElasticsearchCluster cluster) {
+        this.cluster = cluster;
+        this.clusterRule = RuleChain.outerRule(cluster).around(resetStaticClusterState());
+    }
+
+    /**
+     * The REST clients and old-cluster features are static; drop them after each test so the next test connects to its own
+     * cluster.
+     */
+    private static TestRule resetStaticClusterState() {
+        return new ExternalResource() {
+            @Override
+            protected void after() {
+                try {
+                    closeClients();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                oldClusterTestFeatureService = null;
+            }
+        };
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return getCluster().getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
+        assertAllNodesVersion(true);
+        closeClients();
+
+        var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
+        var bwcTag = System.getProperty("tests.bwc.tag");
+        var newClusterVersion = System.getProperty("tests.new_cluster_version");
+        logger.info("serverlessBwcStackVersion={}, bwcTag={}, newClusterVersion={}", serverlessBwcStackVersion, bwcTag, newClusterVersion);
+
+        int[] count = new int[1];
+        var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
+        getCluster().upgradeToVersion(upgradeVersion, () -> {
+            try {
+                initClient();
+                onNodeUpgradeComplete.accept(count[0]++);
+                closeClients();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        initClient();
+        assertAllNodesVersion(false);
+    }
+
+    /**
+     * Asserts that every node is on the old version, or that none are. A rolling upgrade must start from a fully old cluster
+     * and end on a fully upgraded one.
+     * <p>
+     * Skipped when the old cluster version is unknown, as when these tests run in serverless. There the old and new nodes can
+     * report the same version and build hash, so they cannot be told apart. The same holds when the old cluster is the current
+     * version, whose bwc cluster is built from the same commit as the new one. Detached refs ({@code tests.bwc.refspec.main})
+     * build the old cluster from a different commit, so they are still checked.
+     */
+    private static void assertAllNodesVersion(boolean oldVersion) throws IOException {
+        String oldClusterVersion = RollingUpgradePerformer.getOldClusterVersion();
+        if (isOldClusterDetachedVersion() == false && (oldClusterVersion == null || oldClusterVersion.equals(Build.current().version()))) {
+            return;
+        }
+        Map<String, Object> nodes = ObjectPath.evaluate(entityAsMap(client().performRequest(new Request("GET", "/_nodes"))), "nodes");
+        for (Object node : nodes.values()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) node;
+            String version = (String) nodeInfo.get("version");
+            String buildHash = (String) nodeInfo.get("build_hash");
+            assertThat(
+                "node [" + nodeInfo.get("name") + "] version [" + version + "] build_hash [" + buildHash + "]",
+                RollingUpgradePerformer.isOldClusterVersion(version, buildHash),
+                equalTo(oldVersion)
+            );
+        }
+    }
+
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static String bulkIndex(
+        String dataStreamName,
+        int numRequest,
+        int numDocs,
+        Instant startTime,
+        BiFunction<Instant, Integer, String> docSupplier
+    ) throws Exception {
+        String firstIndex = null;
+        for (int i = 0; i < numRequest; i++) {
+            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+            StringBuilder requestBody = new StringBuilder();
+            for (int j = 0; j < numDocs; j++) {
+                requestBody.append("{\"create\": {}}");
+                requestBody.append('\n');
+                requestBody.append(docSupplier.apply(startTime, j));
+                requestBody.append('\n');
+
+                startTime = startTime.plusMillis(1);
+            }
+            bulkRequest.setJsonEntity(requestBody.toString());
+            bulkRequest.addParameter("refresh", "true");
+            var response = client().performRequest(bulkRequest);
+            assertOK(response);
+            var responseBody = entityAsMap(response);
+            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+            if (firstIndex == null) {
+                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
+            }
+        }
+        return firstIndex;
+    }
+
+    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
+        final String INDEX_TEMPLATE = """
+            {
+                "priority": 200,
+                "index_patterns": ["$DATASTREAM"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
+    }
+
+    @Override
+    protected final boolean resetFeatureStates() {
+        // /_features/_reset can fail on recently-upgraded clusters
+        return false;
+    }
+}

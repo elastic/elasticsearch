@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -24,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
@@ -35,16 +37,20 @@ public class ToVersion extends AbstractConvertFunction {
         "ToVersion",
         ToVersion::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToVersion.class)
+        .unary(ToVersion::new)
+        .name("to_version", "to_ver");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(VERSION, (fieldEval, source) -> fieldEval),
+        Map.entry(VERSION, (source, fieldEval) -> fieldEval),
         Map.entry(KEYWORD, ToVersionFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToVersionFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "version",
+        briefSummary = "Converts a string to a version value.",
         description = "Converts an input string to a version value.",
         examples = @Example(file = "version", tag = "to_version")
     )

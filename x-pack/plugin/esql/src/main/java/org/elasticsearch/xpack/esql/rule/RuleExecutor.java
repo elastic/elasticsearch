@@ -12,22 +12,47 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     private final Logger log = LogManager.getLogger(getClass());
+    /**
+     * Sub-logger intended to show only changes made by the rules. Intended for debugging.
+     *
+     * Enable it like this for the respective optimizers and the analyzer, resp. all inheritors of this class:
+     * {@snippet lang="text":
+     * PUT localhost:9200/_cluster/settings
+     *
+     * {
+     *   "transient" : {
+     *     "logger.org.elasticsearch.xpack.esql.analysis.Analyzer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer.changes": "TRACE",
+     *     "logger.org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.changes": "TRACE"
+     *   }
+     * }
+     * }
+     */
+    private final Logger changeLog = LogManager.getLogger(getClass().getName() + ".changes");
+
+    /**
+     * Number of most recent plan-changing rules reported when a {@link Limiter} is reached, to help identify the rules that keep
+     * a batch from converging.
+     */
+    static final int LAST_APPLIED_RULES_TO_REPORT = 10;
 
     public static class Limiter {
         public static final Limiter DEFAULT = new Limiter(100);
         public static final Limiter ONCE = new Limiter(1) {
 
             @Override
-            boolean reached(int runs) {
+            boolean reached(int runs, Collection<String> lastAppliedRules) {
                 return runs >= 1;
             }
         };
@@ -38,9 +63,13 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             this.runs = maximumRuns;
         }
 
-        boolean reached(int numberOfRuns) {
+        boolean reached(int numberOfRuns, Collection<String> lastAppliedRules) {
             if (numberOfRuns >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit [{}] reached", numberOfRuns);
+                throw new RuleExecutionException(
+                    "Rule execution limit [{}] reached, last rules that changed the plan: {}",
+                    numberOfRuns,
+                    lastAppliedRules
+                );
             }
             return false;
         }
@@ -81,84 +110,24 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
-    public class Transformation {
-        private final TreeType before, after;
-        private final String name;
-        private Boolean lazyHasChanged;
-
-        Transformation(String name, TreeType plan, Function<TreeType, TreeType> transform) {
-            this.name = name;
-            this.before = plan;
-            this.after = transform.apply(before);
-        }
-
-        public boolean hasChanged() {
-            if (lazyHasChanged == null) {
-                lazyHasChanged = before.equals(after) == false;
-            }
-            return lazyHasChanged;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-    }
-
-    public class ExecutionInfo {
-
-        private final TreeType before, after;
-        private final Map<Batch<TreeType>, List<Transformation>> transformations;
-
-        ExecutionInfo(TreeType before, TreeType after, Map<Batch<TreeType>, List<Transformation>> transformations) {
-            this.before = before;
-            this.after = after;
-            this.transformations = transformations;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-
-        public Map<Batch<TreeType>, List<Transformation>> transformations() {
-            return transformations;
-        }
-    }
-
     protected final TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
-    }
-
-    protected final ExecutionInfo executeWithInfo(TreeType plan) {
         TreeType currentPlan = plan;
 
         long totalDuration = 0;
 
-        Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
         if (batches == null) {
             batches = batches();
         }
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
-            List<Transformation> tfs = new ArrayList<>();
-            transformations.put(batch, tfs);
 
             boolean hasChanged = false;
             long batchStart = System.currentTimeMillis();
             long batchDuration = 0;
 
+            TreeType before = currentPlan;
+            Deque<String> lastAppliedRules = new ArrayDeque<>(LAST_APPLIED_RULES_TO_REPORT);
             // run each batch until no change occurs or the limit is reached
             do {
                 hasChanged = false;
@@ -168,14 +137,19 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
-                    Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
-                    tfs.add(tf);
-                    currentPlan = tf.after;
 
-                    if (tf.hasChanged()) {
+                    TreeType beforeRule = currentPlan;
+                    TreeType afterRule = transform(rule).apply(currentPlan);
+                    currentPlan = afterRule;
+
+                    if (Objects.equals(beforeRule, afterRule) == false) {
                         hasChanged = true;
-                        if (log.isTraceEnabled()) {
-                            log.trace("Rule {} applied\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                        if (lastAppliedRules.size() == LAST_APPLIED_RULES_TO_REPORT) {
+                            lastAppliedRules.removeFirst();
+                        }
+                        lastAppliedRules.addLast(rule.name());
+                        if (changeLog.isTraceEnabled()) {
+                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(beforeRule, afterRule));
                         }
                     } else {
                         if (log.isTraceEnabled()) {
@@ -184,17 +158,12 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     }
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
-            } while (hasChanged && batch.limit.reached(batchRuns) == false);
+            } while (hasChanged && batch.limit.reached(batchRuns, lastAppliedRules) == false);
+            TreeType after = currentPlan;
 
             totalDuration += batchDuration;
 
             if (log.isTraceEnabled()) {
-                TreeType before = plan;
-                TreeType after = plan;
-                if (tfs.isEmpty() == false) {
-                    before = tfs.get(0).before;
-                    after = tfs.get(tfs.size() - 1).after;
-                }
                 log.trace(
                     "Batch {} applied took {}\n{}",
                     batch.name,
@@ -208,7 +177,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
-        return new ExecutionInfo(plan, currentPlan, transformations);
+        return currentPlan;
     }
 
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {

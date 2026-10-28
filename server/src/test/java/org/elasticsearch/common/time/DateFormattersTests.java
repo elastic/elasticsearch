@@ -11,6 +11,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -65,6 +66,8 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(formatter.pattern()));
         assertThat(e.getCause(), instanceOf(DateTimeParseException.class));
         assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), indexMatcher);
+
+        assertThat(formatter.tryParse(input), nullValue());
     }
 
     private void assertParses(String input, String format) {
@@ -73,11 +76,11 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertParses(String input, DateFormatter formatter) {
-
         TemporalAccessor javaTimeAccessor = formatter.parse(input);
         ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
-
         assertThat(zonedDateTime, notNullValue());
+
+        assertThat(formatter.tryParse(input), notNullValue());
     }
 
     private void assertDateMathEquals(String text, String expected, String pattern) {
@@ -289,7 +292,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     /**
-     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn throw errors since we use these
+     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn't throw errors since we use these
      * e.g. for sorting documents with `null` values first or last
      */
     public void testPrintersLongMinMaxValue() {
@@ -405,6 +408,41 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(first, is(second));
     }
 
+    public void testIsoParsersWithDifferentTimezones() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00")
+        );
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T19:14:56+03:00")
+        ).withZoneSameInstant(ZoneId.of("+01:00"));
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithDifferentTimezones() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH_mm_ss XXX").parse("2018-05-15 17_14_56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH-mm-ss-XXX").parse("2018-05-15 19-14-56-+03:00"))
+            .withZoneSameInstant(ZoneId.of("+01:00"));
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithTimezoneDefault() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"),
+            Locale.ROOT,
+            ZoneId.of("-08:15")
+        );
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithExternalTimezoneOverride() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").withZone(ZoneId.of("+01:00")).parse("2018-05-15 17:14:56 -08:15")
+        );
+        assertThat(first, is(second));
+    }
+
     public void testNanoOfSecondWidth() throws Exception {
         ZonedDateTime first = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1")
@@ -423,7 +461,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     public void testTimeZones() {
-        // zone is null by default due to different behaviours between java8 and above
+        // zone is null by default due to different behaviors between java8 and above
         assertThat(DateFormatters.forPattern("strict_date_optional_time").zone(), is(nullValue()));
         ZoneId zoneId = randomZone();
         assertThat(DateFormatters.forPattern("strict_date_optional_time").withZone(zoneId).zone(), is(zoneId));
@@ -447,6 +485,11 @@ public class DateFormattersTests extends ESTestCase {
 
         // different pattern, thus not equals
         assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
+
+        // Object.equals contract: x.equals(null) is false, never a NullPointerException. Objects.equals(fmt, null)
+        // is reached from any record/POJO holding a nullable DateFormatter component.
+        assertThat(DateFormatters.forPattern("YYYY").equals(null), is(false));
+        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(new Object())));
 
         DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
         assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));
@@ -610,7 +653,7 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
-        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nanosecond
         var formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_millis");
         Instant epochMilliInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
@@ -623,7 +666,7 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_millis", "1234567890", 1234567890L);
 
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
-        // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
+        // also check nanos of the epoch_millis formatter if it is rounded up to the nanosecond
         formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_second");
         Instant epochSecondInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
@@ -823,7 +866,7 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testExceptionWhenCompositeParsingFailsDateMath() {
         // both parsing failures should contain pattern and input text in exception
-        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        // both patterns fail parsing the input text due to only 2 digits of millis. Hence, full text was not parsed.
         String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(
@@ -1467,5 +1510,129 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
         assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
+    }
+
+    public void testXContentElasticsearchExtensionDefaultFormatter() {
+        final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);
+
+        assertEquals("2025-09-12T08:12:12.123Z", formatter.format(Instant.ofEpochMilli(1757664732123L)));
+        assertEquals("2025-09-12T08:12:12.000Z", formatter.format(Instant.ofEpochMilli(1757664732000L)));
+        assertEquals("2025-09-12T08:12:00.000Z", formatter.format(Instant.ofEpochMilli(1757664720000L)));
+        assertEquals("2025-09-12T08:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757664000000L)));
+        assertEquals("2025-09-12T00:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757635200000L)));
+
+        // NB differs from Instant.toString():
+        assertEquals("2025-09-12T08:12:12.123Z", Instant.ofEpochMilli(1757664732123L).toString());
+        assertEquals("2025-09-12T08:12:00Z", Instant.ofEpochMilli(1757664720000L).toString());
+    }
+
+    public void testFebruary30thEdgeCaseDateParsing() {
+        final Instant marchSecond = parseToInstant(DateFormatter.forPattern("date"), "2026-03-02");
+
+        {
+            final var formatter = DateFormatter.forPattern("date");
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseToInstant(formatter, "2026-02-30"));
+            assertThat(e.getMessage(), equalTo("failed to parse date field [2026-02-30] with format [date]"));
+        }
+
+        {
+            final var formatter = DateFormatter.forPattern("strict_date");
+            final var result = parseToInstant(formatter, "2026-02-30");
+            assertThat(result, equalTo(marchSecond));
+            assertThat(formatter.format(result), equalTo("2026-03-02"));
+        }
+
+        {
+            var formatter = DateFormatter.forPattern("yyyy-MM-dd");
+            DateTimeException e = expectThrows(DateTimeException.class, () -> parseToInstant(formatter, "2026-02-30"));
+            assertThat(e.getMessage(), equalTo("Invalid date 'FEBRUARY 30'"));
+        }
+
+        {
+            var formatter = DateFormatter.forPattern("MM-dd-yyyy");
+            DateTimeException e = expectThrows(DateTimeException.class, () -> parseToInstant(formatter, "02-30-2026"));
+            assertThat(e.getMessage(), equalTo("Invalid date 'FEBRUARY 30'"));
+        }
+    }
+
+    public void testFastLiteralDatePatternFormatters() {
+        for (String pattern : List.of("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd")) {
+            DateFormatter fast = DateFormatter.forPattern(pattern);
+            DateFormatter reference = DateFormatters.genericPatternFormatter(pattern);
+
+            List<String> inputs = pattern.equals("yyyy-MM-dd")
+                ? List.of(
+                    "2013-07-15",
+                    "2024-02-29",
+                    "0001-01-01",
+                    "9999-12-31",
+                    "2013-13-15",
+                    "2013-07-32",
+                    "2024-02-30",
+                    "2013-07-15 03:39:00",
+                    "2013-7-15",
+                    "not-a-date"
+                )
+                : List.of(
+                    "2013-07-15 03:39:00",
+                    "2013-07-15 03:39:59",
+                    "2024-02-29 23:59:59",
+                    "0001-01-01 00:00:00",
+                    "2013-07-15T03:39:00",
+                    "2013-07-15 24:00:00",
+                    "2013-07-15 03:60:00",
+                    "2013-07-15 03:39",
+                    "2013-07-15",
+                    "2013-07-15 03:39:00Z"
+                );
+
+            for (String input : inputs) {
+                try {
+                    Instant refInstant = parseToInstant(reference, input);
+                    Instant fastInstant = null;
+                    try {
+                        fastInstant = parseToInstant(fast, input);
+                    } catch (Exception e) {
+                        // if the reference formatter didn't throw, then the fast formatter throwing is a failure
+                        fail(e, "mismatch for [" + input + "] with pattern [" + pattern + "], fast formatter threw an exception");
+                    }
+                    assertThat("mismatch for [" + input + "] with pattern [" + pattern + "]", fastInstant, equalTo(refInstant));
+
+                    // confirm also that the output/formatting works the same, too
+                    assertThat(
+                        "format mismatch for [" + input + "] with pattern [" + pattern + "]",
+                        fast.formatMillis(fastInstant.toEpochMilli()),
+                        equalTo(reference.formatMillis(refInstant.toEpochMilli()))
+                    );
+                } catch (Exception ignored1) {
+                    try {
+                        // if the reference formatter throws, then the fast formatter should also throw
+                        parseToInstant(fast, input);
+                        fail("fast formatter should reject [" + input + "] with pattern [" + pattern + "]");
+                    } catch (Exception ignored2) {
+                        // ignored
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Parse a date string with a formatter, then coerce it into an Instant -- this is very much in the
+     * same style as the code in {@link DateFieldMapper.DateFieldType#parse(String)}, albeit without the
+     * final conversion to long.
+     * <p>
+     * Some formatters are happy to parse a date like '2026-02-30', and some throw an exception, but
+     * {@link DateFormatters#from(TemporalAccessor, Locale)} ends up re-routing through
+     * {@link DateFormatters#LOCAL_DATE_QUERY} and the {@link java.time.LocalDate#of(int, int, int)}
+     * call there rejects such dates.
+     * <p>
+     * Long story short, this method is meant to capture (approximately) the notion of "will
+     * Elasticsearch accept this date string in an incoming document using a mapping with the specified
+     * date format string?".
+     */
+    private static Instant parseToInstant(final DateFormatter formatter, final String input) {
+        return DateFormatters.from(formatter.parse(input), formatter.locale()).toInstant();
     }
 }

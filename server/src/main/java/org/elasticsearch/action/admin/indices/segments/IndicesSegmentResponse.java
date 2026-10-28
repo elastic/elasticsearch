@@ -16,8 +16,10 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -71,9 +73,8 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        return Iterators.concat(
-
-            ChunkedToXContentHelper.startObject(Fields.INDICES),
+        return ChunkedToXContentHelper.object(
+            Fields.INDICES,
             Iterators.flatMap(
                 getIndices().values().iterator(),
                 indexSegments -> Iterators.concat(
@@ -81,9 +82,8 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                     ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)),
                     Iterators.flatMap(
                         indexSegments.iterator(),
-                        indexSegment -> Iterators.concat(
-
-                            ChunkedToXContentHelper.startArray(Integer.toString(indexSegment.shardId().id())),
+                        indexSegment -> ChunkedToXContentHelper.array(
+                            Integer.toString(indexSegment.shardId().id()),
                             Iterators.flatMap(
                                 indexSegment.iterator(),
                                 shardSegments -> Iterators.concat(
@@ -134,6 +134,36 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
                                                 }
+                                                if (segment.autoCalibrationParams != null
+                                                    && segment.autoCalibrationParams.isEmpty() == false) {
+                                                    builder.startObject("auto_calibration");
+                                                    for (Map.Entry<
+                                                        String,
+                                                        SegmentCalibrationParameters> entry : segment.autoCalibrationParams.entrySet()) {
+                                                        builder.startObject(entry.getKey());
+                                                        builder.field("calibrated", entry.getValue().calibrated());
+                                                        builder.field("type", entry.getValue().type());
+                                                        long count = segment.autoCalibrationVectorCounts != null
+                                                            ? segment.autoCalibrationVectorCounts.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.field("number_of_vectors", count);
+                                                        long sizeBytes = segment.autoCalibrationSizeBytes != null
+                                                            ? segment.autoCalibrationSizeBytes.getOrDefault(entry.getKey(), 0L)
+                                                            : 0L;
+                                                        builder.humanReadableField(
+                                                            "size_in_bytes",
+                                                            "size",
+                                                            ByteSizeValue.ofBytes(sizeBytes)
+                                                        );
+                                                        if (entry.getValue().calibrated()) {
+                                                            builder.startObject("parameters");
+                                                            entry.getValue().toXContent(builder);
+                                                            builder.endObject();
+                                                        }
+                                                        builder.endObject();
+                                                    }
+                                                    builder.endObject();
+                                                }
                                                 builder.endObject();
                                                 return builder;
                                             })
@@ -141,14 +171,12 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                     ),
                                     ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                                 )
-                            ),
-                            ChunkedToXContentHelper.endArray()
+                            )
                         )
                     ),
                     ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                 )
-            ),
-            ChunkedToXContentHelper.endObject()
+            )
         );
     }
 
@@ -157,25 +185,21 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
             return Collections.emptyIterator();
         }
 
-        return Iterators.concat(
-            ChunkedToXContentHelper.startArray("sort"),
-            Iterators.map(Iterators.forArray(segmentSort.getSort()), field -> (builder, p) -> {
-                builder.startObject();
-                builder.field("field", field.getField());
-                if (field instanceof SortedNumericSortField sortedNumericSortField) {
-                    builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
-                } else if (field instanceof SortedSetSortField sortedSetSortField) {
-                    builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
-                }
-                if (field.getMissingValue() != null) {
-                    builder.field("missing", field.getMissingValue().toString());
-                }
-                builder.field("reverse", field.getReverse());
-                builder.endObject();
-                return builder;
-            }),
-            ChunkedToXContentHelper.endArray()
-        );
+        return ChunkedToXContentHelper.array("sort", Iterators.map(Iterators.forArray(segmentSort.getSort()), field -> (builder, p) -> {
+            builder.startObject();
+            builder.field("field", field.getField());
+            if (field instanceof SortedNumericSortField sortedNumericSortField) {
+                builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof SortedSetSortField sortedSetSortField) {
+                builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+            }
+            if (field.getMissingValue() != null) {
+                builder.field("missing", field.getMissingValue().toString());
+            }
+            builder.field("reverse", field.getReverse());
+            builder.endObject();
+            return builder;
+        }));
     }
 
     static final class Fields {

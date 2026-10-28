@@ -74,3 +74,191 @@ teardown:
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.conditional_field: "bar" }
   - is_false: _source.bytes_target_field
+
+---
+"Test conditional processor with fields API":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:
+          description: "_description"
+          processors:
+            - set:
+                if: "field('get.field').get('') == 'one'"
+                field: "one"
+                value: 1
+            - set:
+                if: "field('get.field').get('') == 'two'"
+                field: "missing"
+                value: "missing"
+            - set:
+                if: " /* avoid yaml stash */ $('get.field', 'one') == 'one'"
+                field: "dollar"
+                value: true
+            - set:
+                if: "field('missing.field').get('fallback') == 'fallback'"
+                field: "fallback"
+                value: "fallback"
+            - set:
+                if: "field('nested.array.get.with.index.field').get(1, null) == 'two'"
+                field: "two"
+                value: 2
+            - set:
+                if: "field('getName.field').getName() == 'getName.field'"
+                field: "three"
+                value: 3
+            - set:
+                if: "field('existing.field').exists()"
+                field: "four"
+                value: 4
+            - set:
+                if: "!field('empty.field').isEmpty()"
+                field: "missing"
+                value: "missing"
+            - set:
+                if: "field('size.field').size() == 2"
+                field: "five"
+                value: 5
+            - set:
+                if: >
+                  def iterator = field('iterator.field').iterator();
+                  def sum = 0;
+                  while (iterator.hasNext()) {
+                    sum += iterator.next();
+                  }
+                  return sum == 6;
+                field: "six"
+                value: 6
+            - set:
+                if: "field('hasValue.field').hasValue(v -> v == 'two')"
+                field: "seven"
+                value: 7
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:
+          get.field: "one"
+          nested:
+            array:
+              get.with.index.field: ["one", "two", "three"]
+          getName.field: "my_name"
+          existing.field: "indeed"
+          empty.field: []
+          size.field: ["one", "two"]
+          iterator.field: [1, 2, 3]
+          hasValue.field: ["one", "two", "three"]
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.get\.field: "one" }
+  - match: { _source.one: 1 }
+  - is_false: _source.missing
+  - is_true: _source.dollar
+  - match: { _source.fallback: "fallback" }
+  - match: { _source.nested.array.get\.with\.index\.field: ["one", "two", "three"] }
+  - match: { _source.two: 2 }
+  - match: { _source.three: 3 }
+  - match: { _source.four: 4 }
+  - match: { _source.five: 5 }
+  - match: { _source.six: 6 }
+  - match: { _source.seven: 7 }
+
+---
+"Test fields iterator is unmodifiable":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:
+          description: "_description"
+          processors:
+            - set:
+                if: >
+                  def iterator = field('iterator.field').iterator();
+                  def sum = 0;
+                    while (iterator.hasNext()) {
+                      sum += iterator.next();
+                      iterator.remove();
+                    }
+                  return sum == 6;
+                field: "sum"
+                value: 6
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:
+          test.field: [1, 2, 3]
+  - match: { error: null }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "my_pipeline"
+        body:
+          iterator.field: [1, 2, 3]
+      catch: bad_request
+  - length: { error.root_cause: 1 }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.test\.field: [1, 2, 3] }
+  - is_false: _source.sum
+
+  - do:
+      get:
+        index: test
+        id: "2"
+      catch: missing
+
+---
+"Test conditionals support params and statements":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "if" : {
+                    "source": "def hit = params.success_codes.containsKey(ctx.code); return hit != null && hit == true;",
+                    "params": {
+                      "success_codes" : {
+                        "10": true,
+                        "20": true
+                      }
+                    }
+                  },
+                  "field" : "result",
+                  "value" : "success"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: { code: "20" }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.result: "success" }

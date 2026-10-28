@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -25,7 +27,7 @@ import static org.hamcrest.Matchers.emptyString;
 /**
  * A base test case for cli tools.
  */
-@ESTestCase.WithoutSecurityManager
+@WithoutEntitlements // CLI tools don't run with entitlements enforced
 public abstract class CommandTestCase extends ESTestCase {
 
     /** The terminal that execute uses */

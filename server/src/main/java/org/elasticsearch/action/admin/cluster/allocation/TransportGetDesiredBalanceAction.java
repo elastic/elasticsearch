@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,7 +55,6 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
         WriteLoadForecaster writeLoadForecaster
@@ -94,6 +92,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
         var clusterInfo = clusterInfoService.getClusterInfo();
+        writeLoadForecaster.refreshLicense();
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
@@ -111,7 +110,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         Map<String, Map<Integer, DesiredBalanceResponse.DesiredShards>> routingTable = new HashMap<>();
         for (IndexRoutingTable indexRoutingTable : state.routingTable()) {
             Map<Integer, DesiredBalanceResponse.DesiredShards> indexDesiredShards = new HashMap<>();
-            IndexMetadata indexMetadata = state.metadata().index(indexRoutingTable.getIndex());
+            IndexMetadata indexMetadata = state.metadata().getProject().index(indexRoutingTable.getIndex());
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
                 ShardAssignment shardAssignment = latestDesiredBalance.assignments().get(shardRoutingTable.shardId());

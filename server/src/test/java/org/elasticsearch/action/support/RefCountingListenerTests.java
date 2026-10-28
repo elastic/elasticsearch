@@ -232,25 +232,25 @@ public class RefCountingListenerTests extends ESTestCase {
         final var executorService = DIRECT_EXECUTOR_SERVICE;
         final var results = new ArrayList<>();
 
-        try (var refs = new RefCountingListener(finalListener)) {
+        try (var listeners = new RefCountingListener(finalListener)) {
             for (var item : collection) {
                 if (condition(item)) {
-                    runAsyncAction(item, refs.acquire(results::add));
+                    runAsyncAction(item, listeners.acquire(results::add));
                 }
             }
             if (flag) {
-                runOneOffAsyncAction(refs.acquire(results::add));
+                runOneOffAsyncAction(listeners.acquire(results::add));
                 return;
             }
             for (var item : otherCollection) {
-                var itemRef = refs.acquire(); // delays completion while the background action is pending
+                var itemListener = listeners.acquire(); // delays completion while the background action is pending
                 executorService.execute(() -> {
                     try {
                         if (condition(item)) {
-                            runOtherAsyncAction(item, refs.acquire(results::add));
+                            runOtherAsyncAction(item, listeners.acquire(results::add));
                         }
                     } finally {
-                        itemRef.onResponse(null);
+                        itemListener.onResponse(null);
                     }
                 });
             }

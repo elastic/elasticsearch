@@ -7,25 +7,20 @@
 
 package org.elasticsearch.compute.test;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -34,24 +29,20 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.BreakerTestUtil;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
-import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
  */
 public abstract class OperatorTestCase extends AnyOperatorTestCase {
+
     /**
      * Valid input to be sent to {@link #simple};
      */
@@ -68,14 +59,22 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * are more likely to discover accidental behavior for clumped inputs.
      */
     public final void testSimpleSmallInput() {
-        assertSimple(driverContext(), between(10, 100));
+        assertSimple(driverContext(), smallInputSize());
+    }
+
+    protected int smallInputSize() {
+        return randomIntBetween(10, 100);
     }
 
     /**
      * Test a larger input set against {@link #simple}.
      */
     public final void testSimpleLargeInput() {
-        assertSimple(driverContext(), between(1_000, 10_000));
+        assertSimple(driverContext(), largeInputSize());
+    }
+
+    protected int largeInputSize() {
+        return randomIntBetween(1_000, 10_000);
     }
 
     /**
@@ -96,12 +95,24 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * a random amount of memory between {@code 0b} and the maximum and run that,
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
+     * <p>
+     * Every run also fails if the breaker tripped but the driver completed. Operators
+     * must let a {@link CircuitBreakingException} propagate: one that swallows it, for
+     * example by turning it into a warning, makes tripping non-monotonic in the limit,
+     * so the random limit below the one found by the search may not trip at all.
+     * </p>
      */
-    public final void testSimpleCircuitBreaking() {
-        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
-        Operator.OperatorFactory simple = simple();
+    public void testSimpleCircuitBreaking() throws Exception {
+        /*
+         * Build the input before building `simple` to handle the rare
+         * cases where `simple` need some state from the input - mostly
+         * this is ValuesSourceReaderOperator.
+         */
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
+
+        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
+        Operator.OperatorFactory simple = simple(new SimpleOptions(true));
         try {
             ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
             ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
@@ -116,22 +127,22 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
         try {
             var operator = factory.get(driverContext);
             driverStarted = true;
-            drive(operator, localInput.iterator(), driverContext);
+            new TestDriverRunner().builder(driverContext).input(localInput).run(operator);
+            assertThat("the breaker tripped but the driver didn't fail", blockFactory.breaker().getTrippedCount(), equalTo(0L));
         } finally {
             if (driverStarted == false) {
                 // if drive hasn't even started then we need to release the input pages manually
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             blockFactory.ensureAllBlocksAreReleased();
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
     }
 
@@ -143,7 +154,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      */
     public final void testSimpleWithCranky() {
         DriverContext inputFactoryContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), largeInputSize()));
 
         DriverContext driverContext = crankyDriverContext();
 
@@ -152,7 +163,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         try {
             Operator operator = simple().get(driverContext);
             driverStarted = true;
-            drive(operator, input.iterator(), driverContext);
+            new TestDriverRunner().builder(driverContext).input(input).run(operator);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -189,16 +200,14 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
-                Driver d = new Driver(
-                    "test",
+                Driver d = TestDriverFactory.create(
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
-                    new PageConsumerOperator(result::add),
-                    () -> {}
+                    new PageConsumerOperator(result::add)
                 )
             ) {
-                runDriver(d);
+                new TestDriverRunner().run(d);
             }
         }
         return result;
@@ -218,8 +227,9 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
         var operator = simple().get(context);
-        List<Page> results = drive(operator, input.iterator(), context);
+        List<Page> results = new TestDriverRunner().builder(context).input(input).run(operator);
         assertSimpleOutput(origInput, results);
+        assertOperatorStatus(operator, origInput, results);
         assertThat(context.breaker().getUsed(), equalTo(0L));
 
         // Release all result blocks. After this, all input blocks should be released as well, otherwise we have a leak.
@@ -242,93 +252,28 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() throws Exception {
+    public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
-        Page page = input.get(0);
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
-            operator.addInput(page);
+            for (Page page : input) {
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
+            }
             operator.finish();
-        }
-    }
-
-    protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
-        return drive(List.of(operator), input, driverContext);
-    }
-
-    protected final List<Page> drive(List<Operator> operators, Iterator<Page> input, DriverContext driverContext) {
-        List<Page> results = new ArrayList<>();
-        boolean success = false;
-        try (
-            Driver d = new Driver(
-                "test",
-                driverContext,
-                new CannedSourceOperator(input),
-                operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
-            )
-        ) {
-            runDriver(d);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks)));
+            // for operators with async actions, we need to wait for them to finish.
+            if (driverContext.hasPendingAsyncActions() || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
             }
-        }
-        return results;
-    }
-
-    public static void runDriver(Driver driver) {
-        runDriver(List.of(driver));
-    }
-
-    public static void runDriver(List<Driver> drivers) {
-        drivers = new ArrayList<>(drivers);
-        int dummyDrivers = between(0, 10);
-        for (int i = 0; i < dummyDrivers; i++) {
-            drivers.add(
-                new Driver(
-                    "test",
-                    "dummy-session",
-                    0,
-                    0,
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
-                    () -> "dummy-driver",
-                    new SequenceLongBlockSourceOperator(
-                        TestBlockFactory.getNonBreakingInstance(),
-                        LongStream.range(0, between(1, 100)),
-                        between(1, 100)
-                    ),
-                    List.of(),
-                    new PageConsumerOperator(page -> page.releaseBlocks()),
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    () -> {}
-                )
-            );
-        }
-        Randomness.shuffle(drivers);
-        int numThreads = between(1, 16);
-        ThreadPool threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
-            new FixedExecutorBuilder(Settings.EMPTY, "esql", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
-        var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
-            }
-        };
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        try {
-            driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
-        } finally {
-            terminate(threadPool);
         }
     }
 
@@ -344,4 +289,13 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             return between(1, 16 * 1024);
         }
     }
+
+    // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
+    protected final String byteRefBlockHashSize() {
+        if (HashImplFactory.SWISS_HASH_AVAILABLE) {
+            return "35144b";
+        }
+        return "440b";
+    }
+
 }

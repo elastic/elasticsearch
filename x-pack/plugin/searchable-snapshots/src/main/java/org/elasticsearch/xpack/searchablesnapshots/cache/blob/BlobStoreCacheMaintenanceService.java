@@ -52,7 +52,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -243,7 +243,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
                 final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
                 if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {
@@ -259,7 +259,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
@@ -277,7 +277,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {
@@ -312,16 +312,16 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         protected void doRun() {
-            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue = new LinkedList<>();
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue = new LinkedList<>();
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
-                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                final IndexMetadata indexMetadata = event.previousState().metadata().getProject().index(deletedIndex);
+                assert indexMetadata != null || state.metadata().getProject().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     if (indexMetadata.isSearchableSnapshot()) {
-                        assert state.metadata().hasIndex(deletedIndex) == false;
+                        assert state.metadata().getProject().hasIndex(deletedIndex) == false;
 
                         final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);
@@ -344,7 +344,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         queue.add(Tuple.tuple(request, new ActionListener<>() {
                             @Override
-                            public void onResponse(BulkByScrollResponse response) {
+                            public void onResponse(BulkByPaginatedSearchResponse response) {
                                 logger.debug(
                                     "blob cache maintenance task deleted [{}] entries after deletion of {} (snapshot:{}, index:{})",
                                     response.getDeleted(),
@@ -376,9 +376,9 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             }
         }
 
-        void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue) {
+        void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-            final Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>> next = queue.poll();
+            final Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>> next = queue.poll();
             if (next != null) {
                 cleanUp(next.v1(), next.v2(), queue);
             }
@@ -386,8 +386,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         void cleanUp(
             final DeleteByQueryRequest request,
-            final ActionListener<BulkByScrollResponse> listener,
-            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue
+            final ActionListener<BulkByPaginatedSearchResponse> listener,
+            final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse>>> queue
         ) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.runAfter(listener, () -> {
@@ -527,7 +527,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
          * The maintenance task, once it has opened its PIT and started running so that it has all the state it needs to do its job.
          */
         private class RunningPeriodicMaintenanceTask implements Runnable {
-            private final BytesReference pointInTimeId;
+            private BytesReference pointInTimeId;
             private final RefCountingListener listeners;
             private final Instant expirationTime;
             private final Map<String, Set<String>> existingSnapshots;
@@ -584,6 +584,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
             private void handleSearchResponse(SearchResponse searchResponse, RefCounted refs) {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                // if the pit id has changed, we update the one held by this task for future calls
+                BytesReference pitInResponse = searchResponse.pointInTimeId();
+                if (this.pointInTimeId.equals(pitInResponse) == false) {
+                    this.pointInTimeId = pitInResponse;
+                    logger.trace("periodic maintenance task updated to point-in-time id [{}]", this.pointInTimeId);
+                }
 
                 if (listeners.isFailing()) {
                     return;

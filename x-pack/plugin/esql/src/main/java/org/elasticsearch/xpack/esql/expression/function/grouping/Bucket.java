@@ -8,41 +8,72 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.Rounding.RoundingConvention;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
+import org.elasticsearch.xpack.esql.expression.function.ThreeOptionalArguments;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneRules;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
+import static org.elasticsearch.common.Rounding.RoundingConvention.UP;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIFTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -57,42 +88,316 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * this function: with a user-provided span (explicit invocation mode), or a span derived
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
+ * <p>
+ * Histogram fields ({@code exponential_histogram} and {@code tdigest}) are bucketed like numbers,
+ * but instead of a single {@code double} the function returns the multi-valued {@code double_range}
+ * buckets that are non-empty according to
+ * {@link org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramFraction}
+ * (or {@code null} for an empty histogram).
  */
-public class Bucket extends GroupingFunction implements PostOptimizationVerificationAware, TwoOptionalArguments {
+public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        PostOptimizationVerificationAware,
+        ThreeOptionalArguments,
+        ConfigurationFunction,
+        AnyNullIsNull {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
+        .quinaryConfigWithOptions(Bucket::new)
+        .capabilities("histogram_types")
+        .name("bucket", "bin");
+    public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
+    public static final TransportVersion ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION = TransportVersion.fromName(
+        "esql_support_explicit_bucket_rounding_configuration"
+    );
+    public static final TransportVersion ESQL_BUCKET_INCLUDE_EMPTY = TransportVersion.fromName("esql_bucket_include_empty_buckets");
 
-    // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
-    // That way you never end up with more than the target number of buckets.
-    private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
-    private static final Rounding[] HUMAN_DATE_ROUNDINGS = new Rounding[] {
-        Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build(),
-        Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build(),
-        Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build(),
-        Rounding.builder(TimeValue.timeValueHours(12)).build(),
-        Rounding.builder(TimeValue.timeValueHours(3)).build(),
-        Rounding.builder(TimeValue.timeValueHours(1)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(30)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(10)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(5)).build(),
-        Rounding.builder(TimeValue.timeValueMinutes(1)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(30)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(10)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(5)).build(),
-        Rounding.builder(TimeValue.timeValueSeconds(1)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(100)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(50)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(10)).build(),
-        Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
+    /**
+     * Option key requesting that {@code STATS ... BY BUCKET(...)} emit empty buckets (filled with zero/null
+     * aggregate values) across the whole {@code from}..{@code to} range.
+     */
+    public static final String INCLUDE_EMPTY_BUCKETS = "include_empty_buckets";
 
-    private static final ZoneId DEFAULT_TZ = ZoneOffset.UTC; // TODO: plug in the config
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(INCLUDE_EMPTY_BUCKETS, DataType.BOOLEAN);
 
+    private static final String OPTIONS_APPLIES_TO = """
+        {"serverless": "ga", "stack": "ga 9.6.0"}""";
+
+    /**
+     * Maximum number of candidate buckets scanned for a single t-digest value. The scan covers the whole value
+     * range of the histogram, so a bucket size that is tiny relative to that range would require an unbounded
+     * amount of work (and produce an equally unbounded number of mostly non-empty buckets). Exceeding the cap
+     * raises a warning and yields {@code null} for the row.
+     */
+    static final double MAX_TDIGEST_CANDIDATE_BUCKETS = 10_000;
+
+    // Visible for testing
+    record DateRoundingPicker(long buckets, long from, long to, ZoneId zoneId) {
+
+        // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
+        // That way you never end up with more than the target number of buckets.
+        static final Unit[] PRIMARY_UNITS = {
+            Unit.of(Rounding.DateTimeUnit.DAY_OF_MONTH),
+            Unit.of(TimeValue.timeValueHours(12)),
+            Unit.of(TimeValue.timeValueHours(3)),
+            Unit.of(TimeValue.timeValueHours(1)),
+            Unit.of(TimeValue.timeValueMinutes(30)),
+            Unit.of(TimeValue.timeValueMinutes(10)),
+            Unit.of(TimeValue.timeValueMinutes(5)),
+            Unit.of(TimeValue.timeValueMinutes(1)),
+            Unit.of(TimeValue.timeValueSeconds(30)),
+            Unit.of(TimeValue.timeValueSeconds(10)),
+            Unit.of(TimeValue.timeValueSeconds(5)),
+            Unit.of(TimeValue.timeValueSeconds(1)),
+            Unit.of(TimeValue.timeValueMillis(100)),
+            Unit.of(TimeValue.timeValueMillis(50)),
+            Unit.of(TimeValue.timeValueMillis(10)),
+            Unit.of(TimeValue.timeValueMillis(1)) };
+
+        static final Unit[] SECONDARY_UNITS = {
+            Unit.of(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            Unit.of(Rounding.DateTimeUnit.MONTH_OF_YEAR),
+            Unit.of(Rounding.DateTimeUnit.YEAR_OF_CENTURY) };
+
+        /**
+         * A factory for a particular bucket granularity (e.g. 5 minutes, 1 hour). Knows how to build
+         * a {@link Rounding} for a given timezone.
+         */
+        interface Unit {
+            Rounding rounding(ZoneId zoneId);
+
+            /**
+             * The fixed width of this unit in milliseconds, if it is a fixed-length interval (e.g. 5 minutes, 100 ms).
+             * null for calendar-based units (day, week, month, year) whose length varies across the range.
+             */
+            Long fixedWidthMillis();
+
+            /**
+             * The approximate (average) width of this unit in milliseconds.
+             */
+            long approximateWidthMillis();
+
+            static Unit of(Rounding.DateTimeUnit value) {
+                return new Unit() {
+                    @Override
+                    public Rounding rounding(ZoneId zoneId) {
+                        return Rounding.builder(value).timeZone(zoneId).build();
+                    }
+
+                    @Override
+                    public Long fixedWidthMillis() {
+                        return null;
+                    }
+
+                    @Override
+                    public long approximateWidthMillis() {
+                        return value.getField().getBaseUnit().getDuration().toMillis();
+                    }
+                };
+            }
+
+            static Unit of(TimeValue value) {
+                return new Unit() {
+                    @Override
+                    public Rounding rounding(ZoneId zoneId) {
+                        return Rounding.builder(value).timeZone(zoneId).build();
+                    }
+
+                    @Override
+                    public Long fixedWidthMillis() {
+                        return value.millis();
+                    }
+
+                    @Override
+                    public long approximateWidthMillis() {
+                        return value.millis();
+                    }
+                };
+            }
+        }
+
+        Rounding pickRounding() {
+            Unit best = findLastOk(PRIMARY_UNITS);
+            if (best != null) {
+                return best.rounding(zoneId);
+            }
+            for (Unit unit : SECONDARY_UNITS) {
+                if (roundingIsOk(unit)) {
+                    return unit.rounding(zoneId);
+                }
+            }
+            return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId);
+        }
+
+        private Unit findLastOk(Unit[] candidates) {
+            int low = 0;
+            int high = candidates.length - 1;
+            Unit best = null;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                var unit = candidates[mid];
+                if (roundingIsOk(unit)) {
+                    best = unit;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            return best;
+        }
+
+        /**
+         * True if the rounding produces less than or equal to the requested number of buckets.
+         */
+        boolean roundingIsOk(Unit unit) {
+            if (buckets <= 0) {
+                return false;
+            }
+            return unit.fixedWidthMillis() == null ? roundingIsOkCalendarBasedUnit(unit) : roundingIsOkFixedWidthUnit(unit);
+        }
+
+        /**
+         * Whether at most {@link #buckets} buckets of {@code unit} span {@link #from}..{@link #to}.
+         * <p>
+         * Calendar-based units (day, week, month, year) vary in length across the range, so count
+         * one bucket at a time. The number of such buckets that fit before the target is exceeded
+         * is small, because the unit is large in milliseconds (minimally 1 day).
+         **/
+        boolean roundingIsOkCalendarBasedUnit(Unit unit) {
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            long bucket = rounding.round(from);
+            long used = 0;
+            int numberOfIterations = 0;
+            while (used < buckets) {
+                if (numberOfIterations++ > 1_000_000) {
+                    return roundingIsOkHeuristic(unit);
+                }
+                bucket = rounding.nextRoundingValue(bucket);
+                used++;
+                if (bucket >= to) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Whether at most {@link #buckets} buckets of {@code unit} span {@link #from}..{@link #to}.
+         * <p>
+         * Within a period of constant UTC offset the bucket boundaries are evenly spaced by {@code width}, so they are
+         * counted arithmetically. Across a period (a DST transition) the offset changes and the boundaries shift, so the
+         * {@code rounding} is consulted once per transition to land on the first boundary of the next period (exactly as the
+         * naive per-bucket loop would).
+         * This makes the count independent of the (potentially enormous) number of buckets, depending only on the number of
+         * transitions in the range (a handful even for multi-year ranges).
+         * For a fixed-offset zone there are no transitions, so this reduces to a single division.
+         */
+        boolean roundingIsOkFixedWidthUnit(Unit unit) {
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            long width = unit.fixedWidthMillis();
+
+            ZoneRules rules = zoneId.getRules();
+            long boundary = rounding.round(from);
+            long count = 0;
+            int numberOfIterations = 0;
+            while (boundary < to) {
+                if (numberOfIterations++ > 1_000_000) {
+                    return roundingIsOkHeuristic(unit);
+                }
+                ZoneOffsetTransition transition = rules.nextTransition(Instant.ofEpochMilli(boundary));
+                long periodEnd = transition == null ? Long.MAX_VALUE : transition.getInstant().toEpochMilli();
+                long limit = Math.min(periodEnd, to);
+                // Boundaries in [boundary, limit): boundary, boundary + width, ... i.e. ceil((limit - boundary) / width).
+                long inPeriod;
+                try {
+                    inPeriod = ceilDivExact(limit, boundary, width);
+                    count = Math.addExact(count, inPeriod);
+                } catch (ArithmeticException overflow) {
+                    return false;
+                }
+                if (count > buckets) {
+                    return false;
+                }
+                if (periodEnd >= to) {
+                    break;
+                }
+                // Cross the transition using the real rounding: from the last boundary before the transition, its next
+                // rounding value is the first boundary of the next constant-offset period.
+                long lastInPeriod = boundary + (inPeriod - 1) * width;
+                boundary = rounding.nextRoundingValue(lastInPeriod);
+            }
+            return count <= buckets;
+        }
+
+        /**
+         * The heuristic that can slightly undershoot the number of buckets.
+         */
+        boolean roundingIsOkHeuristic(Unit unit) {
+            // When you get here:
+            // - via "roundingIsOkCalendarBasedUnit": the interval is at least 1M buckets, so 1M days.
+            // - via "roundingIsOkFixedWidthUnit": the interval has at least 1M transitions, so ~0.5M years.
+            //
+            // We can safely add some days to prevent overshooting. 3 days is not enough
+            // (counterexample: unit=MONTH_OF_YEAR, buckets=1_002_399, from=0, to=2_636_051_860_800_001, zone=Pacific/Kwajalein),
+            // but no counterexample has been found for 4 days with some simple exhaustive searching.
+            //
+            // We conservatively add 30 days, which should prevent any overshooting and barely lead to any undershooting
+            // (at most by one unit), since it's very small comparable to 1M days (the minimum interval arriving in this method).
+
+            Rounding.Prepared rounding = unit.rounding(zoneId).prepareForUnknown();
+            return buckets >= ((double) to - rounding.round(from) + TimeValue.timeValueDays(30).millis()) / unit.approximateWidthMillis();
+        }
+
+        private static long ceilDivExact(long upperExclusive, long lowerInclusive, long width) {
+            try {
+                long delta = Math.subtractExact(upperExclusive, lowerInclusive);
+                return Math.ceilDiv(delta, width);
+            } catch (ArithmeticException overflow) {
+                BigInteger delta = BigInteger.valueOf(upperExclusive).subtract(BigInteger.valueOf(lowerInclusive));
+                BigInteger bigWidth = BigInteger.valueOf(width);
+                BigInteger ceilDiv = delta.add(bigWidth.subtract(BigInteger.ONE)).divide(bigWidth);
+                if (ceilDiv.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+                    throw new ArithmeticException("overflow");
+                }
+                return ceilDiv.longValueExact();
+            }
+        }
+    }
+
+    private final RoundingConvention roundingConvention;
+    private final Configuration configuration;
     private final Expression field;
     private final Expression buckets;
     private final Expression from;
     private final Expression to;
+    private final Expression options;
+    private final long offset;
 
     @FunctionInfo(
-        returnType = { "double", "date", "date_nanos" },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = { "double", "date", "date_nanos", "double_range" },
+        signatures = {
+            @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
+            @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
+            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
+            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
+            // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
+            @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
+            @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
+            @Signature(
+                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                returnType = "double"
+            ),
+            // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
+            @Signature(params = { "exponential_histogram|tdigest", "double|integer|long" }, returnType = "double_range"),
+            @Signature(
+                params = { "exponential_histogram|tdigest", "integer", "integer|long|double", "integer|long|double" },
+                returnType = "double_range"
+            ) },
+        briefSummary = "Creates groups of values (buckets) from a datetime or numeric input.",
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
@@ -109,16 +414,18 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketMonth",
                 explanation = """
-                    The goal isn't to provide *exactly* the target number of buckets,
-                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
+                    The goal isn’t to provide **exactly** the target number of buckets,
+                    it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
-                description = "Combine `BUCKET` with an <<esql-agg-functions,aggregation>> to create a histogram:",
+                description = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create a histogram:",
                 file = "bucket",
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not create buckets that don't match any documents.
-                    That's why this example is missing `1985-03-01` and other dates."""
+                    ::::{note}
+                    `BUCKET` does not create buckets that don’t match any documents.
+                    That’s why this example is missing `1985-03-01` and other dates.
+                    ::::"""
             ),
             @Example(
                 description = """
@@ -127,22 +434,26 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 file = "bucket",
                 tag = "docsBucketWeeklyHistogram",
                 explanation = """
-                    NOTE: `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
+                    ::::{note}
+                    `BUCKET` does not filter any rows. It only uses the provided range to pick a good bucket size.
                     For rows with a value outside of the range, it returns a bucket value that corresponds to a bucket outside the range.
-                    Combine`BUCKET` with <<esql-where>> to filter rows."""
+                    Combine `BUCKET` with [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter rows.
+                    ::::"""
             ),
             @Example(description = """
                 If the desired bucket size is known in advance, simply provide it as the second
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
-                NOTE: When providing the bucket size as the second parameter, it must be a time
-                duration or date period."""),
+                ::::{note}
+                When providing the bucket size as the second parameter, it must be a time
+                duration or date period. Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
+                ::::"""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",
                 file = "bucket",
                 tag = "docsBucketNumeric",
                 explanation = """
                     Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
-                    You have to find the `min` and `max` separately. {esql} doesn't yet have an easy way to do that automatically."""
+                    You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically."""
             ),
             @Example(description = """
                 The range can be omitted if the desired bucket size is known in advance. Simply
@@ -160,7 +471,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             @Example(
                 description = """
                     `BUCKET` may be used in both the aggregating and grouping part of the
-                    <<esql-stats-by, STATS ... BY ...>> command provided that in the aggregating
+                    [STATS ... BY ...](/reference/query-languages/esql/commands/stats-by.md) command provided that in the aggregating
                     part the function is referenced by an alias defined in the
                     grouping part, or that it is invoked with the exact same expression:""",
                 file = "bucket",
@@ -169,13 +480,36 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             @Example(
                 description = """
                     Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
-                    aggregation's <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
+                    aggregation’s <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
                     take into account how the language handles expressions within the `STATS` command: if these contain functions or
                     arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
                     compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
                     inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
+            ),
+            @Example(
+                description = """
+                    By default, `BUCKET` only returns buckets that contain at least one row. Set the
+                    `include_empty_buckets` option to `true` to also return the empty buckets in the `from`..`to` range,
+                    filled with default aggregate values:""",
+                file = "bucket_include_empty_buckets",
+                tag = "docsBucketIncludeEmptyBuckets",
+                applies_to = "stack: ga 9.6.0"
+            ),
+            @Example(
+                description = """
+                    `BUCKET` can also operate on `exponential_histogram` and `tdigest` fields. Instead of a single value, it
+                    returns the `double_range` buckets that hold values of the histogram, so a histogram spanning several buckets
+                    contributes a row to each of them. Pass the bucket as the second argument of
+                    [`COUNT`](/reference/query-languages/esql/functions-operators/aggregation-functions/count.md) to count
+                    the values of the histograms that fall into each bucket:""",
+                file = "exponential_histogram",
+                tag = "countBucketExpHistoForDocs",
+                explanation = """
+                    ::::{note}
+                    Histograms only record approximate value distributions, so the counts per bucket are estimates.
+                    ::::"""
             ) },
         type = FunctionType.GROUPING
     )
@@ -183,32 +517,70 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date", "date_nanos" },
-            description = "Numeric or date expression from which to derive buckets."
+            type = { "integer", "long", "double", "date", "date_nanos", "exponential_histogram", "tdigest" },
+            description = "Numeric, date or histogram expression from which to derive buckets."
         ) Expression field,
         @Param(
             name = "buckets",
             type = { "integer", "long", "double", "date_period", "time_duration" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
             type = { "integer", "long", "double", "date", "keyword", "text" },
+            hint = @Param.Hint(kind = Param.Hint.Kind.CONSTANT),
             optional = true,
             description = "End of the range. Can be a number, a date or a date expressed as a string."
-        ) Expression to
+        ) Expression to,
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = INCLUDE_EMPTY_BUCKETS,
+                    type = "boolean",
+                    valueHint = { "true", "false" },
+                    description = "When `true`, empty buckets (filled with default aggregate values) are output across the "
+                        + "`from`..`to` range (`from` inclusive, `to` exclusive). Requires the four-argument (range) form of `BUCKET`. "
+                        + "Defaults to `false`.",
+                    applies_to = OPTIONS_APPLIES_TO
+                ) },
+            description = "(Optional) Additional options as <<esql-function-named-params,function named parameters>>.",
+            optional = true,
+            applies_to = OPTIONS_APPLIES_TO
+        ) Expression options,
+        Configuration configuration
     ) {
-        super(source, fields(field, buckets, from, to));
+        this(source, field, buckets, from, to, options, configuration, 0L, null);
+    }
+
+    public Bucket(
+        Source source,
+        Expression field,
+        Expression buckets,
+        Expression from,
+        Expression to,
+        Expression options,
+        Configuration configuration,
+        long offset,
+        RoundingConvention roundingConvention
+    ) {
+        super(source, fields(field, buckets, from, to, options));
         this.field = field;
         this.buckets = buckets;
         this.from = from;
         this.to = to;
+        this.options = options;
+        this.configuration = configuration;
+        this.offset = offset;
+        this.roundingConvention = roundingConvention != null ? roundingConvention : DOWN;
     }
 
     private Bucket(StreamInput in) throws IOException {
@@ -217,19 +589,37 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            in.getTransportVersion().supports(ESQL_BUCKET_INCLUDE_EMPTY) ? in.readOptionalNamedWriteable(Expression.class) : null,
+            ((PlanStreamInput) in).configuration(),
+            in.getTransportVersion().supports(ESQL_BUCKET_OFFSET) ? in.readZLong() : 0L,
+            in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
+                ? in.readEnum(RoundingConvention.class)
+                : null
         );
     }
 
-    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
-        List<Expression> list = new ArrayList<>(4);
+    static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
+        return fields(field, buckets, from, to, null);
+    }
+
+    static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to, Expression options) {
+        List<Expression> list = new ArrayList<>(5);
         list.add(field);
-        list.add(buckets);
+        if (buckets != null) {
+            // Even though buckets is a required parameter, it can be null if the function called with two
+            // parameters of which the last is the options map, like BUCKET(field, {"include_empty_buckets":true})
+            // `resolveType` will catch this and return an error.
+            list.add(buckets);
+        }
         if (from != null) {
             list.add(from);
             if (to != null) {
                 list.add(to);
             }
+        }
+        if (options != null) {
+            list.add(options);
         }
         return list;
     }
@@ -241,6 +631,35 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
         out.writeNamedWriteable(buckets);
         out.writeOptionalNamedWriteable(from);
         out.writeOptionalNamedWriteable(to);
+        TransportVersion transportVersion = out.getTransportVersion();
+        if (transportVersion.supports(ESQL_BUCKET_INCLUDE_EMPTY)) {
+            out.writeOptionalNamedWriteable(options);
+        } else if (options != null) {
+            throw new EsqlIllegalArgumentException(
+                "bucket with options is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_BUCKET_INCLUDE_EMPTY
+            );
+        }
+        if (transportVersion.supports(ESQL_BUCKET_OFFSET)) {
+            out.writeZLong(offset);
+        } else if (offset != 0L) {
+            throw new EsqlIllegalArgumentException(
+                "bucket with offset is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_BUCKET_OFFSET
+            );
+        }
+
+        if (transportVersion.supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)) {
+            out.writeEnum(roundingConvention);
+        } else if (roundingConvention != DOWN) {
+            throw new EsqlIllegalArgumentException(
+                "bucket explicit rounding is not supported in peer node's version [{}]. Upgrade to version [{}] or newer.",
+                transportVersion,
+                ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION
+            );
+        }
     }
 
     @Override
@@ -256,28 +675,11 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            Rounding.Prepared preparedRounding;
-            if (buckets.dataType().isWholeNumber()) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                long f = foldToLong(toEvaluator.foldCtx(), from);
-                long t = foldToLong(toEvaluator.foldCtx(), to);
-                preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
-            } else {
-                assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(buckets.fold(toEvaluator.foldCtx()), DEFAULT_TZ);
-            }
+            var preparedRounding = getDateRounding(toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double roundTo;
-            if (from != null) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
-                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
-                roundTo = pickRounding(b, f, t);
-            } else {
-                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
-            }
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
@@ -286,45 +688,202 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             Mul mul = new Mul(source(), floor, rounding);
             return toEvaluator.apply(mul);
         }
+        if (isSupportedHistogramType(field.dataType())) {
+            double roundTo = getNumberRoundTo(toEvaluator.foldCtx());
+            var fieldEvaluator = toEvaluator.apply(field);
+            return switch (field.dataType()) {
+                case EXPONENTIAL_HISTOGRAM -> new BucketExponentialHistogramEvaluator.Factory(source(), fieldEvaluator, roundTo);
+                case TDIGEST -> new BucketTDigestEvaluator.Factory(source(), fieldEvaluator, roundTo);
+                default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+            };
+        }
         throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
     }
 
-    private record DateRoundingPicker(int buckets, long from, long to) {
-        Rounding pickRounding() {
-            Rounding prev = LARGEST_HUMAN_DATE_ROUNDING;
-            for (Rounding r : HUMAN_DATE_ROUNDINGS) {
-                if (roundingIsOk(r)) {
-                    prev = r;
-                } else {
-                    return prev;
-                }
-            }
-            return prev;
+    /**
+     * Emits the non-empty buckets of an exponential histogram.
+     * We assume that for each bucket all values lie on the point of least error.
+     * So all we have to do is to just iterate over the internal histogram buckets
+     * and convert them in to buckets of the desired size (potentially combining them).
+     */
+    @Evaluator(extraName = "ExponentialHistogram", warnExceptions = ArithmeticException.class)
+    static void process(DoubleRangeBlock.Builder builder, ExponentialHistogram histogram, @Fixed double roundTo) {
+        if (histogram.isEmpty()) {
+            builder.appendNull();
+            return;
         }
+        double min = histogram.min();
+        double max = histogram.max();
 
-        /**
-         * True if the rounding produces less than or equal to the requested number of buckets.
-         */
-        boolean roundingIsOk(Rounding rounding) {
-            Rounding.Prepared r = rounding.prepareForUnknown();
-            long bucket = r.round(from);
-            int used = 0;
-            while (used < buckets) {
-                bucket = r.nextRoundingValue(bucket);
-                used++;
-                if (bucket >= to) {
-                    return true;
+        long lastBucketIndex = Long.MIN_VALUE;
+        boolean hasMultipleBuckets = false;
+
+        for (BucketIterator it = histogram.negativeBuckets().iterator(); it.hasNext(); it.advance()) {
+            double center = Math.clamp(-ExponentialScaleUtils.getPointOfLeastRelativeError(it.peekIndex(), it.scale()), min, max);
+            long bucketIndex = (long) Math.floor(center / roundTo);
+            if (bucketIndex != lastBucketIndex) {
+                if (lastBucketIndex != Long.MIN_VALUE) {
+                    if (hasMultipleBuckets == false) {
+                        builder.beginPositionEntry();
+                        hasMultipleBuckets = true;
+                    }
+                    builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
                 }
+                lastBucketIndex = bucketIndex;
             }
-            return false;
+        }
+        if (histogram.zeroBucket().count() > 0) {
+            if (lastBucketIndex != Long.MIN_VALUE) {
+                if (hasMultipleBuckets == false) {
+                    builder.beginPositionEntry();
+                    hasMultipleBuckets = true;
+                }
+                builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+            }
+            lastBucketIndex = 0; // zero bucket
+        }
+        for (BucketIterator it = histogram.positiveBuckets().iterator(); it.hasNext(); it.advance()) {
+            double center = Math.clamp(ExponentialScaleUtils.getPointOfLeastRelativeError(it.peekIndex(), it.scale()), min, max);
+            long bucketIndex = (long) Math.floor(center / roundTo);
+            if (bucketIndex != lastBucketIndex) {
+                if (lastBucketIndex != Long.MIN_VALUE) {
+                    if (hasMultipleBuckets == false) {
+                        builder.beginPositionEntry();
+                        hasMultipleBuckets = true;
+                    }
+                    builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+                }
+                lastBucketIndex = bucketIndex;
+            }
+        }
+        assert lastBucketIndex != Long.MIN_VALUE : "at least one bucket should be populated";
+        builder.appendDoubleRange(lastBucketIndex * roundTo, (lastBucketIndex + 1) * roundTo);
+        if (hasMultipleBuckets) {
+            builder.endPositionEntry();
         }
     }
 
-    private double pickRounding(int buckets, double from, double to) {
-        double precise = (to - from) / buckets;
-        double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
-        double halfPower = nextPowerOfTen / 2;
-        return precise < halfPower ? halfPower : nextPowerOfTen;
+    /**
+     * Emits the non-empty buckets of a t-digest. Because T-Digest interpolates, that is all buckets between the first and the last centroid
+     */
+    @Evaluator(extraName = "TDigest", warnExceptions = ArithmeticException.class)
+    static void process(DoubleRangeBlock.Builder builder, TDigestHolder histogram, @Fixed double roundTo) {
+        if (histogram.size() == 0) {
+            builder.appendNull();
+            return;
+        }
+
+        double firstCentroid = Double.NaN;
+        double lastCentroid = Double.NaN;
+        for (Centroid centroid : histogram.centroids()) {
+            if (Double.isNaN(firstCentroid)) {
+                firstCentroid = centroid.mean();
+            }
+            lastCentroid = centroid.mean();
+        }
+
+        long firstBucketIndex = (long) Math.floor(firstCentroid / roundTo);
+        long lastBucketIndex = (long) Math.floor(lastCentroid / roundTo);
+        if (lastBucketIndex - firstBucketIndex > MAX_TDIGEST_CANDIDATE_BUCKETS) {
+            throw new ArithmeticException(
+                "T-Digest is too large to create buckets of size "
+                    + roundTo
+                    + ", would yield "
+                    + (lastBucketIndex - firstBucketIndex)
+                    + " buckets"
+            );
+        }
+        if (firstBucketIndex != lastBucketIndex) {
+            builder.beginPositionEntry();
+        }
+        for (long i = firstBucketIndex; i <= lastBucketIndex; i++) {
+            builder.appendDoubleRange(i * roundTo, (i + 1) * roundTo);
+        }
+        if (firstBucketIndex != lastBucketIndex) {
+            builder.endPositionEntry();
+        }
+
+    }
+
+    /**
+     * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
+     */
+    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+            return getDateRounding(foldCtx);
+        } else {
+            return null;
+        }
+    }
+
+    private Rounding.Prepared getDateRounding(FoldContext foldContext) {
+        return getDateRounding(foldContext, null, null);
+    }
+
+    /**
+     * The folded start of the {@code from}..{@code to} range, in millis since epoch. Requires the four-argument form.
+     */
+    public long rangeFromMillis(FoldContext foldContext) {
+        return foldToLong(foldContext, from);
+    }
+
+    /**
+     * The folded end of the {@code from}..{@code to} range, in millis since epoch. Requires the four-argument form.
+     */
+    public long rangeToMillis(FoldContext foldContext) {
+        return foldToLong(foldContext, to);
+    }
+
+    public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
+        assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
+
+        Rounding.Prepared prepared;
+        // `buckets` is the target, pick the finest length
+        if (buckets.dataType().isWholeNumber()) {
+            long b = ((Number) buckets.fold(foldContext)).longValue();
+            long f = foldToLong(foldContext, from);
+            long t = foldToLong(foldContext, to);
+            var rounding = new DateRoundingPicker(b, f, t, QuerySettings.TIME_ZONE.get(configuration.resolvedSettings())).pickRounding();
+            if (UP.equals(roundingConvention)) {
+                rounding = Rounding.ToUpperRounding.createRounding(rounding);
+            }
+            if (min != null && max != null) {
+                prepared = rounding.prepare(min, max);
+            } else {
+                prepared = rounding.prepareForUnknown();
+            }
+        } else {
+            // `buckets` is the bucket length, use it directly
+            assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+            prepared = DateTrunc.createRounding(
+                buckets.fold(foldContext),
+                QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()),
+                min,
+                max,
+                offset,
+                roundingConvention
+            );
+        }
+
+        return prepared;
+    }
+
+    /**
+     * The numeric bucket width: buckets are the multiples of this value.
+     */
+    public double getNumberRoundTo(FoldContext foldContext) {
+        if (from != null) {
+            assert to != null : "Both from and to must be set";
+            long b = ((Number) buckets.fold(foldContext)).longValue();
+            double f = ((Number) from.fold(foldContext)).doubleValue();
+            double t = ((Number) to.fold(foldContext)).doubleValue();
+            double precise = (t - f) / b;
+            double nextPowerOfTen = Math.pow(10, Math.ceil(Math.log10(precise)));
+            double halfPower = nextPowerOfTen / 2;
+            return precise < halfPower ? halfPower : nextPowerOfTen;
+        } else {
+            return ((Number) buckets.fold(foldContext)).doubleValue();
+        }
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
@@ -337,7 +896,39 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        // Even though buckets is a required parameter, it can be null if the function called with two
+        // parameters of which the last is the options map, like BUCKET(field, {"include_empty_buckets":true})
+        // In that case, return an error.
+        if (buckets == null) {
+            return new TypeResolution(format(null, "function [{}] expects between two and four positional arguments", sourceText()));
+        }
+        TypeResolution optionsResolution = Options.resolve(options, source(), FIFTH, ALLOWED_OPTIONS);
+        if (optionsResolution.unresolved()) {
+            return optionsResolution;
+        }
         var fieldType = field.dataType();
+        if (includeEmptyBuckets() && fieldType.isHistogram()) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "function [{}] does not support option [{}] for [{}] inputs",
+                    sourceText(),
+                    INCLUDE_EMPTY_BUCKETS,
+                    fieldType.typeName()
+                )
+            );
+        }
+        // Emitting empty buckets requires a bounded range to iterate over, i.e. the four-argument (from, to) form.
+        if (includeEmptyBuckets() && (from == null || to == null)) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "function [{}] with [{}] requires a range, i.e. both a [from] and a [to] argument",
+                    sourceText(),
+                    INCLUDE_EMPTY_BUCKETS
+                )
+            );
+        }
         var bucketsType = buckets.dataType();
         if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;
@@ -353,13 +944,20 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isWholeNumber()
-                ? resolution.and(checkArgsCount(4))
+            // 4-arg ctor: range + time unit or number of buckets
+            // e.g. BUCKET(@timestamp, 1 day, "2023-01-01", "2024-01-01")
+            // or BUCKET(@timestamp, 5, "2023-01-01", "2024-01-01")
+            if (bucketsType.isWholeNumber() || from != null) {
+                return resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
-                    .and(() -> isStringOrDate(to, sourceText(), FOURTH))
-                : resolution.and(checkArgsCount(2)); // temporal amount
+                    .and(() -> isStringOrDate(to, sourceText(), FOURTH));
+            }
+            // 2-arg ctor: round by a time unit unbound
+            // e.g. BUCKET(@timestamp, 1 day)
+            return resolution.and(checkArgsCount(2));
         }
-        if (fieldType.isNumeric()) {
+        // Histogram fields take the same bucket size arguments as numbers.
+        if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {
                 if (bucketsType.isRationalNumber()) {
                     return checkArgsCount(2);
@@ -374,6 +972,10 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             });
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
+    }
+
+    private static boolean isSupportedHistogramType(DataType fieldType) {
+        return fieldType == DataType.TDIGEST || fieldType == DataType.EXPONENTIAL_HISTOGRAM;
     }
 
     private TypeResolution checkArgsCount(int expectedCount) {
@@ -399,13 +1001,14 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
             );
     }
 
-    private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return TypeResolutions.isType(
+    public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(
             e,
-            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
+            exp -> DataType.isString(exp) || DataType.isMillisOrNanos(exp),
             operationName,
             paramOrd,
             "datetime",
+            "date_nanos",
             "string"
         );
     }
@@ -421,11 +1024,20 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        if (DataType.isDateTime(e.dataType())) {
+            return ((Number) value).longValue();
+        }
+        if (e.dataType() == DataType.DATE_NANOS) {
+            return DateUtils.toMilliSeconds(((Number) value).longValue());
+        }
+        return dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
     public DataType dataType() {
+        if (isSupportedHistogramType(field.dataType())) {
+            return DataType.DOUBLE_RANGE;
+        }
         if (field.dataType().isNumeric()) {
             return DataType.DOUBLE;
         }
@@ -434,14 +1046,18 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
-        Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to);
+        int i = 0;
+        Expression newField = newChildren.get(i++);
+        Expression newBuckets = buckets != null ? newChildren.get(i++) : null;
+        Expression newFrom = from != null ? newChildren.get(i++) : null;
+        Expression newTo = to != null ? newChildren.get(i++) : null;
+        Expression newOptions = options != null ? newChildren.get(i++) : null;
+        return new Bucket(source(), newField, newBuckets, newFrom, newTo, newOptions, configuration, offset, roundingConvention);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to, options, configuration, offset, roundingConvention);
     }
 
     public Expression field() {
@@ -460,8 +1076,96 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
         return to;
     }
 
+    public Expression options() {
+        return options;
+    }
+
+    /**
+     * Whether this {@code BUCKET} was invoked with {@code {"include_empty_buckets": true}}.
+     */
+    public boolean includeEmptyBuckets() {
+        if (options == null) {
+            return false;
+        }
+        Map<String, Object> map = new HashMap<>();
+        Options.populateMap((MapExpression) options, map, source(), FIFTH, ALLOWED_OPTIONS);
+        return Boolean.TRUE.equals(map.get(INCLUDE_EMPTY_BUCKETS));
+    }
+
+    public long offset() {
+        return offset;
+    }
+
+    public RoundingConvention roundingConfiguration() {
+        return roundingConvention;
+    }
+
+    public Configuration configuration() {
+        return configuration;
+    }
+
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{"
+            + "field="
+            + field
+            + ", buckets="
+            + buckets
+            + ", from="
+            + from
+            + ", to="
+            + to
+            + ", offset="
+            + offset
+            + "roundingConfiguration="
+            + roundingConvention
+            + '}';
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration, offset, roundingConvention);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        Bucket other = (Bucket) obj;
+
+        return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
+    }
+
+    protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
+        if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
+            return null;
+        }
+        DataType fieldType = field.dataType();
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
+            // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+            // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+            // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+            // zero/negative values at fold time, so they don't reach here in an impossible state.
+            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
+                return null;
+            }
+            Rounding rounding = getDateRounding(foldContext).getUnprepared();
+            Rounding.Interval interval = rounding.getInterval();
+            return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
+        }
+        if (fieldType.isNumeric() || isSupportedHistogramType(fieldType)) {
+            double roundTo = getNumberRoundTo(foldContext);
+            // Impossible bucket configurations (zero/negative buckets count, zero/inverted ranges) yield NaN,
+            // ±Infinity, or non-positive widths. Skip metadata emission in those cases — the query itself fails
+            // at runtime, and surfacing garbage values on the column descriptor would be misleading.
+            if (Double.isFinite(roundTo) == false || roundTo <= 0.0) {
+                return null;
+            }
+            return Map.of("bucket", Map.of("interval", roundTo));
+        }
+        // BUCKET only supports date/date_nanos, numeric and histogram fields. Any new type added to BUCKET that
+        // hasn't been taught to this metadata path should fail loudly rather than silently dropping metadata.
+        throw new IllegalStateException("BUCKET metadata not implemented for field type [" + fieldType + "]");
     }
 }

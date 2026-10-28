@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.blockloader.script.LongScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -83,7 +84,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -108,7 +110,22 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.LONG,
+            BlockLoader.BlockFactory::longs,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.LongBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendLong(value.longValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
+        }
     }
 
     @Override
@@ -154,7 +171,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {

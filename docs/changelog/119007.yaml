@@ -1,6 +1,0 @@
-pr: 119007
-summary: Block-writes cannot be added after read-only
-area: Data streams
-type: bug
-issues:
- - 119002

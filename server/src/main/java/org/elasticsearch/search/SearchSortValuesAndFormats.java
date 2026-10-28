@@ -30,26 +30,35 @@ public class SearchSortValuesAndFormats implements Writeable {
         this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
         for (int i = 0; i < rawSortValues.length; ++i) {
             Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if (sortValue instanceof Long) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
-            } else if (sortValue instanceof Double) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((double) sortValue);
-            } else if (sortValue instanceof Float || sortValue instanceof Integer) {
-                // sort by _score or _doc
-                this.formattedSortValues[i] = sortValue;
-            } else {
-                assert sortValue == null
-                    : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got " + sortValue.getClass() + ": " + sortValue;
-                this.formattedSortValues[i] = sortValue;
+            try {
+                if (sortValue instanceof BytesRef) {
+                    this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
+                } else if (sortValue instanceof Long) {
+                    this.formattedSortValues[i] = sortValueFormats[i].format((long) sortValue);
+                } else if (sortValue instanceof Double) {
+                    this.formattedSortValues[i] = sortValueFormats[i].format((double) sortValue);
+                } else if (sortValue instanceof Float || sortValue instanceof Integer) {
+                    // sort by _score or _doc
+                    this.formattedSortValues[i] = sortValue;
+                } else {
+                    assert sortValue == null
+                        : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
+                            + sortValue.getClass()
+                            + ": "
+                            + sortValue;
+                    this.formattedSortValues[i] = sortValue;
+                }
+            } catch (UnsupportedOperationException e) {
+                throw new IllegalArgumentException(
+                    "Field with doc value format [" + sortValueFormats[i].getWriteableName() + "] does not support sorting"
+                );
             }
         }
     }
 
     public SearchSortValuesAndFormats(StreamInput in) throws IOException {
-        this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        this.rawSortValues = Lucene.readSortValues(in);
+        this.formattedSortValues = Lucene.readSortValues(in);
         this.sortValueFormats = new DocValueFormat[formattedSortValues.length];
         for (int i = 0; i < sortValueFormats.length; ++i) {
             sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);

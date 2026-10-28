@@ -8,17 +8,15 @@
 module org.elasticsearch.inference {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
 
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.logging.log4j;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
+    requires org.apache.httpcomponents.client5.httpclient5;
+    requires org.apache.httpcomponents.core5.httpcore5;
+    requires org.apache.httpcomponents.core5.httpcore5.reactive;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
-    requires com.ibm.icu;
     requires com.google.auth.oauth2;
     requires com.google.auth;
     requires com.google.api.client;
@@ -35,14 +33,27 @@ module org.elasticsearch.inference {
     requires org.reactivestreams;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.sslconfig;
+    requires org.apache.commons.text;
+    requires software.amazon.awssdk.services.sagemakerruntime;
+    requires com.azure.identity;
+    requires com.azure.core;
+    requires oauth2.oidc.sdk;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
+    exports org.elasticsearch.xpack.inference.services.elastic.ccm;
+    exports org.elasticsearch.xpack.inference.services.elastic.authorization;
+    exports org.elasticsearch.xpack.inference.services.elastic.compatibility;
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.telemetry;
+    exports org.elasticsearch.xpack.inference.external.http.sender;
+    exports org.elasticsearch.xpack.inference.services.elastic;
+    exports org.elasticsearch.xpack.inference.common.oauth2;
+    exports org.elasticsearch.xpack.inference.common;
+    exports org.elasticsearch.xpack.inference.features;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

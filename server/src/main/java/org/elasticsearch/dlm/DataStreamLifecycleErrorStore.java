@@ -1,0 +1,251 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.dlm;
+
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.DslErrorInfo;
+import org.elasticsearch.health.node.ProjectIndexName;
+import org.elasticsearch.index.Index;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import static org.apache.logging.log4j.LogManager.getLogger;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+
+/**
+ * Provides a store for the errors the data stream lifecycle encounters.
+ * It offers the functionality to record, retrieve, and clear errors for a specified target.
+ * This class is thread safe.
+ */
+public class DataStreamLifecycleErrorStore {
+
+    private static final Logger logger = getLogger(DataStreamLifecycleErrorStore.class);
+
+    /**
+     * This setting controls how often we signal that an index is in the error state when it comes to its data stream lifecycle
+     * progression.
+     * The signalling is currently logging at the `error` level but in the future it can signify other types of signalling.
+     */
+    public static final Setting<Integer> DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING = Setting.intSetting(
+        "data_streams.lifecycle.signalling.error_retry_interval",
+        10,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
+    private final ConcurrentMap<ProjectId, ConcurrentMap<Index, ErrorEntry>> projectMap = new ConcurrentHashMap<>();
+    private final LongSupplier nowSupplier;
+
+    public DataStreamLifecycleErrorStore(LongSupplier nowSupplier) {
+        this.nowSupplier = nowSupplier;
+    }
+
+    /**
+     * Records a string representation of the provided exception for the provided index.
+     * If an error was already recorded for the provided index this will override that error.
+     *
+     * Returns the previously recorded error for the provided index, or null otherwise.
+     */
+    @Nullable
+    public ErrorEntry recordError(ProjectId projectId, Index index, Exception e) {
+        String exceptionToString = Strings.toString((builder, params) -> {
+            ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
+            return builder;
+        });
+        String newError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
+        final var indexToError = projectMap.computeIfAbsent(projectId, k -> new ConcurrentHashMap<>());
+        ErrorEntry existingError = indexToError.get(index);
+        long recordedTimestamp = nowSupplier.getAsLong();
+        if (existingError == null) {
+            indexToError.put(index, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+        } else {
+            if (existingError.error().equals(newError)) {
+                indexToError.put(index, ErrorEntry.incrementRetryCount(existingError, nowSupplier));
+            } else {
+                indexToError.put(index, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+            }
+        }
+        return existingError;
+    }
+
+    /**
+     * Clears the recorded error for the provided index (if any exists)
+     */
+    public void clearRecordedError(ProjectId projectId, Index index) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
+            return;
+        }
+        indexToError.remove(index);
+    }
+
+    /**
+     * Clears all the recorded errors for project ids that are no longer present in the cluster state.
+     */
+    public void clearRecordedErrorsForRemovedProjectId(ClusterState clusterState) {
+        Map<ProjectId, ProjectMetadata> projects = clusterState.metadata().projects();
+        for (ProjectId projectId : projectMap.keySet()) {
+            if (projects.containsKey(projectId) == false) {
+                projectMap.remove(projectId);
+            }
+        }
+    }
+
+    /**
+     * Clears all the errors recorded in the store.
+     */
+    public void clearStore() {
+        projectMap.clear();
+    }
+
+    /**
+     * Retrieves the recorded error for the provided index.
+     */
+    @Nullable
+    public ErrorEntry getError(ProjectId projectId, Index index) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
+            return null;
+        }
+        return indexToError.get(index);
+    }
+
+    /**
+     * Return an immutable view (a snapshot) of the tracked indices at the moment this method is called.
+     */
+    public Set<Index> getAllIndices(ProjectId projectId) {
+        final var indexToError = projectMap.get(projectId);
+        if (indexToError == null) {
+            return Set.of();
+        }
+        return Set.copyOf(indexToError.keySet());
+    }
+
+    /**
+     * Retrieve the error entries in the error store that satisfy the provided predicate.
+     * This will return the error entries information (a subset of all the fields an {@link ErrorEntry} holds) sorted by the number of
+     * retries DSL attempted (descending order) and the number of entries will be limited according to the provided limit parameter.
+     * Returns empty list if no entries are present in the error store or none satisfy the predicate.
+     */
+    public List<DslErrorInfo> getErrorsInfo(ClusterState clusterState, Predicate<ErrorEntry> errorEntryPredicate, int limit) {
+        return projectMap.entrySet().stream().flatMap(projectToIndexError -> {
+            ProjectId projectId = projectToIndexError.getKey();
+            // Ensure the project exists in the cluster state, otherwise skip the errors
+            ProjectMetadata projectMetadata = clusterState.metadata().projects().get(projectId);
+            if (projectMetadata == null) {
+                return null;
+            }
+            return projectToIndexError.getValue()
+                .entrySet()
+                .stream()
+                // Ensure the errors reported refer to indices that exist in the cluster state
+                .filter(entry -> projectMetadata.hasIndex(entry.getKey()))
+                .map(
+                    indexToError -> new Tuple<>(
+                        new ProjectIndexName(projectToIndexError.getKey(), indexToError.getKey().getName()),
+                        indexToError.getValue()
+                    )
+                );
+        })
+            .filter(projectIndexAndError -> projectIndexAndError != null && errorEntryPredicate.test(projectIndexAndError.v2()))
+            .sorted(Comparator.comparing(Tuple::v2))
+            .limit(limit)
+            .map(
+                projectIndexAndError -> new DslErrorInfo(
+                    projectIndexAndError.v1().indexName(),
+                    projectIndexAndError.v2().firstOccurrenceTimestamp(),
+                    projectIndexAndError.v2().retryCount(),
+                    projectIndexAndError.v1().projectId()
+                )
+            )
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the total number of error entries in the store that refer to existing indices
+     */
+    public int getTotalErrorEntries(ClusterState clusterState) {
+        return projectMap.entrySet()
+            .stream()
+            .filter(entry -> clusterState.metadata().projects().containsKey(entry.getKey()))
+            .mapToInt(entry -> {
+                ProjectMetadata projectMetadata = clusterState.metadata().projects().get(entry.getKey());
+                return (int) entry.getValue().keySet().stream().filter(projectMetadata::hasIndex).count();
+            })
+            .sum();
+    }
+
+    /**
+     * Records the provided error for the index in the error store and logs the error message at `ERROR` level if the error for the index
+     * is different to what's already in the error store or if the same error was in the error store for a number of retries divisible by
+     * the provided signallingErrorRetryThreshold (i.e. we log to level `error` every signallingErrorRetryThreshold retries, if the error
+     * stays the same)
+     * This allows us to not spam the logs, but signal to the logs if DSL is not making progress.
+     */
+    public void recordAndLogError(
+        ProjectId projectId,
+        Index targetIndex,
+        Exception e,
+        String logMessage,
+        int signallingErrorRetryThreshold
+    ) {
+        ErrorEntry previousError = recordError(projectId, targetIndex, e);
+        ErrorEntry currentError = getError(projectId, targetIndex);
+
+        if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
+            logger.warn(logMessage, e);
+        } else {
+            if (currentError != null) {
+                Message message = logger.getMessageFactory()
+                    .newMessage(
+                        "{}\nFailing since [{}], operation retried [{}] times",
+                        logMessage,
+                        currentError.firstOccurrenceTimestamp(),
+                        currentError.retryCount()
+                    );
+                if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
+                    logger.warn(message, e);
+                } else {
+                    logger.trace(message, e);
+                }
+            } else {
+                logger.trace(
+                    logger.getMessageFactory()
+                        .newMessage(
+                            "Index [{}] encountered error [{}] but there's no record in the error store anymore",
+                            targetIndex.getName(),
+                            logMessage
+                        ),
+                    e
+                );
+            }
+        }
+    }
+}

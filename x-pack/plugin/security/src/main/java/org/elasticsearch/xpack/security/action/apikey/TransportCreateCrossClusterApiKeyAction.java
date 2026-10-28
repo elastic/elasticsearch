@@ -54,7 +54,16 @@ public final class TransportCreateCrossClusterApiKeyAction extends TransportActi
                     "authentication via API key not supported: An API key cannot be used to create a cross-cluster API key"
                 )
             );
+        } else if (authentication.isCloudApiKey()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "authentication via cloud API key not supported: A cloud API key cannot be used to create a cross-cluster API key"
+                )
+            );
         } else {
+            if (request.getCertificateIdentity() != null) {
+                apiKeyService.ensureCertificateIdentityFeatureIsEnabled();
+            }
             apiKeyService.createApiKey(authentication, request, Set.of(), listener);
         }
     }

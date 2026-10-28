@@ -11,9 +11,7 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -26,11 +24,11 @@ import java.util.stream.Stream;
 final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+        Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
+        String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
-        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
+
         return Stream.of(
             Stream.of(
                 /*
@@ -62,21 +60,28 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
+                // Needed to get access to raw vectors from Lucene scorers
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=CLDR",
-                // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
+                "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
+                // Pass through some properties
+                "-Des.path.home=" + esHome,
+                "-Des.distribution.type=" + distroType,
+                "-Des.java.type=" + javaType
             ),
-            maybeEnableNativeAccess(useEntitlements),
+            enableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
-            maybeAttachEntitlementAgent(useEntitlements)
+            attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
 
@@ -125,16 +130,22 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+    private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
-        if (Runtime.version().feature() >= 21) {
-            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
-            if (useEntitlements) {
-                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
-                if (Runtime.version().feature() >= 24) {
-                    enableNativeAccessOptions.add("--illegal-native-access=deny");
-                }
-            }
+        enableNativeAccessOptions.add(
+            "--enable-native-access="
+                + "org.apache.lucene.core,"
+                + "org.elasticsearch.foreign,"
+                + "org.elasticsearch.nativeaccess,"
+                + "org.elasticsearch.simdjson,"
+                + "org.elasticsearch.simdvec"
+        );
+        enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This will always be true when min JDK version = 25
+        boolean hasNativeAccessCheck = Runtime.version().feature() >= 24;
+        if (hasNativeAccessCheck) {
+            enableNativeAccessOptions.add("--illegal-native-access=deny");
         }
         return enableNativeAccessOptions.stream();
     }
@@ -142,6 +153,7 @@ final class SystemJvmOptions {
     /*
      * Only affects 22 and 22.0.1, see https://bugs.openjdk.org/browse/JDK-8329528
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // This could be removed when min JDK version = 25
     private static Stream<String> maybeWorkaroundG1Bug() {
         Runtime.Version v = Runtime.version();
         if (v.feature() == 22 && v.update() <= 1) {
@@ -150,21 +162,8 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            // Will become conditional on useEntitlements once entitlements can run without SM
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
-    }
-
-    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
-        if (useEntitlements == false) {
-            return Stream.empty();
-        }
-
-        Path dir = Path.of("lib", "entitlement-bridge");
+    private static Stream<String> attachEntitlementAgent(Path esHome) {
+        Path dir = esHome.resolve("lib/entitlement-bridge");
         if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }
@@ -178,11 +177,12 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming";
+        String modulesContainingEntitlementInstrumentation =
+            "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs,jdk.management.agent";
         return Stream.of(
-            "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,

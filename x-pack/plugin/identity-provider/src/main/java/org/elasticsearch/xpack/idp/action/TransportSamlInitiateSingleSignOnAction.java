@@ -139,7 +139,7 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
                         identityProvider
                     );
                     try {
-                        final Response response = builder.build(user, authenticationState);
+                        final Response response = builder.build(user, authenticationState, request.getAttributes());
                         listener.onResponse(
                             new SamlInitiateSingleSignOnResponse(
                                 user.getServiceProvider().getEntityId(),

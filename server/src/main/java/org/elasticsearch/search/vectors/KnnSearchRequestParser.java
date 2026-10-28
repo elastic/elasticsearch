@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A builder used in {@link RestKnnSearchAction} to convert the kNN REST request
@@ -199,6 +200,7 @@ public class KnnSearchRequestParser {
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
+        static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
         static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
 
         private static final ConstructingObjectParser<KnnSearch, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
@@ -208,7 +210,7 @@ public class KnnSearchRequestParser {
             for (int i = 0; i < vector.size(); i++) {
                 vectorArray[i] = vector.get(i);
             }
-            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3]);
+            return new KnnSearch((String) args[0], vectorArray, (int) args[2], (int) args[3], (Float) args[4]);
         });
 
         static {
@@ -216,6 +218,7 @@ public class KnnSearchRequestParser {
             PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
             PARSER.declareInt(constructorArg(), K_FIELD);
             PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+            PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         }
 
         public static KnnSearch parse(XContentParser parser) throws IOException {
@@ -226,6 +229,7 @@ public class KnnSearchRequestParser {
         final float[] queryVector;
         final int k;
         final int numCands;
+        final Float visitPercentage;
 
         /**
          * Defines a kNN search.
@@ -235,11 +239,12 @@ public class KnnSearchRequestParser {
          * @param k the final number of nearest neighbors to return as top hits
          * @param numCands the number of nearest neighbor candidates to consider per shard
          */
-        KnnSearch(String field, float[] queryVector, int k, int numCands) {
+        KnnSearch(String field, float[] queryVector, int k, int numCands, Float visitPercentage) {
             this.field = field;
             this.queryVector = queryVector;
             this.k = k;
             this.numCands = numCands;
+            this.visitPercentage = visitPercentage;
         }
 
         public KnnVectorQueryBuilder toQueryBuilder() {
@@ -256,7 +261,10 @@ public class KnnSearchRequestParser {
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
-            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, null, null);
+            if (visitPercentage != null && (visitPercentage < 0.0f || visitPercentage > 100.0f)) {
+                throw new IllegalArgumentException("[" + VISIT_PERCENTAGE_FIELD.getPreferredName() + "] must be between 0 and 100");
+            }
+            return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, null, null);
         }
 
         @Override
@@ -266,13 +274,14 @@ public class KnnSearchRequestParser {
             KnnSearch that = (KnnSearch) o;
             return k == that.k
                 && numCands == that.numCands
+                && Objects.equals(visitPercentage, that.visitPercentage)
                 && Objects.equals(field, that.field)
                 && Arrays.equals(queryVector, that.queryVector);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(field, k, numCands);
+            int result = Objects.hash(field, k, numCands, visitPercentage);
             result = 31 * result + Arrays.hashCode(queryVector);
             return result;
         }

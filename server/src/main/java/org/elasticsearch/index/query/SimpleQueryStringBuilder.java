@@ -13,13 +13,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
@@ -70,7 +70,7 @@ import java.util.Objects;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+public final class SimpleQueryStringBuilder extends LeafQueryBuilder<SimpleQueryStringBuilder> {
 
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
@@ -91,8 +91,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
-
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -167,11 +165,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         settings.fuzzyPrefixLength(in.readVInt());
         settings.fuzzyMaxExpansions(in.readVInt());
         settings.fuzzyTranspositions(in.readBoolean());
-        if (in.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
-        } else {
-            this.type = DEFAULT_TYPE;
-        }
+        this.type = MultiMatchQueryBuilder.Type.readFromStream(in);
     }
 
     @Override
@@ -194,9 +188,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         out.writeVInt(settings.fuzzyPrefixLength());
         out.writeVInt(settings.fuzzyMaxExpansions());
         out.writeBoolean(settings.fuzzyTranspositions());
-        if (out.getTransportVersion().onOrAfter(TYPE_FIELD_ADDED_VERSION)) {
-            type.writeTo(out);
-        }
+        type.writeTo(out);
     }
 
     /** Returns the text to parse the query from. */
@@ -404,7 +396,8 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
+    public Query doToQuery(SearchExecutionContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
         boolean isAllField;
@@ -417,7 +410,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
                 context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields)
             );
-            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+            isAllField = context.hasAllFieldsWildcardDefaultField();
         }
 
         if (isAllField) {
@@ -436,7 +429,18 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         }
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
         sqp.setType(type);
-        Query query = sqp.parse(queryText);
+        Query query;
+        try {
+            query = sqp.parse(queryText);
+        } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
+            // A deeply nested query string overflows the stack of Lucene's recursive-descent parser. Convert it to a client
+            // error so it does not reach the uncaught exception handler and halt the node.
+            throw new QueryShardException(
+                context,
+                "Failed to parse query [{}]: query is too deeply nested",
+                Strings.cleanTruncate(queryText, 1024)
+            );
+        }
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
@@ -633,6 +637,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

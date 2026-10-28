@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -16,22 +17,29 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier() {
   }
 
   @Override
-  public SpatialExtentGeoPointSourceValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
-    return SpatialExtentGeoPointSourceValuesAggregatorFunction.create(driverContext, channels);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialExtentGeoPointSourceValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SpatialExtentGeoPointSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SpatialExtentGeoPointSourceValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

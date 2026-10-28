@@ -23,12 +23,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -90,7 +92,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
-            new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY)
+            new StackTemplateRegistry(
+                Settings.EMPTY,
+                clusterService,
+                threadPool,
+                client,
+                NamedXContentRegistry.EMPTY,
+                new FeatureService(List.of())
+            )
         );
 
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
@@ -98,15 +107,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         apmIndexTemplateRegistry.setEnabled(true);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -553,16 +561,15 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelineConfigurations);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(componentTemplates)
+            .indexTemplates(composableTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(componentTemplates)
-                    .indexTemplates(composableTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

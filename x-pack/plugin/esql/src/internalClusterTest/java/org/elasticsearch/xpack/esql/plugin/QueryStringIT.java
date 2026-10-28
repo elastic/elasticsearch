@@ -9,22 +9,34 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateLookupIndex;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class QueryStringIT extends AbstractEsqlIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), CommonAnalysisPlugin.class);
+    }
+
     @Before
     public void setupIndex() {
-        createAndPopulateIndex();
+        createAndPopulateIndex(this::ensureYellow);
     }
 
     public void testSimpleQueryString() {
@@ -63,7 +75,7 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[QSTR] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[QSTR] function is only supported in WHERE and STATS commands"));
     }
 
     public void testInvalidQueryStringEof() {
@@ -91,7 +103,7 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    private void createAndPopulateIndex() {
+    static void createAndPopulateIndex(Consumer<String[]> ensureYellow) {
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
@@ -135,7 +147,11 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        ensureYellow(indexName);
+
+        var lookupIndexName = "test_lookup";
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow.accept(new String[] { indexName, lookupIndexName });
     }
 
     public void testWhereQstrWithScoring() {
@@ -226,6 +242,137 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "c_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
             assertValuesInAnyOrder(resp.values(), List.of(List.of(5, 1.0), List.of(4, 1.0)));
+        }
+    }
+
+    public void testWhereQstrAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testWhereQstrAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | WHERE qstr("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | WHERE id > 0
+            | SORT id
+            | WHERE qstr("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testWhereQstrWithLookupJoin() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND QSTR("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
+    }
+
+    public void testQstrAfterInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id)
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testQstrAfterGroupedInlineStats() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | INLINE STATS max_id = MAX(id) BY id
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeInlineStatsWithQstr() {
+        assumeTrue(
+            "requires full-text functions after INLINE STATS support",
+            EsqlCapabilities.Cap.FULL_TEXT_FUNCTIONS_AFTER_INLINE_STATS.isEnabled()
+        );
+        var query = """
+            FROM test
+            | WHERE false
+            | INLINE STATS max_id = MAX(id)
+            | WHERE qstr("content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after INLINE"));
+    }
+
+    public void testWhereFalseBeforeLookupJoinWithQstr() {
+        var query = """
+            FROM test
+            | WHERE false
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE qstr("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after LOOKUP"));
+    }
+
+    public void testAnalyzeWildcardAppliesStemming() {
+        assumeTrue("requires query string function options", EsqlCapabilities.Cap.QUERY_STRING_FUNCTION_OPTIONS.isEnabled());
+
+        var indexName = "test_english";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                // Needs an analyzer set on content to effectively test the analyze_wildcard option
+                .setMapping("id", "type=integer", "content", "type=text,analyzer=english")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "running fast"))
+            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "runs daily"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        // Without analyze_wildcard, "running*" is not stemmed at query time — index has "run", not "running" — so no matches.
+        try (var resp = run("FROM test_english | WHERE qstr(\"content: running*\", {\"analyze_wildcard\": false}) | KEEP id | SORT id")) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of());
+        }
+
+        // With analyze_wildcard, "running" is stemmed to "run" before the wildcard is applied, producing run* — matches both documents.
+        try (var resp = run("FROM test_english | WHERE qstr(\"content: running*\", {\"analyze_wildcard\": true}) | KEEP id | SORT id")) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2)));
         }
     }
 }

@@ -17,15 +17,16 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.AuditableRequest;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -89,10 +90,10 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         final ApiKeyCredentials apiKeyCredentials = randomApiKeyCredentials();
         final Authenticator.Context context = mockApiKeyAuthenticationContext(apiKeyCredentials);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             listener.onResponse(
                 AuthenticationResult.success(
                     new User(randomAlphaOfLengthBetween(3, 8)),
@@ -114,10 +115,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleSuccessAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
 
         // verify that there were no failures recorded
@@ -127,11 +125,8 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            executionTimeInMillis,
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 
@@ -154,9 +149,9 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             failedAuth = AuthenticationResult.unsuccessful("unsuccessful API key auth", exception);
         }
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
             listener.onResponse(failedAuth);
             return Void.TYPE;
@@ -175,11 +170,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "terminated API key auth")
-                )
+                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
             );
         } else {
             var authResult = future.actionGet();
@@ -187,11 +178,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
             assertSingleFailedAuthMetric(
                 telemetryPlugin,
                 SecurityMetricType.AUTHC_API_KEY,
-                Map.ofEntries(
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                    Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "unsuccessful API key auth")
-                )
+                Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
             );
         }
 
@@ -202,11 +189,8 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            executionTimeInMillis,
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 
@@ -223,9 +207,9 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         final ElasticsearchSecurityException exception = new ElasticsearchSecurityException("API key auth exception");
         when(context.getRequest().exceptionProcessingRequest(same(exception), any())).thenReturn(exception);
 
-        final long executionTimeInNanos = randomLongBetween(0, 500);
+        final long executionTimeInMillis = randomLongBetween(0, 500);
         doAnswer(invocation -> {
-            nanoTimeSupplier.advanceTime(executionTimeInNanos);
+            nanoTimeSupplier.advanceTime(TimeUnit.MILLISECONDS.toNanos(executionTimeInMillis));
             final ActionListener<AuthenticationResult<User>> listener = invocation.getArgument(2);
             listener.onFailure(exception);
             return Void.TYPE;
@@ -241,11 +225,7 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertSingleFailedAuthMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_AUTHC_FAILURE_REASON, "API key auth exception")
-            )
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
 
         // verify that there were no successes recorded
@@ -255,11 +235,8 @@ public class ApiKeyAuthenticatorTests extends AbstractAuthenticatorTests {
         assertAuthenticationTimeMetric(
             telemetryPlugin,
             SecurityMetricType.AUTHC_API_KEY,
-            executionTimeInNanos,
-            Map.ofEntries(
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_ID, apiKeyCredentials.getId()),
-                Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value())
-            )
+            executionTimeInMillis,
+            Map.ofEntries(Map.entry(ApiKeyAuthenticator.ATTRIBUTE_API_KEY_TYPE, apiKeyCredentials.getExpectedType().value()))
         );
     }
 

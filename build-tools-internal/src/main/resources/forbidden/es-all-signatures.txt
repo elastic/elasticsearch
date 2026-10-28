@@ -35,6 +35,8 @@ java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
 # org.elasticsearch.core.Booleans#parseBoolean(java.lang.String) directly on the string.
 @defaultMessage use org.elasticsearch.core.Booleans#parseBoolean(java.lang.String)
 java.lang.Boolean#getBoolean(java.lang.String)
+java.lang.Boolean#parseBoolean(java.lang.String)
+java.lang.Boolean#valueOf(java.lang.String)
 
 org.apache.lucene.util.IOUtils @ use @org.elasticsearch.core.internal.io instead
 
@@ -61,3 +63,35 @@ org.apache.logging.log4j.message.ParameterizedMessage#<init>(java.lang.String, j
 
 @defaultMessage Use WriteLoadForecaster#getForecastedWriteLoad instead
 org.elasticsearch.cluster.metadata.IndexMetadata#getForecastedWriteLoad()
+
+@defaultMessage Use org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer instead
+org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction, float, int)
+org.apache.lucene.util.quantization.OptimizedScalarQuantizer#<init>(org.apache.lucene.index.VectorSimilarityFunction)
+
+@defaultMessage Use org.elasticsearch.common.lucene.search.Queries#NO_DOCS_INSTANCE instead
+org.apache.lucene.search.MatchNoDocsQuery#<init>()
+
+@defaultMessage Use org.elasticsearch.common.lucene.search.Queries#ALL_DOCS_INSTANCE instead
+org.apache.lucene.search.MatchAllDocsQuery#<init>()
+
+@defaultMessage Use HashMap#newHashMap or HashSet#newHashSet instead
+org.apache.lucene.util.CollectionUtil#newHashMap(int)
+org.apache.lucene.util.CollectionUtil#newHashSet(int)
+
+@defaultMessage Use the List/Collection overload instead of the two-arg concatenate/union
+org.apache.lucene.util.automaton.Operations#concatenate(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
+org.apache.lucene.util.automaton.Operations#union(org.apache.lucene.util.automaton.Automaton, org.apache.lucene.util.automaton.Automaton)
+
+@defaultMessage Use the SortField constructor that takes a missing value instead of setMissingValue()
+org.apache.lucene.search.SortField#setMissingValue(java.lang.Object)
+org.apache.lucene.search.SortedSetSortField#setMissingValue(java.lang.Object)
+org.apache.lucene.search.SortedNumericSortField#setMissingValue(java.lang.Object)
+
+@defaultMessage Use IndexSearcher#search(Query, CollectorManager) instead
+org.apache.lucene.search.IndexSearcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+org.elasticsearch.search.internal.ContextIndexSearcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+org.elasticsearch.index.engine.Engine$Searcher#search(org.apache.lucene.search.Query, org.apache.lucene.search.Collector)
+
+@defaultMessage Do not use java.util.logging.Logger, use ES Logger instead
+java.util.logging.Logger#getLogger(java.lang.String)
+java.util.logging.Logger#getLogger(java.lang.String, java.lang.String)

@@ -50,6 +50,9 @@ public class ClientYamlTestResponse {
                 byte[] bytes = EntityUtils.toByteArray(response.getEntity());
                 // skip parsing if we got text back (e.g. if we called _cat apis)
                 if (bodyContentType != null) {
+                    if (bytes.length == 0) {
+                        throw new IllegalArgumentException("Empty body is invalid for content-type [" + contentType + "]");
+                    }
                     this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
                 }
                 this.body = bytes;

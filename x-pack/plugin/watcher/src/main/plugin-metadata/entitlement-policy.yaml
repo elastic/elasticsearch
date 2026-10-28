@@ -1,0 +1,16 @@
+ALL-UNNAMED:
+  - manage_threads
+  # the original policy has java.net.SocketPermission "*", "accept,connect"
+  # but a comment stating it was "needed for multiple server implementations used in tests"
+  # TODO: this is likely not needed, but including here to be on the safe side until
+  # we can track down whether it's really needed
+  - inbound_network
+  - outbound_network
+  - files:
+    - relative_path: ".mime.types"
+      relative_to: "home"
+      mode: "read"
+    - relative_path: ".mailcap"
+      relative_to: "home"
+      mode: "read"
+

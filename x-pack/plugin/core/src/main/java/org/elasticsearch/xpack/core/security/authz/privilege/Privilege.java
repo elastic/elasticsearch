@@ -6,7 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -18,10 +22,22 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
-public class Privilege {
+public class Privilege implements Accountable {
+
+    // Avoid reflecting over the same class hierarchy for every newly resolved privilege.
+    private static final ClassValue<Long> SHALLOW_SIZES = new ClassValue<>() {
+        @Override
+        protected Long computeValue(Class<?> type) {
+            return RamUsageEstimator.shallowSizeOfInstance(type);
+        }
+    };
+
+    private static final long GRANTS_ALL_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedSupplier.class) + RamUsageEstimator
+        .alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
     public static final Privilege NONE = new Privilege(Collections.singleton("none"), Automatons.EMPTY);
     public static final Privilege ALL = new Privilege(Collections.singleton("all"), Automatons.MATCH_ALL);
@@ -29,6 +45,7 @@ public class Privilege {
     protected final Set<String> name;
     protected final Automaton automaton;
     protected final Predicate<String> predicate;
+    protected final Supplier<Boolean> grantsAll;
 
     public Privilege(String name, String... patterns) {
         this(Collections.singleton(name), patterns);
@@ -42,6 +59,7 @@ public class Privilege {
         this.name = name;
         this.automaton = automaton;
         this.predicate = Automatons.predicate(automaton);
+        this.grantsAll = CachedSupplier.wrap(() -> Operations.isTotal(automaton));
     }
 
     public Set<String> name() {
@@ -78,6 +96,28 @@ public class Privilege {
 
     public Automaton getAutomaton() {
         return automaton;
+    }
+
+    /**
+     * Returns true if this privilege grants all names.
+     */
+    public boolean grantsAll() {
+        return grantsAll.get();
+    }
+
+    /**
+     * Estimates the heap retained by this privilege: the object itself, its names, its predicate and its {@code grantsAll} supplier. The
+     * automaton is not added separately because the predicate already includes it. The run automaton that evaluates the predicate
+     * references the same {@link Automaton} object as {@link #automaton} and counts it in its own size, see
+     * {@link Automatons#predicate(Automaton)}. Adding the automaton here would count it twice.
+     * <p>
+     * The shallow size is cached per runtime class, so the fields a subclass declares are included. A subclass whose fields reference
+     * objects it owns must override this method and add them.
+     */
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZES.get(getClass()) + GRANTS_ALL_SIZE + RamUsageEstimator.sizeOfObject(predicate) + RamUsageEstimator
+            .sizeOfCollection(name);
     }
 
     /**

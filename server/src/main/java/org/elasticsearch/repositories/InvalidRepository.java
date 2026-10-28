@@ -13,8 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
@@ -24,9 +26,12 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -35,10 +40,12 @@ import java.util.function.BooleanSupplier;
  */
 public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 
+    private final ProjectId projectId;
     private final RepositoryMetadata repositoryMetadata;
     private final RepositoryException creationException;
 
-    public InvalidRepository(RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+    public InvalidRepository(ProjectId projectId, RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
+        this.projectId = projectId;
         this.repositoryMetadata = repositoryMetadata;
         this.creationException = creationException;
     }
@@ -52,8 +59,26 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
+    public ProjectId getProjectId() {
+        return projectId;
+    }
+
+    @Override
     public RepositoryMetadata getMetadata() {
         return repositoryMetadata;
+    }
+
+    @Override
+    public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        return List.of(
+            new RepositoryDeprecationInfo(
+                RepositoryDeprecationInfo.Level.CRITICAL,
+                "Invalid repository",
+                ReferenceDocs.TROUBLESHOOT_REPOSITORY,
+                "This repository could not be initialized. Fix the repository configuration before upgrading.",
+                false
+            )
+        );
     }
 
     @Override
@@ -68,7 +93,7 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
         throw createCreationException();
     }
 
@@ -89,23 +114,13 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
 
     @Override
     public void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,
         Runnable onCompletion
     ) {
         repositoryDataUpdateListener.onFailure(createCreationException());
-    }
-
-    @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createCreationException();
     }
 
     @Override
@@ -170,6 +185,16 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createCreationException();
     }
 
     @Override

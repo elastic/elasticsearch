@@ -16,7 +16,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +35,7 @@ import java.util.Objects;
  * Query that allows wrapping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
-public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder> implements SpanQueryBuilder {
+public class SpanMultiTermQueryBuilder extends LeafQueryBuilder<SpanMultiTermQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
     private static final ParseField MATCH_FIELD = new ParseField("match");
@@ -125,7 +124,16 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         QueryBuilder multiTermQueryBuilder = Rewriteable.rewrite(this.multiTermQueryBuilder, context);
         if (multiTermQueryBuilder instanceof MatchNoneQueryBuilder) {
             return new SpanMatchNoDocsQuery(this.multiTermQueryBuilder.fieldName(), "Inner query rewrote to match_none");
-        } else if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
+        }
+        // A span reads the positions of the terms it matches, as the terms this one expands to have to carry.
+        final String fieldName = this.multiTermQueryBuilder.fieldName();
+        final MappedFieldType spanField = context.getFieldType(fieldName);
+        if (spanField != null && spanField.getTextSearchInfo().hasPositions() == false) {
+            throw new IllegalArgumentException(
+                "Span multi term query requires position data, but field " + fieldName + " was indexed without position data"
+            );
+        }
+        if (multiTermQueryBuilder instanceof PrefixQueryBuilder prefixBuilder) {
             MappedFieldType fieldType = context.getFieldType(prefixBuilder.fieldName());
             if (fieldType == null) {
                 throw new IllegalStateException("Rewrite first");
@@ -190,6 +198,6 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

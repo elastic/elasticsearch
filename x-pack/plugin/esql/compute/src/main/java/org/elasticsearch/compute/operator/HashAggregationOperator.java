@@ -8,20 +8,26 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.PartitionedBlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.PartitionedAggregationBlock;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -32,44 +38,294 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
+/**
+ * Aggregates input {@link Page}s into many output rows, grouping by some values.
+ * <p>
+ *     Receives input pages until we call {@link #finish()}, telling it
+ *     there are no more pages. Each aggregation is an instance
+ *     of {@link GroupingAggregatorFunction}.
+ * </p>
+ * <p>
+ *     For
+ *     {@snippet lang="esql" :
+ *     | STATS MIN(discovered), MAX(discovered) BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01      │ 1993-01-01      │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ 1967-01-01      │ 1967-01-01      │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └─────────────────┴─────────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ 1991-01-01      │ 1991-01-01      │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └─────────────────┴─────────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌─────────────────┬─────────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ MIN(discovered) │ MAX(discovered) │ class    │
+ * ├──────┼──────────┼────────────┤    ├─────────────────┼─────────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ * └──────┴──────────┴────────────┘    │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌─────────────────┬─────────────────┬──────────┐
+ *                                     │ MIN(discovered) │ MAX(discovered) │ class    │
+ *                                     ├─────────────────┼─────────────────┼──────────┤
+ *                                     │ 1988-01-01      │ 2010-01-01      │ Euclid   │
+ *                                     │ 1922-01-01      │ 2016-04-28      │ Keter    │
+ *                                     │ 1991-01-01      │ 2020-12-04      │ Safe     │
+ *                                     │ 1971-01-01      │ 1971-01-01      │ Thaumiel │
+ *                                     └─────────────────┴─────────────────┴──────────┘
+ * }
+ * <p>
+ *     Aggregations can also filter which rows they receive using
+ *     {@link FilteredGroupingAggregatorFunction}. In ESQL that looks like:
+ *     {@snippet lang="esql" :
+ *     | STATS min3 = MIN(discovered) WHERE LENGTH(ref) == 3,
+ *             max3 = MAX(discovered) WHERE LENGTH(ref) == 3,
+ *             min4 = MIN(discovered) WHERE LENGTH(ref) == 4
+ *          BY class
+ *     }
+ *     this'd look like:
+ * </p>
+ * {@snippet lang="txt" :
+ * Before first page:
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * First page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │  079 │ Euclid   │ 1988-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ null       │ Euclid   │
+ * │  173 │ Euclid   │ 1993-01-01 │    │ null       │ null       │ 1967-01-01 │ Keter    │
+ * │ 1313 │ Keter    │ 1967-01-01 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 1981 │ Safe     │ 1991-01-01 │    └────────────┴────────────┴────────────┴──────────┘
+ * └──────┴──────────┴────────────┘
+ *
+ * Second page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 2317 │ Keter    │ 1922-01-01 │ -> │ 1988-01-01 │ 1993-01-01 │ 2010-01-01 │ Euclid   │
+ * │ 2639 │ Euclid   │ 2010-01-01 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 2935 │ Keter    │ 2016-04-28 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * │ 3000 │ Thaumiel │ 1971-01-01 │    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ * └──────┴──────────┴────────────┘    └────────────┴────────────┴────────────┴──────────┘
+ *
+ * Third page:
+ * ┌──────┬──────────┬────────────┐    ┌────────────┬────────────┬────────────┬──────────┐
+ * │  ref │ class    │ discovered │    │ min3       │ max3       │ min4       │ class    │
+ * ├──────┼──────────┼────────────┤    ├────────────┼────────────┼────────────┼──────────┤
+ * │ 3001 │ Euclid   │ 2000-01-02 │ -> │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ * │ 4999 │ Keter    │ 1998-11-27 │    │ null       │ null       │ 1922-01-01 │ Keter    │
+ * │ 5000 │ Safe     │ 2020-12-04 │    │ null       │ null       │ 1991-01-01 │ Safe     │
+ * └──────┴──────────┴────────────┘    │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ *
+ * finish():
+ *                                     ┌────────────┬────────────┬────────────┬──────────┐
+ *                                     │ min3       │ max3       │ min4       │ class    │
+ *                                     ├────────────┼────────────┼────────────┼──────────┤
+ *                                     │ 1988-01-01 │ 1993-01-01 │ 2000-01-02 │ Euclid   │
+ *                                     │ null       │ null       │ 1922-01-01 │ Keter    │
+ *                                     │ null       │ null       │ 1991-01-01 │ Safe     │
+ *                                     │ null       │ null       │ 1971-01-01 │ Thaumiel │
+ *                                     └────────────┴────────────┴────────────┴──────────┘
+ * }
+ */
 public class HashAggregationOperator implements Operator {
 
-    public record HashAggregationOperatorFactory(
-        List<BlockHash.GroupSpec> groups,
-        AggregatorMode aggregatorMode,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize,
-        AnalysisRegistry analysisRegistry
-    ) implements OperatorFactory {
-        @Override
-        public Operator get(DriverContext driverContext) {
-            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
-                return new HashAggregationOperator(
-                    aggregators,
-                    () -> BlockHash.buildCategorizeBlockHash(
-                        groups,
-                        aggregatorMode,
-                        driverContext.blockFactory(),
-                        analysisRegistry,
-                        maxPageSize
-                    ),
-                    driverContext
-                );
-            }
-            return new HashAggregationOperator(
-                aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
-                driverContext
-            );
+    public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
+    public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
+    public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
+
+    // TODO: Push down LIMIT only
+    public record TopAggregation(int aggregatorIndex, boolean asc, int limit) {}
+
+    public record ParallelConfig(
+        Executor executor,
+        int numWorkers,
+        int pagesPerWorker,
+        int partitionKeysThreshold,
+        long partitioningMemoryThreshold
+    ) {
+        public ParallelConfig(Executor executor, int numWorkers, int pagesPerWorker, int partitionKeysThreshold) {
+            this(executor, numWorkers, pagesPerWorker, partitionKeysThreshold, Long.MAX_VALUE);
+        }
+    }
+
+    /**
+     * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
+     * and {@link #aggregators(List)} are required. The other parameters default to reasonable values
+     * <strong>for tests</strong>. In production, set them all.
+     */
+    public static class Builder {
+        private List<BlockHash.GroupSpec> groups;
+        private AggregatorMode aggregatorMode;
+        private List<GroupingAggregator.Factory> aggregators;
+        private int partialEmitKeysThreshold = DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD;
+        private double partialEmitUniquenessThreshold = DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD;
+        private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        private AnalysisRegistry analysisRegistry;
+        private TopAggregation topAggregation;
+        private boolean allowPartitionedOutput;
+        private ParallelConfig parallelConfig;
+
+        public Builder groups(List<BlockHash.GroupSpec> groups) {
+            this.groups = groups;
+            return this;
+        }
+
+        public Builder mode(AggregatorMode aggregatorMode) {
+            this.aggregatorMode = aggregatorMode;
+            return this;
+        }
+
+        public Builder aggregators(List<GroupingAggregator.Factory> aggregators) {
+            this.aggregators = aggregators;
+            return this;
+        }
+
+        public Builder partialEmit(int keysThreshold, double uniquenessThreshold) {
+            this.partialEmitKeysThreshold = keysThreshold;
+            this.partialEmitUniquenessThreshold = uniquenessThreshold;
+            return this;
+        }
+
+        public Builder maxPageSize(int maxPageSize) {
+            this.maxPageSize = maxPageSize;
+            return this;
+        }
+
+        public Builder aggregationBatchSize(int aggregationBatchSize) {
+            this.aggregationBatchSize = aggregationBatchSize;
+            return this;
+        }
+
+        public Builder analysisRegistry(AnalysisRegistry analysisRegistry) {
+            this.analysisRegistry = analysisRegistry;
+            return this;
+        }
+
+        public Builder topAggregation(TopAggregation topAggregation) {
+            this.topAggregation = topAggregation;
+            return this;
+        }
+
+        public Builder parallelConfig(ParallelConfig parallelConfig) {
+            this.parallelConfig = parallelConfig;
+            return this;
+        }
+
+        public Builder allowPartitionedOutput(boolean allowPartitionedOutput) {
+            this.allowPartitionedOutput = allowPartitionedOutput;
+            return this;
+        }
+
+        public Factory build() {
+            return new Factory(this);
+        }
+    }
+
+    public static class Factory implements OperatorFactory {
+        private final List<BlockHash.GroupSpec> groups;
+        private final AggregatorMode aggregatorMode;
+        private final List<GroupingAggregator.Factory> aggregators;
+        private final int partialEmitKeysThreshold;
+        private final double partialEmitUniquenessThreshold;
+        private final int maxPageSize;
+        private final int aggregationBatchSize;
+        private final AnalysisRegistry analysisRegistry;
+        private final TopAggregation topAggregation;
+        private final ParallelConfig parallelConfig;
+        private final boolean allowPartitionedOutput;
+
+        protected Factory(Builder builder) {
+            this.groups = requireNonNull(builder.groups, "groups");
+            this.aggregatorMode = requireNonNull(builder.aggregatorMode, "aggregatorMode");
+            this.aggregators = requireNonNull(builder.aggregators, "aggregators");
+            this.partialEmitKeysThreshold = builder.partialEmitKeysThreshold;
+            this.partialEmitUniquenessThreshold = builder.partialEmitUniquenessThreshold;
+            this.maxPageSize = builder.maxPageSize;
+            this.aggregationBatchSize = builder.aggregationBatchSize;
+            this.analysisRegistry = builder.analysisRegistry;
+            this.topAggregation = builder.topAggregation;
+            this.parallelConfig = builder.parallelConfig;
+            this.allowPartitionedOutput = builder.allowPartitionedOutput;
         }
 
         @Override
-        public String describe() {
+        public final HashAggregationOperator get(DriverContext driverContext) {
+            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
+                return new HashAggregationOperator(
+                    aggregatorMode,
+                    aggregators,
+                    dc -> wrapBlockHash(
+                        dc,
+                        BlockHash.buildCategorizeBlockHash(groups, aggregatorMode, dc.blockFactory(), analysisRegistry, maxPageSize)
+                    ),
+                    Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
+                    1.0,
+                    Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
+                    topAggregation,
+                    driverContext,
+                    parallelConfig,
+                    allowPartitionedOutput
+                );
+            }
+            return new HashAggregationOperator(
+                aggregatorMode,
+                aggregators,
+                dc -> wrapBlockHash(dc, BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, false)),
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                maxPageSize,
+                topAggregation,
+                driverContext,
+                parallelConfig,
+                allowPartitionedOutput
+            );
+        }
+
+        protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
+            return hash;
+        }
+
+        @Override
+        public final String describe() {
             return "HashAggregationOperator[mode = "
                 + "<not-needed>"
                 + ", aggs = "
@@ -78,14 +334,28 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
+    protected final Function<DriverContext, BlockHash> blockHashSupplier;
+    protected final AggregatorMode aggregatorMode;
+    protected final List<GroupingAggregator.Factory> aggregatorFactories;
+    protected final List<GroupingAggregator> aggregators;
+    protected final int partialEmitKeysThreshold;
+    protected final double partialEmitUniquenessThreshold;
+
+    protected final DriverContext driverContext;
+    private final boolean supportPartitioning;
+    private final int partitioningRowThreshold;
+    private final long partitioningMemoryThreshold;
+    private final ParallelConfig parallelConfig;
+
+    // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
+    protected BlockHash blockHash;
     private boolean finished;
-    private Page output;
+    protected ReleasableIterator<Page> output;
 
-    private final BlockHash blockHash;
-
-    private final List<GroupingAggregator> aggregators;
-
-    private final DriverContext driverContext;
+    /**
+     * Maximum number of rows per output page.
+     */
+    private final int maxPageSize;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -108,20 +378,65 @@ public class HashAggregationOperator implements Operator {
      */
     private long rowsEmitted;
 
+    /**
+     * Total nanos for emitting the output
+     */
+    protected long emitNanos;
+
+    protected long emitCount;
+
+    private final TopAggregation topAggregation;
+    private final boolean partitionedPartialOutput;
+    private boolean emittedPartitionedOutput;
+    final List<PartitionedAggregationBlock> partitionedAggregationBlocks = new ArrayList<>();
+
+    protected long rowsAddedInCurrentBatch;
+
+    /**
+     * Build the operator. Instead of calling this directly, build the {@link Builder},
+     * then the {@link Builder#build()} then {@link Factory#get}.
+     */
     @SuppressWarnings("this-escape")
     public HashAggregationOperator(
-        List<GroupingAggregator.Factory> aggregators,
-        Supplier<BlockHash> blockHash,
-        DriverContext driverContext
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        Function<DriverContext, BlockHash> blockHashSupplier,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int maxPageSize,
+        TopAggregation topAggregation,
+        DriverContext driverContext,
+        ParallelConfig parallelConfig,
+        boolean allowPartitionedOutput
     ) {
-        this.aggregators = new ArrayList<>(aggregators.size());
+        if (partialEmitKeysThreshold <= 0) {
+            throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
+        }
+        this.aggregatorMode = aggregatorMode;
+        this.partialEmitKeysThreshold = partialEmitKeysThreshold;
+        this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.maxPageSize = maxPageSize;
         this.driverContext = driverContext;
+        this.aggregatorFactories = aggregatorFactories;
+        this.blockHashSupplier = blockHashSupplier;
+        this.aggregators = new ArrayList<>();
+        this.topAggregation = topAggregation;
+        this.parallelConfig = parallelConfig;
+        this.partitioningRowThreshold = parallelConfig != null ? parallelConfig.partitionKeysThreshold : Integer.MAX_VALUE;
+        this.partitioningMemoryThreshold = parallelConfig != null ? parallelConfig.partitioningMemoryThreshold : Long.MAX_VALUE;
         boolean success = false;
         try {
-            this.blockHash = blockHash.get();
-            for (GroupingAggregator.Factory a : aggregators) {
-                this.aggregators.add(a.apply(driverContext));
+            this.blockHash = blockHashSupplier.apply(driverContext);
+            for (GroupingAggregator.Factory a : aggregatorFactories) {
+                var groupingAggregator = a.apply(driverContext);
+                assert groupingAggregator.mode() == aggregatorMode : groupingAggregator.mode() + " != " + aggregatorMode;
+                this.aggregators.add(groupingAggregator);
             }
+            this.supportPartitioning = parallelConfig != null
+                && blockHash instanceof PartitionedBlockHash
+                && PartitionedBlockHash.supportPartitioning()
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+            this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
             if (success == false) {
@@ -130,36 +445,102 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
+    HashAggregationOperator spawnWorker() {
+        assert parallelConfig != null : "parallel config is not set for workers";
+        DriverContext mainDriverContext = this.driverContext;
+        var workerBlockFactory = mainDriverContext.createChildBlockFactory();
+        boolean success = false;
+        try {
+            var workerDriverContext = new DriverContext(
+                mainDriverContext.bigArrays(),
+                workerBlockFactory,
+                mainDriverContext.localBreakerSettings()
+            );
+            HashAggregationOperator operator = new HashAggregationOperator(
+                aggregatorMode,
+                aggregatorFactories,
+                blockHashSupplier,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                maxPageSize,
+                topAggregation,
+                workerDriverContext,
+                parallelConfig,
+                false
+            ) {
+                @Override
+                public void close() {
+                    Releasables.close(
+                        super::close,
+                        () -> mainDriverContext.releaseChildBlockFactory(workerBlockFactory),
+                        mainDriverContext::removeAsyncAction
+                    );
+                }
+            };
+            mainDriverContext.addAsyncAction();
+            success = true;
+            return operator;
+        } finally {
+            if (success == false) {
+                mainDriverContext.releaseChildBlockFactory(workerBlockFactory);
+            }
+        }
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        if (partitionedAggregationBlocks.isEmpty() == false
+            || (supportPartitioning && aggregatorMode.isOutputPartial() == false && partitioningThresholdReached())) {
+            var parallelOp = new ParallelHashAggregationOperator(parallelConfig, this);
+            Releasables.close(this);
+            return parallelOp;
+        }
+        return this;
+    }
+
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return output == null && finished == false;
     }
 
     @Override
     public void addInput(Page page) {
+        // will be promoted to the parallel operator
+        if (page.getBlockCount() == 1 && page.getBlock(0) instanceof PartitionedAggregationBlock pb) {
+            pb.mustIncRef();
+            partitionedAggregationBlocks.add(pb);
+            page.close();
+            return;
+        }
         try {
-            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
+            maybeReinitializeAfterPeriodicallyEmitted();
+            List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
                 long hashStart = System.nanoTime();
                 long aggStart;
 
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    IntVector groupIdsVector = groupIds.asVector();
-                    if (groupIdsVector != null) {
-                        add(positionOffset, groupIdsVector);
-                    } else {
-                        startAggEndHash();
-                        for (GroupingAggregatorFunction.AddInput p : prepared) {
-                            p.add(positionOffset, groupIds);
-                        }
-                        end();
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
                     }
+                    end();
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    startAggEndHash();
+                    for (GroupingAggregatorFunction.AddInput p : prepared) {
+                        p.add(positionOffset, groupIds);
+                    }
+                    end();
                 }
 
                 @Override
                 public void add(int positionOffset, IntVector groupIds) {
                     startAggEndHash();
+                    assert assertGroupAssignments(page, positionOffset, groupIds);
                     for (GroupingAggregatorFunction.AddInput p : prepared) {
                         p.add(positionOffset, groupIds);
                     }
@@ -178,19 +559,27 @@ public class HashAggregationOperator implements Operator {
 
                 @Override
                 public void close() {
-                    Releasables.closeExpectNoException(prepared);
+                    Releasables.closeExpectNoException(Releasables.wrap(prepared));
                 }
             }
             try (AddInput add = new AddInput()) {
                 checkState(needsInput(), "Operator is already finishing");
                 requireNonNull(page, "page is null");
 
-                for (int i = 0; i < prepared.length; i++) {
-                    prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+                for (GroupingAggregator aggregator : aggregators) {
+                    GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
+                    if (p != null) {
+                        prepared.add(p);
+                    }
                 }
 
-                blockHash.add(wrapPage(page), add);
+                // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+                blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
+            }
+            rowsAddedInCurrentBatch += page.getPositionCount();
+            if (shouldEmitPartialResultsPeriodically()) {
+                emit();
             }
         } finally {
             page.releaseBlocks();
@@ -201,11 +590,16 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        Page p = output;
-        if (p != null) {
-            rowsEmitted += p.getPositionCount();
+        if (output == null) {
+            return null;
         }
-        output = null;
+        if (output.hasNext() == false) {
+            output.close();
+            output = null;
+            return null;
+        }
+        Page p = output.next();
+        rowsEmitted += p.getPositionCount();
         return p;
     }
 
@@ -215,31 +609,137 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        Block[] blocks = null;
-        IntVector selected = null;
-        boolean success = false;
+        emit();
+    }
+
+    private void maybeReinitializeAfterPeriodicallyEmitted() {
+        if (rowsReceived > 0 && rowsAddedInCurrentBatch == 0) {
+            clearCurrentBatch();
+        }
+    }
+
+    void clearCurrentBatch() {
+        rowsAddedInCurrentBatch = 0;
+        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+            partitionedBlockHash.clear();
+        } else {
+            blockHash.close();
+            blockHash = null;
+            blockHash = blockHashSupplier.apply(driverContext);
+        }
+        for (int i = 0; i < aggregators.size(); i++) {
+            Releasables.close(aggregators.set(i, aggregatorFactories.get(i).apply(driverContext)));
+        }
+    }
+
+    protected void emit() {
+        if (rowsAddedInCurrentBatch == 0) {
+            return;
+        }
+        long startInNanos = System.nanoTime();
+        PreparedForEvaluation prepared = null;
         try {
-            selected = blockHash.nonEmpty();
-            Block[] keys = blockHash.getKeys();
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            int offset = keys.length;
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, driverContext);
-                offset += aggBlockCounts[i];
+            if (shouldEmitPartitionedPartialOutput()) {
+                var partitionedBlock = PartitionedHashAggregations.splitToPartitionedBlock(driverContext.breaker(), this);
+                output = ReleasableIterator.single(new Page(partitionedBlock));
+                emittedPartitionedOutput = true;
+            } else {
+                int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+                prepared = new PreparedForEvaluation();
+                if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
+                    output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
+                } else {
+                    output = new MultiPageResult(prepared, aggBlockCounts);
+                    prepared = null; // Prepared has moved into the output
+                }
             }
-            output = new Page(blocks);
-            success = true;
         } finally {
-            // selected should always be closed
-            if (selected != null) {
-                selected.close();
+            rowsAddedInCurrentBatch = 0;
+            Releasables.close(prepared);
+            emitNanos += System.nanoTime() - startInNanos;
+            emitCount++;
+        }
+    }
+
+    private boolean shouldEmitPartitionedPartialOutput() {
+        if (partitionedPartialOutput == false) {
+            return false;
+        }
+        // Once partitioned, keep subsequent output partitioned.
+        if (emittedPartitionedOutput) {
+            return true;
+        }
+        // Partition when the current batch reaches the threshold.
+        if (partitioningThresholdReached()) {
+            return true;
+        }
+        // For the final batch, partition at 75% of the threshold.
+        return finished
+            && (blockHash.numKeys() >= Math.toIntExact((partitioningRowThreshold * 3L + 3L) / 4L)
+                || estimatedBytesForPartitioning() >= partitioningMemoryThreshold - partitioningMemoryThreshold / 4);
+    }
+
+    /**
+     * Customize the {@code selected} groupIds that are sent to the agg's
+     * {@link GroupingAggregatorFunction#prepareEvaluateIntermediate} and
+     * {@link GroupingAggregatorFunction#prepareEvaluateFinal}. TSDB uses
+     * this to do less work later on.
+     */
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
+        selected.incRef();
+        return selected;
+    }
+
+    protected boolean assertGroupAssignments(Page page, int positionOffset, IntVector groupIds) {
+        return true;
+    }
+
+    /**
+     * Selects which group ids ("keys") to emit, given the full set of non-empty groups. The default emits every group.
+     * Subclasses can override to emit a subset: the time-series operator emits only the groups aligned to the output
+     * time bucket, while still exposing the full group set to window aggregators through the evaluation context.
+     * <p>
+     * The returned vector is owned by the caller. {@code allKeys} remains owned by the caller and is released right after
+     * this method returns, so an implementation that needs to retain it (e.g. by stashing it in {@code ctx}) must
+     * increment its reference count.
+     */
+    protected IntVector selectedKeysForEmit(GroupingAggregatorEvaluationContext ctx, IntVector allKeys) {
+        allKeys.incRef();
+        return allKeys;
+    }
+
+    protected boolean shouldEmitPartialResultsPeriodically() {
+        if (aggregatorMode.isOutputPartial() == false) {
+            return false;
+        }
+        if (rowsAddedInCurrentBatch == 0) {
+            return false;
+        }
+        final int numKeys = blockHash.numKeys();
+        if (partitionedPartialOutput) {
+            return partitioningThresholdReached();
+        } else {
+            if (numKeys < partialEmitKeysThreshold) {
+                return false;
             }
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
+            return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
+        }
+    }
+
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
+        return new GroupingAggregatorEvaluationContext(driverContext);
+    }
+
+    boolean partitioningThresholdReached() {
+        return blockHash.numKeys() >= partitioningRowThreshold || estimatedBytesForPartitioning() >= partitioningMemoryThreshold;
+    }
+
+    private long estimatedBytesForPartitioning() {
+        if (blockHash instanceof PartitionedBlockHash partitioned) {
+            return partitioned.estimatedBytesForPartitioning();
+        } else {
+            assert false : "expected a partitioned block hash; got " + blockHash;
+            return -1;
         }
     }
 
@@ -249,26 +749,24 @@ public class HashAggregationOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return output != null;
+    }
+
+    @Override
     public void close() {
-        if (output != null) {
-            output.releaseBlocks();
-        }
-        Releasables.close(blockHash, () -> Releasables.close(aggregators));
+        Releasables.close(blockHash, () -> Releasables.close(aggregators), output, Releasables.wrap(partitionedAggregationBlocks));
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, List.of());
     }
 
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
-    }
-
-    protected Page wrapPage(Page page) {
-        return page;
     }
 
     @Override
@@ -286,6 +784,18 @@ public class HashAggregationOperator implements Operator {
             Operator.Status.class,
             "hashagg",
             Status::new
+        );
+
+        private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME = TransportVersion.fromName(
+            "esql_hash_operator_status_output_time"
+        );
+
+        private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_EMIT_COUNT = TransportVersion.fromName(
+            "esql_hash_operator_status_emit_count"
+        );
+
+        private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS = TransportVersion.fromName(
+            "esql_hash_operator_status_extra_fields"
         );
 
         /**
@@ -309,33 +819,64 @@ public class HashAggregationOperator implements Operator {
          */
         private final long rowsEmitted;
 
+        private final long emitNanos;
+
+        protected final long emitCount;
+
+        protected final List<ExtraStatus> extraFields;
+
         /**
          * Build.
-         * @param hashNanos Nanoseconds this operator has spent hashing grouping keys.
+         *
+         * @param hashNanos        Nanoseconds this operator has spent hashing grouping keys.
          * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
-         * @param pagesProcessed Count of pages this operator has processed.
-         * @param rowsReceived Count of rows this operator has received.
-         * @param rowsEmitted Count of rows this operator has emitted.
+         * @param pagesProcessed   Count of pages this operator has processed.
+         * @param rowsReceived     Count of rows this operator has received.
+         * @param rowsEmitted      Count of rows this operator has emitted.
+         * @param emitNanos        Nanoseconds this operator has spent emitting the output.
+         * @param emitCount        Count of times this operator has emitted output.
+         * @param extraFields      the extra status such as time-series or partitioning can be attached
          */
-        public Status(long hashNanos, long aggregationNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        public Status(
+            long hashNanos,
+            long aggregationNanos,
+            int pagesProcessed,
+            long rowsReceived,
+            long rowsEmitted,
+            long emitNanos,
+            long emitCount,
+            List<ExtraStatus> extraFields
+        ) {
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
             this.pagesProcessed = pagesProcessed;
             this.rowsReceived = rowsReceived;
             this.rowsEmitted = rowsEmitted;
+            this.emitNanos = emitNanos;
+            this.emitCount = emitCount;
+            this.extraFields = extraFields;
         }
 
         protected Status(StreamInput in) throws IOException {
             hashNanos = in.readVLong();
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
+            if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
+                emitNanos = in.readVLong();
             } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
+                emitNanos = 0;
+            }
+            if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EMIT_COUNT)) {
+                emitCount = in.readVLong();
+            } else {
+                emitCount = 0;
+            }
+            if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS)) {
+                extraFields = in.readNamedWriteableCollectionAsList(Status.ExtraStatus.class);
+            } else {
+                extraFields = List.of();
             }
         }
 
@@ -344,10 +885,16 @@ public class HashAggregationOperator implements Operator {
             out.writeVLong(hashNanos);
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
+            if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_OUTPUT_TIME)) {
+                out.writeVLong(emitNanos);
+            }
+            if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EMIT_COUNT)) {
+                out.writeVLong(emitCount);
+            }
+            if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS)) {
+                out.writeNamedWriteableCollection(extraFields);
             }
         }
 
@@ -391,6 +938,24 @@ public class HashAggregationOperator implements Operator {
             return rowsEmitted;
         }
 
+        /**
+         * Nanoseconds this operator has spent emitting the output.
+         */
+        public long emitNanos() {
+            return emitNanos;
+        }
+
+        /**
+         * Count of times this operator has emitted output.
+         */
+        public long emitCount() {
+            return emitCount;
+        }
+
+        public List<ExtraStatus> extraFields() {
+            return extraFields;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -405,6 +970,16 @@ public class HashAggregationOperator implements Operator {
             builder.field("pages_processed", pagesProcessed);
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
+            if (emitCount > 0) {
+                builder.field("emit_count", emitCount);
+            }
+            builder.field("emit_nanos", emitNanos);
+            if (builder.humanReadable()) {
+                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
+            }
+            for (ExtraStatus ef : extraFields) {
+                ef.toXContent(builder, params);
+            }
             return builder.endObject();
 
         }
@@ -418,12 +993,15 @@ public class HashAggregationOperator implements Operator {
                 && aggregationNanos == status.aggregationNanos
                 && pagesProcessed == status.pagesProcessed
                 && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted;
+                && rowsEmitted == status.rowsEmitted
+                && emitNanos == status.emitNanos
+                && emitCount == status.emitCount
+                && Objects.equals(extraFields, status.extraFields);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted);
+            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, extraFields);
         }
 
         @Override
@@ -433,7 +1011,147 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
+        }
+    }
+
+    /**
+     * Returns many pages of results from aggregations. Works by breaking chunks off
+     * of the {@code selected} and {@code keys}.
+     * <p>
+     *     This is a step towards a system that breaks rows off of the {@link BlockHash}
+     *     itself. Right now, the {@link BlockHash} implementations returns all results
+     *     at once so the best we can do is break pieces off. But soon! Soon we can make
+     *     them smarter.
+     * </p>
+     */
+    class MultiPageResult implements ReleasableIterator<Page> {
+        private final PreparedForEvaluation prepared;
+        private final int[] aggBlockCounts;
+
+        private int rowOffset = 0;
+
+        MultiPageResult(PreparedForEvaluation prepared, int[] aggBlockCounts) {
+            this.prepared = prepared;
+            this.aggBlockCounts = aggBlockCounts;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return rowOffset < prepared.selected.keys.getPositionCount();
+        }
+
+        @Override
+        public Page next() {
+            long startInNanos = System.nanoTime();
+            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
+            try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
+                Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
+                rowOffset = endOffset;
+                return output;
+            } finally {
+                emitNanos += System.nanoTime() - startInNanos;
+            }
+        }
+
+        @Override
+        public void close() {
+            prepared.close();
+        }
+    }
+
+    private class PreparedForEvaluation implements Releasable {
+        private final GroupingAggregatorEvaluationContext ctx;
+        private final Selected selected;
+        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
+
+        private PreparedForEvaluation() {
+            int count = aggregators.size();
+            GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
+            Selected selected = null;
+            List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
+            boolean success = false;
+            try {
+                final IntVector keys;
+                if (aggregatorMode.isOutputPartial() == false && topAggregation != null) {
+                    // push down TopN by selecting a subset of keys
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = aggregators.get(topAggregation.aggregatorIndex())
+                            .aggregatorFunction()
+                            .selectTopN(allKeys, topAggregation.limit(), topAggregation.asc());
+                    }
+                } else {
+                    try (var allKeys = blockHash.nonEmpty()) {
+                        keys = selectedKeysForEmit(ctx, allKeys);
+                    }
+                }
+                selected = new Selected(keys, new IntVector[count]);
+                for (int a = 0; a < count; a++) {
+                    selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
+                    preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
+                }
+            }
+            this.ctx = ctx;
+            this.selected = selected;
+            this.preparedAggregators = preparedAggregators;
+        }
+
+        /**
+         * Build a page or results.
+         * @param selectedInPage The subset of {@link #selected} for this page. If we're
+         *                       emitting a single page then this is {@code ==} to {@link #selected}.
+         */
+        Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
+            Block[] keys = blockHash.getKeys(selectedInPage.keys);
+            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            try {
+                int blockOffset = keys.length;
+                for (int i = 0; i < preparedAggregators.size(); i++) {
+                    var aggregator = preparedAggregators.get(i);
+                    aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
+                    blockOffset += aggBlockCounts[i];
+                }
+                Page result = new Page(blocks);
+                blocks = null;
+                return result;
+            } finally {
+                if (blocks != null) {
+                    Releasables.close(blocks);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
+        }
+    }
+
+    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
+        public Selected slice(int beginInclude, int endExclusive) {
+            Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
+            try {
+                for (int a = 0; a < aggs.length; a++) {
+                    result.aggs[a] = aggs[a].slice(beginInclude, endExclusive);
+                }
+                Selected r = result;
+                result = null;
+                return r;
+            } finally {
+                Releasables.close(result);
+            }
+
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(keys, Releasables.wrap(aggs));
         }
     }
 }

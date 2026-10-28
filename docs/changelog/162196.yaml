@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162196
+summary: Scope the query settings unmapped_fields, wildcards_match_views and wildcards_match_datasets at view boundaries
+type: enhancement

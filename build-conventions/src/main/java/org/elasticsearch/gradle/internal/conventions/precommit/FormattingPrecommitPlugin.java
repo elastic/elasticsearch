@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 
 import com.diffplug.gradle.spotless.SpotlessExtension;
 import com.diffplug.gradle.spotless.SpotlessPlugin;
+import com.diffplug.spotless.LineEnding;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
@@ -52,12 +53,35 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             // Spotless resolves required dependencies from project repositories, so we need maven central
             project.getRepositories().mavenCentral();
 
+            // we cannot update to a newer spotless plugin version yet but we want to use the latest eclipse formatter to be compatible
+            // with latest java versions
+            project.getConfigurations().matching(it -> it.getName().startsWith("spotless")).configureEach(conf -> {
+                project.getDependencies().constraints(constraints -> {
+                    constraints.add(conf.getName(), "org.eclipse.jdt:org.eclipse.jdt.core:3.42.0", dependencyConstraint -> {
+                        dependencyConstraint.because(
+                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
+                        );
+                    });
+                    constraints.add(conf.getName(), "org.eclipse.jdt:ecj:3.42.0", dependencyConstraint -> {
+                        dependencyConstraint.because(
+                            "We want to use a recent version of the Eclipse formatter libraries to support latest Java"
+                        );
+                    });
+                });
+            });
+
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";
 
                 java.target("src/**/*.java");
+                // Enforce Unix (LF) line endings unconditionally. Without this, spotless falls back
+                // to LineEnding.GIT_ATTRIBUTES which resolves to PLATFORM_NATIVE (CRLF) on Windows
+                // for files that have no explicit eol attribute in .gitattributes. That causes the
+                // formatter to emit CRLF output while the repository stores LF, producing spurious
+                // format violations on Windows CI agents and making the spotless cache platform-specific.
+                java.setLineEndings(LineEnding.UNIX);
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports
@@ -74,7 +98,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
                 // When running build benchmarks we alter the source in some scenarios.
                 // The gradle-profiler unfortunately does not generate compliant formatted
                 // sources so we ignore that altered file when running build benchmarks
-                if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
+                if (Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
                     java.targetExclude("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
                 }
             });

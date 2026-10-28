@@ -13,11 +13,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -33,9 +33,10 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        CircuitBreaker circuitBreaker
     ) {
-        super(indexSettings, env, name, settings, synonymsManagementAPIService);
+        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker);
     }
 
     @Override
@@ -54,28 +55,12 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        final String name = name();
-        return new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return name;
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonyms, false);
-            }
-
-            @Override
-            public AnalysisMode getAnalysisMode() {
-                return analysisMode;
-            }
-
-            @Override
-            public String getResourceName() {
-                return rulesReader.resource();
-            }
-        };
+        return buildChainedFactory(
+            name(),
+            synonyms,
+            analysisMode,
+            rulesReader.resources(),
+            ts -> new SynonymGraphFilter(ts, synonyms, false)
+        );
     }
-
 }

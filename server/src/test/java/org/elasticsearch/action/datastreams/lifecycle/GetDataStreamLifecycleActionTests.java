@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetDataStreamLifecycleActionTests extends ESTestCase {
@@ -35,7 +36,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
     public void testDefaultLifecycleResponseToXContent() throws Exception {
         boolean isInternalDataStream = randomBoolean();
         GetDataStreamLifecycleAction.Response.DataStreamLifecycle dataStreamLifecycle = createDataStreamLifecycle(
-            DataStreamLifecycle.DEFAULT,
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
             isInternalDataStream
         );
         GetDataStreamLifecycleAction.Response response = new GetDataStreamLifecycleAction.Response(List.of(dataStreamLifecycle));
@@ -96,7 +97,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(new DataStreamLifecycle.Retention(configuredRetention), null, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(configuredRetention).build();
         {
             boolean isInternalDataStream = true;
             GetDataStreamLifecycleAction.Response.DataStreamLifecycle explainIndexDataStreamLifecycle = createDataStreamLifecycle(
@@ -123,11 +124,63 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testLifecycleEnabledByDefaultToXContent() throws Exception {
+        DataStreamGlobalRetention globalRetention = randomBoolean()
+            ? null
+            : new DataStreamGlobalRetention(TimeValue.timeValueDays(10), TimeValue.timeValueDays(50));
+        {
+            // a data stream managed by the default lifecycle reports it, but has no configured lifecycle to display, so neither is the
+            // global retention displayed as effective retention
+            String dataStreamName = randomAlphaOfLength(50);
+            Map<String, Object> resultMap = getXContentMap(
+                new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(dataStreamName, null, randomBoolean(), true),
+                globalRetention
+            );
+            assertThat(resultMap, equalTo(Map.of("name", dataStreamName, "minimum_lifecycle_enabled", true)));
+        }
+        {
+            // a data stream without any lifecycle displays only its name
+            String dataStreamName = randomAlphaOfLength(50);
+            Map<String, Object> resultMap = getXContentMap(
+                new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(dataStreamName, null, randomBoolean(), false),
+                globalRetention
+            );
+            assertThat(resultMap, equalTo(Map.of("name", dataStreamName)));
+        }
+        {
+            // a data stream with a configured lifecycle does not report the lifecycle as enabled by default
+            Map<String, Object> resultMap = getXContentMap(
+                createDataStreamLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE, randomBoolean()),
+                globalRetention
+            );
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
+            assertThat(((Map<String, Object>) resultMap.get("lifecycle")).get("enabled"), equalTo(true));
+        }
+    }
+
+    public void testLifecycleEnabledByDefaultEquality() {
+        GetDataStreamLifecycleAction.Response.DataStreamLifecycle enabledByDefault =
+            new GetDataStreamLifecycleAction.Response.DataStreamLifecycle("my-data-stream", null, false, true);
+        GetDataStreamLifecycleAction.Response.DataStreamLifecycle withoutLifecycle =
+            new GetDataStreamLifecycleAction.Response.DataStreamLifecycle("my-data-stream", null, false, false);
+        assertThat(enabledByDefault.equals(withoutLifecycle), equalTo(false));
+        assertThat(
+            new GetDataStreamLifecycleAction.Response(List.of(enabledByDefault)),
+            not(equalTo(new GetDataStreamLifecycleAction.Response(List.of(withoutLifecycle))))
+        );
+    }
+
     private GetDataStreamLifecycleAction.Response.DataStreamLifecycle createDataStreamLifecycle(
         DataStreamLifecycle lifecycle,
         boolean isInternalDataStream
     ) {
-        return new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(randomAlphaOfLength(50), lifecycle, isInternalDataStream);
+        return new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
+            randomAlphaOfLength(50),
+            lifecycle,
+            isInternalDataStream,
+            false
+        );
     }
 
     /*

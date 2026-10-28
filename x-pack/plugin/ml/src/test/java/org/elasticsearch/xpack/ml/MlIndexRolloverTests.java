@@ -111,7 +111,8 @@ public class MlIndexRolloverTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
         var routingTable = RoutingTable.builder()
@@ -151,6 +152,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client).threadPool();
+        verify(client).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -183,6 +185,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         // everything up to date so no action for the client
         verify(client).settings();
         verify(client).threadPool();
+        verify(client).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -214,6 +217,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client, times(3)).threadPool();
+        verify(client).projectResolver();
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());  // index rolled over
         verifyNoMoreInteractions(client);
     }
@@ -246,6 +250,7 @@ public class MlIndexRolloverTests extends ESTestCase {
         rollover.runUpdate(csBuilder.build());
         verify(client).settings();
         verify(client, times(5)).threadPool();
+        verify(client).projectResolver();
         verify(client).execute(same(TransportIndicesAliasesAction.TYPE), any(), any());  // alias created
         verify(client).execute(same(RolloverAction.INSTANCE), any(), any());    // index rolled over
         verifyNoMoreInteractions(client);

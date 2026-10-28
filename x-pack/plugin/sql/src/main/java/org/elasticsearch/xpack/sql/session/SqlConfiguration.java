@@ -43,6 +43,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private final Map<String, Object> runtimeMappings;
     private final boolean allowPartialSearchResults;
+    private final boolean crossProject;
+    private final String projectRouting;
+    private final int maxQueryLength;
 
     public SqlConfiguration(
         ZoneId zi,
@@ -61,7 +64,10 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         boolean includeFrozen,
         @Nullable TaskId taskId,
         @Nullable SqlQueryTask task,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        boolean crossProject,
+        String projectRouting,
+        int maxQueryLength
     ) {
         super(zi, username, clusterName);
 
@@ -79,6 +85,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.crossProject = crossProject;
+        this.projectRouting = projectRouting;
+        this.maxQueryLength = maxQueryLength;
     }
 
     public String catalog() {
@@ -135,5 +144,17 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
+    }
+
+    public boolean crossProject() {
+        return crossProject;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public int maxQueryLength() {
+        return maxQueryLength;
     }
 }

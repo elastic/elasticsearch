@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,18 +44,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     </li>
  * </ul>
  */
-public abstract class NumericAggregate extends AggregateFunction implements ToAggregator {
+public abstract class NumericAggregate extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
 
-    NumericAggregate(Source source, Expression field, List<Expression> parameters) {
-        super(source, field, parameters);
-    }
-
-    NumericAggregate(Source source, Expression field, Expression filter, List<Expression> parameters) {
-        super(source, field, filter, parameters);
-    }
-
-    NumericAggregate(Source source, Expression field) {
-        super(source, field);
+    NumericAggregate(Source source, Expression field, Expression filter, Expression window, List<Expression> parameters) {
+        super(source, field, filter, window, parameters);
     }
 
     NumericAggregate(StreamInput in) throws IOException {
@@ -92,26 +85,33 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (supportsDates() && type == DataType.DATETIME) {
-            return longSupplier(inputChannels);
+            return longSupplier();
         }
         if (type == DataType.LONG) {
-            return longSupplier(inputChannels);
+            return longSupplier();
         }
         if (type == DataType.INTEGER) {
-            return intSupplier(inputChannels);
+            return intSupplier();
         }
         if (type == DataType.DOUBLE) {
-            return doubleSupplier(inputChannels);
+            return doubleSupplier();
+        }
+        if (type == DataType.DENSE_VECTOR) {
+            return denseVectorSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
-    protected abstract AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier longSupplier();
 
-    protected abstract AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier intSupplier();
 
-    protected abstract AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier doubleSupplier();
+
+    protected AggregatorFunctionSupplier denseVectorSupplier() {
+        throw new UnsupportedOperationException("dense_vector not supported for this aggregation");
+    }
 }

@@ -16,4 +16,5 @@ esplugin {
 
 dependencies {
   clusterModules project(':modules:reindex')
+  clusterModules project(':modules:data-streams')
 }

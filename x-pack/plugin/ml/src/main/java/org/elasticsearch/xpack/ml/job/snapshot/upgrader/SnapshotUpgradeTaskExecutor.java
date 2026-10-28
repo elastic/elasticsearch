@@ -15,9 +15,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -88,10 +90,11 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SnapshotUpgradeTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
@@ -254,10 +257,12 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
 
     @Override
     protected String[] indicesOfInterest(SnapshotUpgradeTaskParams params) {
-        return new String[] {
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
-            MlConfigIndex.indexName(),
-            AnomalyDetectorsIndex.resultsWriteAlias(params.getJobId()) };
+        String[] statePatterns = AnomalyDetectorsIndex.jobStateIndexPatterns();
+        String[] indices = new String[statePatterns.length + 2];
+        System.arraycopy(statePatterns, 0, indices, 0, statePatterns.length);
+        indices[statePatterns.length] = MlConfigIndex.indexName();
+        indices[statePatterns.length + 1] = AnomalyDetectorsIndex.resultsWriteAlias(params.getJobId());
+        return indices;
     }
 
     @Override

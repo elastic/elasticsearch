@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -68,7 +69,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
@@ -79,7 +80,30 @@ public class AuthorizationUtilsTests extends ESTestCase {
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, randomFrom("internal:foo/bar"));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
+    }
+
+    public void testShouldSwitchToSystemUserForProxyNonInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        String nonInternalAction = randomFrom("indices:foo", "cluster:bar");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction(nonInternalAction));
+        assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
+    }
+
+    public void testShouldNotSwitchToSystemUserForProxyInternalOriginatingAction() {
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, TransportActionProxy.getProxyAction("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 
@@ -135,7 +159,8 @@ public class AuthorizationUtilsTests extends ESTestCase {
             ClientHelper.DEPRECATION_ORIGIN,
             ClientHelper.MONITORING_ORIGIN,
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
-            ClientHelper.INDEX_LIFECYCLE_ORIGIN
+            ClientHelper.INDEX_LIFECYCLE_ORIGIN,
+            ClientHelper.DATA_RECOVERY_ORIGIN
         )) {
             assertSwitchBasedOnOriginAndExecute(origin, InternalUsers.XPACK_USER, randomTransportVersion());
         }
@@ -148,6 +173,22 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSwitchWithTaskOrigin() throws Exception {
         assertSwitchBasedOnOriginAndExecute(TASKS_ORIGIN, InternalUsers.XPACK_USER, randomTransportVersion());
+    }
+
+    public void testSwitchWithEnrichOrigin() throws Exception {
+        // New nodes: ENRICH_ORIGIN maps to the dedicated _enrich user
+        assertSwitchBasedOnOriginAndExecute(
+            ClientHelper.ENRICH_ORIGIN,
+            InternalUsers.ENRICH_USER,
+            TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
+        );
+
+        // Old nodes: fall back to _xpack so they can decode it
+        assertSwitchBasedOnOriginAndExecute(
+            ClientHelper.ENRICH_ORIGIN,
+            InternalUsers.XPACK_USER,
+            TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER)
+        );
     }
 
     private void assertSwitchBasedOnOriginAndExecute(String origin, User user, TransportVersion version) throws Exception {
@@ -183,6 +224,6 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     private TransportVersion randomTransportVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(random());
+        return TransportVersionUtils.randomCompatibleVersion();
     }
 }

@@ -1,0 +1,164 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic;
+
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointResponse;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.DequeUtils;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedStreamingProcessor;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchemaPayload;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
+
+/**
+ * Streaming payloads are expected to be in the exact format of the Elastic API. This does *not* use the Server-Sent Event transport
+ * protocol, rather this expects the SageMaker client and the implemented Endpoint to use AWS's transport protocol to deliver entire chunks.
+ * Each chunk should be in a valid JSON format, as that is the format the Elastic API uses.
+ */
+public class ElasticCompletionPayload implements SageMakerStreamSchemaPayload, ElasticPayload {
+    private static final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+        LoggingDeprecationHandler.INSTANCE
+    );
+
+    /**
+     * {
+     *    "completion": [
+     *      {
+     *          "result": "some result 1"
+     *      },
+     *      {
+     *          "result": "some result 2"
+     *      }
+     *    ]
+     * }
+     */
+    @Override
+    public CompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+        try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.body().asInputStream())) {
+            return Completion.PARSER.apply(p, null);
+        }
+    }
+
+    /**
+     * {
+     *    "completion": [
+     *      {
+     *          "delta": "some result 1"
+     *      },
+     *      {
+     *          "delta": "some result 2"
+     *      }
+     *    ]
+     * }
+     */
+    @Override
+    public StreamingCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) throws Exception {
+        try (var p = jsonXContent.createParser(XContentParserConfiguration.EMPTY, response.asInputStream())) {
+            return StreamCompletion.PARSER.apply(p, null);
+        }
+    }
+
+    @Override
+    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequestBody request) {
+        return SdkBytes.fromUtf8String(Strings.toString((builder, params) -> {
+            request.toXContent(builder, UnifiedCompletionRequestBody.withMaxCompletionTokens(params));
+            return builder;
+        }));
+    }
+
+    @Override
+    public StreamingUnifiedChatCompletionResults.Results chatCompletionResponseBody(SageMakerModel model, SdkBytes response) {
+        var responseData = response.asUtf8String();
+        try {
+            var results = OpenAiUnifiedStreamingProcessor.parse(parserConfig, responseData)
+                .collect(() -> new ArrayDeque<ChatCompletionChunkResponse>(), ArrayDeque::offer, ArrayDeque::addAll);
+            return new StreamingUnifiedChatCompletionResults.Results(results);
+        } catch (Exception e) {
+            throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), responseData, e);
+        }
+    }
+
+    private static class Completion {
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<CompletionResults, Void> PARSER = new ConstructingObjectParser<>(
+            CompletionResults.class.getSimpleName(),
+            IGNORE_UNKNOWN_FIELDS,
+            args -> new CompletionResults((List<CompletionResults.Result>) args[0])
+        );
+        private static final ConstructingObjectParser<CompletionResults.Result, Void> RESULT_PARSER = new ConstructingObjectParser<>(
+            CompletionResults.Result.class.getSimpleName(),
+            IGNORE_UNKNOWN_FIELDS,
+            args -> new CompletionResults.Result((String) args[0])
+        );
+
+        static {
+            RESULT_PARSER.declareString(constructorArg(), new ParseField(CompletionResults.Result.RESULT));
+            PARSER.declareObjectArray(constructorArg(), RESULT_PARSER::apply, new ParseField(CompletionResults.COMPLETION));
+        }
+    }
+
+    private static class StreamCompletion {
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<StreamingCompletionResults.Results, Void> PARSER = new ConstructingObjectParser<>(
+            StreamingCompletionResults.Results.class.getSimpleName(),
+            IGNORE_UNKNOWN_FIELDS,
+            args -> new StreamingCompletionResults.Results((Deque<StreamingCompletionResults.Result>) args[0])
+        );
+        private static final ConstructingObjectParser<StreamingCompletionResults.Result, Void> RESULT_PARSER =
+            new ConstructingObjectParser<>(
+                StreamingCompletionResults.Result.class.getSimpleName(),
+                IGNORE_UNKNOWN_FIELDS,
+                args -> new StreamingCompletionResults.Result((String) args[0])
+            );
+
+        static {
+            RESULT_PARSER.declareString(constructorArg(), new ParseField(StreamingCompletionResults.Result.RESULT));
+            PARSER.declareField(constructorArg(), (p, c) -> {
+                var currentToken = p.currentToken();
+
+                // ES allows users to send single-value strings instead of an array of one value
+                if (currentToken.isValue()
+                    || currentToken == XContentParser.Token.VALUE_NULL
+                    || currentToken == XContentParser.Token.START_OBJECT) {
+                    return DequeUtils.of(RESULT_PARSER.apply(p, c));
+                }
+
+                var deque = new ArrayDeque<StreamingCompletionResults.Result>();
+                XContentParser.Token token;
+                while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token.isValue() || token == XContentParser.Token.VALUE_NULL || token == XContentParser.Token.START_OBJECT) {
+                        deque.offer(RESULT_PARSER.apply(p, c));
+                    } else {
+                        throw new IllegalStateException("expected value but got [" + token + "]");
+                    }
+                }
+                return deque;
+            }, new ParseField(CompletionResults.COMPLETION), ObjectParser.ValueType.OBJECT_ARRAY);
+        }
+    }
+}

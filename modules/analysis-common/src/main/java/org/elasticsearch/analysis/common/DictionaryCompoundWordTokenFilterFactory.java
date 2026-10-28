@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.Analysis;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter} to decompound tokens using a dictionary.
@@ -22,12 +23,36 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private final Object sharingKey;
+
     DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
+        this.sharingKey = new Key(minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch, wordListKey);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
+        return new DictionaryCompoundWordTokenFilter(
+            tokenStream,
+            wordList,
+            minWordSize,
+            minSubwordSize,
+            maxSubwordSize,
+            onlyLongestMatch,
+            reuseChars
+        );
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        int minWordSize,
+        int minSubwordSize,
+        int maxSubwordSize,
+        boolean onlyLongestMatch,
+        Analysis.StableCharArraySet wordList
+    ) {}
 }

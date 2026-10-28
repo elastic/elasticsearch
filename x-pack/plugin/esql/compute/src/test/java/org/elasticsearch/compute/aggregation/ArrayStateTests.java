@@ -13,17 +13,17 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,18 +32,37 @@ import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ArrayStateTests extends ESTestCase {
+public class ArrayStateTests extends ComputeTestCase {
+    /**
+     * Expected types for the array state tests.
+     * <p>
+     *     Different from ElementType as one ElementType may have multiple formats
+     *     (E.g. BYTES_REF represents both IP or an unconstrainted KEYWORD).
+     * </p>
+     */
+    public enum ValueType {
+        INTEGER,
+        LONG,
+        FLOAT,
+        DOUBLE,
+        BOOLEAN,
+        IP;
+    }
+
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
 
-        for (boolean inOrder : new boolean[] { true, false }) {
-            for (IntSupplier count : new IntSupplier[] { new Fixed(100), new Fixed(1000), new Random(100, 5000) }) {
-                params.add(new Object[] { DataType.INTEGER, count, inOrder });
-                params.add(new Object[] { DataType.LONG, count, inOrder });
-                params.add(new Object[] { DataType.FLOAT, count, inOrder });
-                params.add(new Object[] { DataType.DOUBLE, count, inOrder });
-                params.add(new Object[] { DataType.IP, count, inOrder });
+        for (ValueType type : ValueType.values()) {
+            for (boolean inOrder : new boolean[] { true, false }) {
+                for (IntSupplier count : new IntSupplier[] {
+                    new Fixed(1),
+                    new Fixed(100),
+                    new Fixed(1000),
+                    new Random(100, 5000),
+                    new Random(BooleanArrayState.PAGE_SIZE, 3 * BooleanArrayState.PAGE_SIZE) }) {
+                    params.add(new Object[] { type, count, inOrder });
+                }
             }
         }
         return params;
@@ -63,12 +82,12 @@ public class ArrayStateTests extends ESTestCase {
         }
     }
 
-    private final DataType type;
+    private final ValueType type;
     private final ElementType elementType;
     private final int valueCount;
     private final boolean inOrder;
 
-    public ArrayStateTests(@Name("type") DataType type, @Name("valueCount") IntSupplier valueCount, @Name("inOrder") boolean inOrder) {
+    public ArrayStateTests(@Name("type") ValueType type, @Name("valueCount") IntSupplier valueCount, @Name("inOrder") boolean inOrder) {
         this.type = type;
         this.elementType = switch (type) {
             case INTEGER -> ElementType.INT;
@@ -77,7 +96,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> ElementType.DOUBLE;
             case BOOLEAN -> ElementType.BOOLEAN;
             case IP -> ElementType.BYTES_REF;
-            default -> throw new IllegalArgumentException();
         };
         this.valueCount = valueCount.getAsInt();
         this.inOrder = inOrder;
@@ -87,18 +105,19 @@ public class ArrayStateTests extends ESTestCase {
     public void testSetNoTracking() {
         List<Object> values = randomList(valueCount, valueCount, this::randomValue);
 
-        AbstractArrayState state = newState();
+        AbstractArrayState state = newState(blockFactory());
         setAll(state, values, 0);
         for (int i = 0; i < values.size(); i++) {
             assertTrue(state.hasValue(i));
             assertThat(get(state, i), equalTo(values.get(i)));
         }
+        state.close();
     }
 
     public void testSetWithoutTrackingThenSetWithTracking() {
         List<Object> values = randomList(valueCount, valueCount, this::nullableRandomValue);
 
-        AbstractArrayState state = newState();
+        AbstractArrayState state = newState(blockFactory());
         state.enableGroupIdTracking(new SeenGroupIds.Empty());
         setAll(state, values, 0);
         for (int i = 0; i < values.size(); i++) {
@@ -109,13 +128,14 @@ public class ArrayStateTests extends ESTestCase {
                 assertThat(get(state, i), equalTo(values.get(i)));
             }
         }
+        state.close();
     }
 
     public void testSetWithTracking() {
         List<Object> withoutNulls = randomList(valueCount, valueCount, this::randomValue);
         List<Object> withNulls = randomList(valueCount, valueCount, this::nullableRandomValue);
 
-        AbstractArrayState state = newState();
+        AbstractArrayState state = newState(blockFactory());
         setAll(state, withoutNulls, 0);
         state.enableGroupIdTracking(new SeenGroupIds.Range(0, withoutNulls.size()));
         setAll(state, withNulls, withoutNulls.size());
@@ -132,13 +152,14 @@ public class ArrayStateTests extends ESTestCase {
                 assertThat(get(state, i + withoutNulls.size()), equalTo(withNulls.get(i)));
             }
         }
+        state.close();
     }
 
     public void testSetNotNullableThenOverwriteNullable() {
         List<Object> first = randomList(valueCount, valueCount, this::randomValue);
         List<Object> second = randomList(valueCount, valueCount, this::nullableRandomValue);
 
-        AbstractArrayState state = newState();
+        AbstractArrayState state = newState(blockFactory());
         setAll(state, first, 0);
         state.enableGroupIdTracking(new SeenGroupIds.Range(0, valueCount));
         setAll(state, second, 0);
@@ -149,13 +170,14 @@ public class ArrayStateTests extends ESTestCase {
             expected = expected == null ? first.get(i) : expected;
             assertThat(get(state, i), equalTo(expected));
         }
+        state.close();
     }
 
     public void testSetNullableThenOverwriteNullable() {
         List<Object> first = randomList(valueCount, valueCount, this::nullableRandomValue);
         List<Object> second = randomList(valueCount, valueCount, this::nullableRandomValue);
 
-        AbstractArrayState state = newState();
+        AbstractArrayState state = newState(blockFactory());
         state.enableGroupIdTracking(new SeenGroupIds.Empty());
         setAll(state, first, 0);
         setAll(state, second, 0);
@@ -170,15 +192,19 @@ public class ArrayStateTests extends ESTestCase {
                 assertThat(get(state, i), equalTo(expected));
             }
         }
+        state.close();
     }
 
     public void testToIntermediate() {
-        AbstractArrayState state = newState();
+        BlockFactory blockFactory = blockFactory();
+        AbstractArrayState state = newState(blockFactory);
         List<Object> values = randomList(valueCount, valueCount, this::randomValue);
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
-        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
-        state.toIntermediate(intermediate, 0, IntVector.range(0, valueCount, ctx.blockFactory()), ctx);
+        DriverContext ctx = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (IntVector selected = ctx.blockFactory().newIntRangeVector(0, valueCount)) {
+            state.toIntermediate(intermediate, 0, selected, ctx);
+        }
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));
             assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));
@@ -196,22 +222,26 @@ public class ArrayStateTests extends ESTestCase {
         } finally {
             Releasables.close(intermediate);
         }
+        state.close();
     }
 
     /**
-     * Calls {@link GroupingAggregatorState#toIntermediate} with a range that's greater than
+     * Calls {@link AbstractArrayState#toIntermediate} with a range that's greater than
      * any collected values. This is acceptable if {@link AbstractArrayState#enableGroupIdTracking}
      * is called, so we do that.
      */
     public void testToIntermediatePastEnd() {
         int end = valueCount + between(1, 10000);
-        AbstractArrayState state = newState();
+        BlockFactory blockFactory = blockFactory();
+        AbstractArrayState state = newState(blockFactory);
         state.enableGroupIdTracking(new SeenGroupIds.Empty());
         List<Object> values = randomList(valueCount, valueCount, this::randomValue);
         setAll(state, values, 0);
         Block[] intermediate = new Block[2];
-        DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance());
-        state.toIntermediate(intermediate, 0, IntVector.range(0, end, ctx.blockFactory()), ctx);
+        DriverContext ctx = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (IntVector selected = ctx.blockFactory().newIntRangeVector(0, end)) {
+            state.toIntermediate(intermediate, 0, selected, ctx);
+        }
         try {
             assertThat(intermediate[0].elementType(), equalTo(elementType));
             assertThat(intermediate[1].elementType(), equalTo(ElementType.BOOLEAN));
@@ -232,6 +262,19 @@ public class ArrayStateTests extends ESTestCase {
         } finally {
             Releasables.close(intermediate);
         }
+        state.close();
+    }
+
+    public void testCranky() {
+        testWithCrankyBlockFactory(cranky -> {
+            List<Object> values = randomList(valueCount, valueCount, this::nullableRandomValue);
+            try (AbstractArrayState state = newState(cranky)) {
+                if (randomBoolean()) {
+                    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+                }
+                setAll(state, values, 0);
+            }
+        });
     }
 
     private record ValueAndIndex(int index, Object value) {}
@@ -257,15 +300,16 @@ public class ArrayStateTests extends ESTestCase {
         }
     }
 
-    private AbstractArrayState newState() {
+    private AbstractArrayState newState(BlockFactory blockFactory) {
+        BigArrays bigArrays = blockFactory.bigArrays();
+        CircuitBreaker breaker = blockFactory.breaker();
         return switch (type) {
-            case INTEGER -> new IntArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
-            case LONG -> new LongArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
-            case FLOAT -> new FloatArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
-            case DOUBLE -> new DoubleArrayState(BigArrays.NON_RECYCLING_INSTANCE, 1);
-            case BOOLEAN -> new BooleanArrayState(BigArrays.NON_RECYCLING_INSTANCE, false);
-            case IP -> new IpArrayState(BigArrays.NON_RECYCLING_INSTANCE, new BytesRef(new byte[16]));
-            default -> throw new IllegalArgumentException();
+            case INTEGER -> new IntArrayState(bigArrays, breaker, 1);
+            case LONG -> new LongArrayState(bigArrays, breaker, 1);
+            case FLOAT -> new FloatArrayState(bigArrays, breaker, 1);
+            case DOUBLE -> new DoubleArrayState(bigArrays, breaker, 1);
+            case BOOLEAN -> new BooleanArrayState(bigArrays, breaker, false);
+            case IP -> new IpArrayState(bigArrays, new BytesRef(new byte[16]));
         };
     }
 
@@ -277,7 +321,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> 1d;
             case BOOLEAN -> false;
             case IP -> new BytesRef(new byte[16]);
-            default -> throw new IllegalArgumentException();
         };
     }
 
@@ -301,7 +344,6 @@ public class ArrayStateTests extends ESTestCase {
             case DOUBLE -> ((DoubleArrayState) state).get(index);
             case BOOLEAN -> ((BooleanArrayState) state).get(index);
             case IP -> ((IpArrayState) state).get(index, new BytesRef());
-            default -> throw new IllegalArgumentException();
         };
     }
 
@@ -309,7 +351,6 @@ public class ArrayStateTests extends ESTestCase {
         return switch (type) {
             case INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN -> BlockTestUtils.randomValue(elementType);
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            default -> throw new IllegalArgumentException();
         };
     }
 

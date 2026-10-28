@@ -31,16 +31,10 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      CountDistinctBooleanAggregator.SingleState state) {
+  CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static CountDistinctBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(driverContext, channels, CountDistinctBooleanAggregator.initSingle());
+    this.state = CountDistinctBooleanAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -56,69 +50,103 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      BooleanBlock block = page.getBlock(channels.get(0));
-      BooleanVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    BooleanBlock block = page.getBlock(channels.get(0));
-    BooleanVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BooleanVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      CountDistinctBooleanAggregator.combine(state, vector.getBoolean(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BooleanBlock vBlock = page.getBlock(channels.get(0));
+    BooleanVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BooleanBlock vBlock = page.getBlock(channels.get(0));
+    BooleanVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(BooleanVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      CountDistinctBooleanAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(BooleanVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(BooleanVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      CountDistinctBooleanAggregator.combine(state, vector.getBoolean(i));
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      CountDistinctBooleanAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(BooleanBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(BooleanBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        CountDistinctBooleanAggregator.combine(state, block.getBoolean(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        boolean vValue = vBlock.getBoolean(vOffset);
+        CountDistinctBooleanAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(BooleanBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(BooleanBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        CountDistinctBooleanAggregator.combine(state, block.getBoolean(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        boolean vValue = vBlock.getBoolean(vOffset);
+        CountDistinctBooleanAggregator.combine(state, vValue);
       }
     }
   }
@@ -129,12 +157,30 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block fbitUncast = page.getBlock(channels.get(0));
     if (fbitUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
     assert fbit.getPositionCount() == 1;
     Block tbitUncast = page.getBlock(channels.get(1));
     if (tbitUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();

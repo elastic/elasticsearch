@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler;
@@ -145,15 +146,17 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         maintenanceLock.release();
     }
 
+    @FixForMultiProject // We need to ensure that the enrich indices are cleaned up for all projects
     void cleanUpEnrichIndices() {
         // Get cluster state first because for a new index to exist there then it has to have already been added to the inflight list
         // If the new index is in the cluster state but not in the inflight list, then that means that the index name was removed from the
         // list inflight list because it has already been promoted or because the policy execution failed.
         ClusterState clusterState = clusterService.state();
         Set<String> inflightPolicyExecutionIndices = enrichPolicyLocks.inflightPolicyIndices();
-        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState);
+        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState.metadata().getProject());
         logger.debug(() -> "Working enrich indices excluded from maintenance [" + String.join(", ", inflightPolicyExecutionIndices) + "]");
         String[] removeIndices = clusterState.metadata()
+            .getProject()
             .indices()
             .values()
             .stream()

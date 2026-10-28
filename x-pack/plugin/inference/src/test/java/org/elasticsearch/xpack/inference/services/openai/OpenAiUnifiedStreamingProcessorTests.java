@@ -1,0 +1,674 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.openai;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChoiceResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionToolCallResponse;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiUnifiedChatCompletionParser;
+
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.onNext;
+import static org.hamcrest.Matchers.is;
+
+public class OpenAiUnifiedStreamingProcessorTests extends ESTestCase {
+
+    public void testJsonLiteral() {
+        String json = """
+                {
+                  "id": "example_id",
+                  "choices": [
+                    {
+                      "delta": {
+                        "content": "example_content",
+                        "refusal": null,
+                        "role": "assistant",
+                        "tool_calls": [
+                          {
+                            "index": 1,
+                            "id": "tool_call_id",
+                            "function": {
+                              "arguments": "example_arguments",
+                              "name": "example_function_name"
+                            },
+                            "type": "function"
+                          }
+                        ]
+                      },
+                      "finish_reason": "stop",
+                      "index": 0
+                    }
+                  ],
+                  "model": "example_model",
+                  "object": "chat.completion.chunk",
+                  "usage": {
+                    "completion_tokens": 50,
+                    "prompt_tokens": 20,
+                    "total_tokens": 70
+                  }
+                }
+            """;
+        // Parse the JSON
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            // Assertions to verify the parsed object
+            assertEquals("example_id", chunk.id());
+            assertEquals("example_model", chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNotNull(chunk.usage());
+            assertEquals(50, chunk.usage().completionTokens());
+            assertEquals(20, chunk.usage().promptTokens());
+            assertEquals(70, chunk.usage().totalTokens());
+
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
+            assertEquals(1, choices.size());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertEquals("example_content", choice.message().content());
+            assertNull(choice.message().refusal());
+            assertEquals("assistant", choice.message().role());
+            assertEquals("stop", choice.finishReason());
+            assertEquals(0, choice.index());
+
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
+            assertEquals(1, toolCalls.size());
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
+            assertEquals(1, toolCall.index());
+            assertEquals("tool_call_id", toolCall.id());
+            assertEquals("example_function_name", toolCall.function().name());
+            assertEquals("example_arguments", toolCall.function().arguments());
+            assertEquals("function", toolCall.type());
+        } catch (IOException e) {
+            fail();
+        }
+    }
+
+    public void testJsonLiteralCornerCases() {
+        String json = """
+                {
+                  "id": "example_id",
+                  "choices": [
+                    {
+                      "delta": {
+                        "content": null,
+                        "refusal": null,
+                        "role": "assistant",
+                        "tool_calls": []
+                      },
+                      "finish_reason": null,
+                      "index": 0
+                    },
+                    {
+                      "delta": {
+                        "content": "example_content",
+                        "refusal": "example_refusal",
+                        "role": "user",
+                        "tool_calls": [
+                          {
+                            "index": 1,
+                            "function": {
+                              "name": "example_function_name"
+                            },
+                            "type": "function"
+                          }
+                        ]
+                      },
+                      "finish_reason": "stop",
+                      "index": 1
+                    }
+                  ],
+                  "model": "example_model",
+                  "object": "chat.completion.chunk",
+                  "usage": null
+                }
+            """;
+        // Parse the JSON
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            // Assertions to verify the parsed object
+            assertEquals("example_id", chunk.id());
+            assertEquals("example_model", chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNull(chunk.usage());
+
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
+            assertEquals(2, choices.size());
+
+            // First choice assertions
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
+            assertNull(firstChoice.message().content());
+            assertNull(firstChoice.message().refusal());
+            assertEquals("assistant", firstChoice.message().role());
+            assertTrue(firstChoice.message().toolCalls().isEmpty());
+            assertNull(firstChoice.finishReason());
+            assertEquals(0, firstChoice.index());
+
+            // Second choice assertions
+            ChatCompletionChoiceResponse secondChoice = choices.get(1);
+            assertEquals("example_content", secondChoice.message().content());
+            assertEquals("example_refusal", secondChoice.message().refusal());
+            assertEquals("user", secondChoice.message().role());
+            assertEquals("stop", secondChoice.finishReason());
+            assertEquals(1, secondChoice.index());
+
+            List<ChatCompletionToolCallResponse> toolCalls = secondChoice.message().toolCalls();
+            assertEquals(1, toolCalls.size());
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
+            assertEquals(1, toolCall.index());
+            assertNull(toolCall.id());
+            assertEquals("example_function_name", toolCall.function().name());
+            assertNull(toolCall.function().arguments());
+            assertEquals("function", toolCall.type());
+        } catch (IOException e) {
+            fail();
+        }
+    }
+
+    public void testJsonNullFunctionName() throws IOException {
+        String json = """
+            {
+                "object": "chat.completion.chunk",
+                "id": "",
+                "created": 1746800254,
+                "model": "/repository",
+                "system_fingerprint": "3.2.3-sha-a1f3ebe",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a",
+                                    "type": "function",
+                                    "function": {
+                                        "name": null,
+                                        "arguments": " \\\""
+                                    }
+                                }
+                            ]
+                        },
+                        "logprobs": null,
+                        "finish_reason": null
+                    }
+                ],
+                "usage": null
+            }
+            """;
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            // Assertions to verify the parsed object
+            assertThat(chunk.id(), is(""));
+            assertThat(chunk.model(), is("/repository"));
+            assertThat(chunk.object(), is("chat.completion.chunk"));
+            assertNull(chunk.usage());
+
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
+            assertThat(choices.size(), is(1));
+
+            // First choice assertions
+            ChatCompletionChoiceResponse firstChoice = choices.get(0);
+            assertNull(firstChoice.message().content());
+            assertNull(firstChoice.message().refusal());
+            assertThat(firstChoice.message().role(), is("assistant"));
+            assertNull(firstChoice.finishReason());
+            assertThat(firstChoice.index(), is(0));
+
+            List<ChatCompletionToolCallResponse> toolCalls = firstChoice.message().toolCalls();
+            assertThat(toolCalls.size(), is(1));
+
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
+            assertThat(toolCall.index(), is(0));
+            assertThat(toolCall.id(), is("8f7c27be-6803-48e6-bba4-8cdcbcd2ff9a"));
+            assertThat(toolCall.type(), is("function"));
+            assertNull(toolCall.function().name());
+            assertThat(toolCall.function().arguments(), is(" \""));
+        }
+    }
+
+    public void testOpenAiUnifiedStreamingProcessorParsing() throws IOException {
+        // Generate random values for the JSON fields
+        int toolCallIndex = randomIntBetween(0, 10);
+        String toolCallId = randomAlphaOfLength(5);
+        String toolCallFunctionName = randomAlphaOfLength(8);
+        String toolCallFunctionArguments = randomAlphaOfLength(10);
+        String toolCallType = "function";
+        String toolCallJson = createToolCallJson(toolCallIndex, toolCallId, toolCallFunctionName, toolCallFunctionArguments, toolCallType);
+
+        String choiceContent = randomAlphaOfLength(10);
+        String choiceRole = randomFrom("system", "user", "assistant", "tool");
+        String choiceFinishReason = randomFrom("stop", "length", "tool_calls", "content_filter", "function_call", null);
+        int choiceIndex = randomIntBetween(0, 10);
+        String choiceJson = createChoiceJson(choiceContent, null, choiceRole, toolCallJson, choiceFinishReason, choiceIndex);
+
+        int usageCompletionTokens = randomIntBetween(1, 100);
+        int usagePromptTokens = randomIntBetween(1, 100);
+        int usageTotalTokens = randomIntBetween(1, 200);
+        int reasoningTokens = randomIntBetween(1, 50);
+        String usageJson = createUsageJson(usageCompletionTokens, usagePromptTokens, usageTotalTokens, null, null, reasoningTokens);
+
+        String chatCompletionChunkId = randomAlphaOfLength(10);
+        String chatCompletionChunkModel = randomAlphaOfLength(5);
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
+            chatCompletionChunkId,
+            choiceJson,
+            chatCompletionChunkModel,
+            "chat.completion.chunk",
+            usageJson
+        );
+
+        // Parse the JSON
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            // Assertions to verify the parsed object
+            assertEquals(chatCompletionChunkId, chunk.id());
+            assertEquals(chatCompletionChunkModel, chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNotNull(chunk.usage());
+            assertEquals(usageCompletionTokens, chunk.usage().completionTokens());
+            assertEquals(usagePromptTokens, chunk.usage().promptTokens());
+            assertEquals(usageTotalTokens, chunk.usage().totalTokens());
+            assertNotNull(chunk.usage().completionTokenDetails());
+            assertNotNull(chunk.usage().completionTokenDetails().reasoningTokens());
+            assertEquals(reasoningTokens, (int) chunk.usage().completionTokenDetails().reasoningTokens());
+
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
+            assertEquals(1, choices.size());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertEquals(choiceContent, choice.message().content());
+            assertNull(choice.message().refusal());
+            assertEquals(choiceRole, choice.message().role());
+            assertEquals("some_reasoning", choice.message().reasoning());
+            assertEquals(
+                List.of(
+                    new ReasoningDetail.EncryptedReasoningDetail(
+                        "some_encrypted_reasoning_detail_format",
+                        "some_id_0",
+                        0L,
+                        "some_encrypted_data"
+                    ),
+                    new ReasoningDetail.SummaryReasoningDetail("some_summary_reasoning_detail_format", "some_id_1", 1L, "some_summary"),
+                    new ReasoningDetail.TextReasoningDetail(
+                        "some_text_reasoning_detail_format",
+                        "some_id_2",
+                        2L,
+                        "some_text",
+                        "some_signature"
+                    )
+                ),
+                choice.message().reasoningDetails()
+            );
+            assertEquals(choiceFinishReason, choice.finishReason());
+            assertEquals(choiceIndex, choice.index());
+
+            List<ChatCompletionToolCallResponse> toolCalls = choice.message().toolCalls();
+            assertEquals(1, toolCalls.size());
+            ChatCompletionToolCallResponse toolCall = toolCalls.get(0);
+            assertEquals(toolCallIndex, toolCall.index());
+            assertEquals(toolCallId, toolCall.id());
+            assertEquals(toolCallFunctionName, toolCall.function().name());
+            assertEquals(toolCallFunctionArguments, toolCall.function().arguments());
+            assertEquals(toolCallType, toolCall.type());
+        }
+    }
+
+    public void testOpenAiUnifiedStreamingProcessorParsingWithNullFields() throws IOException {
+        // JSON with null fields
+        int choiceIndex = randomIntBetween(0, 10);
+        String choiceJson = createChoiceJson(null, null, null, "", null, choiceIndex);
+
+        String chatCompletionChunkId = randomAlphaOfLength(10);
+        String chatCompletionChunkModel = randomAlphaOfLength(5);
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
+            chatCompletionChunkId,
+            choiceJson,
+            chatCompletionChunkModel,
+            "chat.completion.chunk",
+            null
+        );
+
+        // Parse the JSON
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            // Assertions to verify the parsed object
+            assertEquals(chatCompletionChunkId, chunk.id());
+            assertEquals(chatCompletionChunkModel, chunk.model());
+            assertEquals("chat.completion.chunk", chunk.object());
+            assertNull(chunk.usage());
+
+            List<ChatCompletionChoiceResponse> choices = chunk.choices();
+            assertEquals(1, choices.size());
+            ChatCompletionChoiceResponse choice = choices.get(0);
+            assertNull(choice.message().content());
+            assertNull(choice.message().refusal());
+            assertNull(choice.message().role());
+            assertNull(choice.finishReason());
+            assertEquals(choiceIndex, choice.index());
+            assertTrue(choice.message().toolCalls().isEmpty());
+        }
+    }
+
+    private String createToolCallJson(int index, String id, String functionName, String functionArguments, String type) {
+        return Strings.format("""
+            {
+                "index": %d,
+                "id": "%s",
+                "function": {
+                    "name": "%s",
+                    "arguments": "%s"
+                },
+                "type": "%s"
+            }
+            """, index, id, functionName, functionArguments, type);
+    }
+
+    private String createChoiceJson(String content, String refusal, String role, String toolCallsJson, String finishReason, int index) {
+        if (role == null) {
+            return Strings.format(
+                """
+                    {
+                        "delta": {
+                            "content": %s,
+                            "refusal": %s,
+                            "tool_calls": [%s]
+                        },
+                        "finish_reason": %s,
+                        "index": %d
+                    }
+                    """,
+                content != null ? "\"" + content + "\"" : "null",
+                refusal != null ? "\"" + refusal + "\"" : "null",
+                toolCallsJson,
+                finishReason != null ? "\"" + finishReason + "\"" : "null",
+                index
+            );
+        } else {
+            return Strings.format(
+                """
+                    {
+                        "delta": {
+                            "content": %s,
+                            "refusal": %s,
+                            "role": %s,
+                            "tool_calls": [%s],
+                            "reasoning": "some_reasoning",
+                            "reasoning_details": [
+                                {
+                                    "type": "reasoning.encrypted",
+                                    "format": "some_encrypted_reasoning_detail_format",
+                                    "id": "some_id_0",
+                                    "index": 0,
+                                    "data": "some_encrypted_data"
+                                },
+                                {
+                                    "type": "reasoning.summary",
+                                    "format": "some_summary_reasoning_detail_format",
+                                    "id": "some_id_1",
+                                    "index": 1,
+                                    "summary": "some_summary"
+                                },
+                                {
+                                    "type": "reasoning.text",
+                                    "format": "some_text_reasoning_detail_format",
+                                    "id": "some_id_2",
+                                    "index": 2,
+                                    "text": "some_text",
+                                    "signature": "some_signature"
+                                }
+                            ]
+                        },
+                        "finish_reason": %s,
+                        "index": %d
+                    }
+                    """,
+                content != null ? "\"" + content + "\"" : "null",
+                refusal != null ? "\"" + refusal + "\"" : "null",
+                role != null ? "\"" + role + "\"" : "null",
+                toolCallsJson,
+                finishReason != null ? "\"" + finishReason + "\"" : "null",
+                index
+            );
+        }
+    }
+
+    private String createChatCompletionChunkResponseJson(String id, String choicesJson, String model, String object, String usageJson) {
+        if (usageJson != null) {
+            return Strings.format("""
+                {
+                    "id": "%s",
+                    "choices": [%s],
+                    "model": "%s",
+                    "object": "%s",
+                    "usage": %s
+                }
+                """, id, choicesJson, model, object, usageJson);
+        } else {
+            return Strings.format("""
+                {
+                    "id": "%s",
+                    "choices": [%s],
+                    "model": "%s",
+                    "object": "%s"
+                }
+                """, id, choicesJson, model, object);
+        }
+    }
+
+    private String createUsageJson(
+        int completionTokens,
+        int promptTokens,
+        int totalTokens,
+        @Nullable Integer cachedTokens,
+        @Nullable Integer cacheWriteTokens,
+        @Nullable Integer reasoningTokens
+    ) {
+        String promptTokensDetailsPart = promptTokensDetailsJson(cachedTokens, cacheWriteTokens);
+        String reasoningTokensPart = reasoningTokens != null ? Strings.format("""
+            ,
+            "completion_tokens_details": {
+                "reasoning_tokens": %d
+            }""", reasoningTokens) : "";
+        return Strings.format("""
+            {
+                "completion_tokens": %d,
+                "prompt_tokens": %d,
+                "total_tokens": %d\
+                %s\
+                %s
+            }
+            """, completionTokens, promptTokens, totalTokens, promptTokensDetailsPart, reasoningTokensPart);
+    }
+
+    private static String promptTokensDetailsJson(@Nullable Integer cachedTokens, @Nullable Integer cacheWriteTokens) {
+        if (cachedTokens == null && cacheWriteTokens == null) {
+            return "";
+        }
+
+        var fields = new ArrayList<String>();
+        if (cachedTokens != null) {
+            fields.add(Strings.format("\"cached_tokens\": %d", cachedTokens));
+        }
+        if (cacheWriteTokens != null) {
+            fields.add(Strings.format("\"cache_write_tokens\": %d", cacheWriteTokens));
+        }
+
+        return Strings.format("""
+            ,
+            "prompt_tokens_details": {
+                %s
+            }""", String.join(",\n    ", fields));
+    }
+
+    public void testUsageParsingWithCachedAndReasoningTokens() throws IOException {
+        testUsageParsing(true, true);
+    }
+
+    public void testUsageParsingWithoutCachedAndReasoningTokens() throws IOException {
+        testUsageParsing(false, false);
+    }
+
+    public void testUsageParsingWithReasoningTokens() throws IOException {
+        testUsageParsing(false, true);
+    }
+
+    public void testUsageParsingWithCachedTokens() throws IOException {
+        testUsageParsing(true, false);
+    }
+
+    private void testUsageParsing(boolean includeCachedTokens, boolean includeReasoningTokens) throws IOException {
+        int completionTokens = randomIntBetween(1, 100);
+        int promptTokens = randomIntBetween(1, 100);
+        int totalTokens = randomIntBetween(1, 200);
+        var cachedTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var cacheWriteTokens = includeCachedTokens ? randomIntBetween(1, 50) : null;
+        var reasoningTokens = includeReasoningTokens ? randomIntBetween(1, 50) : null;
+
+        String usageJson = createUsageJson(completionTokens, promptTokens, totalTokens, cachedTokens, cacheWriteTokens, reasoningTokens);
+
+        String chatCompletionChunkJson = createChatCompletionChunkResponseJson(
+            randomAlphaOfLength(10),
+            createChoiceJson(null, null, null, "", null, 0),
+            randomAlphaOfLength(5),
+            "chat.completion.chunk",
+            usageJson
+        );
+
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, chatCompletionChunkJson)) {
+            ChatCompletionChunkResponse chunk = OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser);
+
+            assertNotNull(chunk.usage());
+            assertEquals(completionTokens, chunk.usage().completionTokens());
+            assertEquals(promptTokens, chunk.usage().promptTokens());
+            assertEquals(totalTokens, chunk.usage().totalTokens());
+            if (includeCachedTokens) {
+                assertNotNull(chunk.usage().promptTokensDetails());
+                assertEquals(cachedTokens, chunk.usage().promptTokensDetails().cachedTokens());
+                assertEquals(cacheWriteTokens, chunk.usage().promptTokensDetails().cacheWriteTokens());
+            } else {
+                assertNull(chunk.usage().promptTokensDetails());
+            }
+            if (includeReasoningTokens) {
+                assertNotNull(chunk.usage().completionTokenDetails());
+                assertEquals(reasoningTokens, chunk.usage().completionTokenDetails().reasoningTokens());
+            } else {
+                assertNull(chunk.usage().completionTokenDetails());
+            }
+        }
+    }
+
+    public void testMultipleJsonObjectsInSingleEventAreParsed() throws IOException {
+        var firstChunkData = """
+            {
+                "id": "1",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var secondChunkData = """
+            {
+                "id": "2",
+                "choices": [],
+                "model": "m",
+                "object": "chat.completion.chunk"
+            }\
+            """;
+        var data = firstChunkData + "\n" + secondChunkData;
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var chunks = OpenAiUnifiedStreamingProcessor.parse(parserConfig, data).toList();
+        assertThat(chunks.size(), is(2));
+        assertThat(chunks.get(0).id(), is("1"));
+        assertThat(chunks.get(1).id(), is("2"));
+    }
+
+    public void testParsesDeltaWithExplicitNullRoleAndVendorFields() {
+        var events = new ArrayDeque<ServerSentEvent>();
+        events.add(new ServerSentEvent(deltaChunkJson("{\"role\":\"assistant\"}")));
+        events.add(new ServerSentEvent(deltaChunkJson("""
+            {"content":"Hello","function_call":null,"refusal":null,"role":null,"tool_calls":null,"obfuscation":"wf04z"}
+            """)));
+        var chunks = onNext(new OpenAiUnifiedStreamingProcessor((data, exception) -> exception), events).chunks();
+        assertThat(chunks.size(), is(2));
+        var message = chunks.getLast().choices().get(0).message();
+        assertThat(message.content(), is("Hello"));
+        assertNull(message.role());
+    }
+
+    public void testOptionalNullFieldsMatchOmission() throws IOException {
+        for (boolean streaming : new boolean[] { true, false }) {
+            var choices = "\"choices\":[{\"index\":0,\"" + (streaming ? "delta" : "message") + "\":%s}]}";
+            for (var message : List.of(
+                List.of("{}", "{\"role\":null,\"reasoning\":null}"),
+                List.of("{\"tool_calls\":[{\"index\":0}]}", "{\"tool_calls\":[{\"index\":0,\"id\":null,\"type\":null,\"function\":null}]}"),
+                List.of(
+                    "{\"tool_calls\":[{\"index\":0,\"function\":{}}]}",
+                    "{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":null}}]}"
+                )
+            )) {
+                assertEquals(
+                    parseChunk(Strings.format("{\"id\":\"c\"," + choices, message.get(0)), streaming),
+                    parseChunk(Strings.format("{\"id\":\"c\",\"model\":null,\"object\":null," + choices, message.get(1)), streaming)
+                );
+            }
+        }
+    }
+
+    public void testStreamingToolCallIndexRejectsNull() {
+        expectThrows(IllegalArgumentException.class, () -> parseChunk(deltaChunkJson("{\"tool_calls\":[{\"index\":null}]}"), true));
+    }
+
+    private static String deltaChunkJson(String deltaJson) {
+        return Strings.format("{\"id\":\"c\",\"choices\":[{\"index\":0,\"delta\":%s}]}", deltaJson);
+    }
+
+    private static ChatCompletionChunkResponse parseChunk(String json, boolean streaming) throws IOException {
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(
+            LoggingDeprecationHandler.INSTANCE
+        );
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, json)) {
+            return streaming
+                ? OpenAiUnifiedChatCompletionParser.parseStreamingChunk(parser)
+                : OpenAiUnifiedChatCompletionParser.parseNonStreamingResponse(parser);
+        }
+    }
+}

@@ -30,7 +30,6 @@ public class GetSLMStatusAction extends ActionType<GetSLMStatusAction.Response> 
         private final OperationMode mode;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.mode = in.readEnum(OperationMode.class);
         }
 

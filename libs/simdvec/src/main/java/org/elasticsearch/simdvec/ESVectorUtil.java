@@ -9,14 +9,21 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.search.TaskExecutor;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ByteOrder;
+import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 
@@ -29,17 +36,346 @@ public class ESVectorUtil {
             // On ARM Long::bitCount is not vectorized, and therefore produces less than optimal code, when
             // compared to Integer::bitCount. While Long::bitCount is optimal on x64. See
             // https://bugs.openjdk.org/browse/JDK-8336000
+            MethodType type = MethodType.methodType(int.class, byte[].class, int.class, byte[].class, int.class, int.class);
             BIT_COUNT_MH = Constants.OS_ARCH.equals("aarch64")
-                ? MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountInt", MethodType.methodType(int.class, byte[].class, byte[].class))
-                : MethodHandles.lookup()
-                    .findStatic(ESVectorUtil.class, "andBitCountLong", MethodType.methodType(int.class, byte[].class, byte[].class));
+                ? MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountInt", type)
+                : MethodHandles.lookup().findStatic(ESVectorUtil.class, "andBitCountLong", type);
         } catch (NoSuchMethodException | IllegalAccessException e) {
             throw new AssertionError(e);
         }
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+    private static final VectorScorerFactory SCORERS = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return SCORERS.newES91OSQVectorsScorer(input, dimension, bulkSize);
+    }
+
+    public static ES940OSQVectorsScorer getES940OSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
+    ) throws IOException {
+        return SCORERS.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+    }
+
+    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    /** Creates an ASH float-query scorer. */
+    public static AshScorer<float[]> getAshFloatVectorsScorer(IndexInput input, int nDims, int bitsPerDim) throws IOException {
+        return SCORERS.newESNextAshFloatVectorsScorer(input, nDims, bitsPerDim);
+    }
+
+    /** Creates an ASH integer-query scorer. */
+    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+        throws IOException {
+        return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
+    }
+
+    public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
+        IndexInput input,
+        int dimension,
+        int vectorLengthInBytes
+    ) throws IOException {
+        return SCORERS.newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    public static void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        IMPL.bFloat16ToFloat(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
+    }
+
+    public static void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        assert floats.length - floatOffset >= floatCount;
+        assert (bfBytes.length - bfOffset) >= floatCount * Short.BYTES;
+        IMPL.floatToBFloat16(floats, floatOffset, bfBytes, bfOffset, floatCount, byteOrder);
+    }
+
+    public static float dotProduct(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(float[] a, float[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, 0, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, offset, b, offset, length);
+    }
+
+    /**
+     * Dot product over {@code [[ab]Offset, [ab]Offset + length)}.
+     */
+    public static float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
+        return IMPL.dotProduct(a, aOffset, b, bOffset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
+     * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
+     * this method does not throw on a zero vector.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v, int length) {
+        return l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place. Elements outside the range are left
+     * unchanged. A zero range is a no-op.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v, int offset, int length) {
+        if (length <= 0) {
+            return 0;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        return IMPL.l2Normalize(v, offset, length);
+    }
+
+    /**
+     * L2-normalizes all components of {@code v} in place.
+     * @return the squared normalization factor
+     */
+    public static float l2Normalize(float[] v) {
+        return l2Normalize(v, 0, v.length);
+    }
+
+    public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    /**
+     * Computes the squared Euclidean distance between a byte vector and a float vector.
+     * Each byte element is implicitly widened to float for the computation.
+     */
+    public static float squareDistance(byte[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.squareDistance(a, b, offset, length);
+    }
+
+    public static float cosine(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.cosine(a, b);
+    }
+
+    public static float dotProduct(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes the prefix {@code v[0..length)} in place using signed byte values as real
+     * components. Elements at indices {@code length} and beyond are left unchanged. A zero prefix
+     * is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int length) {
+        l2Normalize(v, 0, length);
+    }
+
+    /**
+     * L2-normalizes {@code v[offset:offset + length)} in place using signed byte values as real
+     * components. Elements outside the range are left unchanged. A zero range is a no-op.
+     */
+    public static void l2Normalize(byte[] v, int offset, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(offset, length, v.length);
+        IMPL.l2Normalize(v, offset, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(byte[] v) {
+        l2Normalize(v, 0, v.length);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a bfloat16 multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for byte query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    public static float squareDistance(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    public static float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.squareDistance(a, b, offset, length);
+    }
+
+    /**
+     * Bulk computation of square distances from a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
+    }
+
+    /**
+     * Bulk computation of square distances from a sub-range of a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(
+        byte[] q,
+        int qOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        float[] distances
+    ) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        Objects.checkFromIndexSize(qOffset, length, q.length);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
+    }
+
+    /**
+     * Bulk computation of dot product from a byte query vector to four byte candidate vectors.
+     */
+    public static void dotProductBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
+
+    /**
+     * Bulk computation of cosine similarity from a byte query vector to four byte candidate vectors.
+     */
+    public static void cosineBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        IMPL.cosineBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
@@ -77,7 +413,34 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        return IMPL.ipFloatBit(q, d);
+        return ipFloatBit(q, 0, d, 0, q.length);
+    }
+
+    /**
+     * Inner product of {@code q} where the respective bit in {@code d} is set
+     * @param q         Float values
+     * @param qOffset   Offset into q
+     * @param d         Bit values
+     * @param dOffset   Starting byte offset into d
+     * @param qLength    Number of float values to check
+     */
+    public static float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        Objects.checkFromIndexSize(qOffset, qLength, q.length);
+        Objects.checkFromIndexSize(dOffset, (qLength + Byte.SIZE - 1) / Byte.SIZE, d.length);    // round UP length/Byte.SIZE
+        return IMPL.ipFloatBit(q, qOffset, d, dOffset, qLength);
+    }
+
+    /**
+     * Compute the inner product of two vectors, where the query vector is a float vector and the document vector is a byte vector.
+     * @param q the query vector
+     * @param d the document vector
+     * @return the inner product of the two vectors
+     */
+    public static float ipFloatByte(float[] q, byte[] d) {
+        if (q.length != d.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + d.length);
+        }
+        return IMPL.ipFloatByte(q, d);
     }
 
     /**
@@ -91,8 +454,21 @@ public class ESVectorUtil {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
         }
+        return andBitCount(a, 0, b, 0, a.length);
+    }
+
+    /**
+     * AND bit count computed over signed bytes.
+     *
+     * @param a bytes containing a vector
+     * @param b bytes containing another vector, of the same dimension
+     * @return the value of the AND bit count of the two vectors
+     */
+    public static int andBitCount(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
+        Objects.checkFromIndexSize(aOffset, length, a.length);
+        Objects.checkFromIndexSize(bOffset, length, b.length);
         try {
-            return (int) BIT_COUNT_MH.invokeExact(a, b);
+            return (int) BIT_COUNT_MH.invokeExact(a, aOffset, b, bOffset, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;
@@ -104,31 +480,877 @@ public class ESVectorUtil {
         }
     }
 
+    /**
+     * Hamming similarity between two equal-length bit vectors, matching Lucene's
+     * {@code FlatBitVectorsScorer}: {@code (numBits - xorBitCount) / numBits}.
+     */
+    public static float hammingScore(byte[] a, byte[] b) {
+        return ((a.length * Byte.SIZE) - VectorUtil.xorBitCount(a, b)) / (float) (a.length * Byte.SIZE);
+    }
+
     /** AND bit count striding over 4 bytes at a time. */
-    static int andBitCountInt(byte[] a, byte[] b) {
+    static int andBitCountInt(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int distance = 0, i = 0;
         // limit to number of int values in the array iterating by int byte views
-        for (final int upperBound = a.length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            distance += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(a, i) & (int) BitUtil.VH_NATIVE_INT.get(b, i));
+        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+            distance += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(a, aOffset + i) & (int) BitUtil.VH_NATIVE_INT.get(b, bOffset + i));
         }
         // tail:
-        for (; i < a.length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (; i < length; i++) {
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
     }
 
     /** AND bit count striding over 8 bytes at a time**/
-    static int andBitCountLong(byte[] a, byte[] b) {
+    static int andBitCountLong(byte[] a, int aOffset, byte[] b, int bOffset, int length) {
         int distance = 0, i = 0;
         // limit to number of long values in the array iterating by long byte views
-        for (final int upperBound = a.length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            distance += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(a, i) & (long) BitUtil.VH_NATIVE_LONG.get(b, i));
+        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+            distance += Long.bitCount(
+                (long) BitUtil.VH_NATIVE_LONG.get(a, aOffset + i) & (long) BitUtil.VH_NATIVE_LONG.get(b, bOffset + i)
+            );
         }
         // tail:
-        for (; i < a.length; i++) {
-            distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
+        for (; i < length; i++) {
+            distance += Integer.bitCount((a[aOffset + i] & b[bOffset + i]) & 0xFF);
         }
         return distance;
+    }
+
+    public static float max(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return max;
+    }
+
+    public static float sum(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
+    private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
+        if (scoresScratch.length < source.vectorCount()) {
+            throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
+        }
+    }
+
+    /** Calculates the difference between two vectors and stores the result in a third vector.
+     * @param v1 the first vector
+     * @param v2 the second vector
+     * @param result the result vector, must be the same length as the input vectors
+     */
+    public static void subtract(float[] v1, float[] v2, float[] result) {
+        if (v1.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + v2.length);
+        }
+        if (result.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + result.length + "!=" + v1.length);
+        }
+        for (int i = 0; i < v1.length; i++) {
+            result[i] = v1[i] - v2[i];
+        }
+    }
+
+    /**
+     * calculates the soar distance for a vector and a centroid
+     * @param v1 the vector
+     * @param centroid the centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
+     */
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Compute the SOAR distance between a byte vector and a byte centroid.
+     * SOAR distance: {@code ||x-c||^2 + lambda * ((x-c1)^T (x-c))^2 / ||x-c1||^2}
+     *
+     * @param v1 the byte vector
+     * @param centroid the byte centroid
+     * @param originalResidual the precomputed residual (x - c1) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @return the SOAR distance
+     */
+    public static float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void squareDistanceBulk(
+        float[] q,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.squareDistanceBulk(q, 0, v0, v1, v2, v3, distancesOffset, distances, q.length);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distancesOffset offset to the location in the distances array where we want to store the 4 results,
+     *                        we require distancesOffset to be between 0 and distances.length - 4
+     * @param distances an array to store the computed square distances, must have length >= 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void dotProductBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
+        }
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
+
+    public static void squareDistanceBulk(
+        float[] q,
+        int qOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        float[] distances
+    ) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        Objects.checkFromIndexSize(qOffset, length, q.length);
+        IMPL.squareDistanceBulk(q, qOffset, v0, v1, v2, v3, 0, distances, length);
+    }
+
+    /**
+     * Bulk computation of the soar distance for a vector to four centroids
+     * @param v1 the vector
+     * @param c0 the first centroid
+     * @param c1 the second centroid
+     * @param c2 the third centroid
+     * @param c3 the fourth centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @param distances an array to store the computed soar distances, must have length 4
+     */
+    public static void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
+     * Calculates SOAR distances between a byte query vector and 4 byte centroid vectors in bulk.
+     * SOAR distance: ||x-c||^2 + lambda * ((x-c)^T * originalResidual)^2 / rnorm
+     *
+     * @param v1 the query vector
+     * @param c0 centroid 0
+     * @param c1 centroid 1
+     * @param c2 centroid 2
+     * @param c3 centroid 3
+     * @param originalResidual the precomputed residual (x - globalCentroid) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @param distances output array of length 4 for the computed distances
+     */
+    public static void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
+     * Narrows each of the first {@code len} ints to a byte by truncating to the low 8 bits,
+     * writing into {@code dst[0..len)}. No bounds check is performed; the caller must ensure
+     * {@code dst.length >= len}.
+     *
+     * @param src int array of quantized values
+     * @param dst byte array to receive the narrowed values
+     * @param len number of elements to convert
+     */
+    public static void packAsBytes(int[] src, byte[] dst, int len) {
+        for (int i = 0; i < len; i++) {
+            dst[i] = (byte) src[i];
+        }
+    }
+
+    /**
+     * Packs the provided int array populated with "0" and "1" values into a byte array.
+     *
+     * @param vector the int array to pack, must contain only "0" and "1" values.
+     * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
+     */
+    public static void pack1BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
+        }
+        IMPL.pack1BitValues(vector, packed);
+    }
+
+    /**
+     * Stride 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB
+     */
+    public static void stride2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.stride2BitValues(vector, packed);
+    }
+
+    /**
+     * Pack 2-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-3
+     * @param packed    The output packed bytes, each byte containing 4 values concatenated together
+     */
+    public static void pack2BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.pack2BitValues(vector, packed);
+    }
+
+    /**
+     * Stride 4-bit values into a byte array
+     * @param vector    The input vector, each value should be 0-15
+     * @param packed    The output bytes - the first MSB of all values first, followed by the second MSB, then the third, and the fourth
+     */
+    public static void stride4BitValues(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < 4 * vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + 4 * vector.length);
+        }
+        IMPL.stride4BitValues(vector, packed);
+    }
+
+    /**
+     * Searches for the first occurrence of the given marker byte in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first occurrence of {@code marker} within this slice,
+     * or {@code -1} if not found.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @param marker the byte to search for
+     * @return the relative index (0..length-1) of the first match, or {@code -1} if not found
+     */
+    public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOf(bytes, offset, length, marker);
+    }
+
+    /**
+     * Searches for the first occurrence of one of {@link java.util.regex.Pattern}'s 5 default
+     * {@linkplain java.util.regex.Pattern##lt line terminators} ({@code \n}, {@code \r},
+     * {@code \u0085}, {@code \u2028}, {@code \u2029}) in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first byte that is a <em>candidate</em> occurrence of one
+     * of them within this slice, or {@code -1} if none is found -- not every candidate is a
+     * confirmed terminator, so callers must verify the full sequence at that index themselves.
+     *
+     * <p>Most useful for cheaply proving the <em>absence</em> of a line terminator in a range: a
+     * single {@code -1} result is a definitive negative, whereas confirming presence requires the
+     * caller to also validate the candidate's full byte sequence and keep scanning past any false
+     * positive.
+     *
+     * <p><b>Implementation note:</b> actually searches for just the 4 distinct UTF-8 lead bytes of
+     * those terminators -- {@code 0x0A}, {@code 0x0D}, {@code 0xC2} (leads {@code \u0085}), and
+     * {@code 0xE2} (leads both {@code \u2028} and {@code \u2029}, which share a UTF-8 prefix). A hit
+     * on {@code 0xC2}/{@code 0xE2} is only a candidate, not confirmed, because both bytes also occur
+     * in unrelated code points.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @return the relative index (0..length-1) of the first candidate match, or {@code -1} if none
+     *         is found
+     */
+    public static int indexOfLineTerminatorLeadByte(byte[] bytes, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOfLineTerminatorLeadByte(bytes, offset, length);
+    }
+
+    /**
+     * Checks whether the byte sequence {@code term} appears as a contiguous subsequence
+     * within {@code value}.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return true if term is found within value
+     */
+    public static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * Whether {@code value} may contain {@code term}, treating upper and lower case ASCII letters as equal.
+     *
+     * <p>A {@code false} is final: no ASCII casing of the term appears in the value. A {@code true} is a candidate
+     * the caller confirms by reading the bytes.
+     *
+     * <p>The comparison sets bit {@code 0x20} on every byte, which folds {@code A-Z} onto {@code a-z} and carries a
+     * few other pairs with them ({@code @} onto {@code `}, {@code [} onto <code>{</code>, a newline onto {@code *}).
+     * Bytes outside ASCII fold the same way without being case-folded at all, so ask {@link #anyNonAscii} where
+     * ignoring ASCII case has to mean ignoring case.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return false where the value cannot hold the term, true where it may
+     */
+    public static boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return true;
+        }
+        if (termLength > valueLength) {
+            return false;
+        }
+        return IMPL.mayContainIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * The first index into {@code value} where {@code term} may appear, treating upper and lower case ASCII letters
+     * as equal, or -1 where it cannot appear at all. The index is a candidate in the same way
+     * {@link #mayContainIgnoringAsciiCase} answers one, so the caller confirms it by reading the bytes. Asking again
+     * over what follows an index walks every occurrence.
+     *
+     * @param value       the byte array to search in
+     * @param valueOffset the starting index within value
+     * @param valueLength the number of bytes to search
+     * @param term        the byte array containing the term to search for
+     * @param termOffset  the starting index within term
+     * @param termLength  the number of bytes in the term
+     * @return an index into {@code value}, or -1 where the term cannot appear
+     */
+    public static int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        Objects.checkFromIndexSize(valueOffset, valueLength, value.length);
+        Objects.checkFromIndexSize(termOffset, termLength, term.length);
+        if (termLength == 0) {
+            return valueOffset;
+        }
+        if (termLength > valueLength) {
+            return -1;
+        }
+        return IMPL.indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    /**
+     * Whether any byte of the range has its high bit set, which every byte of a non-ASCII UTF-8 character does. A
+     * {@code false} means the range is plain ASCII, where ignoring ASCII case is ignoring case altogether. An empty
+     * range is ASCII.
+     */
+    public static boolean anyNonAscii(byte[] value, int offset, int length) {
+        Objects.checkFromIndexSize(offset, length, value.length);
+        return IMPL.anyNonAscii(value, offset, length);
+    }
+
+    /**
+     * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
+     * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
+     * thrown, but invalid results will be returned.
+     *
+     * @param bytesRef bytes reference containing a valid utf-8 encoded string
+     * @return the number of code points in the bytes ref
+     */
+    public static int codePointCount(BytesRef bytesRef) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
+            return UnicodeUtil.codePointCount(bytesRef);
+        }
+        Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
+        return IMPL.codePointCount(bytesRef);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) = scaleOther * other[otherOffset..otherOffset+length)
+     *          + scaleDest * dest[destOffset..destOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, scaleDest, dest, destOffset, length);
+    }
+
+    /**
+     * Computes dest = scale * other + scaledDes * dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, 0, scaleDest, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes {@code dest[destOffset..destOffset+length) += scaleOther * other[otherOffset..otherOffset+length)}.
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param otherOffset starting index into other
+     * @param dest the destination vector
+     * @param destOffset starting index into dest
+     * @param length number of elements to process
+     */
+    public static void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        Objects.checkFromIndexSize(otherOffset, length, other.length);
+        Objects.checkFromIndexSize(destOffset, length, dest.length);
+        IMPL.linearCombination(scaleOther, other, otherOffset, dest, destOffset, length);
+    }
+
+    /**
+     * Computes dest = scale * other + dest
+     *
+     * @param scaleOther a multiplicative factor for other
+     * @param other the other vector
+     * @param dest the destination vector
+     */
+    public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, 0, dest, 0, dest.length);
+    }
+
+    /**
+     * Computes dest[d] = scaleSrc * src[d] + scaleDest * dest[d], widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
+    }
+
+    /**
+     * Computes dest = scale * other + dest, widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
+     * Calculates an approximation of the LogSumExp of the input array in base 2.
+     * The formula used is: log2(sum_i(pow(2, x[i]))).
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param vector The input array of double values (log probabilities/values).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQT(float[] vector) {
+        return IMPL.logSumExpNQT(vector);
+    }
+
+    /**
+     * Calculates a shifted and scaled LogSumExp of the input arrays in base 2, according to the formula:
+     * log2(sum_i(pow(2, (v1[i] - v2[i]) / eps)))
+     * This implementation uses the log-sum-exp trick for numerical stability and Not-Quite-Trascendental functions for speed.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @return The log-sum-exp result.
+     */
+    public static float logSumExpNQTDiff(float[] v1, float[] v2, float eps) {
+        return IMPL.logSumExpNQTDiff(v1, v2, eps);
+    }
+
+    /**
+     * Compute the following operation:
+     * result[i] = pow(2, (a + v1[i] - v2[i]) / eps)
+     * This implementation uses the log-sum-exp trick for numerical stability.
+     *
+     * @param v1 The first input array of double values (log probabilities/values).
+     * @param v2 The second input array of double values (log probabilities/values).
+     * @param eps The normalization constant (that is, the temperature parameter).
+     * @param result The output array.
+     */
+    public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
+        IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
+
+    /**
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
+     */
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @return transposed matrix in row-major order, length cols*rows
+     */
+    public static float[] transposeMatrix(float[] m, int rows, int cols) {
+        float[] result = new float[rows * cols];
+        transposeMatrix(m, rows, cols, result);
+        return result;
+    }
+
+    /**
+     * Transposes a row-major matrix from (rows x cols) to (cols x rows).
+     *
+     * @param m    input matrix in row-major order, length rows*cols
+     * @param rows number of rows in the input
+     * @param cols number of columns in the input
+     * @param result output matrix in row-major order, length cols*rows
+     */
+    public static void transposeMatrix(float[] m, int rows, int cols, float[] result) {
+        if (result.length != cols * rows) {
+            throw new IllegalArgumentException("Invalid a array size [" + result.length + "] for matrix transposition");
+        }
+
+        // work in tiles of 16x16 floats, rather than whole rows at a time
+        // A 16-wide row is 64 bytes, which is 1 cache line, x16 rows.
+        // both read & write tiles fit in L1 at once.
+        final int transposeBlock = 16;
+
+        for (int ii = 0; ii < rows; ii += transposeBlock) {
+            int iMax = Math.min(ii + transposeBlock, rows);
+            for (int jj = 0; jj < cols; jj += transposeBlock) {
+                int jMax = Math.min(jj + transposeBlock, cols);
+                for (int i = ii; i < iMax; i++) {
+                    int mBase = i * cols;
+                    for (int j = jj; j < jMax; j++) {
+                        result[j * rows + i] = m[mBase + j];
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static float[] matrixMultiply(float[] a, float[] b, int m, int k, int n, TaskExecutor executor) {
+        float[] result = new float[m * n];
+        matrixMultiply(a, b, m, k, n, result, executor);
+        return result;
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major.
+     * Result C is (m x n).
+     */
+    public static void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
+        if (a.length != m * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != m * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiply(a, b, m, k, n, result, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
+     * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
+     * of the work of {@link #matrixMultiply}, and copies them into the lower triangle. The result is undefined if the
+     * product is not symmetric. Whatever {@code result} held before is overwritten.
+     */
+    public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        if (a.length != n * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != n * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a    flat row-major matrix, length rows*cols
+     * @param rows number of rows in A
+     * @param cols number of columns in A, and length of v
+     * @param v    input vector, length cols
+     * @return output vector, length rows
+     */
+    public static float[] matrixVectorMultiply(float[] a, int rows, int cols, float[] v) {
+        float[] result = new float[rows];
+        matrixVectorMultiply(a, rows, cols, v, result);
+        return result;
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix of signed bytes,
+     * accumulated in exact int32 arithmetic.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Packs multi-bit quantized codes into a byte array using bit-plane layout.
+     * The input codes come from {@code AshSphericalScalarQuantizer} and have values
+     * sign * (0.5 + idx) for idx in [0, numAbsLevels-1] where numAbsLevels = 2^(bitsPerDim-1).
+     * The full level set is centered at 0 with spacing 1.
+     *
+     * @param codes float array of quantized levels from AshSphericalScalarQuantizer
+     * @param bitsPerDim number of bits per dimension
+     * @return packed bytes in bit-plane layout
+     */
+    public static byte[] ashPack(float[] codes, int bitsPerDim) {
+        int nDims = codes.length;
+        int planeBytes = (nDims + 7) >>> 3;
+        int numLevels = 1 << bitsPerDim;
+        float offset = (numLevels - 1) / 2.0f;
+
+        int[] rounded = new int[nDims];
+        for (int i = 0; i < nDims; i++) {
+            rounded[i] = Math.clamp(Math.round(codes[i] + offset), 0, numLevels - 1);
+        }
+
+        byte[] packed = new byte[bitsPerDim * planeBytes];
+        switch (bitsPerDim) {
+            case 1 -> pack1BitValues(rounded, packed);
+            case 2 -> stride2BitValues(rounded, packed);
+            case 4 -> stride4BitValues(rounded, packed);
+            case 3, 8 -> {
+                for (int j = 0; j < nDims; j++) {
+                    int byteIdx = j >>> 3;
+                    int bitIdx = 7 - (j & 7);
+                    for (int p = 0; p < bitsPerDim; p++) {
+                        if ((rounded[j] & (1 << p)) != 0) {
+                            packed[p * planeBytes + byteIdx] |= (byte) (1 << bitIdx);
+                        }
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported bitsPerDim: " + bitsPerDim);
+        }
+
+        return packed;
     }
 }

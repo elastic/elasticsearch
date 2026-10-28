@@ -12,13 +12,19 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL;
 
 public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
@@ -29,11 +35,17 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, Releasable {
 
         public static Request parseRequest(String datafeedId, IndicesOptions indicesOptions, XContentParser parser) {
             DatafeedConfig.Builder datafeed = DatafeedConfig.STRICT_PARSER.apply(parser, null);
-            if (datafeed.getIndicesOptions() == null) {
+            // RestPutDatafeedAction always passes a non-null default IndicesOptions derived from the request params. Apply it only
+            // when the body did not set indices_options (first condition) and the datafeed is a DSL datafeed (second condition).
+            // ES|QL datafeeds must not carry IndicesOptions: DatafeedConfig.Builder.build() rejects any non-null value together
+            // with esql_query, so applying the REST default would fail every ES|QL PUT. An explicit indices_options on an ES|QL
+            // datafeed is kept here and rejected by build(). A DSL builder still left without IndicesOptions gets
+            // the STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED default in build(), but never for esql_query configs.
+            if (datafeed.getIndicesOptions() == null && datafeed.getEsqlQuery() == null) {
                 datafeed.setIndicesOptions(indicesOptions);
             }
             datafeed.setId(datafeedId);
@@ -41,6 +53,10 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         private final DatafeedConfig datafeed;
+
+        // Caller's UIAM cloud credential carried on the request so it survives coordinator -> master transport.
+        @Nullable
+        private CloudCredential cloudCredential;
 
         public Request(DatafeedConfig datafeed) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -50,16 +66,38 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeed = new DatafeedConfig(in);
+            if (in.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+                cloudCredential = in.readOptionalWriteable(CloudCredential::new);
+            } else {
+                cloudCredential = null;
+            }
         }
 
         public DatafeedConfig getDatafeed() {
             return datafeed;
         }
 
+        @Nullable
+        public CloudCredential getCloudCredential() {
+            return cloudCredential;
+        }
+
+        public void setCloudCredential(@Nullable CloudCredential cloudCredential) {
+            this.cloudCredential = cloudCredential;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             datafeed.writeTo(out);
+            if (out.getTransportVersion().supports(DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+                out.writeOptionalWriteable(cloudCredential);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(cloudCredential);
         }
 
         @Override
@@ -73,6 +111,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
+            // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
             return Objects.equals(datafeed, request.datafeed);
         }
 
@@ -91,7 +130,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             datafeed = new DatafeedConfig(in);
         }
 

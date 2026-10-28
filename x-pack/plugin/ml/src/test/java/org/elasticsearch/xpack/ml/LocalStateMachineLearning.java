@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -87,12 +84,14 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         });
         plugins.add(new MockedRollupPlugin());
-        plugins.add(new InferencePlugin(settings) {
+        var inferencePlugin = new InferencePlugin(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
             }
-        });
+        };
+        inferencePlugin.setCircuitBreaker(new NoopCircuitBreaker(InferencePlugin.INFERENCE_CIRCUIT_BREAKER_NAME));
+        plugins.add(inferencePlugin);
     }
 
     @Override
@@ -129,8 +128,8 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     public static class MockedRollupPlugin extends Plugin implements ActionPlugin {
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
+        public List<ActionHandler> getActions() {
+            return Collections.singletonList(new ActionHandler(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
         }
 
         public static class MockedRollupIndexCapsTransport extends TransportAction<
@@ -141,7 +140,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             public MockedRollupIndexCapsTransport(TransportService transportService) {
                 super(
                     GetRollupIndexCapsAction.NAME,
-                    new ActionFilters(new HashSet<>()),
+                    ActionFilters.EMPTY,
                     transportService.getTaskManager(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE
                 );

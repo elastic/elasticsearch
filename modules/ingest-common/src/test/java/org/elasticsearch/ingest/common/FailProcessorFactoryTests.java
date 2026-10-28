@@ -33,7 +33,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("message", "error");
         String processorTag = randomAlphaOfLength(10);
-        FailProcessor failProcessor = factory.create(null, processorTag, null, config);
+        FailProcessor failProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(failProcessor.getTag(), equalTo(processorTag));
         assertThat(failProcessor.getMessage().newInstance(Map.of()).execute(), equalTo("error"));
     }
@@ -41,7 +41,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingMessageField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, null, config);
+            factory.create(null, null, null, config, null);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[message] required property is missing"));
@@ -55,7 +55,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(
             ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config)
+            () -> factory.create(null, processorTag, null, config, null)
         );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,8 +31,27 @@ final class HostMetadata implements ToXContentObject {
         this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING)
+    /**
+     * Deserializes host metadata from a document stored in the OTel schema, where resource attributes
+     * are nested under {@code resource.attributes.*}.
+     */
+    @SuppressWarnings("unchecked")
+    public static HostMetadata fromOtelSource(Map<String, Object> source) {
+        if (source != null) {
+            Map<String, Object> resource = (Map<String, Object>) source.get("resource");
+            if (resource != null) {
+                Map<String, Object> attributes = (Map<String, Object>) resource.get("attributes");
+                if (attributes != null) {
+                    return fromSource(attributes);
+                }
+            }
+        }
+        return new HostMetadata("", new InstanceType("", "", ""), "", null);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.PROFILING)
     // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
+    // still required for data that has been migrated from 8.x to 9.x
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");

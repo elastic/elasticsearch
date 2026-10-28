@@ -7,45 +7,35 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.logsdb.seqno.RestAddRetentionLeaseAction;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldType;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
-public class LogsDBPlugin extends Plugin implements ActionPlugin {
+public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     private final Settings settings;
-    private final SyntheticSourceLicenseService licenseService;
+    private final LogsdbLicenseService licenseService;
     private static final Setting<Boolean> LOGSDB_PRIOR_LOGS_USAGE = Setting.boolSetting(
         "logsdb.prior_logs_usage",
         false,
@@ -58,12 +48,30 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> CLUSTER_LOGSDB_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.logsdb_columnar.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLUSTER_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.columnar.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    static final Setting<Boolean> LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE = Setting.boolSetting(
+        "index.logsdb.default_sort_on_message_template",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final
+    );
 
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
-        this.licenseService = new SyntheticSourceLicenseService(settings);
+        this.licenseService = new LogsdbLicenseService(settings);
         this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
@@ -82,7 +90,11 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
-
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbColumnarEnabled
+        );
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_COLUMNAR_ENABLED, logsdbIndexModeSettingsProvider::updateColumnarEnabled);
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -95,6 +107,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
             ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion(),
+            DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );
         return List.of(logsdbIndexModeSettingsProvider);
@@ -102,33 +116,32 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE);
+        return List.of(
+            FALLBACK_SETTING,
+            CLUSTER_LOGSDB_ENABLED,
+            LOGSDB_PRIOR_LOGS_USAGE,
+            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
+            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE,
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
+            CLUSTER_COLUMNAR_ENABLED
+        );
     }
 
     @Override
-    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
-        actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
+    public List<ActionPlugin.ActionHandler> getActions() {
+        List<ActionPlugin.ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.LOGSDB_COLUMNAR, LogsDBColumnarUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.LOGSDB_COLUMNAR, LogsDBColumnarInfoTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackUsageFeatureAction.COLUMNAR, ColumnarUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler(XPackInfoFeatureAction.COLUMNAR, ColumnarInfoTransportAction.class));
         return actions;
     }
 
     @Override
-    public Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        if (Build.current().isSnapshot()) {
-            return List.of(new RestAddRetentionLeaseAction());
-        }
-        return Collections.emptyList();
+    public Map<String, Mapper.TypeParser> getMappers() {
+        return singletonMap(PatternTextFieldType.CONTENT_TYPE, PatternTextFieldMapper.PARSER);
     }
 
     protected XPackLicenseState getLicenseState() {

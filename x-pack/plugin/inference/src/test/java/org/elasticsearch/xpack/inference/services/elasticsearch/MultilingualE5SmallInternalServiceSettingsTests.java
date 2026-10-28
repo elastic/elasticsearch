@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,7 +16,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWireSerializingTestCase<
+public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<
     MultilingualE5SmallInternalServiceSettings> {
 
     public static MultilingualE5SmallInternalServiceSettings createRandom() {
@@ -125,4 +124,8 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
         };
     }
 
+    @Override
+    protected void assertUpdated(MultilingualE5SmallInternalServiceSettings original, MultilingualE5SmallInternalServiceSettings updated) {
+        // Nothing to do as there are no additional properties
+    }
 }

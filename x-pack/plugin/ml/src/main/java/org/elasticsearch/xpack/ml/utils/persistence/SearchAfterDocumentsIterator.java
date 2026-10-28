@@ -11,8 +11,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
@@ -42,10 +44,18 @@ import java.util.concurrent.atomic.AtomicLong;
  * count isn't a reliable indicator of progress and the iterator will judge that
  * it has reached the end of the search only when less than {@value #BATCH_SIZE}
  * hits are returned.
+ * <p>
+ * Subclasses may {@link #retainSearchHitsContainerForBatch() retain} the response's {@link SearchHits} with one
+ * extra ref so returned {@link SearchHit} elements outlive {@link SearchResponse#decRef()}. The iterator releases
+ * the previous batch's container via {@link #releaseRetainedSearchHits()} at the start of the following
+ * {@link #next()} or when the consumer calls it after iteration (required for the final batch and on cancel).
  */
 public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator<T> {
 
     private static final int BATCH_SIZE = 10_000;
+
+    @Nullable
+    private SearchHits retainedBatchSearchHits;
 
     private final OriginSettingClient client;
     private final String index;
@@ -107,14 +117,44 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
             throw new NoSuchElementException();
         }
 
+        releaseRetainedSearchHits();
+
         SearchResponse searchResponse = doSearch(searchAfterFields());
         try {
             if (trackTotalHits && totalHits.get() == 0) {
                 totalHits.set(searchResponse.getHits().getTotalHits().value());
             }
-            return mapHits(searchResponse);
+            Deque<T> batch = mapHits(searchResponse);
+            if (retainSearchHitsContainerForBatch()) {
+                SearchHits hits = searchResponse.getHits();
+                hits.incRef();
+                retainedBatchSearchHits = hits;
+            }
+            return batch;
         } finally {
             searchResponse.decRef();
+        }
+    }
+
+    /**
+     * When {@code true}, {@link #next()} calls {@link SearchHits#incRef()} on the response hits before
+     * {@link SearchResponse#decRef()}, and calls {@link #releaseRetainedSearchHits()} at the start of each
+     * subsequent {@link #next()} to release the prior batch. The caller must finish using the returned
+     * {@code Deque} before the next {@link #next()}, and must call {@link #releaseRetainedSearchHits()} after the
+     * last batch (or on cancel).
+     */
+    protected boolean retainSearchHitsContainerForBatch() {
+        return false;
+    }
+
+    /**
+     * Releases the {@link SearchHits} ref retained for the last {@link #next()} batch, if any. Idempotent.
+     * Also invoked at the start of {@link #next()} to release the prior batch before fetching the next page.
+     */
+    public void releaseRetainedSearchHits() {
+        if (retainedBatchSearchHits != null) {
+            retainedBatchSearchHits.decRef();
+            retainedBatchSearchHits = null;
         }
     }
 

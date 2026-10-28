@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.core.transform;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,7 +26,7 @@ import java.io.IOException;
 /*
  * Utility test class to write a deprecation message on usage
  */
-public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDeprecatedQueryBuilder> {
+public class MockDeprecatedQueryBuilder extends LeafQueryBuilder<MockDeprecatedQueryBuilder> {
 
     public static final String NAME = "deprecated_match_all";
     public static final String DEPRECATION_MESSAGE = "expected deprecation message from MockDeprecatedQueryBuilder";
@@ -73,7 +72,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -88,6 +87,6 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

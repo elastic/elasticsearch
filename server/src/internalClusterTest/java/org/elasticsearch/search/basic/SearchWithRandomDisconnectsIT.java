@@ -8,12 +8,15 @@
  */
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -28,6 +31,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
@@ -52,45 +56,58 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         final AtomicBoolean done = new AtomicBoolean();
         final int concurrentSearches = randomIntBetween(2, 5);
         final List<PlainActionFuture<Void>> futures = new ArrayList<>(concurrentSearches);
-        for (int i = 0; i < concurrentSearches; i++) {
-            final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
-            futures.add(finishFuture);
-            prepareRandomSearch().execute(new ActionListener<>() {
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    runMoreSearches();
-                }
+        try {
+            for (int i = 0; i < concurrentSearches; i++) {
+                final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
+                futures.add(finishFuture);
+                prepareRandomSearch().execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchResponse searchResponse) {
+                        runMoreSearches();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    runMoreSearches();
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        runMoreSearches();
+                    }
 
-                private void runMoreSearches() {
-                    if (done.get() == false) {
-                        prepareRandomSearch().execute(this);
-                    } else {
+                    private void runMoreSearches() {
+                        while (done.get() == false) {
+                            final ListenableFuture<SearchResponse> f = new ListenableFuture<>();
+                            prepareRandomSearch().execute(f);
+                            if (f.isDone() == false) {
+                                f.addListener(this);
+                                return;
+                            }
+                        }
                         finishFuture.onResponse(null);
                     }
+                });
+            }
+            for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
+                NetworkDisruption networkDisruption = new NetworkDisruption(
+                    isolateNode(internalCluster().getRandomNodeName()),
+                    NetworkDisruption.DISCONNECT
+                );
+                setDisruptionScheme(networkDisruption);
+                networkDisruption.startDisrupting();
+                networkDisruption.stopDisrupting();
+                internalCluster().clearDisruptionScheme();
+                ensureFullyConnectedCluster();
+            }
+        } finally {
+            // Stop the background searches before teardown, on every exit path: a search left running
+            // into teardown hits the closing cluster and crashes the whole suite with a fatal AssertionError.
+            done.set(true);
+            for (PlainActionFuture<Void> future : futures) {
+                try {
+                    future.get();
+                } catch (Exception e) {
+                    // best-effort drain
                 }
-            });
+            }
         }
-        for (int i = 0, n = randomIntBetween(50, 100); i < n; i++) {
-            NetworkDisruption networkDisruption = new NetworkDisruption(
-                isolateNode(internalCluster().getRandomNodeName()),
-                NetworkDisruption.DISCONNECT
-            );
-            setDisruptionScheme(networkDisruption);
-            networkDisruption.startDisrupting();
-            networkDisruption.stopDisrupting();
-            internalCluster().clearDisruptionScheme();
-            ensureFullyConnectedCluster();
-        }
-        done.set(true);
-        for (PlainActionFuture<Void> future : futures) {
-            future.get();
-        }
-        ensureGreen(DISRUPTION_HEALING_OVERHEAD, indexNames);
+        ensureGreen(new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + 2000L * indexNames.length), indexNames);
         assertAcked(indicesAdmin().prepareDelete(indexNames));
     }
 

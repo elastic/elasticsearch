@@ -210,9 +210,26 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             return null;
         }).when(apiKeyService).crossClusterApiKeyUsageStats(anyActionListener());
 
+        final int activeRestKeys = randomIntBetween(0, 50);
+        final int invalidatedRestKeys = randomIntBetween(0, 50);
+        final int expiredRestKeys = randomIntBetween(0, 50);
+        final Map<String, Object> restApiKeyUsage = Map.of(
+            "active",
+            activeRestKeys,
+            "invalidated",
+            invalidatedRestKeys,
+            "expired",
+            expiredRestKeys
+        );
+        doAnswer(invocation -> {
+            final ActionListener<Map<String, Object>> listener = invocation.getArgument(0);
+            listener.onResponse(apiKeyServiceEnabled ? restApiKeyUsage : Map.of());
+            return null;
+        }).when(apiKeyService).restApiKeyUsageStats(anyActionListener());
+
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
@@ -240,6 +257,13 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
                 // check API Key service
                 assertThat(source.getValue("api_key_service.enabled"), is(apiKeyServiceEnabled));
+                if (apiKeyServiceEnabled) {
+                    assertThat(source.getValue("api_key_service.api_keys.active"), equalTo(activeRestKeys));
+                    assertThat(source.getValue("api_key_service.api_keys.invalidated"), equalTo(invalidatedRestKeys));
+                    assertThat(source.getValue("api_key_service.api_keys.expired"), equalTo(expiredRestKeys));
+                } else {
+                    assertThat(source.getValue("api_key_service.api_keys"), anEmptyMap());
+                }
 
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
@@ -373,7 +397,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             null,
             threadPool,
             mock(ActionFilters.class),
-            null,
             settings,
             licenseState,
             securityServices

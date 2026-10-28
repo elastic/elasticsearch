@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.spatial;
 
+import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 
 public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCase {
 
@@ -19,7 +21,23 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
 
     @Override
     protected Geometry getIndexGeometry() {
-        return ShapeTestUtils.randomGeometryWithoutCircle(false);
+        return randomValueOtherThanMany(
+            SpatialPushDownCartesianShapeIT::isInvalid,
+            () -> ShapeTestUtils.randomGeometryWithoutCircle(false)
+        );
+    }
+
+    /**
+     * Whether the {@code shape} mapper would reject this geometry, for example because a random polygon in it,
+     * possibly nested inside a collection, self-intersects.
+     */
+    static boolean isInvalid(Geometry geometry) {
+        try {
+            new CartesianShapeIndexer("test").indexShape(geometry);
+            return false;
+        } catch (IllegalArgumentException e) {
+            return true;
+        }
     }
 
     @Override
@@ -30,5 +48,15 @@ public class SpatialPushDownCartesianShapeIT extends SpatialPushDownShapeTestCas
     @Override
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
+    }
+
+    @Override
+    protected double quantizeX(double x) {
+        return XYEncodingUtils.decode(XYEncodingUtils.encode((float) x));
+    }
+
+    @Override
+    protected double quantizeY(double y) {
+        return XYEncodingUtils.decode(XYEncodingUtils.encode((float) y));
     }
 }

@@ -1,0 +1,3 @@
+FROM employees
+| WHERE gender == "M"
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)

@@ -18,7 +18,9 @@ esplugin {
   classname ='org.elasticsearch.test.jvm_crash.JvmCrashPlugin'
 }
 
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  usesDefaultDistribution("to be triaged")
+  it.onlyIf("snapshot build") { isSnapshotBuild }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -59,6 +58,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.REQUEST_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PROJECT_ROUTING_NAME;
 
 /**
  * Base class for requests that contain sql queries (Query and Translate)
@@ -92,6 +92,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = emptyList();
     private Map<String, Object> runtimeMappings = emptyMap();
+    private String projectRouting;
 
     static final ParseField QUERY = new ParseField(QUERY_NAME);
     static final ParseField CURSOR = new ParseField(CURSOR_NAME);
@@ -105,6 +106,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     static final ParseField MODE = new ParseField(MODE_NAME);
     static final ParseField CLIENT_ID = new ParseField(CLIENT_ID_NAME);
     static final ParseField VERSION = new ParseField(VERSION_NAME);
+    static final ParseField PROJECT_ROUTING = new ParseField(PROJECT_ROUTING_NAME);
 
     public AbstractSqlQueryRequest() {
         super();
@@ -156,6 +158,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         );
         parser.declareObject(AbstractSqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareObject(AbstractSqlQueryRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        parser.declareString(AbstractSqlQueryRequest::projectRouting, PROJECT_ROUTING);
         return parser;
     }
 
@@ -424,21 +427,25 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return this;
     }
 
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public void projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+    }
+
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
         params = in.readCollectionAsList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            catalog = in.readOptionalString();
-        }
+        catalog = in.readOptionalString();
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            runtimeMappings = in.readGenericMap();
-        }
+        runtimeMappings = in.readGenericMap();
     }
 
     public static void writeSqlTypedParamValue(StreamOutput out, SqlTypedParamValue value) throws IOException {
@@ -457,16 +464,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeString(query);
         out.writeCollection(params, AbstractSqlQueryRequest::writeSqlTypedParamValue);
         out.writeZoneId(zoneId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeOptionalString(catalog);
-        }
+        out.writeOptionalString(catalog);
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeGenericMap(runtimeMappings);
-        }
+        out.writeGenericMap(runtimeMappings);
     }
 
     @Override
@@ -507,4 +510,5 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
             runtimeMappings
         );
     }
+
 }

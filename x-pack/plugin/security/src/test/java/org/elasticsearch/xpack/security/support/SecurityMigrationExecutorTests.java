@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionA
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionResponse;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     private boolean refreshIndexShouldThrowException = false;
 
     private AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
+    private SecurityIndexManager.IndexState projectIndex;
 
     @Before
     public void setUpMocks() {
@@ -92,6 +94,8 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             }
         };
         securityIndexManager = mock(SecurityIndexManager.class);
+        projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndexManager.forCurrentProject()).thenReturn(projectIndex);
     }
 
     public void testSuccessfulMigration() {
@@ -189,7 +193,9 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     }
 
     public void testMigrationThrowsRuntimeException() {
-        when(securityIndexManager.isReadyForSecurityMigration(any())).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndexManager.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isReadyForSecurityMigration(any())).thenReturn(true);
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
             "test-task",
             threadPool.generic(),
@@ -213,11 +219,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             }))
         );
 
-        securityMigrationExecutor.nodeOperation(
-                mockTask,
-                new SecurityMigrationTaskParams(0, true),
-                mock(PersistentTaskState.class)
-            );
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsFailed(any());
         verify(mockTask, times(0)).markAsCompleted();
     }
@@ -270,7 +272,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
                 return 0;
             }
         };
-        when(securityIndexManager.isReadyForSecurityMigration(migration)).thenReturn(isEligible);
+        when(projectIndex.isReadyForSecurityMigration(migration)).thenReturn(isEligible);
         return migration;
     }
 }

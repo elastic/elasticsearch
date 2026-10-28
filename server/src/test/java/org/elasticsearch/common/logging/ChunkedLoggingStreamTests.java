@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -22,6 +23,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class ChunkedLoggingStreamTests extends ESTestCase {
 
@@ -45,8 +48,29 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
         final var referenceDocs = randomFrom(ReferenceDocs.values());
         assertEquals(expectedBody, ChunkedLoggingStreamTestUtils.getLoggedBody(logger, level, prefix, referenceDocs, () -> {
-            try (var stream = new ChunkedLoggingStream(logger, level, prefix, referenceDocs)) {
-                writeRandomly(stream, bytes);
+            try (var mockLog = MockLog.capture(ChunkedLoggingStreamTests.class)) {
+                if (size > ChunkedLoggingStream.CHUNK_SIZE) {
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "part 001",
+                            ChunkedLoggingStreamTests.class.getCanonicalName(),
+                            level,
+                            prefix + " [part 001]"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "part 002",
+                            ChunkedLoggingStreamTests.class.getCanonicalName(),
+                            level,
+                            prefix + " [part 002]"
+                        )
+                    );
+                }
+                try (var stream = new ChunkedLoggingStream(logger, level, prefix, referenceDocs)) {
+                    writeRandomly(stream, bytes);
+                }
+                mockLog.assertAllExpectationsMatched();
             }
         }));
     }
@@ -56,14 +80,11 @@ public class ChunkedLoggingStreamTests extends ESTestCase {
         final var bytes = randomByteArrayOfLength(between(0, 10000));
         final var level = randomFrom(Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
         final var referenceDocs = randomFrom(ReferenceDocs.values());
-        assertEquals(
-            new BytesArray(bytes),
-            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, level, "prefix", referenceDocs, () -> {
-                try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", referenceDocs)) {
-                    writeRandomly(stream, bytes);
-                }
-            })
-        );
+        assertThat(ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, level, "prefix", referenceDocs, () -> {
+            try (var stream = ChunkedLoggingStream.create(logger, level, "prefix", referenceDocs)) {
+                writeRandomly(stream, bytes);
+            }
+        }), equalBytes(new BytesArray(bytes)));
     }
 
     private static void writeRandomly(OutputStream stream, byte[] bytes) throws IOException {

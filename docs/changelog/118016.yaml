@@ -1,6 +1,0 @@
-pr: 118016
-summary: Propagate status codes from shard failures appropriately
-area: Search
-type: enhancement
-issues:
- - 118482

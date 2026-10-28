@@ -14,11 +14,12 @@ import org.elasticsearch.script.IpFieldScript;
 
 import java.util.Arrays;
 
-public final class IpScriptDocValues extends SortedBinaryDocValues {
+public final class IpScriptDocValues extends SortableBinaryDocValues {
     private final IpFieldScript script;
     private int cursor;
 
     IpScriptDocValues(IpFieldScript script) {
+        super(null);
         this.script = script;
     }
 

@@ -21,8 +21,6 @@ import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.CalendarDateDuration;
 import org.ojalgo.type.CalendarDateUnit;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -81,7 +79,7 @@ class LinearProgrammingPlanSolver {
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
         this.deployments = deployments.stream()
             // Filter out models that are not already assigned and do not fit on any node
-            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
+            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.minimumMemoryRequiredBytes() <= maxNodeMemory)
             // Also filter out models whose threads per allocation are more than the max node cores
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
@@ -325,7 +323,7 @@ class LinearProgrammingPlanSolver {
                 .setLinearFactors(allocations, Access1D.wrap(modelMemories));
         }
 
-        Optimisation.Result result = privilegedModelMaximise(model);
+        Optimisation.Result result = model.maximise();
 
         if (result.getState().isFeasible() == false) {
             logger.debug("Linear programming solution state [{}] is not feasible", result.getState());
@@ -345,11 +343,6 @@ class LinearProgrammingPlanSolver {
         }
         logger.debug(() -> "LP solver result =\n" + prettyPrintSolverResult(assignmentValues, allocationValues));
         return true;
-    }
-
-    @SuppressWarnings("removal")
-    private static Optimisation.Result privilegedModelMaximise(ExpressionsBasedModel model) {
-        return AccessController.doPrivileged((PrivilegedAction<Optimisation.Result>) () -> model.maximise());
     }
 
     private int memoryComplexity() {

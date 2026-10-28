@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -310,6 +311,24 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
+        {
+            // should succeed when leader has indexing_complete=true but follower does not (race during auto-follow restore)
+            IndexMetadata leaderIMD = createIMD(
+                "index1",
+                5,
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build(),
+                null
+            );
+            IndexMetadata followIMD = createIMD(
+                "index2",
+                5,
+                Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build(),
+                customMetadata
+            );
+            MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
+            mapperService.merge(followIMD, MapperService.MergeReason.MAPPING_RECOVERY);
+            validate(request, leaderIMD, followIMD, UUIDs, mapperService);
+        }
     }
 
     public void testDynamicIndexSettingsAreClassified() {
@@ -321,8 +340,11 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         // be indexed in the follower index:
         replicatedSettings.add(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        replicatedSettings.add(MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         replicatedSettings.add(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -331,10 +353,13 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IndexSettings.MAX_NGRAM_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.MAX_SHINGLE_DIFF_SETTING);
         replicatedSettings.add(IndexSettings.TIME_SERIES_END_TIME);
+        replicatedSettings.add(IndexMetadata.INDEX_DIMENSIONS);
         replicatedSettings.add(IndexSettings.PREFER_ILM_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT);
+        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC
@@ -360,6 +385,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         settings.put(IndexMetadata.SETTING_CREATION_DATE, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED_STRING, "");
+        settings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), "");
 
         Settings result = TransportResumeFollowAction.filter(settings.build());
         assertThat(result.size(), equalTo(0));

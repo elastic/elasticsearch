@@ -94,3 +94,242 @@ named_queries_with_score:
     - match:  {hits.hits.0.matched_queries.match_field_2: 10}
     - length: {hits.hits.1.matched_queries: 1}
     - match:  {hits.hits.1.matched_queries.match_field_1: 1}
+
+---
+named_queries_with_function_score:
+    - requires:
+          cluster_features: ["search.function_score.named_queries"]
+          reason: requires named query support for function_score functions
+
+    - do:
+          bulk:
+              refresh: true
+              body:
+                - '{ "index" : { "_index" : "test_fs", "_id" : "1" } }'
+                - '{"field" : 1 }'
+                - '{ "index" : { "_index" : "test_fs", "_id" : "2" } }'
+                - '{"field" : 2 }'
+                - '{ "index" : { "_index" : "test_fs", "_id" : "3" } }'
+                - '{"field" : [1, 2] }'
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          _name: fs_top
+                          query: { ids: { values: ["1"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.fs_weight: 2}
+    - match:  {hits.hits.0.matched_queries.fs_top: 2}
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          _name: fs_top
+                          query: { ids: { values: ["2"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.fs_script: 3}
+    - match:  {hits.hits.0.matched_queries.fs_top: 3}
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          _name: fs_top
+                          query: { ids: { values: ["3"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 3}
+    - match:  {hits.hits.0.matched_queries.fs_weight: 2}
+    - match:  {hits.hits.0.matched_queries.fs_script: 3}
+    - match:  {hits.hits.0.matched_queries.fs_top: 5}
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          query: { ids: { values: ["1"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+                            - filter: { term: { field: { value: 1, _name: fs_field_value } } }
+                              field_value_factor:
+                                  field: field
+                                  modifier: none
+                                  factor: 1
+                            - filter: { term: { field: { value: 2, _name: fs_random } } }
+                              random_score:
+                                  seed: 7
+                                  field: _seq_no
+                            - filter: { term: { field: { value: 1, _name: fs_gauss } } }
+                              gauss:
+                                  field:
+                                      origin: 1
+                                      scale: 1
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 3}
+    - match:  {hits.hits.0.matched_queries.fs_weight: 2}
+    - match:  {hits.hits.0.matched_queries.fs_field_value: 1}
+    - match:  {hits.hits.0.matched_queries.fs_gauss: 1}
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          query: { ids: { values: ["2"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+                            - filter: { term: { field: { value: 1, _name: fs_field_value } } }
+                              field_value_factor:
+                                  field: field
+                                  modifier: none
+                                  factor: 1
+                            - filter: { term: { field: { value: 2, _name: fs_random } } }
+                              random_score:
+                                  seed: 7
+                                  field: _seq_no
+                            - filter: { term: { field: { value: 1, _name: fs_gauss } } }
+                              gauss:
+                                  field:
+                                      origin: 1
+                                      scale: 1
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.fs_script: 3}
+
+    - do:
+          search:
+              include_named_queries_score: true
+              index: test_fs
+              body:
+                  query:
+                      function_score:
+                          query: { ids: { values: ["3"] } }
+                          score_mode: sum
+                          boost_mode: replace
+                          functions:
+                            - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                              weight: 2
+                            - filter: { term: { field: { value: 2, _name: fs_script } } }
+                              script_score:
+                                  script: { source: "3" }
+                            - filter: { term: { field: { value: 1, _name: fs_field_value } } }
+                              field_value_factor:
+                                  field: field
+                                  modifier: none
+                                  factor: 1
+                            - filter: { term: { field: { value: 2, _name: fs_random } } }
+                              random_score:
+                                  seed: 7
+                                  field: _seq_no
+                            - filter: { term: { field: { value: 1, _name: fs_gauss } } }
+                              gauss:
+                                  field:
+                                      origin: 1
+                                      scale: 1
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 5}
+    - match:  {hits.hits.0.matched_queries.fs_weight: 2}
+    - match:  {hits.hits.0.matched_queries.fs_script: 3}
+    - match:  {hits.hits.0.matched_queries.fs_field_value: 1}
+    - match:  {hits.hits.0.matched_queries.fs_gauss: 1}
+
+    - do:
+        search:
+          include_named_queries_score: true
+          index: test_fs
+          body:
+            query:
+              function_score:
+                _name: fs_top
+                query: { ids: { values: ["1"] } }
+                score_mode: sum
+                boost_mode: replace
+                functions:
+                  - filter: { term: { field: { value: 1 } } }
+                    _name: fs_weight
+                    weight: 2
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.fs_weight: 2}
+    - match:  {hits.hits.0.matched_queries.fs_top: 2}
+
+    - do:
+        search:
+          include_named_queries_score: true
+          index: test_fs
+          body:
+            query:
+              function_score:
+                _name: fs_top
+                query: { ids: { values: ["1"] } }
+                score_mode: sum
+                boost_mode: replace
+                functions:
+                  - filter: { term: { field: { value: 1, _name: fs_weight } } }
+                    _name: fs_weight_preferred
+                    weight: 2
+
+    - match:  {hits.total.value: 1}
+    - length: {hits.hits.0.matched_queries: 2}
+    - match:  {hits.hits.0.matched_queries.fs_weight_preferred: 2}
+    - match:  {hits.hits.0.matched_queries.fs_top: 2}

@@ -103,7 +103,8 @@ public class IndexMetadataStatsTests extends ESTestCase {
             primary,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRoutingHelper.recoveryPriorityForNewlyCreatedShard(primary)
         );
         shardRouting = ShardRoutingHelper.initialize(shardRouting, UUIDs.randomBase64UUID());
         shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);
@@ -126,7 +127,10 @@ public class IndexMetadataStatsTests extends ESTestCase {
                     false,
                     0,
                     totalIndexingTimeSinceShardStartedInNanos,
-                    totalActiveTimeInNanos
+                    totalIndexingTimeSinceShardStartedInNanos,
+                    totalActiveTimeInNanos,
+                    0.0,
+                    0.0
                 )
             );
         return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false, false, 0);

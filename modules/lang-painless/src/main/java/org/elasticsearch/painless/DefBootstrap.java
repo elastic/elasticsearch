@@ -169,9 +169,9 @@ public final class DefBootstrap {
                     nameValue,
                     args
                 );
-                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue);
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue, args.length > 0 && ((int) args[0]) != 0);
                 case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
-                case ARRAY_LOAD -> Def.lookupArrayLoad(receiver);
+                case ARRAY_LOAD -> Def.lookupArrayLoad(painlessLookup, receiver, args.length > 0 && ((int) args[0]) != 0);
                 case ARRAY_STORE -> Def.lookupArrayStore(receiver);
                 case ITERATOR -> Def.lookupIterator(receiver);
                 case REFERENCE -> Def.lookupReference(
@@ -181,7 +181,11 @@ public final class DefBootstrap {
                     methodHandlesLookup,
                     (String) args[0],
                     receiver,
-                    nameValue
+                    nameValue,
+                    // the script, when pushed, follows the receiver
+                    type().parameterCount() == 2,
+                    // optional trailing int charge flag; absent for ordinary references
+                    args.length > 1 && ((int) args[1]) != 0
                 );
                 case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
                 default -> throw new AssertionError();
@@ -201,7 +205,10 @@ public final class DefBootstrap {
                     try {
                         return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
-                        Def.rethrow(t);
+                        // ClassValue.getFromHashMap wraps checked exceptions as Error, so we
+                        // use a sentinel class [PainlessWrappedException] here to work around
+                        // this issue and later unwrap the original exception
+                        Def.rethrow(t instanceof Exception ? new PainlessWrappedException((Exception) t) : t);
                         throw new AssertionError();
                     }
                 }
@@ -521,7 +528,10 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
                 String recipe = (String) args[0];
-                int numLambdas = recipe.length();
+                // 'S' is a leading non-lambda sentinel set by the compiler when the call site
+                // pushed the script receiver ahead of user args; peel it before counting lambdas.
+                int recipeLambdaStart = (recipe.isEmpty() == false && recipe.charAt(0) == 'S') ? 1 : 0;
+                int numLambdas = recipe.length() - recipeLambdaStart;
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }
@@ -530,18 +540,29 @@ public final class DefBootstrap {
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
-            case LOAD, STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
+            case LOAD, ARRAY_LOAD -> {
+                // an optional int flag says the script instance follows the other arguments, for a getter or list get that needs it
+                if (args.length > 1 || (args.length == 1 && args[0] instanceof Integer == false)) {
+                    throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
+                }
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
+            case STORE, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }
             case REFERENCE -> {
-                if (args.length != 1) {
+                // args[0] is the interface class; args[1], present when the script is pushed, is the int charge flag.
+                if (args.length < 1 || args.length > 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
+                }
+                if (args.length == 2 && args[1] instanceof Integer == false) {
+                    throw new BootstrapMethodError("Illegal charge flag for reference call: " + args[1]);
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             }

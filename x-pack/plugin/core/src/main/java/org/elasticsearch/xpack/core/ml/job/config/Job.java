@@ -1023,7 +1023,9 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
          * @return The job builder.
          */
         public Builder setDatafeedIndicesOptionsIfRequired(IndicesOptions indicesOptions) {
-            if (this.datafeedConfig != null && this.datafeedConfig.getIndicesOptions() == null) {
+            if (this.datafeedConfig != null
+                && this.datafeedConfig.getIndicesOptions() == null
+                && this.datafeedConfig.getEsqlQuery() == null) {
                 this.datafeedConfig.setIndicesOptions(indicesOptions);
             }
             return this;
@@ -1349,6 +1351,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
             }
+
             if (datafeedConfig != null) {
                 if (datafeedConfig.getId() == null) {
                     datafeedConfig.setId(id);

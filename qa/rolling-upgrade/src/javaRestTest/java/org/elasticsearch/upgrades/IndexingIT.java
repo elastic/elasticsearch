@@ -18,7 +18,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -76,12 +77,13 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         }
 
         if (isOldCluster()) {
+            String indexMode = randomlyUseColumnarMode() ? ", \"index.mode\": \"columnar\"" : "";
             Request createTestIndex = new Request("PUT", "/test_index");
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0" + indexMode + "}}");
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
 
-            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
+            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"" + indexMode + "}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
@@ -137,8 +139,9 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         bulk.setJsonEntity(b);
 
         if (isOldCluster()) {
+            String indexMode = randomlyUseColumnarMode() ? ", \"index.mode\": \"columnar\"" : "";
             Request createTestIndex = new Request("PUT", "/" + indexName);
-            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0" + indexMode + "}}");
             client().performRequest(createTestIndex);
         } else if (isMixedCluster()) {
             Request waitForGreen = new Request("GET", "/_cluster/health");
@@ -166,9 +169,11 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         final String indexName = "test_date_nanos";
         if (isOldCluster()) {
             Request createIndex = new Request("PUT", "/" + indexName);
-            XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
-                .startObject()
-                .startObject("mappings")
+            XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+            if (randomlyUseColumnarMode()) {
+                mappings.startObject("settings").field("index.mode", "columnar").endObject();
+            }
+            mappings.startObject("mappings")
                 .startObject("properties")
                 .startObject("date")
                 .field("type", "date")
@@ -258,62 +263,32 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testTsdb() throws IOException {
-        final Version oldClusterVersion = Version.fromString(getOldClusterVersion());
-
         StringBuilder bulk = new StringBuilder();
         if (isOldCluster()) {
             createTsdbIndex();
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[0], TSDB_TIMES[1], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[0], TSDB_TIMES[1], -0.1);
             bulk("tsdb", bulk.toString());
-            assertTsdbAgg(oldClusterVersion, EXPECTED_TSDB_TSIDS_NODES_0, closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
+            assertTsdbAgg(EXPECTED_TSDB_TSIDS_NODES_0, closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
         } else if (isFirstMixedCluster()) {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[1], TSDB_TIMES[2], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[0], TSDB_TIMES[2], 1.1);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_1,
-                    closeTo(217.45, 0.005),
-                    closeTo(2391.95, 0.005),
-                    closeTo(-217.45, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_1,
-                    closeTo(217.45, 0.005),
-                    closeTo(-217.45, 0.005),
-                    closeTo(2391.95, 0.005)
-                );
-            }
+            assertTsdbAgg(EXPECTED_TSDB_TSIDS_NODES_1, closeTo(217.45, 0.005), closeTo(2391.95, 0.005), closeTo(-217.45, 0.005));
         } else if (isMixedCluster()) {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[2], TSDB_TIMES[3], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[2], TSDB_TIMES[3], -0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[2], TSDB_TIMES[3], 1.1);
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[0], TSDB_TIMES[3], 10);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_2,
-                    closeTo(218.95, 0.5),
-                    closeTo(21895.0, 0.005),
-                    closeTo(2408.45, 0.005),
-                    closeTo(-218.95, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_2,
-                    closeTo(218.95, 0.005),
-                    closeTo(-218.95, 0.005),
-                    closeTo(2408.45, 0.005),
-                    closeTo(21895, 0.5)
-                );
-            }
+            assertTsdbAgg(
+                EXPECTED_TSDB_TSIDS_NODES_2,
+                closeTo(218.95, 0.5),
+                closeTo(21895.0, 0.005),
+                closeTo(2408.45, 0.005),
+                closeTo(-218.95, 0.005)
+            );
         } else {
             tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[3], TSDB_TIMES[4], 0.1);
             tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[3], TSDB_TIMES[4], -0.1);
@@ -321,27 +296,14 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
             tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[3], TSDB_TIMES[4], 10);
             tsdbBulk(bulk, TSDB_DIMS.get(4), TSDB_TIMES[0], TSDB_TIMES[4], -5);
             bulk("tsdb", bulk.toString());
-            if (oldClusterVersion.onOrAfter(Version.V_8_13_0)) {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_3,
-                    closeTo(220.45, 0.005),
-                    closeTo(-11022.5, 0.5),
-                    closeTo(22045, 0.5),
-                    closeTo(2424.95, 0.005),
-                    closeTo(-220.45, 0.005)
-                );
-            } else {
-                assertTsdbAgg(
-                    oldClusterVersion,
-                    EXPECTED_TSDB_TSIDS_NODES_3,
-                    closeTo(220.45, 0.005),
-                    closeTo(-220.45, 0.005),
-                    closeTo(2424.95, 0.005),
-                    closeTo(22045, 0.5),
-                    closeTo(-11022.5, 0.5)
-                );
-            }
+            assertTsdbAgg(
+                EXPECTED_TSDB_TSIDS_NODES_3,
+                closeTo(220.45, 0.005),
+                closeTo(-11022.5, 0.5),
+                closeTo(22045, 0.5),
+                closeTo(2424.95, 0.005),
+                closeTo(-220.45, 0.005)
+            );
         }
     }
 
@@ -366,6 +328,15 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         indexSpec.array("routing_path", new String[] { "dim" });
         indexSpec.field("time_series.start_time", 1L);
         indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+
+        // Disable synthetic id if old cluster is in the version range that enables
+        // synthetic id behind feature flag. Otherwise, the index will change behavior
+        // once upgrade is finished and cause the test to fail.
+        IndexVersion oldClusterIndexVersion = getOldClusterIndexVersion();
+        if (oldClusterIndexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)
+            && oldClusterIndexVersion.before(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD)) {
+            indexSpec.field("mapping.synthetic_id", "false");
+        }
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
@@ -383,10 +354,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         }
     }
 
-    private void assertTsdbAgg(final Version oldClusterVersion, final List<String> expectedTsids, final Matcher<?>... expected)
-        throws IOException {
-        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
-        boolean onOrAfterTsidHashingVersion = oldClusterVersion.onOrAfter(Version.V_8_13_0);
+    private void assertTsdbAgg(final List<String> expectedTsids, final Matcher<?>... expected) throws IOException {
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
@@ -403,8 +371,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
-            // NOTE: from Version 8.12.0 on we use tsid hashing for the _tsid field
-            Object key = onOrAfterTsidHashingVersion ? expectedTsids.get(d) : Map.of("dim", IndexingIT.TSDB_DIMS.get(d));
+            Object key = expectedTsids.get(d);
             tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
         }
         assertMap(
@@ -479,6 +446,26 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
             entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/new"))),
             matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "new").entry("int", 21341325))
         );
+    }
+
+    /**
+     * Returns {@code true} when the cluster advertises support for {@code index.mode: columnar}.
+     * Columnar mode is gated by a feature flag first available in 9.5.0 and by a transport version
+     * that all nodes in the cluster must understand. Checking the REST capability is the
+     * authoritative and framework-recommended way to gate on this — it accounts for both.
+     */
+    private static boolean clusterSupportsColumnarMode() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+    }
+
+    /**
+     * Randomly decides whether a newly created index should use {@code index.mode: columnar}.
+     * Only returns {@code true} when the cluster already supports columnar mode. The mode is
+     * chosen once at index-creation time (old-cluster phase); because {@code index.mode} is
+     * {@code Final}, every mixed-cluster node must be able to read it — this gating ensures that.
+     */
+    private static boolean randomlyUseColumnarMode() throws IOException {
+        return clusterSupportsColumnarMode() && randomBoolean();
     }
 
     private void assertCount(String index, int count) throws IOException {

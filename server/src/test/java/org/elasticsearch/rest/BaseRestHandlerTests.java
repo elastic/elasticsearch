@@ -10,8 +10,10 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.ESTestCase;
@@ -22,6 +24,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,16 +40,14 @@ public class BaseRestHandlerTests extends ESTestCase {
     private NodeClient mockClient;
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initClient() throws Exception {
         threadPool = new TestThreadPool(this.getClass().getSimpleName() + "ThreadPool");
-        mockClient = new NodeClient(Settings.EMPTY, threadPool);
+        mockClient = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void stopThreadPool() throws Exception {
         threadPool.shutdown();
     }
 
@@ -73,7 +75,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("consumed", randomAlphaOfLength(8));
         params.put("unconsumed", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -108,7 +110,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("unconsumed-first", randomAlphaOfLength(8));
         params.put("unconsumed-second", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -155,7 +157,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("very_close_to_parametre", randomAlphaOfLength(8));
         params.put("very_far_from_every_consumed_parameter", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -206,7 +208,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("consumed", randomAlphaOfLength(8));
         params.put("response_param", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -238,7 +240,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("human", null);
         params.put("error_trace", randomFrom("true", "false", null));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -283,7 +285,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("size", randomAlphaOfLength(8));
         params.put("time", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, randomBoolean());
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -314,8 +316,41 @@ public class BaseRestHandlerTests extends ESTestCase {
                 new BytesArray(builder.toString()),
                 XContentType.JSON
             ).build();
-            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean());
             handler.handleRequest(request, channel, mockClient);
+            assertTrue(restChannelConsumer.executed);
+            assertTrue(restChannelConsumer.closed);
+        }
+    }
+
+    public void testChunkConsumerCanConsumeFullBodyAfterPreparation() throws Exception {
+        try (XContentBuilder builder = JsonXContent.contentBuilder().startObject().endObject()) {
+            final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+                new BytesArray(builder.toString()),
+                XContentType.JSON
+            ).build();
+            final var restChannelConsumer = new TestRequestBodyChunkConsumer(request);
+            final BaseRestHandler handler = new BaseRestHandler() {
+                @Override
+                protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+                    assertSame(request, restRequest);
+                    return restChannelConsumer;
+                }
+
+                @Override
+                public String getName() {
+                    return "test_chunk_consumer_with_full_body";
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return Collections.emptyList();
+                }
+            };
+
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean());
+            handler.handleRequest(request, channel, mockClient);
+            assertTrue(request.isContentConsumed());
             assertTrue(restChannelConsumer.executed);
             assertTrue(restChannelConsumer.closed);
         }
@@ -341,7 +376,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
-        final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        final RestChannel channel = new FakeRestChannel(request, randomBoolean());
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -371,7 +406,7 @@ public class BaseRestHandlerTests extends ESTestCase {
                 new BytesArray(builder.toString()),
                 XContentType.JSON
             ).build();
-            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            final RestChannel channel = new FakeRestChannel(request, randomBoolean());
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> handler.handleRequest(request, channel, mockClient)
@@ -379,6 +414,26 @@ public class BaseRestHandlerTests extends ESTestCase {
             assertThat(e, hasToString(containsString("request [GET /] does not support having a body")));
             assertFalse(restChannelConsumer.executed);
             assertTrue(restChannelConsumer.closed);
+        }
+    }
+
+    private static class TestRequestBodyChunkConsumer extends TestRestChannelConsumer implements BaseRestHandler.RequestBodyChunkConsumer {
+
+        private final RestRequest request;
+
+        private TestRequestBodyChunkConsumer(RestRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public void accept(RestChannel restChannel) {
+            request.content();
+            super.accept(restChannel);
+        }
+
+        @Override
+        public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
+            fail("full body should not be handled as a chunk");
         }
     }
 

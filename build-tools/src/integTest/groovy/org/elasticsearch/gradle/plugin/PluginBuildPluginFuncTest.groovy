@@ -20,8 +20,7 @@ import java.util.stream.Collectors
 class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
-        // underlaying TestClusterPlugin and StandaloneRestIntegTestTask are not cc compatible
-        configurationCacheCompatible = false
+        disableConfigurationCache("underlying TestClustersPlugin and StandaloneRestIntegTestTask are not cc compatible")
     }
 
     def "can assemble plugin via #taskName"() {
@@ -126,7 +125,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("has.native.controller") == null
         props.get("extended.plugins") == null
         props.get("modulename") == null
-        props.size() == 6
+        props.size() == 7
     }
 
     def "module name is inferred by plugin properties"() {

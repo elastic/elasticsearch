@@ -40,7 +40,12 @@ public final class RandomDocumentPicks {
             if (i > 0) {
                 fieldName.append('.');
             }
-            fieldName.append(randomString(random));
+            String pathSegment;
+            // can't contain a dot since might lead to invalid empty segment, e.g. `one..two.three`
+            do {
+                pathSegment = randomString(random);
+            } while (pathSegment.contains("."));
+            fieldName.append(pathSegment);
         }
         if (numLevels > 1) {
             fieldName.append('.');
@@ -63,7 +68,7 @@ public final class RandomDocumentPicks {
      * field.
      */
     public static String randomExistingFieldName(Random random, IngestDocument ingestDocument) {
-        Map<String, Object> source = new TreeMap<>(ingestDocument.getSourceAndMetadata());
+        Map<String, Object> source = new TreeMap<>(ingestDocument.getCtxMap());
         Map.Entry<String, Object> randomEntry = getRandomEntry(random, source.entrySet());
         String key = randomEntry.getKey();
         while (randomEntry.getValue() instanceof Map) {
@@ -116,7 +121,10 @@ public final class RandomDocumentPicks {
      */
     public static boolean canAddField(String path, IngestDocument ingestDocument) {
         String[] pathElements = path.split("\\.");
-        Map<String, Object> innerMap = ingestDocument.getSourceAndMetadata();
+        if (ingestDocument.getMetadata().isAvailable(pathElements[0])) {
+            return false;
+        }
+        Map<String, Object> innerMap = ingestDocument.getSource();
         if (pathElements.length > 1) {
             for (int i = 0; i < pathElements.length - 1; i++) {
                 Object currentLevel = innerMap.get(pathElements[i]);

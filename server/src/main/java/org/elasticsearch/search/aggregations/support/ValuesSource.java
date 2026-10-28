@@ -21,7 +21,6 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -29,10 +28,12 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericLongValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
@@ -65,7 +66,7 @@ public abstract class ValuesSource {
      * Get a byte array like view into the values. This is the "native" way
      * to access {@link Bytes}-style values.
      */
-    public abstract SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException;
+    public abstract SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException;
 
     /**
      * Get a "has any values" view into the values. It'll try to pick the
@@ -92,6 +93,14 @@ public abstract class ValuesSource {
     protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
+     * Like {@link #roundingPreparer(AggregationContext)} but for use under a {@code global} agg,
+     * which ignores the top-level query.
+     */
+    protected Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+        return roundingPreparer(context);
+    }
+
+    /**
      * Check if this values source supports using global and segment ordinals.
      * <p>
      * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
@@ -111,7 +120,7 @@ public abstract class ValuesSource {
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final SortedBinaryDocValues bytes = bytesValues(context);
+            final SortableBinaryDocValues bytes = bytesValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
@@ -143,7 +152,7 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                     return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
                 }
 
@@ -268,7 +277,7 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                     final LeafOrdinalsFieldData atomicFieldData = indexFieldData.load(context);
                     return atomicFieldData.getBytesValues();
                 }
@@ -314,7 +323,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
 
@@ -332,7 +341,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new ScriptBytesValues(script.newInstance(context));
             }
 
@@ -362,16 +371,16 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
 
             static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
 
-                private final SortedBinaryDocValues bytesValues;
+                private final SortableBinaryDocValues bytesValues;
                 private final AggregationScript script;
 
-                BytesValues(SortedBinaryDocValues bytesValues, AggregationScript script) {
+                BytesValues(SortableBinaryDocValues bytesValues, AggregationScript script) {
                     this.bytesValues = bytesValues;
                     this.script = script;
                 }
@@ -387,12 +396,20 @@ public abstract class ValuesSource {
                         count = bytesValues.docValueCount();
                         grow();
                         script.setDocument(doc);
+                        int j = 0;
                         for (int i = 0; i < count; ++i) {
                             final BytesRef value = bytesValues.nextValue();
                             script.setNextAggregationValue(value.utf8ToString());
                             Object run = script.execute();
-                            CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
-                            values[i].copyChars(run.toString());
+                            if (run != null) {
+                                CollectionUtils.ensureNoSelfReferences(run, "ValuesSource.BytesValues script");
+                                values[j].copyChars(run.toString());
+                                j++;
+                            }
+                        }
+                        count = j;
+                        if (count == 0) {
+                            return false;
                         }
                         sort();
                         return true;
@@ -424,8 +441,8 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) {
-                return DocValues.emptySortedNumeric();
+            public SortedNumericLongValues longValues(LeafReaderContext context) {
+                return SortedNumericLongValues.EMPTY;
             }
 
             @Override
@@ -434,7 +451,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
@@ -463,7 +480,7 @@ public abstract class ValuesSource {
          * <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.3">"narrowed"</a>
          * but they'll accurately represent values up to {@link Long#MAX_VALUE}.
          */
-        public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
+        public abstract SortedNumericLongValues longValues(LeafReaderContext context) throws IOException;
 
         /**
          * Get a double precision floating point view into the values in this leaf.
@@ -482,7 +499,7 @@ public abstract class ValuesSource {
                 final SortedNumericDoubleValues values = doubleValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             } else {
-                final SortedNumericDocValues values = longValues(context);
+                final SortedNumericLongValues values = longValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             }
         }
@@ -516,12 +533,12 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new Bytes.WithScript.BytesValues(delegate.bytesValues(context), script.newInstance(context));
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
                 return new LongValues(delegate.longValues(context), script.newInstance(context));
             }
 
@@ -530,12 +547,12 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.newInstance(context));
             }
 
-            static class LongValues extends AbstractSortingNumericDocValues implements ScorerAware {
+            static final class LongValues extends SortingNumericLongValues implements ScorerAware {
 
-                private final SortedNumericDocValues longValues;
+                private final SortedNumericLongValues longValues;
                 private final AggregationScript script;
 
-                LongValues(SortedNumericDocValues values, AggregationScript script) {
+                LongValues(SortedNumericLongValues values, AggregationScript script) {
                     this.longValues = values;
                     this.script = script;
                 }
@@ -607,12 +624,12 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) {
+            public SortedNumericLongValues longValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getLongValues();
             }
 
@@ -640,7 +657,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
                 return new ScriptLongValues(script.newInstance(context));
             }
 
@@ -650,7 +667,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return new ScriptBytesValues(script.newInstance(context));
             }
 
@@ -675,13 +692,13 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+        public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
             return indexFieldData.load(context).getBytesValues();
         }
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final SortedBinaryDocValues bytes = bytesValues(context);
+            final SortableBinaryDocValues bytes = bytesValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
@@ -705,12 +722,12 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
-                return DocValues.emptySortedNumeric();
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return SortedNumericLongValues.EMPTY;
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
             }
 
@@ -739,7 +756,7 @@ public abstract class ValuesSource {
          * A point is encoded as a long that can be decoded by using
          * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
          */
-        public abstract SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context);
+        public abstract SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -750,13 +767,13 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
 
             @Override
-            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getSortedNumericDocValues();
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericLongValues();
             }
         }
     }

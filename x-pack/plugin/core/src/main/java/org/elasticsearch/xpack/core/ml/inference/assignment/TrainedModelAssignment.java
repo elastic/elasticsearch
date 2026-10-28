@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +53,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private static final ParseField START_TIME = new ParseField("start_time");
     private static final ParseField MAX_ASSIGNED_ALLOCATIONS = new ParseField("max_assigned_allocations");
     public static final ParseField ADAPTIVE_ALLOCATIONS = new ParseField("adaptive_allocations");
+
+    // The observed per-allocation memory gated by this version has been removed, but the field is still read and written
+    // (as null) to stay wire-compatible with nodes that support this transport version.
+    static final TransportVersion RUNTIME_NATIVE_MEMORY_STATS = TransportVersion.fromName("ml_runtime_native_memory_stats");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TrainedModelAssignment, Void> PARSER = new ConstructingObjectParser<>(
@@ -107,10 +110,6 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final int maxAssignedAllocations;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
 
-    public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
-        return minClusterVersion.onOrAfter(TransportVersions.V_8_11_X);
-    }
-
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
@@ -144,7 +143,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
      * @param assignmentState used to track the state of the assignment for rebalancing, autoscaling, and more
      * @param reason may contain a human-readable explanation for the current state
      * @param startTime the time when the assignment was created
-     * @param maxAssignedAllocations used for adaptive allocations
+     * @param maxAssignedAllocations keeps track of the maximum number of allocations used for this assignment
      * @param adaptiveAllocationsSettings how the assignment should scale based on usage
      */
     TrainedModelAssignment(
@@ -173,15 +172,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.maxAssignedAllocations = in.readVInt();
-        } else {
-            this.maxAssignedAllocations = totalCurrentAllocations();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-        } else {
-            this.adaptiveAllocationsSettings = null;
+        this.maxAssignedAllocations = in.readVInt();
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        if (in.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            in.readOptionalVLong(); // removed observed per-allocation memory
         }
     }
 
@@ -379,11 +373,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeVInt(maxAssignedAllocations);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(adaptiveAllocationsSettings);
+        out.writeVInt(maxAssignedAllocations);
+        out.writeOptionalWriteable(adaptiveAllocationsSettings);
+        if (out.getTransportVersion().supports(RUNTIME_NATIVE_MEMORY_STATS)) {
+            out.writeOptionalVLong(null); // removed observed per-allocation memory
         }
     }
 

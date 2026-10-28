@@ -9,15 +9,19 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
 /**
- * Wrapper around {@link DocVector} to make a valid {@link Block}.
+ * Wrapper around {@link DocVector} to make a valid {@link Block}. See {@link DocVector#writeTo} for which blocks can be
+ * written.
  */
-public class DocBlock extends AbstractVectorBlock implements Block {
+public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     private final DocVector vector;
 
@@ -26,13 +30,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException();
+    public void writeTo(StreamOutput out) throws IOException {
+        vector.writeTo(out);
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+    public static DocBlock readFrom(BlockStreamInput in) throws IOException {
+        return DocVector.readFrom(in.blockFactory(), in).asBlock();
     }
 
     @Override
@@ -46,8 +49,23 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new DocBlock(asVector().filter(positions));
+    public int valueMaxByteSize() {
+        return 3 * Integer.BYTES;
+    }
+
+    @Override
+    public Block slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return new DocBlock(vector.filter(mayContainDuplicates, positions, offset, length));
+    }
+
+    @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        return new DocBlock(vector.deepCopy(blockFactory));
     }
 
     @Override
@@ -90,6 +108,14 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         Releasables.closeExpectNoException(vector);
     }
 
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("DocBlock[");
+        sb.append("vector=").append(vector);
+        sb.append(']');
+        return sb.toString();
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */
@@ -97,10 +123,20 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return new Builder(blockFactory, estimatedSize);
     }
 
+    /**
+     * Builds a {@link DocBlock}. Rows appended with {@link #appendShard} name shard slots of this node, unless the block
+     * gets origins at {@link #build(DocVector.Config)}. Then they are ordinals into those origins.
+     */
     public static class Builder implements Block.Builder {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
+        private IndexedByShardId<? extends RefCounted> shardRefCounters = AlwaysReferencedIndexedByShardId.INSTANCE;
+
+        public Builder shardRefCounters(IndexedByShardId<? extends RefCounted> shardRefCounters) {
+            this.shardRefCounters = shardRefCounters;
+            return this;
+        }
 
         private Builder(BlockFactory blockFactory, int estimatedSize) {
             IntVector.Builder shards = null;
@@ -150,9 +186,14 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             throw new UnsupportedOperationException("doc blocks only contain one value per position");
         }
 
+        /**
+         * Copies rows of this node. The ordinals of a detached vector only mean something next to its origins, which this
+         * builder doesn't keep, so it rejects detached vectors.
+         */
         @Override
         public Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
             DocVector docVector = ((DocBlock) block).asVector();
+            docVector.ensureAttached("DocBlock.Builder#copyFrom");
             for (int i = beginInclusive; i < endExclusive; i++) {
                 shards.appendInt(docVector.shards().getInt(i));
                 segments.appendInt(docVector.segments().getInt(i));
@@ -179,7 +220,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public DocBlock build() {
-            // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
+            return build(DocVector.config());
+        }
+
+        public DocBlock build(DocVector.Config config) {
             IntVector shards = null;
             IntVector segments = null;
             IntVector docs = null;
@@ -188,7 +232,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shards, segments, docs, null);
+                result = new DocVector(shardRefCounters, shards, segments, docs, config);
                 return result.asBlock();
             } finally {
                 if (result == null) {
@@ -205,6 +249,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

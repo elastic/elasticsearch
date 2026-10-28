@@ -1,0 +1,148 @@
+ # Tests for v_magnitude scalar function
+ 
+ magnitudeWithVectorField
+ required_capability: magnitude_scalar_vector_function
+ required_capability: dense_vector_field_type_released
+ 
+// tag::vector-magnitude[]
+ from colors
+ | eval magnitude = v_magnitude(rgb_vector) 
+ | sort magnitude desc, color asc 
+// end::vector-magnitude[]
+ | limit 10
+ | keep color, magnitude
+ ;
+ 
+// tag::vector-magnitude-result[]
+color:text | magnitude:double
+white      | 441.6729431152344
+snow       | 435.9185791015625
+azure      | 433.1858825683594
+ivory      | 433.1858825683594
+mint cream | 433.0704345703125
+sea shell  | 426.25579833984375
+honeydew   | 424.5291442871094
+old lace   | 420.6352233886719
+corn silk  | 418.2451477050781
+linen      | 415.93267822265625
+// end::vector-magnitude-result[] 
+;
+
+magnitudeAsPartOfExpression
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from colors
+| eval score = round((1 + v_magnitude(rgb_vector) / 2), 3) 
+| sort score desc, color asc 
+| limit 10
+| keep color, score
+;
+
+color:text | score:double
+white      | 221.836
+snow       | 218.959
+azure      | 217.593
+ivory      | 217.593
+mint cream | 217.535
+sea shell  | 214.128
+honeydew   | 213.265
+old lace   | 211.318
+corn silk  | 210.123
+linen      | 208.966
+;
+
+magnitudeWithLiteralVectors
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+ 
+row a = 1
+| eval magnitude = round(v_magnitude([1, 2, 3]), 3) 
+| keep magnitude
+;
+
+magnitude:double
+3.742
+;
+
+magnitudeWithStats
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from colors
+| eval magnitude = round(v_magnitude(rgb_vector), 3)
+| stats avg = round(avg(magnitude), 3), min = min(magnitude), max = max(magnitude)
+;
+
+avg:double | min:double | max:double
+313.692    | 0.0        | 441.673
+;
+
+magnitudeWithNull
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+required_capability: warn_null_misuse
+ 
+row a = 1
+| eval magnitude = v_magnitude(null) 
+| keep magnitude
+;
+warning:Line 2:20: Expression [v_magnitude(null)] always evaluates to NULL.
+
+magnitude:double
+null
+;
+
+magnitudeWithCoalesceNull
+required_capability: fn_v_magnitude_fix_null
+
+row a = 1 | eval magnitude = v_magnitude(coalesce(null))
+;
+
+a:integer | magnitude:double
+1         | null
+;
+
+magnitudeWithCaseSometimesNull
+required_capability: magnitude_scalar_vector_function
+required_capability: dense_vector_field_type_released
+
+from employees
+| eval magnitude = v_magnitude(case(emp_no == 10001, TO_DENSE_VECTOR([3,4])))
+| keep emp_no, magnitude
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer | magnitude:double
+10001          | 5.0
+10002          | null
+;
+
+magnitudeWithCaseAlwaysNull
+required_capability: fn_v_magnitude_fix_null
+
+from employees
+| eval magnitude = v_magnitude(case(emp_no == 99999, TO_DENSE_VECTOR([3,4])))
+| keep emp_no, magnitude
+| sort emp_no
+| limit 2
+;
+
+emp_no:integer | magnitude:double
+10001          | null
+10002          | null
+;
+
+magnitudeWithRow
+required_capability: magnitude_scalar_vector_function
+required_capability: to_dense_vector_function
+required_capability: dense_vector_field_type_released
+ 
+row vector = to_dense_vector([1, 2, 3]) 
+| eval magnitude = round(v_magnitude(vector), 3) 
+;
+
+vector: dense_vector | magnitude:double
+[1.0, 2.0, 3.0]      | 3.742
+;

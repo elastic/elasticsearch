@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -25,7 +26,10 @@ public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScri
     public SortedNumericDocValuesLongFieldScript(String fieldName, SearchLookup lookup, LeafReaderContext ctx) {
         super(fieldName, Map.of(), lookup, OnScriptError.FAIL, ctx);
         try {
-            longDocValuesField = new LongDocValuesField(DocValues.getSortedNumeric(ctx.reader(), fieldName), fieldName);
+            longDocValuesField = new LongDocValuesField(
+                SortedNumericLongValues.wrap(DocValues.getSortedNumeric(ctx.reader(), fieldName)),
+                fieldName
+            );
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

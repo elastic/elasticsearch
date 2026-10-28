@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,10 +53,9 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { HashMap::new, ArrayList::new };
 
-    @Override
+    @Before
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initHasReduceScript() throws Exception {
         hasReduceScript = randomBoolean();
     }
 
@@ -126,7 +127,13 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             Collections.emptyMap()
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -161,7 +168,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 () -> false,
                 mock(AggregationBuilder.class),
                 null,
-                PipelineTree.EMPTY
+                PipelineTree.EMPTY,
+                null
             )
         );
     }

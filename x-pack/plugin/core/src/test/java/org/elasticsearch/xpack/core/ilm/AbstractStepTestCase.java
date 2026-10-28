@@ -10,9 +10,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -27,20 +27,19 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
     protected Client client;
+    protected ProjectClient projectClient;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
-
-    public static ClusterState emptyClusterState() {
-        return ClusterState.builder(ClusterName.DEFAULT).build();
-    }
 
     @Before
     public void setupClient() {
         client = Mockito.mock(Client.class);
         adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
+        projectClient = Mockito.mock(ProjectClient.class);
 
-        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(projectClient);
+        Mockito.when(projectClient.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }
 
@@ -77,11 +76,11 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected void performActionAndWait(
         AsyncActionStep step,
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer
     ) throws Exception {
         final var future = new PlainActionFuture<Void>();
-        step.performAction(indexMetadata, currentClusterState, observer, future);
+        step.performAction(indexMetadata, currentState, observer, future);
         try {
             future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {

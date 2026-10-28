@@ -1,13 +1,15 @@
 {
   "dangling_indices.list_dangling_indices": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html",
-      "description": "Returns all dangling indices."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-list-dangling-indices",
+      "description": "Get the dangling indices"
     },
     "stability": "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -18,7 +20,6 @@
           ]
         }
       ]
-    },
-    "params": {}
+    }
   }
 }

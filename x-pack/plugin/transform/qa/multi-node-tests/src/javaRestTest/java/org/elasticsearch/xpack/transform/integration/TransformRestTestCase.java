@@ -27,6 +27,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.integration.common.TransformCommonRestTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -65,6 +69,41 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
 public abstract class TransformRestTestCase extends TransformCommonRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(3)
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.key", "testnode.pem")
+        .setting("xpack.security.transport.ssl.certificate", "testnode.crt")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .setting("xpack.security.audit.enabled", "false")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
+        .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+        .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+        // Node roles are configured this way in order to verify redirecting the transform request from the node lacking
+        // remote_cluster_client role to the node that is remote_cluster_client.
+        .node(0, n -> n.setting("node.roles", "[data,ingest,master]"))
+        .node(1, n -> n.setting("node.roles", "[data,ingest,master,transform]"))
+        .node(2, n -> n.setting("node.roles", "[data,ingest,master,transform,remote_cluster_client]"))
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("x_pack_rest_user", "x-pack-test-password")
+        .user("john_junior", "x-pack-test-password", "transform_admin", false)
+        .user("bill_senior", "x-pack-test-password", "transform_admin,source_index_access,dest_index_access", false)
+        .user("source_and_dest_index_access_only", "x-pack-test-password", "source_index_access,dest_index_access", false)
+        .user("transform_user_but_not_admin", "x-pack-test-password", "transform_user,source_index_access,dest_index_access", false)
+        .user("fleet_access", "x-pack-test-password", "transform_admin,fleet_index_access,dest_index_access", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private final Set<String> createdTransformIds = new HashSet<>();
 
@@ -223,6 +262,10 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         return (String) getBasicTransformStats(id).get("state");
     }
 
+    protected String getTransformHealthStatus(String id) throws IOException {
+        return (String) XContentMapValues.extractValue("health.status", getBasicTransformStats(id));
+    }
+
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getTransform(String id) throws IOException {
         var request = new Request("GET", TRANSFORM_ENDPOINT + id);
@@ -350,7 +393,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     ) {
         return TransformConfig.builder()
             .setId(id)
-            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
+            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap(), null))
             .setDest(new DestConfig(destinationIndex, null, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);
@@ -390,7 +433,40 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     ) throws Exception {
         assert numUsers > 0;
 
-        // create mapping
+        createReviewsIndexMappings(indexName, defaultPipeline);
+
+        // create index
+        StringBuilder sourceBuilder = new StringBuilder();
+        for (int i = 0; i < numDocs; i++) {
+            Integer user = userIdProvider.apply(i);
+            int stars = i % 5;
+            long business = i % 50;
+            String dateString = dateStringProvider.apply(i);
+
+            sourceBuilder.append(Strings.format("""
+                {"create":{"_index":"%s"}}
+                """, indexName));
+
+            sourceBuilder.append("{");
+            if (user != null) {
+                sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
+            }
+            sourceBuilder.append(Strings.format("""
+                "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
+                {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
+                """, i, business, stars, stars, dateString));
+
+            if (i % 100 == 0) {
+                sourceBuilder.append("\r\n");
+                doBulk(sourceBuilder.toString(), false);
+                sourceBuilder.setLength(0);
+            }
+        }
+        sourceBuilder.append("\r\n");
+        doBulk(sourceBuilder.toString(), true);
+    }
+
+    protected void createReviewsIndexMappings(String indexName, String defaultPipeline) throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
@@ -439,36 +515,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
             req.setOptions(RequestOptions.DEFAULT);
             assertOKAndConsume(adminClient().performRequest(req));
         }
-
-        // create index
-        StringBuilder sourceBuilder = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            Integer user = userIdProvider.apply(i);
-            int stars = i % 5;
-            long business = i % 50;
-            String dateString = dateStringProvider.apply(i);
-
-            sourceBuilder.append(Strings.format("""
-                {"create":{"_index":"%s"}}
-                """, indexName));
-
-            sourceBuilder.append("{");
-            if (user != null) {
-                sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
-            }
-            sourceBuilder.append(Strings.format("""
-                "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
-                {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
-                """, i, business, stars, stars, dateString));
-
-            if (i % 100 == 0) {
-                sourceBuilder.append("\r\n");
-                doBulk(sourceBuilder.toString(), false);
-                sourceBuilder.setLength(0);
-            }
-        }
-        sourceBuilder.append("\r\n");
-        doBulk(sourceBuilder.toString(), true);
     }
 
     protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {

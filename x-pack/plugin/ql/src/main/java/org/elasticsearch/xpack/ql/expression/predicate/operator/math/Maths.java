@@ -156,8 +156,14 @@ public final class Maths {
             }
             return number.intValue();
         } else if (type == Short.class) {
+            if (number > Short.MAX_VALUE || number < Short.MIN_VALUE) {
+                throw new ArithmeticException("short overflow");
+            }
             return number.shortValue();
         } else if (type == Byte.class) {
+            if (number > Byte.MAX_VALUE || number < Byte.MIN_VALUE) {
+                throw new ArithmeticException("byte overflow");
+            }
             return number.byteValue();
         }
         return number;

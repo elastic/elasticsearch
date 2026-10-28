@@ -1,0 +1,7 @@
+SET unmapped_fields="nullify";
+FROM k8s-downsampled, (FROM languages)
+| DROP @timestamp, language_*
+| RENAME network.total_bytes_in AS x
+| RENAME x as y
+| KEEP *
+| SORT y

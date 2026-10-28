@@ -7,10 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -22,33 +26,48 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.FakeCpuClock;
 import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DriverTests extends ESTestCase {
     /**
@@ -65,38 +84,36 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
+        Driver driver = createDriver(
             startEpoch,
             startNanos,
             driverContext,
-            () -> "unset",
             new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueDays(10),
-            () -> {}
+            outPages,
+            TimeValue.timeValueDays(10)
         );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
 
         logger.info("status {}", driver.status());
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.QUEUED));
+        assertThat(driver.status().threadName(), equalTo(""));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().cpuNanos(), equalTo(0L));
+        assertThat(driver.status().driverNanos(), equalTo(0L));
         assertThat(driver.status().iterations(), equalTo(0L));
         driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), Integer.MAX_VALUE, nowSupplier);
         logger.info("status {}", driver.status());
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.status().threadName(), equalTo(Thread.currentThread().getName()));
         assertThat(driver.status().started(), equalTo(startEpoch));
         long sumRunningTime = tickTime * (nowSupplier.callCount - 1);
-        assertThat(driver.status().cpuNanos(), equalTo(sumRunningTime));
+        assertThat(driver.status().driverNanos(), equalTo(sumRunningTime));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + sumRunningTime));
-        assertThat(driver.profile().cpuNanos(), equalTo(sumRunningTime));
+        assertThat(driver.profile().driverNanos(), equalTo(sumRunningTime));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -115,18 +132,13 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
+        Driver driver = createDriver(
             startEpoch,
             startNanos,
             driverContext,
-            () -> "unset",
             new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueDays(10),
-            () -> {}
+            outPages,
+            TimeValue.timeValueDays(10)
         );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
@@ -135,7 +147,7 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().status(), equalTo(i == 0 ? DriverStatus.Status.QUEUED : DriverStatus.Status.WAITING));
             assertThat(driver.status().started(), equalTo(startEpoch));
             assertThat(driver.status().iterations(), equalTo((long) i));
-            assertThat(driver.status().cpuNanos(), equalTo(tickTime * i));
+            assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
             driver.run(TimeValue.timeValueSeconds(Long.MAX_VALUE), 1, nowSupplier);
         }
 
@@ -143,11 +155,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -166,18 +178,13 @@ public class DriverTests extends ESTestCase {
         long waitTime = randomLongBetween(1000, 100000);
         long tickTime = randomLongBetween(1, 10000);
 
-        Driver driver = new Driver(
-            "unset",
-            "test",
+        Driver driver = createDriver(
             startEpoch,
             startNanos,
             driverContext,
-            () -> "unset",
             new CannedSourceOperator(inPages.iterator()),
-            List.of(),
-            new TestResultPageSinkOperator(outPages::add),
-            TimeValue.timeValueNanos(tickTime),
-            () -> {}
+            outPages,
+            TimeValue.timeValueNanos(tickTime)
         );
 
         NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
@@ -186,7 +193,7 @@ public class DriverTests extends ESTestCase {
             assertThat(driver.status().status(), equalTo(i == 0 ? DriverStatus.Status.QUEUED : DriverStatus.Status.WAITING));
             assertThat(driver.status().started(), equalTo(startEpoch));
             assertThat(driver.status().iterations(), equalTo((long) i));
-            assertThat(driver.status().cpuNanos(), equalTo(tickTime * i));
+            assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
             driver.run(TimeValue.timeValueNanos(tickTime), Integer.MAX_VALUE, nowSupplier);
         }
 
@@ -194,15 +201,360 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
-    class NowSupplier implements LongSupplier {
+    public void testProfileAndStatusInterval() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startEpoch = randomNonNegativeLong();
+        long startNanos = randomLong();
+        long waitTime = randomLongBetween(10000, 100000);
+        long tickTime = randomLongBetween(10000, 100000);
+        long statusInterval = randomLongBetween(1, 10);
+
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueNanos(statusInterval)
+        );
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
+
+        int iterationsPerTick = randomIntBetween(1, 10);
+
+        for (int i = 0; i < inPages.size(); i += iterationsPerTick) {
+            logger.info("status {} {}", i, driver.status());
+            assertThat(driver.status().status(), equalTo(i == 0 ? DriverStatus.Status.QUEUED : DriverStatus.Status.WAITING));
+            assertThat(driver.status().started(), equalTo(startEpoch));
+            assertThat(driver.status().iterations(), equalTo((long) i));
+            assertThat(driver.status().driverNanos(), equalTo(tickTime * i));
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+        }
+
+        logger.info("status {}", driver.status());
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.status().started(), equalTo(startEpoch));
+        assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
+        assertThat(driver.status().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
+
+        logger.info("profile {}", driver.profile());
+        assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (inPages.size() + 1)));
+        assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
+    }
+
+    /**
+     * Runs the driver with separate fake wall and thread CPU clocks, across slices that end on the iteration limit, on
+     * periodic status updates and on completion. {@code cpuNanos} must be the sum of the thread CPU clock deltas inside
+     * each slice, independent of the wall clock that drives {@code driverNanos}.
+     */
+    public void testCpuNanosUsesThreadCpuClock() {
+        long cpuTickTime = randomLongBetween(1, 10000);
+        // Thread CPU time starts at an arbitrary value, like the real per-thread counter.
+        NowSupplier cpuSupplier = new NowSupplier(randomLongBetween(0, 1_000_000), 0, cpuTickTime);
+        DriverContext driverContext = driverContext(new CpuTracker(cpuSupplier));
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startNanos = randomLong();
+        long waitTime = randomLongBetween(1000, 100000);
+        long tickTime = randomLongBetween(1, 10000);
+        TimeValue statusInterval = randomBoolean() ? TimeValue.timeValueDays(10) : TimeValue.timeValueNanos(randomLongBetween(1, 10));
+
+        Driver driver = createDriver(
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            statusInterval
+        );
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
+        int iterationsPerRun = randomIntBetween(1, 10);
+        int runs = 0;
+        while (driver.status().status() != DriverStatus.Status.DONE) {
+            driver.run(TimeValue.timeValueDays(10), iterationsPerRun, nowSupplier);
+            runs++;
+        }
+
+        // Each slice reads the CPU clock when it starts, at each status update and when it ends, and the deltas telescope.
+        long expectedCpuNanos = cpuTickTime * (cpuSupplier.callCount - runs);
+        assertThat(driverContext.cpuNanos(), equalTo(expectedCpuNanos));
+        // The last slice ends after it publishes DONE. Driver#start publishes DONE again with that tick; run alone does not.
+        assertThat(driver.status().cpuNanos(), equalTo(expectedCpuNanos - cpuTickTime));
+        assertThat(driver.profile().cpuNanos(), equalTo(expectedCpuNanos - cpuTickTime));
+        long expectedDriverNanos = tickTime * (nowSupplier.callCount - runs);
+        assertThat(driver.status().driverNanos(), equalTo(expectedDriverNanos));
+        assertThat(driver.profile().driverNanos(), equalTo(expectedDriverNanos));
+        assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
+    }
+
+    /**
+     * When the JVM can't measure thread CPU time the clock returns {@code -1}. {@code cpuNanos} stays 0 and
+     * {@code driverNanos} still accumulates.
+     */
+    public void testCpuNanosZeroWhenThreadCpuUnsupported() {
+        DriverContext driverContext = driverContext(new CpuTracker(() -> -1L));
+        List<Page> inPages = randomList(1, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startNanos = randomLong();
+        long tickTime = randomLongBetween(1, 10000);
+        Driver driver = createDriver(
+            randomNonNegativeLong(),
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueDays(10)
+        );
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, randomLongBetween(1000, 100000), tickTime);
+        driver.run(TimeValue.timeValueDays(10), Integer.MAX_VALUE, nowSupplier);
+
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.profile().cpuNanos(), equalTo(0L));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (nowSupplier.callCount - 1)));
+    }
+
+    /**
+     * Like {@link #testCpuNanosUsesThreadCpuClock} but every slice except the last ends because the source blocks,
+     * so the CPU and driver time of each slice must be published by the {@code ASYNC} status update. The status
+     * interval is long so blocked slices have no periodic update and their deltas are fixed. An expectation derived
+     * from how often the clocks were read would still match if the {@code ASYNC} update skipped the CPU clock.
+     */
+    public void testCpuNanosWhenSourceBlocks() {
+        long cpuTickTime = randomLongBetween(1, 10000);
+        NowSupplier cpuSupplier = new NowSupplier(randomLongBetween(0, 1_000_000), 0, cpuTickTime);
+        DriverContext driverContext = driverContext(new CpuTracker(cpuSupplier));
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startNanos = randomLong();
+        long tickTime = randomLongBetween(1, 10000);
+
+        BlockAfterEachPageSourceOperator source = new BlockAfterEachPageSourceOperator(inPages.iterator());
+        Driver driver = createDriver(randomNonNegativeLong(), startNanos, driverContext, source, outPages, TimeValue.timeValueDays(10));
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, randomLongBetween(1000, 100000), tickTime);
+        int runs = 0;
+        int blockedRuns = 0;
+        while (driver.status().status() != DriverStatus.Status.DONE) {
+            long cpuBefore = driverContext.cpuNanos();
+            long driverBefore = driver.status().driverNanos();
+            SubscribableListener<Void> blocked = driver.run(TimeValue.timeValueDays(10), Integer.MAX_VALUE, nowSupplier);
+            runs++;
+            if (blocked.isDone() == false) {
+                blockedRuns++;
+                assertThat(driver.status().status(), equalTo(DriverStatus.Status.ASYNC));
+                // One iteration moves the page and the next sees the source blocked: the CPU clock is read when the slice
+                // starts, at the RUNNING and ASYNC updates and when the slice ends, the wall clock at the start and after
+                // each iteration. The tick that ends the slice is in the total but not in the published status.
+                assertThat(driver.status().cpuNanos() - cpuBefore, equalTo(2 * cpuTickTime));
+                assertThat(driverContext.cpuNanos() - driver.status().cpuNanos(), equalTo(cpuTickTime));
+                assertThat(driver.status().driverNanos() - driverBefore, equalTo(2 * tickTime));
+                source.unblock();
+            }
+        }
+
+        assertThat(blockedRuns, equalTo(inPages.size() - 1));
+        assertThat(outPages.size(), equalTo(inPages.size()));
+        long expectedCpuNanos = cpuTickTime * (cpuSupplier.callCount - runs);
+        assertThat(driverContext.cpuNanos(), equalTo(expectedCpuNanos));
+        // The last slice ends after it publishes DONE. Driver#start publishes DONE again with that tick; run alone does not.
+        assertThat(driver.profile().cpuNanos(), equalTo(expectedCpuNanos - cpuTickTime));
+        assertThat(driver.profile().driverNanos(), equalTo(tickTime * (nowSupplier.callCount - runs)));
+    }
+
+    public void testUnchangedStatus() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startEpoch = randomNonNegativeLong();
+        long startNanos = randomLong();
+        long waitTime = randomLongBetween(10000, 100000);
+        long tickTime = randomLongBetween(10000, 100000);
+        long statusInterval = randomLongBetween(1, 10);
+
+        Driver driver = createDriver(
+            startEpoch,
+            startNanos,
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            outPages,
+            TimeValue.timeValueNanos(statusInterval)
+        );
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
+
+        int iterationsPerTick = randomIntBetween(1, 10);
+
+        for (int i = 0; i < inPages.size(); i += iterationsPerTick) {
+            DriverStatus initialStatus = driver.status();
+            long completedOperatorsHash = initialStatus.completedOperators().hashCode();
+            long activeOperatorsHash = initialStatus.activeOperators().hashCode();
+            long sleepsHash = initialStatus.sleeps().hashCode();
+
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+
+            DriverStatus newStatus = driver.status();
+            assertThat(newStatus, not(sameInstance(initialStatus)));
+            assertThat(
+                newStatus.completedOperators() != initialStatus.completedOperators()
+                    || newStatus.completedOperators().hashCode() == completedOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(
+                newStatus.activeOperators() != initialStatus.activeOperators()
+                    || newStatus.activeOperators().hashCode() == activeOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(newStatus.sleeps() != initialStatus.sleeps() || newStatus.sleeps().hashCode() == sleepsHash, equalTo(true));
+        }
+    }
+
+    public void testServerErrorsAreLoggedAsError() {
+        for (RuntimeException failure : List.of(
+            new IllegalStateException("simulated compute bug"),
+            new ArrayIndexOutOfBoundsException("simulated broken invariant"),
+            new RuntimeException(new IOException("io failure"))
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.ERROR, "*Error running driver [test-task]*");
+        }
+    }
+
+    @TestLogging(reason = "assert DEBUG user-error logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testClientErrorsAreLoggedAsDebug() {
+        for (RuntimeException failure : List.of(
+            new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST),
+            new IllegalArgumentException("bad argument"),
+            new CircuitBreakingException("too many bytes", CircuitBreaker.Durability.PERMANENT)
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.DEBUG, "*User error running driver [test-task]*");
+        }
+    }
+
+    @TestLogging(reason = "assert DEBUG cancellation logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testTaskCancellationIsLoggedAsDebug() {
+        assertFailureLogged(
+            new TaskCancelledException("cancelled"),
+            TaskCancelledException.class,
+            Level.DEBUG,
+            "*Cancelling running driver [test-task]*"
+        );
+    }
+
+    private static Driver createDriver(
+        long startEpoch,
+        long startNanos,
+        DriverContext driverContext,
+        SourceOperator source,
+        List<Page> outPages,
+        TimeValue statusInterval
+    ) {
+        return new Driver(
+            "unset",
+            "test",
+            "test",
+            "test",
+            startEpoch,
+            startNanos,
+            driverContext,
+            () -> "unset",
+            source,
+            List.of(),
+            new TestResultPageSinkOperator(outPages::add),
+            statusInterval,
+            () -> {}
+        );
+    }
+
+    private static Driver createFailingDriver(DriverContext driverContext, RuntimeException failure) {
+        return TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(List.of(new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1))).iterator()),
+            List.of(new AbstractPageMappingOperator() {
+                @Override
+                protected Page process(Page page) {
+                    throw failure;
+                }
+
+                @Override
+                public String toString() {
+                    return "failing_operator";
+                }
+            }),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+    }
+
+    private void assertFailureLogged(
+        RuntimeException failure,
+        Class<? extends RuntimeException> expectedExceptionClass,
+        Level expectedLogLevel,
+        String expectedMessagePattern
+    ) {
+        Driver driver = createFailingDriver(driverContext(), failure);
+        try {
+            MockLog.assertThatLogger(
+                () -> expectThrows(
+                    expectedExceptionClass,
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                ),
+                Driver.class,
+                new MockLog.SeenEventExpectation(
+                    "expected log event for " + failure.getClass().getSimpleName(),
+                    Driver.class.getCanonicalName(),
+                    expectedLogLevel,
+                    expectedMessagePattern
+                )
+            );
+        } finally {
+            driver.close();
+        }
+    }
+
+    /**
+     * Blocks after each page until {@link #unblock} is called, so the driver ends the slice with a blocked listener.
+     */
+    private static class BlockAfterEachPageSourceOperator extends CannedSourceOperator {
+        private SubscribableListener<Void> blocked;
+
+        BlockAfterEachPageSourceOperator(Iterator<Page> pages) {
+            super(pages);
+        }
+
+        @Override
+        public Page getOutput() {
+            blocked = new SubscribableListener<>();
+            return super.getOutput();
+        }
+
+        @Override
+        public IsBlockedResult isBlocked() {
+            return blocked == null ? NOT_BLOCKED : new IsBlockedResult(blocked, "test blocked");
+        }
+
+        void unblock() {
+            blocked.onResponse(null);
+            blocked = null;
+        }
+    }
+
+    static class NowSupplier implements LongSupplier {
         private final long startNanos;
         private final long waitTime;
         private final long tickTime;
@@ -234,7 +586,7 @@ public class DriverTests extends ESTestCase {
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
             CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
-            Driver driver = new Driver("test", driverContext, new CannedSourceOperator(inPages.iterator()) {
+            Driver driver = TestDriverFactory.create(driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
                     assertRunningWithRegularUser(threadPool);
@@ -250,7 +602,7 @@ public class DriverTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
                 }
-            }), () -> {});
+            }));
             ThreadContext threadContext = threadPool.getThreadContext();
             CountDownLatch driverCompleted = new CountDownLatch(1);
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
@@ -300,8 +652,8 @@ public class DriverTests extends ESTestCase {
             final int maxAllowedRows = between(1, 100);
             final AtomicInteger processedRows = new AtomicInteger(0);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
-            final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
+            final var delayOperator = new EvalOperator(driverContext, new ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     for (int i = 0; i < page.getPositionCount(); i++) {
@@ -314,11 +666,16 @@ public class DriverTests extends ESTestCase {
                 }
 
                 @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+
+                @Override
                 public void close() {
 
                 }
             });
-            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
+            Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(delayOperator), sinkOperator);
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
@@ -330,16 +687,150 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testRunsThroughComputeExecutor() {
+        ThreadPool threadPool = threadPool();
+        try {
+            ComputeExecutor executor = new ComputeExecutor(threadPool.executor("esql"), threadPool.getThreadContext());
+            int pairs = between(1, 20);
+            List<List<Page>> inPages = new ArrayList<>();
+            List<List<Page>> outPages = new ArrayList<>();
+            List<PlainActionFuture<Void>> futures = new ArrayList<>();
+            List<Driver> drivers = new ArrayList<>();
+            for (int p = 0; p < pairs; p++) {
+                List<Page> in = randomList(1, 50, DriverTests::randomPage);
+                List<Page> out = new ArrayList<>();
+                inPages.add(in);
+                outPages.add(out);
+                LocalExchange exchange = new LocalExchange(between(1, 3));
+                Driver producer = TestDriverFactory.create(
+                    driverContext(),
+                    new CannedSourceOperator(in.iterator()),
+                    List.of(),
+                    new ExchangeSinkOperator(exchange.exchangeSink(() -> {}))
+                );
+                Driver consumer = TestDriverFactory.create(
+                    driverContext(),
+                    new ExchangeSourceOperator(exchange.exchangeSource()),
+                    List.of(),
+                    new PageConsumerOperator(out::add)
+                );
+                drivers.add(producer);
+                drivers.add(consumer);
+            }
+            Collections.shuffle(drivers, random());
+            for (Driver driver : drivers) {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                futures.add(future);
+                Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 20), future);
+            }
+            for (PlainActionFuture<Void> future : futures) {
+                future.actionGet(30, TimeUnit.SECONDS);
+            }
+            for (int p = 0; p < pairs; p++) {
+                assertThat(outPages.get(p), equalTo(inPages.get(p)));
+            }
+            for (Driver driver : drivers) {
+                assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+            }
+
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * With a single worker thread, a woken consumer runs before the next pair is admitted, so pairs complete one at a time.
+     * On the plain pool every producer starts and fills its buffer before any consumer gets a turn.
+     */
+    public void testResumedDriversBeforeNewDrivers() throws Exception {
+        ThreadPool threadPool = new TestThreadPool(
+            getTestClass().getSimpleName(),
+            new FixedExecutorBuilder(Settings.EMPTY, "esql", 1, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+        );
+        try {
+            boolean ordered = randomBoolean();
+            AtomicInteger turns = new AtomicInteger();
+            ComputeExecutor executor = new ComputeExecutor(task -> {
+                turns.incrementAndGet();
+                threadPool.executor("esql").execute(task);
+            }, threadPool.getThreadContext());
+            int pairs = between(2, 20);
+            AtomicInteger inFlight = new AtomicInteger();
+            AtomicInteger maxInFlight = new AtomicInteger();
+            List<PlainActionFuture<Void>> futures = new ArrayList<>();
+            // hold the only thread until every driver is queued
+            CountDownLatch gate = new CountDownLatch(1);
+            threadPool.executor("esql").execute(() -> safeAwait(gate));
+            for (int p = 0; p < pairs; p++) {
+                // more pages than the buffer holds so every producer blocks at least once
+                List<Page> in = randomList(4, 20, DriverTests::randomPage);
+                LocalExchange exchange = new LocalExchange(between(1, 3));
+                Driver producer = TestDriverFactory.create(driverContext(), new CannedSourceOperator(in.iterator()) {
+                    boolean started;
+
+                    @Override
+                    public Page getOutput() {
+                        if (started == false) {
+                            started = true;
+                            maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+                        }
+                        return super.getOutput();
+                    }
+                }, List.of(), new ExchangeSinkOperator(exchange.exchangeSink(() -> {})));
+                Driver consumer = TestDriverFactory.create(
+                    driverContext(),
+                    new ExchangeSourceOperator(exchange.exchangeSource()),
+                    List.of(),
+                    new PageConsumerOperator(Page::releaseBlocks)
+                );
+                PlainActionFuture<Void> producerDone = new PlainActionFuture<>();
+                PlainActionFuture<Void> consumerDone = new PlainActionFuture<>();
+                futures.add(producerDone);
+                futures.add(consumerDone);
+                if (ordered) {
+                    Driver.start(threadPool.getThreadContext(), executor, producer, 10_000, producerDone);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        executor,
+                        consumer,
+                        10_000,
+                        ActionListener.runBefore(consumerDone, inFlight::decrementAndGet)
+                    );
+                } else {
+                    Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), producer, 10_000, producerDone);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        threadPool.executor("esql"),
+                        consumer,
+                        10_000,
+                        ActionListener.runBefore(consumerDone, inFlight::decrementAndGet)
+                    );
+                }
+            }
+            gate.countDown();
+            for (PlainActionFuture<Void> future : futures) {
+                future.actionGet(30, TimeUnit.SECONDS);
+            }
+            if (ordered) {
+                // a new producer only gets in on the turns the executor hands to normal work
+                assertThat(maxInFlight.get(), lessThanOrEqualTo(1 + turns.get() / ComputeExecutor.NORMAL_EVERY));
+            } else {
+                assertThat(maxInFlight.get(), equalTo(pairs));
+            }
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testResumeOnEarlyFinish() throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
-            PlainActionFuture<Void> sourceFuture = new PlainActionFuture<>();
-            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"), sourceFuture);
+            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
-            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}));
+            Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(), sinkOperator);
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
             assertBusy(
@@ -351,10 +842,209 @@ public class DriverTests extends ESTestCase {
             sinkHandler.fetchPageAsync(true, ActionListener.noop());
             future.actionGet(5, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-            sourceFuture.actionGet(5, TimeUnit.SECONDS);
         } finally {
             terminate(threadPool);
         }
+    }
+
+    /**
+     * Operators that opt into {@link Operator#finalStatusAfterAsyncActions()} must appear in
+     * the driver profile with the post-close {@code toString()}, taken after
+     * {@code waitForAsyncActions}, not the pre-close snapshot.
+     */
+    public void testFinalStatusReplacedAfterAsyncClose() {
+        DriverContext driverContext = driverContext();
+        AtomicBoolean closed = new AtomicBoolean();
+        SourceOperator source = new SourceOperator() {
+            private boolean finished;
+            private Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1));
+
+            @Override
+            public void finish() {
+                finished = true;
+            }
+
+            @Override
+            public boolean isFinished() {
+                return finished;
+            }
+
+            @Override
+            public Page getOutput() {
+                Page out = page;
+                page = null;
+                finished = true;
+                return out;
+            }
+
+            @Override
+            public boolean finalStatusAfterAsyncActions() {
+                return true;
+            }
+
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+
+            @Override
+            public String toString() {
+                return closed.get() ? "after-close" : "before-close";
+            }
+        };
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(driverContext, source, List.of(), new TestResultPageSinkOperator(outPages::add));
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+            assertTrue(closed.get());
+            assertThat(driver.profile().operators().get(0).operator(), equalTo("after-close"));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * An operator's off-driver work can still be running when the driver loop publishes {@code DONE}. Its CPU time
+     * must reach the final status and profile, which the driver publishes again once the async actions finish.
+     */
+    public void testOffDriverCpuAfterLoopFinishedIsInProfile() throws Exception {
+        assumeTrue("needs thread CPU time", ThreadCpuTimer.currentNanos() >= 0);
+        DriverContext driverContext = driverContext();
+        driverContext.addAsyncAction();
+        List<Page> inPages = randomList(1, 10, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            List.of(),
+            new TestResultPageSinkOperator(outPages::add)
+        );
+        long burnNanos = TimeUnit.MILLISECONDS.toNanos(between(1, 5));
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            assertBusy(() -> assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE)));
+            long loopCpuNanos = driver.status().cpuNanos();
+            assertFalse(future.isDone());
+
+            driverContext.meteredCpu(() -> DriverContextTests.burnCpu(burnNanos));
+            driverContext.removeAsyncAction();
+            future.actionGet(30, TimeUnit.SECONDS);
+
+            assertThat(driver.profile().cpuNanos(), greaterThanOrEqualTo(loopCpuNanos + burnNanos));
+            assertThat(driver.profile().cpuNanos(), equalTo(driverContext.cpuNanos()));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Work that removes the driver's last async action while its measurement is still open, such as a worker that
+     * closes itself, lets the driver publish its final status from inside that measurement. The CPU time measured up to
+     * the removal must be in the profile.
+     */
+    public void testMeteredCpuBeforeRemovingLastAsyncActionIsInProfile() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext driverContext = driverContext(new CpuTracker(clock));
+        driverContext.addAsyncAction();
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(randomList(1, 10, DriverTests::randomPage).iterator()),
+            List.of(),
+            new TestResultPageSinkOperator(outPages::add)
+        );
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        Driver.start(new ThreadContext(Settings.EMPTY), EsExecutors.DIRECT_EXECUTOR_SERVICE, driver, between(1, 1000), future);
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertFalse(future.isDone());
+
+        driverContext.meteredCpu(() -> {
+            clock.burn(50);
+            driverContext.removeAsyncAction();
+            assertTrue(future.isDone());
+            clock.burn(5);
+        });
+        assertThat(driver.profile().cpuNanos(), equalTo(50L));
+        assertThat(driverContext.cpuNanos(), equalTo(55L));
+    }
+
+    public void testMeteredCpuOnDriverThreadIsNotCountedTwice() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext driverContext = driverContext(new CpuTracker(clock));
+        long burnNanos = randomLongBetween(1, 1000);
+        Operator meteringOperator = new AbstractPageMappingOperator() {
+            @Override
+            protected Page process(Page page) {
+                driverContext.meteredCpu(() -> clock.burn(burnNanos));
+                return page;
+            }
+
+            @Override
+            public String toString() {
+                return "metering";
+            }
+        };
+        List<Page> inPages = randomList(1, 10, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            List.of(meteringOperator),
+            new TestResultPageSinkOperator(outPages::add)
+        );
+        driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime);
+
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.profile().cpuNanos(), equalTo(burnNanos * inPages.size()));
+    }
+
+    /**
+     * {@link Driver#run} can run inside an open measurement of its own driver, such as on a worker thread that completes
+     * the listener the driver is blocked on after the driver finished early. The CPU time is counted once, and the
+     * status published inside the run includes what the measurement used before it.
+     */
+    public void testRunInsideMeteredCpuOfSameDriverCountsOnce() {
+        FakeCpuClock clock = new FakeCpuClock();
+        DriverContext driverContext = driverContext(new CpuTracker(clock));
+        long burnPerPage = randomLongBetween(1, 1000);
+        Operator burningOperator = new AbstractPageMappingOperator() {
+            @Override
+            protected Page process(Page page) {
+                clock.burn(burnPerPage);
+                return page;
+            }
+
+            @Override
+            public String toString() {
+                return "burning";
+            }
+        };
+        List<Page> inPages = randomList(1, 10, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(inPages.iterator()),
+            List.of(burningOperator),
+            new TestResultPageSinkOperator(outPages::add)
+        );
+        long beforeRun = randomLongBetween(1, 1000);
+        long afterRun = randomLongBetween(1, 1000);
+        driverContext.meteredCpu(() -> {
+            clock.burn(beforeRun);
+            driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime);
+            clock.burn(afterRun);
+        });
+
+        long inRun = burnPerPage * inPages.size();
+        assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        assertThat(driver.status().cpuNanos(), equalTo(beforeRun + inRun));
+        assertThat(driverContext.cpuNanos(), equalTo(beforeRun + inRun + afterRun));
     }
 
     private static void assertRunningWithRegularUser(ThreadPool threadPool) {
@@ -379,7 +1069,7 @@ public class DriverTests extends ESTestCase {
         private final ThreadPool threadPool;
 
         SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
-            super(driverContext, between(1, 3));
+            super(driverContext, threadPool.getThreadContext(), between(1, 3));
             this.threadPool = threadPool;
         }
 
@@ -456,10 +1146,19 @@ public class DriverTests extends ESTestCase {
     }
 
     private DriverContext driverContext() {
+        return driverContext(new CpuTracker());
+    }
+
+    private DriverContext driverContext(CpuTracker cpuTracker) {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        return new DriverContext(bigArrays, blockFactory);
+        return new DriverContext(
+            bigArrays,
+            BlockFactory.builder(bigArrays).build(),
+            null,
+            null,
+            DriverContext.WarningsMode.COLLECT,
+            cpuTracker
+        );
     }
 
 }

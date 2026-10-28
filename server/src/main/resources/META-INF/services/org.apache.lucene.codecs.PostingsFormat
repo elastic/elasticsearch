@@ -1,3 +1,4 @@
 org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat
 org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat
 org.elasticsearch.index.codec.postings.ES812PostingsFormat
+org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat

@@ -10,20 +10,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -32,29 +30,24 @@ import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SE
 abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements RequestInterceptor {
 
     private final ThreadContext threadContext;
-    private final XPackLicenseState licenseState;
     private final Logger logger;
 
-    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
+    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext) {
         this.threadContext = threadContext;
-        this.licenseState = licenseState;
         this.logger = LogManager.getLogger(getClass());
     }
 
     @Override
-    public void intercept(
+    public SubscribableListener<Void> intercept(
         RequestInfo requestInfo,
         AuthorizationEngine authorizationEngine,
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Void> listener
+        AuthorizationInfo authorizationInfo
     ) {
-        final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-        final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && supports(indicesRequest)
-            && (isDlsLicensed || isFlsLicensed)) {
-            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext)) {
+            final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
             final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
             for (String index : requestIndices(indicesRequest)) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
@@ -72,11 +65,12 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 }
             }
             if (false == accessControlByIndex.isEmpty()) {
+                final SubscribableListener<Void> listener = new SubscribableListener<>();
                 disableFeatures(indicesRequest, accessControlByIndex, listener);
-                return;
+                return listener;
             }
         }
-        listener.onResponse(null);
+        return SubscribableListener.nullSuccess();
     }
 
     abstract void disableFeatures(

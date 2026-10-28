@@ -9,6 +9,7 @@
 
 package org.elasticsearch.core;
 
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,7 @@ public class TimeValue implements Comparable<TimeValue> {
     public static final TimeValue MAX_VALUE = new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     public static final TimeValue THIRTY_SECONDS = new TimeValue(30, TimeUnit.SECONDS);
     public static final TimeValue ONE_MINUTE = new TimeValue(1, TimeUnit.MINUTES);
+    public static final TimeValue ONE_HOUR = new TimeValue(1, TimeUnit.HOURS);
 
     private static final long C0 = 1L;
     private static final long C1 = C0 * 1000L;
@@ -339,7 +341,7 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public String getStringRep() {
-        if (duration < 0) {
+        if (duration < 0 && TimeUnit.MILLISECONDS == timeUnit) {
             return Long.toString(duration);
         }
         return switch (timeUnit) {
@@ -453,5 +455,9 @@ public class TimeValue implements Comparable<TimeValue> {
         double thisValue = ((double) duration) * timeUnit.toNanos(1);
         double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
         return Double.compare(thisValue, otherValue);
+    }
+
+    public Duration toDuration() {
+        return Duration.ofNanos(nanos());
     }
 }

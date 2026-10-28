@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -55,9 +58,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
     private Settings settings = null;
     private ThreadPool threadPool = null;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initThreadPool() throws Exception {
         settings = Settings.builder()
             .put("path.home", createTempDir().toString())
             .put("node.name", "test-" + getTestName())
@@ -66,9 +68,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void terminateThreadPool() throws Exception {
         terminate(threadPool);
     }
 
@@ -101,7 +102,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final ApiKey apiKey = randomApiKeyInfo(withLimitedBy);
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(List.of(apiKey), profileUids);
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -167,7 +168,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         };
         final ApiKey apiKey1 = randomApiKeyInfo(randomBoolean());
         final List<String> profileUids1 = randomSize1ProfileUidsList();
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -241,7 +242,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             profileUids2
         );
 
-        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -355,7 +356,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "realm-type-1",
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
     }
 }

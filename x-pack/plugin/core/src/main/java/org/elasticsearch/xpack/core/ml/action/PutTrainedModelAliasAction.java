@@ -29,7 +29,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
 
     // NOTE this is similar to our valid ID check. The difference here is that model_aliases cannot end in numbers
     // This is to protect our automatic model naming conventions from hitting weird model_alias conflicts
-    private static final Pattern VALID_MODEL_ALIAS_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z])?");
+    private static final Pattern VALID_MODEL_ALIAS_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-.]*[a-z])?");
 
     public static final PutTrainedModelAliasAction INSTANCE = new PutTrainedModelAliasAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/put";

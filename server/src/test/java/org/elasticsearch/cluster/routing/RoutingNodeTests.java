@@ -16,11 +16,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.net.InetAddress;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RoutingNodeTests extends ESTestCase {
-    private ShardRouting unassignedShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
+    private ShardRouting startedShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
     private ShardRouting initializingShard0 = TestShardRouting.newShardRouting("test", 1, "node-1", false, ShardRoutingState.INITIALIZING);
     private ShardRouting relocatingShard0 = TestShardRouting.newShardRouting(
         "test",
@@ -41,13 +41,12 @@ public class RoutingNodeTests extends ESTestCase {
     );
     private RoutingNode routingNode;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRoutingNode() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("name1", "node-1", transportAddress, emptyMap(), emptySet());
-        routingNode = RoutingNodesHelper.routingNode("node1", discoveryNode, unassignedShard0, initializingShard0, relocatingShard0);
+        routingNode = RoutingNodesHelper.routingNode("node1", discoveryNode, startedShard0, initializingShard0, relocatingShard0);
     }
 
     public void testAdd() {
@@ -70,7 +69,7 @@ public class RoutingNodeTests extends ESTestCase {
         ShardRouting startedShard0 = TestShardRouting.newShardRouting("test", 0, "node-1", false, ShardRoutingState.STARTED);
         ShardRouting startedShard1 = TestShardRouting.newShardRouting("test", 1, "node-1", "node-2", false, ShardRoutingState.RELOCATING);
         ShardRouting startedShard2 = TestShardRouting.newShardRouting("test", 2, "node-1", false, ShardRoutingState.INITIALIZING);
-        routingNode.update(unassignedShard0, startedShard0);
+        routingNode.update(this.startedShard0, startedShard0);
         routingNode.update(initializingShard0, startedShard1);
         routingNode.update(relocatingShard0, startedShard2);
         assertThat(
@@ -88,7 +87,7 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     public void testRemove() {
-        routingNode.remove(unassignedShard0);
+        routingNode.remove(startedShard0);
         routingNode.remove(initializingShard0);
         routingNode.remove(relocatingShard0);
         assertThat(routingNode.getByShardId(new ShardId("test", IndexMetadata.INDEX_UUID_NA_VALUE, 0)), is(nullValue()));
@@ -117,6 +116,10 @@ public class RoutingNodeTests extends ESTestCase {
 
     public void testNumberOfOwningShards() {
         assertThat(routingNode.numberOfOwningShards(), equalTo(2));
+    }
+
+    public void testNumberOfActiveShardsForIndex() {
+        assertThat(routingNode.numberOfActiveShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(2));
     }
 
     public void testNumberOfOwningShardsForIndex() {
@@ -161,7 +164,9 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
-        return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
+        final var result = new HashSet<ShardId>();
+        routingNode.started().forEach(shardRouting -> result.add(shardRouting.shardId()));
+        return result;
     }
 
 }

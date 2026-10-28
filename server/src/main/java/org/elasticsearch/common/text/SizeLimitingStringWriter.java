@@ -11,12 +11,17 @@ package org.elasticsearch.common.text;
 
 import org.elasticsearch.common.Strings;
 
-import java.io.StringWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.util.Objects;
 
 /**
- * A {@link StringWriter} that throws an exception if the string exceeds a specified size.
+ * A {@link Writer} that throws an exception if the string exceeds a specified size. Rather than
+ * extending {@link java.io.StringWriter} which wraps a {@link java.lang.StringBuffer}, this class implements
+ * the required logic directly and wraps a {@link java.lang.StringBuilder}. This avoids synchronization overhead,
+ * but also means that this class is not thread safe.
  */
-public class SizeLimitingStringWriter extends StringWriter {
+public final class SizeLimitingStringWriter extends Writer {
 
     public static class SizeLimitExceededException extends IllegalStateException {
         public SizeLimitExceededException(String message) {
@@ -25,45 +30,89 @@ public class SizeLimitingStringWriter extends StringWriter {
     }
 
     private final int sizeLimit;
+    private final StringBuilder builder = new StringBuilder();
 
     public SizeLimitingStringWriter(int sizeLimit) {
         this.sizeLimit = sizeLimit;
     }
 
-    private void checkSizeLimit(int additionalChars) {
-        int bufLen = getBuffer().length();
-        if (bufLen + additionalChars > sizeLimit) {
-            throw new SizeLimitExceededException(
-                Strings.format("String [%s...] has exceeded the size limit [%s]", getBuffer().substring(0, Math.min(bufLen, 20)), sizeLimit)
-            );
+    private int limitSize(int additionalChars) {
+        int neededSize = builder.length() + additionalChars;
+        if (neededSize > sizeLimit) {
+            return additionalChars - (neededSize - sizeLimit);
         }
+        return additionalChars;
+    }
+
+    private void throwSizeLimitExceeded(int limitedChars, int requestedChars) {
+        assert limitedChars < requestedChars;
+        int bufLen = builder.length();
+        int foundSize = bufLen - limitedChars + requestedChars; // reconstitute original
+        String selection = builder.substring(0, Math.min(bufLen, 20));
+        throw new SizeLimitExceededException(
+            Strings.format("String [%s...] has size [%d] which exceeds the size limit [%d]", selection, foundSize, sizeLimit)
+        );
     }
 
     @Override
     public void write(int c) {
-        checkSizeLimit(1);
-        super.write(c);
+        if (limitSize(1) != 1) {
+            throwSizeLimitExceeded(0, 1);
+        }
+        builder.append((char) c);
     }
 
     // write(char[]) delegates to write(char[], int, int)
 
     @Override
     public void write(char[] cbuf, int off, int len) {
-        checkSizeLimit(len);
-        super.write(cbuf, off, len);
+        Objects.checkFromIndexSize(off, len, cbuf.length);
+        if (len == 0) {
+            return;
+        }
+        int limitedLen = limitSize(len);
+        if (limitedLen > 0) {
+            builder.append(cbuf, off, limitedLen);
+        }
+        if (limitedLen != len) {
+            throwSizeLimitExceeded(limitedLen, len);
+        }
     }
 
     @Override
     public void write(String str) {
-        checkSizeLimit(str.length());
-        super.write(str);
+        this.write(str, 0, str.length());
     }
 
     @Override
     public void write(String str, int off, int len) {
-        checkSizeLimit(len);
-        super.write(str, off, len);
+        Objects.checkFromIndexSize(off, len, str.length());
+        if (len == 0) {
+            return;
+        }
+        int limitedLen = limitSize(len);
+        if (limitedLen > 0) {
+            builder.append(str, off, off + limitedLen);
+        }
+        if (limitedLen != len) {
+            throwSizeLimitExceeded(limitedLen, len);
+        }
+    }
+
+    @Override
+    public void flush() throws IOException {
+        // noop
+    }
+
+    @Override
+    public void close() throws IOException {
+        // noop
     }
 
     // append(...) delegates to write(...) methods
+
+    @Override
+    public String toString() {
+        return builder.toString();
+    }
 }

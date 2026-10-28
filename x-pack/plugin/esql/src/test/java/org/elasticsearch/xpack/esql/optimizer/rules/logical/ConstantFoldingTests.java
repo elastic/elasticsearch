@@ -17,9 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -29,16 +30,22 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
@@ -58,7 +65,7 @@ public class ConstantFoldingTests extends ESTestCase {
     }
 
     public void testConstantFolding() {
-        Expression exp = new Add(EMPTY, TWO, THREE);
+        Expression exp = new Add(EMPTY, TWO, THREE, TEST_CFG);
 
         assertTrue(exp.foldable());
         Expression result = constantFolding(exp);
@@ -98,6 +105,25 @@ public class ConstantFoldingTests extends ESTestCase {
         assertEquals(Nullability.TRUE, constantFolding(new Or(EMPTY, NULL, NULL)).canonical().nullable());
     }
 
+    // https://github.com/elastic/elasticsearch/issues/154079
+    public void testConstantFoldingBinaryLogic_WithMultivalues() {
+        Literal mv = new Literal(EMPTY, List.of(true, false), DataType.BOOLEAN);
+        Literal expected = new Literal(EMPTY, null, DataType.BOOLEAN);
+        assertEquals(expected, constantFolding(new And(EMPTY, mv, TRUE)));
+        assertEquals(expected, constantFolding(new And(EMPTY, FALSE, mv)));
+        assertEquals(expected, constantFolding(new Or(EMPTY, mv, FALSE)));
+        assertEquals(expected, constantFolding(new Or(EMPTY, TRUE, mv)));
+    }
+
+    public void testConstantNot_WithMultivalues() {
+        Literal mv = new Literal(EMPTY, List.of(true, false), DataType.BOOLEAN);
+        assertEquals(new Literal(EMPTY, null, DataType.BOOLEAN), constantFolding(new Not(EMPTY, mv)));
+        assertWarnings(
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+            "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+        );
+    }
+
     public void testConstantFoldingRange() {
         assertEquals(
             true,
@@ -120,8 +146,8 @@ public class ConstantFoldingTests extends ESTestCase {
     }
 
     public void testArithmeticFolding() {
-        assertEquals(10, foldOperator(new Add(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
-        assertEquals(4, foldOperator(new Sub(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+        assertEquals(10, foldOperator(new Add(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE, TEST_CFG)));
+        assertEquals(4, foldOperator(new Sub(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE, TEST_CFG)));
         assertEquals(21, foldOperator(new Mul(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
         assertEquals(2, foldOperator(new Div(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
         assertEquals(1, foldOperator(new Mod(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
@@ -130,8 +156,8 @@ public class ConstantFoldingTests extends ESTestCase {
     public void testFoldRange() {
         // 1 + 9 < value AND value < 20-1
         // with value = 12 and randomly replacing the `<` by `<=`
-        Expression lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER));
-        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 20, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER));
+        Expression lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER), TEST_CFG);
+        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 20, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER), TEST_CFG);
         Expression value = new Literal(EMPTY, 12, DataType.INTEGER);
         Range range = new Range(EMPTY, value, lowerBound, randomBoolean(), upperBound, randomBoolean(), randomZone());
 
@@ -146,17 +172,17 @@ public class ConstantFoldingTests extends ESTestCase {
         boolean includeLowerBound = randomBoolean();
         if (includeLowerBound) {
             // 1 + 10 <= value
-            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 10, DataType.INTEGER));
+            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 10, DataType.INTEGER), TEST_CFG);
         } else {
             // 1 + 9 < value
-            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER));
+            lowerBound = new Add(EMPTY, new Literal(EMPTY, 1, DataType.INTEGER), new Literal(EMPTY, 9, DataType.INTEGER), TEST_CFG);
         }
 
         boolean includeUpperBound = randomBoolean();
         // value < 11 - 1
         // or
         // value <= 11 - 1
-        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 11, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER));
+        Expression upperBound = new Sub(EMPTY, new Literal(EMPTY, 11, DataType.INTEGER), new Literal(EMPTY, 1, DataType.INTEGER), TEST_CFG);
 
         Expression value = fieldAttribute();
 
@@ -172,6 +198,27 @@ public class ConstantFoldingTests extends ESTestCase {
         Filter foldedTwice = as(new ConstantFolding().apply(foldedOnce, unboundLogicalOptimizerContext()), Filter.class);
 
         assertFalse((Boolean) as(foldedTwice.condition(), Literal.class).value());
+    }
+
+    public void testInAllNullListSuggestsIsNull() {
+        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
+        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
+        assertNull(as(constantFolding(in), Literal.class).value());
+        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
+    }
+
+    public void testInNullValueHasNoAlternative() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
+        assertNull(as(constantFolding(in), Literal.class).value());
+        assertNull(in.nullMisuseAlternative());
+    }
+
+    public void testInValueAndNullDoesNotFold() {
+        var field = getFieldAttribute("emp_no");
+        In in = new In(EMPTY, field, List.of(L(1), NULL));
+        assertSame(in, constantFolding(in));
+        assertNull(in.nullMisuseAlternative());
     }
 
     private Object foldOperator(BinaryOperator<?, ?, ?, ?> b) {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,7 +34,12 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String routing;
     @Nullable
     private String preference;
+    private boolean routingFromSlice;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
 
     public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
         super(masterNodeTimeout);
@@ -42,6 +50,25 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super(in);
         indices = in.readStringArray();
         routing = in.readOptionalString();
+        if (in.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
+        } else {
+            routingFromSlice = false;
+        }
         preference = in.readOptionalString();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
@@ -51,6 +78,12 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
+        if (out.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
+            out.writeBoolean(routingFromSlice);
+        }
         out.writeOptionalString(preference);
         indicesOptions.writeIndicesOptions(out);
     }
@@ -120,6 +153,33 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     }
 
     /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    /**
+     * Convenience for setting slice-provided routing: equivalent to {@code routing(slice).setRoutingFromSlice(true)}, with
+     * {@link SliceIndexing#SLICE_ALL} mapping to unrestricted routing.
+     */
+    public ClusterSearchShardsRequest searchSlice(String searchSlice) {
+        Objects.requireNonNull(searchSlice, "[_slice] must not be null");
+        return routing(SliceIndexing.sliceToRouting(searchSlice)).setRoutingFromSlice(true);
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    public ClusterSearchShardsRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
@@ -131,5 +191,26 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
 
     public String preference() {
         return this.preference;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 }

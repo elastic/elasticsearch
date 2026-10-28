@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.url;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -18,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -34,15 +37,20 @@ import static org.mockito.Mockito.mock;
 public class URLRepositoryTests extends ESTestCase {
 
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
-        return new URLRepository(
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final URLRepository repository = new URLRepository(
+            projectId,
             repositoryMetadata,
             TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(URLHttpClient.Factory.class)
+            mock(URLHttpClient.Factory.class),
+            SnapshotMetrics.NOOP
         );
+        assertThat(repository.getProjectId(), equalTo(projectId));
+        return repository;
     }
 
     public void testWhiteListingRepoURL() throws IOException {

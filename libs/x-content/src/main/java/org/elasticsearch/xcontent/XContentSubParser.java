@@ -35,7 +35,12 @@ public class XContentSubParser extends FilterXContentParserWrapper {
     @Override
     public Token nextToken() throws IOException {
         if (level > 0) {
-            Token token = super.nextToken();
+            // Call delegate() directly rather than via super.nextToken() → FilterXContentParser.nextToken().
+            // FilterXContentParser.nextToken() is a shared method body called by many different subclasses,
+            // each with different delegate types; the JVM's inline cache at that call site becomes megamorphic.
+            // Calling delegate() here creates a separate, narrower call site that the JIT can optimise
+            // independently (typically bimorphic on WrappingParser + JsonXContentParser in the doc-parse path).
+            Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
                 level++;
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {

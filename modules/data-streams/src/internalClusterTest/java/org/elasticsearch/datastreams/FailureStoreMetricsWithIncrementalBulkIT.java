@@ -112,7 +112,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
             long memoryLimit = primaryPressure.stats().getMemoryLimit();
             long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-            try (Releasable ignored = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
+            try (Releasable ignored = primaryPressure.validateAndMarkPrimaryOperationStarted(10, memoryLimit, 0, false, false)) {
                 while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                     while (nextRequested.get()) {
                         nextRequested.set(false);

@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -642,4 +643,49 @@ public class SettingsUpdaterTests extends ESTestCase {
         );
     }
 
+    public void testExistingArchivedSettingIsRejectedByTheClusterUpdateSettingsApi() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DUMMY_SETTING));
+        final ClusterState clusterState = clusterStateWithArchivedSetting();
+        final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(
+                clusterState,
+                Settings.EMPTY,
+                Settings.builder().put(DUMMY_SETTING.getKey(), "value").build(),
+                logger
+            )
+        );
+
+        // an operator calling the API is still told to clean the archived setting up
+        assertThat(e.getMessage(), containsString("unknown setting [" + ARCHIVED_SETTINGS_PREFIX + "dummy.removed] was archived"));
+    }
+
+    public void testExistingArchivedSettingIsIgnoredForReservedState() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DUMMY_SETTING));
+        final ClusterState clusterState = clusterStateWithArchivedSetting();
+
+        final ClusterState updated = SettingsUpdater.forReservedState(clusterSettings)
+            .updateSettings(clusterState, Settings.EMPTY, Settings.builder().put(DUMMY_SETTING.getKey(), "value").build(), logger);
+
+        assertThat(updated.metadata().persistentSettings().get(DUMMY_SETTING.getKey()), equalTo("value"));
+        // the archived setting is kept as-is: it is still visible via the get settings API
+        assertThat(updated.metadata().persistentSettings().get(ARCHIVED_SETTINGS_PREFIX + "dummy.removed"), equalTo("old-value"));
+    }
+
+    private static final Setting<String> DUMMY_SETTING = Setting.simpleString("dummy.setting", Property.NodeScope, Property.Dynamic);
+
+    /**
+     * A cluster state holding an archived setting, as left behind when a setting is removed from the registry while it
+     * is still present in the persistent settings.
+     */
+    private static ClusterState clusterStateWithArchivedSetting() {
+        return ClusterState.builder(new ClusterName("cluster"))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(Settings.builder().put(ARCHIVED_SETTINGS_PREFIX + "dummy.removed", "old-value").build())
+            )
+            .build();
+    }
 }

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
@@ -36,6 +39,11 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
 
 $if(BytesRef)$
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
@@ -43,6 +51,11 @@ $if(BytesRef)$
         } else {
             return null;
         }
+    }
+
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
     }
 
 $elseif(boolean)$
@@ -64,6 +77,11 @@ $endif$
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -74,13 +92,23 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public $Type$Block slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
+    public $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override
     public $Type$Block keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public $Type$Block deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override
@@ -125,6 +153,7 @@ $endif$
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

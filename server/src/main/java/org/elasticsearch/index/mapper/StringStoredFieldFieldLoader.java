@@ -54,7 +54,7 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
             case 1:
                 b.field(simpleName);
                 write(b, values.get(0));
-                return;
+                break;
             default:
                 b.startArray(simpleName);
                 for (Object value : values) {

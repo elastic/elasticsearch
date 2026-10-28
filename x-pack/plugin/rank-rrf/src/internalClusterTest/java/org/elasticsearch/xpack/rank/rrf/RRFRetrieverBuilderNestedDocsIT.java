@@ -18,7 +18,6 @@ import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 
@@ -71,7 +70,7 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
             }
             """;
         createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5)).build());
-        admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
+        admin().indices().preparePutMapping(INDEX).setSource(mapping).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term", LAST_30D_FIELD, 100);
         indexDoc(
             INDEX,
@@ -149,7 +148,16 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 6
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 6.0f }, null, 1, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 6.0f },
+            null,
+            1,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(

@@ -9,25 +9,39 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.randomSettings;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +57,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -64,15 +78,16 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         mb.put(indexToAdd, false);
 
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
-        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
-            originalState,
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -83,9 +98,69 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newProject.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(false));
+        assertThat(zeroIndex.getAliases().size(), equalTo(0));
+    }
+
+    public void testAddBackingIndexToSystemDataStream() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .system(true)
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        DataStream dataStream = DataStream.builder(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList())
+            .setSystem(true)
+            .setHidden(true)
+            .build();
+        mb.put(dataStream);
+
+        final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .system(false)
+            .build();
+        mb.put(indexToAdd, false);
+
+        ProjectMetadata projectMetadata = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        ProjectMetadata newState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(projectMetadata.id()),
+            List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        ).metadata().getProject(projectMetadata.id());
+
+        IndexAbstraction ds = newState.getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
+        List<String> backingIndexNames = ds.getIndices().stream().filter(x -> x.getName().startsWith(".ds-")).map(Index::getName).toList();
+        assertThat(
+            backingIndexNames,
+            containsInAnyOrder(
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        IndexMetadata zeroIndex = newState.index(ds.getIndices().get(0));
+        assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
+        assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(zeroIndex.isSystem(), equalTo(true));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
@@ -94,7 +169,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(2, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -108,15 +183,16 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToRemove = backingIndices[randomIntBetween(0, numBackingIndices - 2)];
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
-        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
-            originalState,
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices - 1));
@@ -127,10 +203,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .toList();
         assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
 
-        IndexMetadata removedIndex = newState.metadata().getIndices().get(indexToRemove.getIndex().getName());
+        IndexMetadata removedIndex = newProject.indices().get(indexToRemove.getIndex().getName());
         assertThat(removedIndex, notNullValue());
         assertThat(removedIndex.getSettings().get("index.hidden"), equalTo("false"));
-        assertNull(newState.metadata().getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
+        assertNull(newProject.getIndicesLookup().get(indexToRemove.getIndex().getName()).getParentDataStream());
     }
 
     public void testRemoveWriteIndexIsProhibited() {
@@ -138,7 +214,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -152,12 +228,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final IndexMetadata indexToRemove = backingIndices[numBackingIndices - 1];
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalState,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
                 this::getMapperService,
                 Settings.EMPTY
@@ -182,7 +259,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -203,9 +280,10 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         mb.put(indexToAdd, false);
 
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
-        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
-            originalState,
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(
                 DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
                 DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
@@ -213,9 +291,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -226,7 +304,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newProject.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
@@ -237,7 +315,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -258,27 +336,29 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         mb.put(indexToAdd, false);
 
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
-        ClusterState newState = MetadataDataStreamsService.modifyDataStream(
-            originalState,
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
-        newState = MetadataDataStreamsService.modifyDataStream(
-            newState,
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
-        newState = MetadataDataStreamsService.modifyDataStream(
-            newState,
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
+        ProjectMetadata newProject = clusterState.metadata().getProject(originalProject.id());
 
-        IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices().size(), equalTo(numBackingIndices + 1));
@@ -289,14 +369,14 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Arrays.stream(backingIndices).map(IndexMetadata::getIndex).map(Index::getName).toList().toArray(Strings.EMPTY_ARRAY)
             )
         );
-        IndexMetadata zeroIndex = newState.metadata().index(ds.getIndices().get(0));
+        IndexMetadata zeroIndex = newProject.index(ds.getIndices().get(0));
         assertThat(zeroIndex.getIndex(), equalTo(indexToAdd.getIndex()));
         assertThat(zeroIndex.getSettings().get("index.hidden"), equalTo("true"));
         assertThat(zeroIndex.getAliases().size(), equalTo(0));
     }
 
     public void testMissingDataStream() {
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         final IndexMetadata indexToAdd = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(1)
@@ -306,12 +386,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(indexToAdd, false);
         final String missingDataStream = randomAlphaOfLength(5);
 
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalState,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.addBackingIndex(missingDataStream, indexToAdd.getIndex().getName())),
                 this::getMapperService,
                 Settings.EMPTY
@@ -326,7 +407,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final int numBackingIndices = randomIntBetween(1, 4);
         final String dataStreamName = randomAlphaOfLength(5);
         IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
-        Metadata.Builder mb = Metadata.builder();
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
                 .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
@@ -340,11 +421,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
 
         final String missingIndex = randomAlphaOfLength(5);
-        ClusterState originalState = ClusterState.builder(new ClusterName("dummy")).metadata(mb.build()).build();
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalState,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.addBackingIndex(dataStreamName, missingIndex)),
                 this::getMapperService,
                 Settings.EMPTY
@@ -356,69 +438,264 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testRemoveBrokenBackingIndexReference() {
         var dataStreamName = "my-logs";
-        var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
-        var original = state.getMetadata().dataStreams().get(dataStreamName);
-        var broken = original.copy()
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        var originalDs = project.dataStreams().get(dataStreamName);
+        var broken = originalDs.copy()
             .setBackingIndices(
-                original.getDataComponent()
+                originalDs.getDataComponent()
                     .copy()
-                    .setIndices(List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)))
+                    .setIndices(List.of(new Index(originalDs.getIndices().get(0).getName(), "broken"), originalDs.getIndices().get(1)))
                     .build()
             )
             .build();
-        var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
+        var brokenProject = ProjectMetadata.builder(project).put(broken).build();
 
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(brokenProject).build();
         var result = MetadataDataStreamsService.modifyDataStream(
-            brokenState,
+            clusterState.projectState(brokenProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
-        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
-        assertThat(result.getMetadata().dataStreams().get(dataStreamName).getIndices().get(0), equalTo(original.getIndices().get(1)));
+        ).metadata().getProject(brokenProject.id());
+        assertThat(result.dataStreams().get(dataStreamName).getIndices(), hasSize(1));
+        assertThat(result.dataStreams().get(dataStreamName).getIndices().get(0), equalTo(originalDs.getIndices().get(1)));
     }
 
     public void testRemoveBackingIndexThatDoesntExist() {
         var dataStreamName = "my-logs";
-        var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
 
         String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                state,
+                clusterState.projectState(project.id()),
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
                 this::getMapperService,
                 Settings.EMPTY
             )
         );
-        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found in data stream [" + dataStreamName + "]"));
+    }
+
+    public void testDeleteBackingIndex() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(2, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
+
+        final IndexMetadata indexToDelete = backingIndices[randomIntBetween(0, numBackingIndices - 2)];
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
+            List.of(DataStreamAction.deleteBackingIndex(dataStreamName, indexToDelete.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        ).metadata().getProject(originalProject.id());
+
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices - 1));
+
+        List<Index> expectedBackingIndices = ds.getIndices()
+            .stream()
+            .filter(x -> x.getName().equals(indexToDelete.getIndex().getName()) == false)
+            .toList();
+        assertThat(expectedBackingIndices, containsInAnyOrder(ds.getIndices().toArray()));
+
+        IndexMetadata removedIndex = newProject.indices().get(indexToDelete.getIndex().getName());
+        assertThat(removedIndex, nullValue());
+        assertNull(newProject.getIndicesLookup().get(indexToDelete.getIndex().getName()));
+    }
+
+    public void testDeleteFailureStoreIndex() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(2, 4);
+        final int numFailureIndices = randomIntBetween(2, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        IndexMetadata[] failureIndices = new IndexMetadata[numFailureIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+        for (int k = 0; k < numFailureIndices; k++) {
+            failureIndices[k] = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(failureIndices[k], false);
+        }
+
+        mb.put(
+            DataStreamTestHelper.newInstance(
+                dataStreamName,
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList(),
+                Arrays.stream(failureIndices).map(IndexMetadata::getIndex).toList()
+            )
+        );
+
+        final IndexMetadata indexToDelete = failureIndices[randomIntBetween(0, numFailureIndices - 2)];
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
+            List.of(DataStreamAction.deleteFailureStoreIndex(dataStreamName, indexToDelete.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        ).metadata().getProject(originalProject.id());
+
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices));
+        assertThat(ds.getFailureIndices(null).size(), equalTo(numFailureIndices - 1));
+
+        List<Index> expectedFailureIndices = ds.getFailureIndices(null)
+            .stream()
+            .filter(x -> x.getName().equals(indexToDelete.getIndex().getName()) == false)
+            .toList();
+        assertThat(expectedFailureIndices, containsInAnyOrder(ds.getFailureIndices(null).toArray()));
+
+        IndexMetadata removedIndex = newProject.indices().get(indexToDelete.getIndex().getName());
+        assertThat(removedIndex, nullValue());
+        assertNull(newProject.getIndicesLookup().get(indexToDelete.getIndex().getName()));
+    }
+
+    public void testDeleteWriteIndexIsProhibited() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(1, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList()));
+
+        final IndexMetadata indexToDelete = backingIndices[numBackingIndices - 1];
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                clusterState.projectState(originalProject.id()),
+                List.of(DataStreamAction.deleteBackingIndex(dataStreamName, indexToDelete.getIndex().getName())),
+                this::getMapperService,
+                Settings.EMPTY
+            )
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    indexToDelete.getIndex().getName(),
+                    dataStreamName
+                )
+            )
+        );
+    }
+
+    public void testDeleteBrokenBackingIndexReferenceFails() {
+        var dataStreamName = "my-logs";
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+        var originalDs = project.dataStreams().get(dataStreamName);
+        String missingIndex = originalDs.getIndices().get(0).getName();
+        var broken = originalDs.copy()
+            .setBackingIndices(
+                originalDs.getDataComponent()
+                    .copy()
+                    .setIndices(List.of(new Index(missingIndex, "broken"), originalDs.getIndices().get(1)))
+                    .build()
+            )
+            .build();
+        var brokenProject = ProjectMetadata.builder(project).put(broken).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(brokenProject).build();
+        var e = expectThrows(
+            IndexNotFoundException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                clusterState.projectState(brokenProject.id()),
+                List.of(DataStreamAction.deleteBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
+                this::getMapperService,
+                Settings.EMPTY
+            )
+        );
+        assertThat(e.getMessage(), equalTo("no such index [" + missingIndex + "]"));
+    }
+
+    public void testDeleteBackingIndexThatDoesntExist() {
+        var dataStreamName = "my-logs";
+        var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
+
+        String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDataStreamsService.modifyDataStream(
+                clusterState.projectState(project.id()),
+                List.of(DataStreamAction.deleteBackingIndex(dataStreamName, indexToRemove)),
+                this::getMapperService,
+                Settings.EMPTY
+            )
+        );
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found in data stream [" + dataStreamName + "]"));
     }
 
     public void testUpdateLifecycle() {
         String dataStream = randomAlphaOfLength(5);
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
-        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
-        MetadataDataStreamsService service = new MetadataDataStreamsService(
-            mock(ClusterService.class),
-            mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
-        );
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        MetadataDataStreamsService service = getTestInstance();
         {
             // Remove lifecycle
-            ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), null);
-            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), null);
+            DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            assertThat(updatedDataStream.getDataLifecycle(), nullValue());
             before = after;
         }
 
         {
             // Set lifecycle
-            ClusterState after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
-            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            ProjectMetadata after = service.updateDataLifecycle(before, List.of(dataStream), lifecycle);
+            DataStream updatedDataStream = after.dataStreams().get(dataStream);
             assertNotNull(updatedDataStream);
-            assertThat(updatedDataStream.getLifecycle(), equalTo(lifecycle));
+            assertThat(updatedDataStream.getDataLifecycle(), equalTo(lifecycle));
         }
     }
 
@@ -429,30 +706,285 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             DataStreamOptions.EMPTY,
             DataStreamOptionsTests::randomDataStreamOptions
         );
-        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
-        MetadataDataStreamsService service = new MetadataDataStreamsService(
-            mock(ClusterService.class),
-            mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
-        );
+        ProjectMetadata before = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        MetadataDataStreamsService service = getTestInstance();
 
         // Ensure no data stream options are stored
-        DataStream updatedDataStream = before.metadata().dataStreams().get(dataStream);
+        DataStream updatedDataStream = before.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
 
         // Set non-empty data stream options
-        ClusterState after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
-        updatedDataStream = after.metadata().dataStreams().get(dataStream);
+        ProjectMetadata after = service.updateDataStreamOptions(before, List.of(dataStream), dataStreamOptions);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(dataStreamOptions));
         before = after;
 
         // Remove data stream options
         after = service.updateDataStreamOptions(before, List.of(dataStream), null);
-        updatedDataStream = after.metadata().dataStreams().get(dataStream);
+        updatedDataStream = after.dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
+    }
+
+    public void testDeleteMissing() {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build()
+            .projectState(projectId);
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString(dataStream.getName()));
+    }
+
+    public void testDeleteSnapshotting() {
+        String dataStreamName = randomAlphaOfLength(5);
+        var projectId = randomProjectIdOrDefault();
+        Snapshot snapshot = new Snapshot(projectId, "doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                true,
+                false,
+                SnapshotsInProgress.State.INIT,
+                Collections.emptyMap(),
+                List.of(dataStreamName),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                Map.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                IndexVersionUtils.randomVersion()
+            )
+        );
+        final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putCustom(SnapshotsInProgress.TYPE, snaps)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(dataStream))
+            .build()
+            .projectState(projectId);
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertEquals(
+            "Cannot delete data streams that are being snapshotted: ["
+                + dataStreamName
+                + "]. Try again after snapshot finishes "
+                + "or cancel the currently running snapshot.",
+            e.getMessage()
+        );
+    }
+
+    public void testGetEffectiveSettingsNoMatchingTemplate() {
+        // No matching template, so we expect an IllegalArgumentException
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        MetadataDataStreamsService service = getTestInstance();
+        assertThrows(IllegalArgumentException.class, () -> service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream));
+    }
+
+    public void testGetEffectiveSettingsTemplateSettingsOnly() throws IOException {
+        // We only have settings from the template, so we expect to get those back
+        DataStream dataStream = createDataStream(Settings.EMPTY);
+        Settings templateSettings = randomSettings();
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(templateSettings));
+    }
+
+    public void testGetEffectiveSettingsComponentTemplateSettingsOnly() throws IOException {
+        // We only have settings from a component template, so we expect to get those back
+        DataStream dataStream = createDataStream(Settings.EMPTY);
+        Settings templateSettings = Settings.EMPTY;
+        Template.Builder indexTemplateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(indexTemplateBuilder)
+            .componentTemplates(List.of("component-template-1"))
+            .build();
+        Settings componentSettings = randomSettings();
+        Template.Builder componentTemplateBuilder = Template.builder().settings(componentSettings);
+        ComponentTemplate componentTemplate1 = new ComponentTemplate(componentTemplateBuilder.build(), null, null);
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .componentTemplates(Map.of("component-template-1", componentTemplate1));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(componentSettings));
+    }
+
+    public void testGetEffectiveSettingsDataStreamSettingsOnly() throws IOException {
+        // We only have settings from the data stream, so we expect to get those back
+        Settings dataStreamSettings = randomSettings();
+        DataStream dataStream = createDataStream(dataStreamSettings);
+        Settings templateSettings = Settings.EMPTY;
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate));
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(dataStreamSettings));
+    }
+
+    public void testGetEffectiveSettings() throws IOException {
+        // Here we have settings from both the template and the data stream, so we expect the data stream settings to take precedence
+        Settings dataStreamSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting3", (String) null) // This one gets removed from the effective settings
+            .build();
+        DataStream dataStream = createDataStream(dataStreamSettings);
+        Settings templateSettings = Settings.builder()
+            .put("index.setting1", "templateValue")
+            .put("index.setting3", "templateValue")
+            .put("index.setting4", "templateValue")
+            .build();
+        Template.Builder templateBuilder = Template.builder().settings(templateSettings);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName()))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(templateBuilder)
+            .componentTemplates(List.of("component-template-1"))
+            .build();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(Map.of(dataStream.getName(), indexTemplate))
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .componentTemplates(
+                Map.of(
+                    "component-template-1",
+                    new ComponentTemplate(
+                        Template.builder()
+                            .settings(
+                                Settings.builder()
+                                    .put("index.setting1", "componentTemplateValue")
+                                    .put("index.setting5", "componentTemplateValue")
+                            )
+                            .build(),
+                        1L,
+                        Map.of()
+                    )
+                )
+            );
+        Settings mergedSettings = Settings.builder()
+            .put("index.setting1", "dataStreamValue")
+            .put("index.setting2", "dataStreamValue")
+            .put("index.setting4", "templateValue")
+            .put("index.setting5", "componentTemplateValue")
+            .build();
+        MetadataDataStreamsService service = getTestInstance();
+        assertThat(service.getEffectiveSettings(projectMetadataBuilder.build(), dataStream), equalTo(mergedSettings));
+    }
+
+    public MetadataDataStreamsService getTestInstance() {
+        return new MetadataDataStreamsService(
+            mock(ClusterService.class),
+            mock(IndicesService.class),
+            DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            IndexSettingProviders.EMPTY
+        );
+    }
+
+    private DataStream createDataStream(Settings settings) {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        return dataStream.copy().setSettings(settings).build();
+    }
+
+    /**
+     * Verifies that {@code modifyDataStream} treats a selector-suffixed name (e.g. {@code my-ds::failures}) as a
+     * literal data stream name and fails with "not found", rather than silently routing the operation to the
+     * failure store.
+     * <p>
+     * This bypasses {@link org.elasticsearch.action.datastreams.ModifyDataStreamsAction.Request#validate()}, which
+     * is the real gate that rejects selectors before they reach the service on the actual request path.
+     * The purpose here is to test the service's lower-level behavior: it is selector-agnostic and the caller is
+     * responsible for validating/stripping selectors before invoking it.
+     */
+    public void testSelectorInDataStreamNameTreatedAsLiteralName() {
+        final long epochMillis = System.currentTimeMillis();
+        final String dataStreamName = randomAlphaOfLength(5);
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+
+        IndexMetadata backingIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochMillis))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(backingIndex, false);
+        mb.put(DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndex.getIndex())));
+
+        final IndexMetadata standaloneIndex = IndexMetadata.builder(randomAlphaOfLength(6))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putMapping(generateMapping("@timestamp"))
+            .build();
+        mb.put(standaloneIndex, false);
+        ProjectMetadata project = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+
+        String indexName = standaloneIndex.getIndex().getName();
+
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState.projectState(project.id()),
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState.projectState(project.id()),
+                    List.of(DataStreamAction.addBackingIndex(dataStreamName + "::data", indexName)),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::data] not found"));
+        }
+        {
+            DataStreamAction action = DataStreamAction.addBackingIndex(dataStreamName + "::failures", indexName);
+            action.setFailureStore(true);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MetadataDataStreamsService.modifyDataStream(
+                    clusterState.projectState(project.id()),
+                    List.of(action),
+                    this::getMapperService,
+                    Settings.EMPTY
+                )
+            );
+            assertThat(e.getMessage(), containsString("data stream [" + dataStreamName + "::failures] not found"));
+        }
     }
 
     private MapperService getMapperService(IndexMetadata im) {

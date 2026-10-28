@@ -19,9 +19,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -29,6 +34,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
@@ -51,7 +57,14 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("store", b -> b.field("store", true));
+    }
+
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
     }
 
     public void testExistsQueryDocValuesEnabled() throws IOException {
@@ -105,6 +118,32 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
+    /**
+     * A binary value arrives in JSON as a base64 string. When the document is a batch row parsed in place, as the sequential
+     * fallback of batch indexing does, the mapper must decode it exactly as it does from {@link BytesSource}.
+     */
+    public void testStoredAndDocValuesFromBatchRow() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("store", true);
+            b.field("doc_values", true);
+        }));
+
+        final byte[] value = randomByteArrayOfLength(between(1, 100));
+        final BytesReference json = new BytesArray("{\"field\":\"" + Base64.getEncoder().encodeToString(value) + "\"}");
+
+        ParsedDocument fromBytes = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON));
+        try (EscfBatch batch = EscfEncoder.encode(List.of(json), XContentType.JSON)) {
+            RowSource row = new RowSource(SourceRowXContentParser.buildSchemaTree(batch.schema()), batch.row(0), XContentType.JSON);
+            ParsedDocument fromRow = mapperService.documentMapper()
+                .parse(new SourceToParse("1", row, null, Map.of(), Map.of(), XContentMeteringParserDecorator.NOOP, null));
+
+            assertEquals(new BytesRef(value), fromBytes.rootDoc().getBinaryValue("field"));
+            assertEquals(new BytesRef(value), fromRow.rootDoc().getBinaryValue("field"));
+            assertEquals(fromBytes.rootDoc().getFields("field").size(), fromRow.rootDoc().getFields("field").size());
+        }
+    }
+
     public void testStoredValue() throws IOException {
 
         MapperService mapperService = createMapperService(fieldMapping(b -> {
@@ -118,7 +157,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
@@ -145,6 +184,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
             .build();
 
         var mapping = mapping(b -> {
@@ -165,11 +205,11 @@ public class BinaryFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("field", Base64.getEncoder().encodeToString(randomByteArrayOfLength(10)));
             b.field("@timestamp", "2000-10-10T23:40:53.384Z");
             b.field("dimension", "dimension1");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
         ParsedDocument doc = mapper.parse(source);
 
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -262,5 +302,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

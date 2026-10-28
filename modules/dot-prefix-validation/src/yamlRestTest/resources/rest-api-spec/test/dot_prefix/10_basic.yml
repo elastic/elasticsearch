@@ -1,8 +1,16 @@
 ---
 teardown:
+  - skip:
+      features: "allowed_warnings"
   - do:
       indices.delete:
         index: .*,-.security-*
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: .tasks
+        ignore_unavailable: true
 
 ---
 "Index creation with a dot-prefix is deprecated unless x-elastic-product-origin set":
@@ -194,3 +202,34 @@ teardown:
   - do:
       indices.delete_index_template:
         name: my-template2
+
+---
+"System indices do not cause deprecation warnings":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
+
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.create:
+        index: .tasks
+
+---
+"Deprecated index template with a system index and a dot prefix index pattern":
+  # This makes sure that we correctly log a deprecation warning for the a dot-prefixed index pattern in an index
+  # template, even if the template also has a system index pattern.
+  - requires:
+      test_runner_features: ["warnings", "headers", "allowed_warnings"]
+
+  - do:
+      warnings:
+        - "Index [.data-*] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [.tasks, .data-*]
+          data_stream: {}
+
+  - do:
+      indices.delete_index_template:
+        name: my-template

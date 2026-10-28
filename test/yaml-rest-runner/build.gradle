@@ -1,9 +1,13 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   api project(':test:framework')
   api project(":client:rest")
   api project(":client:sniffer")
+
+  // optional dependency
+  compileOnly project(":test:test-clusters")
 }

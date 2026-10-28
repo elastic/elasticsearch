@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
@@ -35,8 +34,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     private boolean detailed = false;
     private boolean waitForCompletion = false;
-
     private String[] descriptions = ANY_DESCRIPTION;
+    // if you're adding new fields, also update the copyFieldsFrom method
 
     public ListTasksRequest() {}
 
@@ -44,9 +43,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super(in);
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            descriptions = in.readStringArray();
-        }
+        descriptions = in.readStringArray();
     }
 
     @Override
@@ -54,9 +51,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeStringArray(descriptions);
-        }
+        out.writeStringArray(descriptions);
     }
 
     @Override
@@ -126,5 +121,13 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    public ListTasksRequest copyFieldsFrom(final ListTasksRequest request) {
+        super.copyFieldsFrom(request);
+        this.detailed = request.detailed;
+        this.waitForCompletion = request.waitForCompletion;
+        this.descriptions = request.descriptions;
+        return this;
     }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -55,13 +56,13 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
-        return VectorUtil.dotProduct(queryVector, vectorValue);
+    public double dotProduct(byte[] queryVector) {
+        return ESVectorUtil.dotProduct(queryVector, vectorValue);
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
-        throw new UnsupportedOperationException("use [int dotProduct(byte[] queryVector)] instead");
+        return ESVectorUtil.ipFloatByte(queryVector, vectorValue);
     }
 
     @Override
@@ -142,7 +143,11 @@ public class ByteBinaryDenseVector implements DenseVector {
 
     @Override
     public double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector) {
-        throw new UnsupportedOperationException("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
+        if (normalizeQueryVector) {
+            return dotProduct(queryVector) / (DenseVector.getMagnitude(queryVector) * getMagnitude());
+        }
+
+        return dotProduct(queryVector) / getMagnitude();
     }
 
     @Override

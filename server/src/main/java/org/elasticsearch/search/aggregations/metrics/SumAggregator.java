@@ -8,10 +8,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.DoubleValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -91,22 +91,21 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(NumericDoubleValues values, final LeafBucketCollector sub) {
+    protected LeafBucketCollector getLeafCollector(DoubleValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeGrow(bucket);
-                    computeSum(bucket, values, sums, compensations);
+                    computeSum(bucket, values.doubleValue(), sums, compensations);
                 }
             }
         };
     }
 
-    static void computeSum(long bucket, NumericDoubleValues values, DoubleArray sums, DoubleArray compensations) throws IOException {
+    static void computeSum(long bucket, double added, DoubleArray sums, DoubleArray compensations) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        double added = values.doubleValue();
         double value = addIfNonOrInf(added, sums.get(bucket));
         if (Double.isFinite(value)) {
             double delta = compensations.get(bucket);
@@ -122,8 +121,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
     protected final void maybeGrow(long bucket) {
         if (bucket >= sums.size()) {
-            var bigArrays = bigArrays();
-            doGrow(bucket, bigArrays);
+            doGrow(bucket, bigArrays());
         }
     }
 

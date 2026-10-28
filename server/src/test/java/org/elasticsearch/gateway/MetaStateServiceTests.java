@@ -9,13 +9,13 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -25,16 +25,14 @@ public class MetaStateServiceTests extends ESTestCase {
     private NodeEnvironment env;
     private MetaStateService metaStateService;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initMetaStateService() throws Exception {
         env = newNodeEnvironment();
         metaStateService = new MetaStateService(env, xContentRegistry());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeNodeEnvironment() throws Exception {
         env.close();
     }
 
@@ -52,21 +50,5 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadMissingIndex() throws Exception {
         assertThat(metaStateService.loadIndexState(new Index("test1", "test1UUID")), nullValue());
-    }
-
-    public void testWriteLoadGlobal() throws Exception {
-        Metadata metadata = Metadata.builder().persistentSettings(Settings.builder().put("test1", "value1").build()).build();
-        MetaStateWriterUtils.writeGlobalState(env, "test_write", metadata);
-        assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
-    }
-
-    public void testWriteGlobalStateWithIndexAndNoIndexIsLoaded() throws Exception {
-        Metadata metadata = Metadata.builder().persistentSettings(Settings.builder().put("test1", "value1").build()).build();
-        IndexMetadata index = indexMetadata("test1");
-        Metadata metadataWithIndex = Metadata.builder(metadata).put(index, true).build();
-
-        MetaStateWriterUtils.writeGlobalState(env, "test_write", metadataWithIndex);
-        assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
-        assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
     }
 }

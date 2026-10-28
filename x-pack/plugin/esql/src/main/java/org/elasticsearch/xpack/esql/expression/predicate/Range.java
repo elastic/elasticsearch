@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -19,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -28,21 +32,25 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction implements TranslationAware.SingleValueTranslationAware {
+    private static final Logger logger = LogManager.getLogger(Range.class);
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
@@ -110,6 +118,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
      */
     @Override
     public boolean foldable() {
+        // NB: this is likely dead code. See note in areBoundariesInvalid
         if (lower.foldable() && upper.foldable()) {
             if (value().foldable()) {
                 return true;
@@ -125,6 +134,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public Object fold(FoldContext ctx) {
+        // NB: this is likely dead code. See note in areBoundariesInvalid
         Object lowerValue = lower.fold(ctx);
         Object upperValue = upper.fold(ctx);
         if (areBoundariesInvalid(lowerValue, upperValue)) {
@@ -144,10 +154,29 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
      * If they are, the value does not have to be evaluated.
      */
     protected boolean areBoundariesInvalid(Object lowerValue, Object upperValue) {
+        /*
+        NB: I am reasonably sure this code is dead.  It can only be reached from foldable(), and as far as I can tell
+        we never fold ranges. There's no ES|QL syntax for ranges, so they can never be created by the parser.  The
+        PropagateEquals optimizer rule can in theory create ranges, but only from existing ranges.  The fact that this
+        class is not serializable (note that writeTo throws UnsupportedOperationException) is a clear indicator that
+        logical planning cannot output Range nodes.
+
+        PushFiltersToSource can also create ranges, but that is a Physical optimizer rule. Folding happens in the
+        Logical optimization layer, and should be done by the time we are calling PushFiltersToSource.
+
+        That said, if somehow you have arrived here while debugging something, know that this method is likely
+        completely broken for date_nanos, and possibly other types.
+         */
         if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
             try {
+                if (upperValue instanceof BytesRef br) {
+                    upperValue = BytesRefs.toString(br);
+                }
                 if (upperValue instanceof String upperString) {
                     upperValue = asDateTime(upperString);
+                }
+                if (lowerValue instanceof BytesRef br) {
+                    lowerValue = BytesRefs.toString(br);
                 }
                 if (lowerValue instanceof String lowerString) {
                     lowerValue = asDateTime(lowerString);
@@ -195,25 +224,89 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable();
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (lower.foldable() == false || upper.foldable() == false) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableAttribute(value)) {
+            return Translatable.YES;
+        }
+        if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+            // Candidate range against the keyed sub-field; RECHECK keeps the predicate in the
+            // FilterOperator to null out multi-valued documents the range let through.
+            return Translatable.RECHECK;
+        }
+        return Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (value instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractRange(keyedName.get());
+            }
+        }
         return translate(handler);
     }
 
+    /**
+     * Translates a closed range over {@code field_extract(root, "key")} to a candidate {@link RangeQuery}
+     * on the synthetic data-node field name {@code root.key}. The data node's
+     * {@code FieldTypeLookup} resolves that name to a {@code KeyedFlattenedFieldType} which
+     * prefixes both bounds with {@code key + "\0"} at search time, keeping the range inside the
+     * key's slice of the {@code _keyed} term space.
+     * <p>
+     * The range is not wrapped in a {@code SingleValueQuery}: {@link #translatable} reports
+     * {@code RECHECK} (consistent with how {@code Equals}/{@code NotEquals}/{@code In} on
+     * {@code field_extract} push a bare candidate query), so the FilterOperator re-applies the range on
+     * the extracted keyword column and nulls out multi-valued documents the candidate range let through.
+     */
+    private Query translateFieldExtractRange(String keyedName) {
+        Object lo = literalValueOf(lower);
+        Object hi = literalValueOf(upper);
+        if (lo instanceof BytesRef br) {
+            lo = br.utf8ToString();
+        }
+        if (hi instanceof BytesRef br) {
+            hi = br.utf8ToString();
+        }
+        return new RangeQuery(source(), keyedName, lo, includeLower, hi, includeUpper, /* format */ null, /* zoneId */ null);
+    }
+
     private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+        Object l = literalValueOf(lower);
+        Object u = literalValueOf(upper);
         String format = null;
 
         DataType dataType = value.dataType();
-        if (DataType.isDateTime(dataType) && DataType.isDateTime(lower.dataType()) && DataType.isDateTime(upper.dataType())) {
-            l = dateTimeToString((Long) l);
-            u = dateTimeToString((Long) u);
+        logger.trace(
+            "Translating Range into lucene query.  dataType is [{}] upper is [{}<{}>]  lower is [{}<{}>]",
+            dataType,
+            lower,
+            lower.dataType(),
+            upper,
+            upper.dataType()
+        );
+        // Null bound = open end (one-sided ranges). Skip formatting for the missing side.
+        if (dataType == DataType.DATETIME) {
+            if (l != null) {
+                l = dateWithTypeToString((Long) l, lower.dataType());
+            }
+            if (u != null) {
+                u = dateWithTypeToString((Long) u, upper.dataType());
+            }
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        }
+
+        if (dataType == DATE_NANOS) {
+            if (l != null) {
+                l = dateWithTypeToString((Long) l, lower.dataType());
+            }
+            if (u != null) {
+                u = dateWithTypeToString((Long) u, upper.dataType());
+            }
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 
         if (dataType == IP) {
@@ -244,6 +337,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
                 u = unsignedLongAsNumber(ul);
             }
         }
+        logger.trace("Building range query with format string [{}]", format);
         return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);
     }
 

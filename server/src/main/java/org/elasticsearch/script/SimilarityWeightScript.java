@@ -21,6 +21,16 @@ public abstract class SimilarityWeightScript {
      */
     public abstract double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field, ScriptedSimilarity.Term term);
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public interface Factory extends ScriptFactory {
         SimilarityWeightScript newInstance();
     }

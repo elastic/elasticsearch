@@ -1,0 +1,3 @@
+host.name:keyword,threat_level:keyword
+infra-filebeat-6vjxr,high
+filebeat-6t7v6,low

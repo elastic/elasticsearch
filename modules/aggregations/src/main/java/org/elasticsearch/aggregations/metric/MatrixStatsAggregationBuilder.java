@@ -9,7 +9,6 @@
 package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.MultiValueMode;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
@@ -57,16 +57,12 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
-        }
+        multiValueMode = MultiValueMode.readMultiValueModeFrom(in);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            multiValueMode.writeTo(out);
-        }
+        multiValueMode.writeTo(out);
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
@@ -95,12 +91,25 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (super.equals(obj) == false) return false;
+        MatrixStatsAggregationBuilder other = (MatrixStatsAggregationBuilder) obj;
+        return multiValueMode == other.multiValueMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), multiValueMode);
+    }
+
+    @Override
     public String getType() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

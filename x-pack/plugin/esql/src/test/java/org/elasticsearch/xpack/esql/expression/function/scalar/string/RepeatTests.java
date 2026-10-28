@@ -11,7 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
@@ -62,22 +65,6 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        cases.add(
-            new TestCaseSupplier("Repeat basic test with semantic_text input", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
-                String text = randomAlphaOfLength(10);
-                int number = between(0, 10);
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                        new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
-                    ),
-                    "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef(text.repeat(number)))
-                );
-            })
-        );
-
         cases.add(new TestCaseSupplier("Repeat with number zero", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = 0;
@@ -117,12 +104,30 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
+    }
+
+    /**
+     * Regression test: when the number argument is foldable to null (e.g. a missing field resolved to
+     * null in a per-shard plan), toEvaluator() must not NPE.
+     */
+    public void testFoldableNullNumber() {
+        Repeat repeat = new Repeat(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, new BytesRef("hello"), DataType.KEYWORD),
+            new Literal(Source.EMPTY, null, DataType.INTEGER)
+        );
+        // Direct call: must not NPE when number.foldable() && number.fold() == null.
+        // toEvaluator() is also called internally by fold() via EvaluatorMapper.
+        ExpressionEvaluator.Factory factory = repeat.toEvaluator(toEvaluator());
+        assertNotNull(factory);
+        assertTrue(repeat.foldable());
+        assertNull(repeat.fold(FoldContext.small()));
     }
 
     @Override

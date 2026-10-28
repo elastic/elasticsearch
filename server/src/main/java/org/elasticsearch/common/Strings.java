@@ -546,76 +546,86 @@ public class Strings {
      * String. E.g. useful for <code>toString()</code> implementations.
      *
      * @param coll   the Collection to display
-     * @param delim  the delimiter to use (probably a ",")
-     * @param prefix the String to start each element with
-     * @param suffix the String to end each element with
+     * @param delimiter  the delimiter to use (probably a ",")
      * @return the delimited String
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Iterable<?> coll, String delimiter) {
         StringBuilder sb = new StringBuilder();
-        collectionToDelimitedString(coll, delim, prefix, suffix, sb);
+        collectionToDelimitedString(coll, delimiter, sb);
         return sb.toString();
     }
 
-    public static void collectionToDelimitedString(Iterable<?> coll, String delim, String prefix, String suffix, StringBuilder sb) {
+    public static void collectionToDelimitedString(Iterable<?> coll, String delimiter, StringBuilder sb) {
         Iterator<?> it = coll.iterator();
         while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
+            sb.append(it.next());
             if (it.hasNext()) {
-                sb.append(delim);
+                sb.append(delimiter);
             }
         }
     }
 
     /**
-     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, StringBuilder)}
      * except that it stops if the string gets too long and just indicates how many items were omitted.
      *
      * @param coll        the collection of items to display
-     * @param delim       the delimiter to write between the items (usually {@code ","})
-     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
-     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param delimiter   the delimiter to write between the items (e.g. {@code ","})
      * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
      *                    items are omitted
      */
-    public static void collectionToDelimitedStringWithLimit(
-        Iterable<?> coll,
-        String delim,
-        String prefix,
-        String suffix,
-        int appendLimit,
-        StringBuilder sb
-    ) {
-        final Iterator<?> it = coll.iterator();
-        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
-        int count = 0;
-        while (it.hasNext()) {
-            sb.append(prefix).append(it.next()).append(suffix);
-            count += 1;
-            if (it.hasNext()) {
-                sb.append(delim);
-                if (sb.length() > lengthLimit) {
-                    int omitted = 0;
-                    while (it.hasNext()) {
-                        it.next();
-                        omitted += 1;
-                    }
-                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
-                }
-            }
-        }
+    public static void collectionToDelimitedStringWithLimit(Iterable<?> coll, String delimiter, int appendLimit, StringBuilder sb) {
+        final var boundedDelimitedStringCollector = new BoundedDelimitedStringCollector(sb, delimiter, appendLimit);
+        coll.forEach(boundedDelimitedStringCollector::appendItem);
+        boundedDelimitedStringCollector.finish();
     }
 
     /**
-     * Convenience method to return a Collection as a delimited (e.g. CSV)
-     * String. E.g. useful for <code>toString()</code> implementations.
-     *
-     * @param coll  the Collection to display
-     * @param delim the delimiter to use (probably a ",")
-     * @return the delimited String
+     * Collects a sequence of objects into a delimited string, dropping objects once the string reaches a certain maximum length. Similar to
+     * {@link #collectionToDelimitedStringWithLimit} except that this doesn't need the collection of items to be provided up front.
      */
-    public static String collectionToDelimitedString(Iterable<?> coll, String delim) {
-        return collectionToDelimitedString(coll, delim, "", "");
+    public static final class BoundedDelimitedStringCollector {
+        private final StringBuilder stringBuilder;
+        private final String delimiter;
+        private final long lengthLimit;
+        private int count = 0;
+        private int omitted = 0;
+
+        public BoundedDelimitedStringCollector(StringBuilder stringBuilder, String delimiter, int appendLimit) {
+            this.stringBuilder = stringBuilder;
+            this.delimiter = delimiter;
+            this.lengthLimit = (long) stringBuilder.length() + appendLimit; // long to avoid overflow
+        }
+
+        /**
+         * Add the given item's string representation to the string, with a delimiter if necessary and surrounded by the given prefix and
+         * suffix, as long as the string is not already too long.
+         */
+        public void appendItem(Object item) {
+            count += 1;
+            if (omitted > 0) {
+                omitted += 1;
+                return;
+            }
+            if (count > 1) {
+                stringBuilder.append(delimiter);
+            }
+            if (stringBuilder.length() > lengthLimit) {
+                omitted += 1;
+                stringBuilder.append("..."); // indicate there are some omissions, just in case the caller forgets to call finish()
+                return;
+            }
+            stringBuilder.append(item);
+        }
+
+        /**
+         * Complete the collection, adding to the string a summary of omitted objects, if any.
+         */
+        public void finish() {
+            if (omitted > 0) {
+                stringBuilder.append(" (").append(count).append(" in total, ").append(omitted).append(" omitted)");
+            }
+        }
     }
 
     /**
@@ -743,22 +753,119 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out
+     * instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values printed in a
+     * human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */).appendIfTruncated("[...]");
+    }
+
+    /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */, pretty, human).appendIfTruncated("[...]");
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
+     * printed in a human-readable way (see {@link XContentBuilder#humanReadable()}).
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes) {
+        return toTruncatedString(chunkedToXContent, maxBytes, false, false);
+    }
+
+    /**
+     * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
+     * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
+     * printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param maxBytes The maximum number of bytes after which the serialization will stop.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static TruncatedString toTruncatedString(ChunkedToXContent chunkedToXContent, int maxBytes, boolean pretty, boolean human) {
+        try {
+            final var truncatedStream = new TruncatedByteArrayOutputStream(maxBytes);
+            final var builder = createBuilder(pretty, human, truncatedStream);
+
+            if (chunkedToXContent.isFragment()) {
+                builder.startObject();
+            }
+            final var chunks = chunkedToXContent.toXContentChunked(ToXContent.EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.flush();
+                if (truncatedStream.isTruncated()) {
+                    break;
+                }
+            }
+            if (truncatedStream.isTruncated() == false && chunkedToXContent.isFragment()) {
+                builder.endObject();
+            }
+
+            return new TruncatedString(
+                toString(builder, /* allowIllFormed = */ truncatedStream.isTruncated()),
+                truncatedStream.isTruncated()
+            );
+        } catch (IOException e) {
+            return new TruncatedString(exceptionToJsonString(e, pretty, human), false);
+        }
+    }
+
+    /**
+     * A small value class that represents a {@link String} that might be truncated.
+     *
+     * @param string The string value.
+     * @param truncated {@code true} if the string was truncated, {@code false} otherwise.
+     */
+    public record TruncatedString(String string, boolean truncated) {
+
+        /**
+         * Appends a given {@code suffix} and returns the result if the value if {@link #string} was truncated; or the unchanged
+         * {@link #string} otherwise.
+         *
+         * @param suffix Suffix to append.
+         */
+        public String appendIfTruncated(String suffix) {
+            return truncated ? string + suffix : string;
+        }
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
      */
     public static String toString(ToXContent toXContent) {
         return toString(toXContent, false, false);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(chunkedToXContent, false, false);
     }
 
     /**
@@ -776,7 +883,15 @@ public class Strings {
      * @param xContentBuilder builder containing an object to converted to a string
      */
     public static String toString(XContentBuilder xContentBuilder) {
-        xContentBuilder.close();
+        return toString(xContentBuilder, /* allowIllFormed = */ false);
+    }
+
+    private static String toString(XContentBuilder xContentBuilder, boolean allowIllFormed) {
+        if (allowIllFormed) {
+            xContentBuilder.closeAllowIllFormed();
+        } else {
+            xContentBuilder.close();
+        }
         OutputStream stream = xContentBuilder.getOutputStream();
         if (stream instanceof ByteArrayOutputStream baos) {
             return baos.toString(StandardCharsets.UTF_8);
@@ -796,25 +911,14 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * Allows to control whether the outputted json needs to be pretty printed and human readable.
-     * @deprecated don't add usages of this method, it will be removed eventually
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
-    }
-
-    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed.
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    public static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(pretty, human, null);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -824,21 +928,25 @@ public class Strings {
             }
             return toString(builder);
         } catch (IOException e) {
-            try {
-                XContentBuilder builder = createBuilder(pretty, human);
-                builder.startObject();
-                builder.field("error", "error building toString out of XContent: " + e.getMessage());
-                builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
-                builder.endObject();
-                return toString(builder);
-            } catch (IOException e2) {
-                throw new ElasticsearchException("cannot generate error message for deserialization", e);
-            }
+            return exceptionToJsonString(e, pretty, human);
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static String exceptionToJsonString(Exception exception, boolean pretty, boolean human) {
+        try {
+            XContentBuilder builder = createBuilder(pretty, human, null);
+            builder.startObject();
+            builder.field("error", "error building toString out of XContent: " + exception.getMessage());
+            builder.field("stack_trace", ExceptionsHelper.stackTrace(exception));
+            builder.endObject();
+            return toString(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchException("cannot generate error message for deserialization", exception);
+        }
+    }
+
+    private static XContentBuilder createBuilder(boolean pretty, boolean human, @Nullable OutputStream out) throws IOException {
+        XContentBuilder builder = out == null ? JsonXContent.contentBuilder() : new XContentBuilder(JsonXContent.jsonXContent, out);
         if (pretty) {
             builder.prettyPrint();
         }
@@ -936,4 +1044,22 @@ public class Strings {
     public static String stripDisallowedChars(String string) {
         return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
+
+    /**
+     * Look for a character in a string, like indexOf(), but for multiple characters.
+     * <p>
+     * Saves doing multiple passes in case we need to check for presence (or absence) of any of them.
+     */
+    public static int indexOfAny(String s, char... chars) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            for (char target : chars) {
+                if (c == target) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
 }

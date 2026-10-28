@@ -1,12 +1,18 @@
 {
   "name": "buildkite-pipelines",
   "type": "module",
-  "devDependencies": {
-    "@types/node": "^20.6.0",
-    "bun-types": "latest",
-    "yaml": "^2.3.2"
+  "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6",
+  "scripts": {
+    "test": "vitest run"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^25.8.0",
+    "@types/sax": "^1.2.7",
+    "vitest": "^4.1.7"
+  },
+  "dependencies": {
+    "yaml": "^2.3.2",
+    "sax": "^1.6.0"
   }
 }

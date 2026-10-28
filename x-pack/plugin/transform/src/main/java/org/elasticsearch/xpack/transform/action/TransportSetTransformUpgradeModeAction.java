@@ -17,8 +17,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeAction;
 
 import java.util.Comparator;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
@@ -53,10 +54,10 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         PersistentTasksClusterService persistentTasksClusterService,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             SetTransformUpgradeModeAction.NAME,
@@ -65,7 +66,7 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
             clusterService,
             threadPool,
             actionFilters,
-            indexNameExpressionResolver
+            projectResolver
         );
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.persistentTasksService = persistentTasksService;
@@ -78,25 +79,24 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
     }
 
     @Override
-    protected boolean upgradeMode(ClusterState state) {
-        return TransformMetadata.upgradeMode(state);
+    protected boolean isUpgradeMode(ProjectMetadata project) {
+        return TransformMetadata.isUpgradeMode(project);
     }
 
     @Override
-    protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState state) {
-        var updatedTransformMetadata = TransformMetadata.getTransformMetadata(state).builder().upgradeMode(request.enabled()).build();
-        var updatedClusterMetadata = state.metadata().copyAndUpdate(b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata));
-        return state.copyAndUpdate(b -> b.metadata(updatedClusterMetadata));
+    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetUpgradeModeActionRequest request, ProjectMetadata project) {
+        var updatedTransformMetadata = TransformMetadata.transformMetadata(project).builder().upgradeMode(request.enabled()).build();
+        return b -> b.putCustom(TransformMetadata.TYPE, updatedTransformMetadata);
     }
 
     @Override
     protected void upgradeModeSuccessfullyChanged(
         Task task,
         SetUpgradeModeActionRequest request,
-        ClusterState state,
+        ProjectMetadata project,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksCustomMetadata = project.custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksCustomMetadata == null
             || tasksCustomMetadata.tasks().isEmpty()
             || tasksCustomMetadata.tasks().stream().noneMatch(this::isTransformTask)) {
@@ -106,18 +106,26 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
         }
 
         if (request.enabled()) {
-            stopTransforms(request, state, listener);
+            stopTransforms(request, project, listener);
         } else {
-            waitForTransformsToRestart(request, listener);
+            waitForTransformsToRestart(project, request, listener);
         }
     }
 
-    private void stopTransforms(SetUpgradeModeActionRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        unassignTransforms(state, listener.delegateFailureAndWrap((l, r) -> waitForTransformsToStop(request, l)));
+    private void stopTransforms(
+        SetUpgradeModeActionRequest request,
+        ProjectMetadata project,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        unassignTransforms(project, listener.delegateFailureAndWrap((l, r) -> waitForTransformsToStop(request, l)));
     }
 
-    private void unassignTransforms(ClusterState state, ActionListener<Void> listener) {
-        PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    private void unassignTransforms(ProjectMetadata project, ActionListener<Void> listener) {
+        PersistentTasksCustomMetadata tasksCustomMetadata = project.custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasksCustomMetadata == null) {
+            listener.onResponse(null);
+            return;
+        }
         var transformTasks = tasksCustomMetadata.tasks()
             .stream()
             .filter(this::isTransformTask)
@@ -135,10 +143,11 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
 
         // chain each call one at a time
         // because that is what we are doing for ML, and that is all that is supported in the persistentTasksClusterService (for now)
-        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.newSucceeded(null);
+        SubscribableListener<PersistentTasksCustomMetadata.PersistentTask<?>> chainListener = SubscribableListener.nullSuccess();
         for (var task : transformTasks) {
             chainListener = chainListener.andThen(executor, threadPool.getThreadContext(), (l, unused) -> {
                 persistentTasksClusterService.unassignPersistentTask(
+                    project.id(),
                     task.getId(),
                     task.getAllocationId(),
                     AWAITING_UPGRADE.getExplanation(),
@@ -186,14 +195,19 @@ public class TransportSetTransformUpgradeModeAction extends AbstractTransportSet
         return TransformField.TASK_NAME.equals(task.getTaskName());
     }
 
-    private void waitForTransformsToRestart(SetUpgradeModeActionRequest request, ActionListener<AcknowledgedResponse> listener) {
+    private void waitForTransformsToRestart(
+        ProjectMetadata project,
+        SetUpgradeModeActionRequest request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         logger.info("Disabling upgrade mode for Transforms, must wait for tasks to not have AWAITING_UPGRADE assignment");
-        persistentTasksService.waitForPersistentTasksCondition(
-            persistentTasksCustomMetadata -> persistentTasksCustomMetadata.tasks()
+        persistentTasksService.waitForPersistentTasksCondition(project.id(), persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
+            return persistentTasksCustomMetadata.tasks()
                 .stream()
-                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE)),
-            request.ackTimeout(),
-            listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE))
-        );
+                .noneMatch(t -> isTransformTask(t) && t.getAssignment().equals(AWAITING_UPGRADE));
+        }, request.ackTimeout(), listener.delegateFailureAndWrap((d, r) -> d.onResponse(AcknowledgedResponse.TRUE)));
     }
 }

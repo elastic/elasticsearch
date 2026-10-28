@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -64,16 +63,8 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public Vocabulary(StreamInput in) throws IOException {
         vocab = in.readStringCollectionAsList();
         modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            merges = in.readStringCollectionAsList();
-        } else {
-            merges = List.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            scores = in.readCollectionAsList(StreamInput::readDouble);
-        } else {
-            scores = List.of();
-        }
+        merges = in.readStringCollectionAsList();
+        scores = in.readCollectionAsList(StreamInput::readDouble);
     }
 
     public List<String> get() {
@@ -92,12 +83,8 @@ public class Vocabulary implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(vocab);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            out.writeStringCollection(merges);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeCollection(scores, StreamOutput::writeDouble);
-        }
+        out.writeStringCollection(merges);
+        out.writeCollection(scores, StreamOutput::writeDouble);
     }
 
     @Override

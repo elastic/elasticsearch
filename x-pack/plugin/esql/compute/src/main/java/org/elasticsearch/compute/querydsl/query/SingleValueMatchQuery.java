@@ -8,16 +8,18 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -25,19 +27,47 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.fielddata.SortableBinaryDocValues.ValueMode;
+
 /**
- * Finds all fields with a single-value. If a field has a multi-value, it emits a {@link Warnings}.
+ * Finds all fields with a single-value. If a field has a multi-value, it emits
+ * a {@link org.elasticsearch.compute.operator.Warnings warning}.
+ * <p>
+ *     Warnings are only emitted if the {@link TwoPhaseIterator#matches}. Meaning that,
+ *     if the other query skips the doc either because the index doesn't match or because it's
+ *     {@link TwoPhaseIterator#matches} doesn't match, then we won't log warnings. So it's
+ *     most safe to say that this will emit a warning if the document would have
+ *     matched but for having a multivalued field. If the document doesn't match but
+ *     "almost" matches in some fairly lucene-specific ways then it *might* emit
+ *     a warning.
+ * </p>
+ * <p>
+ *     A query can be built one of two ways. When the same {@link Query}/{@link Weight} might be
+ *     scored concurrently by more than one driver -- the Lucene-pushdown path shared across a
+ *     shard's slices -- it's bound to a {@link QueryWarnings} bridge plus a {@link WarningSourceLocation},
+ *     and warnings are dispatched to whichever driver is currently bound on the calling thread; see
+ *     {@link QueryWarnings} for why that bridge exists at all. When a query is instead privately owned
+ *     by exactly one driver/thread for its whole lifetime -- e.g. {@link org.elasticsearch.compute.operator.lookup.QueryList} --
+ *     it can instead be bound directly to an already-built {@link Warnings} instance, with no bridge,
+ *     no thread-local, and no lazy creation.
+ * </p>
  */
 public final class SingleValueMatchQuery extends Query {
 
@@ -46,15 +76,80 @@ public final class SingleValueMatchQuery extends Query {
      * This avoids reporting warnings when queries are not matching multi-values
      */
     private static final int MULTI_VALUE_MATCH_COST = 1000;
-    private static final IllegalArgumentException MULTI_VALUE_EXCEPTION = new IllegalArgumentException(
-        "single-value function encountered multi-value"
-    );
     private final IndexFieldData<?> fieldData;
-    private final Warnings warnings;
+    private final WarningsTarget warningsTarget;
+    private final String multiValueExceptionMessage;
 
-    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
+    /**
+     * Where {@link #registerMultiValueException()} sends its warning: either a {@link QueryWarnings}
+     * bridge dispatching by calling-thread identity, or a concrete {@link Warnings} instance known
+     * up front.
+     */
+    private interface WarningsTarget {
+        void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message);
+
+        @Nullable
+        WarningSourceLocation source();
+    }
+
+    private record BridgedWarningsTarget(QueryWarnings warnings, WarningSourceLocation source) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(query, exceptionClass, message);
+        }
+    }
+
+    private record DirectWarningsTarget(Warnings warnings) implements WarningsTarget {
+        @Override
+        public void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
+            warnings.registerException(exceptionClass, message);
+        }
+
+        @Override
+        public WarningSourceLocation source() {
+            return null;
+        }
+    }
+
+    /**
+     * Build, bound to a {@link QueryWarnings} bridge that resolves the calling driver's
+     * {@link org.elasticsearch.compute.operator.Warnings} by thread identity. Use this when the same
+     * query/{@link Weight} might be scored concurrently by more than one driver.
+     * @param warnings bridge used to resolve the calling driver's {@link org.elasticsearch.compute.operator.Warnings}
+     *                 for this query node; see {@link QueryWarnings} for why this can't just be a plain
+     *                 {@code Warnings} field
+     * @param source the location that produced this query, used to build a {@code Warnings} instance per driver
+     */
+    public SingleValueMatchQuery(
+        IndexFieldData<?> fieldData,
+        QueryWarnings warnings,
+        WarningSourceLocation source,
+        String multiValueExceptionMessage
+    ) {
         this.fieldData = fieldData;
-        this.warnings = warnings;
+        this.warningsTarget = new BridgedWarningsTarget(warnings, source);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * Build, bound directly to an already-built {@link Warnings} instance, with no bridge, no
+     * thread-local, and no lazy creation. Use this when the query is privately owned by exactly one
+     * driver/thread for its whole lifetime, e.g. {@link org.elasticsearch.compute.operator.lookup.QueryList}.
+     */
+    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
+        this.fieldData = fieldData;
+        this.warningsTarget = new DirectWarningsTarget(warnings);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
+    }
+
+    /**
+     * The location that produced this query, if bound via the {@link QueryWarnings} bridge. Used by
+     * {@link LuceneOperator} to build a driver-local {@link Warnings} for this node. {@code null} when
+     * this query was bound directly to a {@link Warnings} instance.
+     */
+    @Nullable
+    public WarningSourceLocation source() {
+        return warningsTarget.source();
     }
 
     @Override
@@ -77,7 +172,7 @@ public final class SingleValueMatchQuery extends Query {
                     return null;
                 }
                 /*
-                 * SortedBinaryDocValues are available for most fields, but they
+                 * SortableBinaryDocValues are available for most fields, but they
                  * are made available by eagerly converting non-bytes values to
                  * utf-8 strings. The eager conversion is quite expensive. So
                  * we specialize on numeric fields and fields with ordinals to
@@ -98,37 +193,50 @@ public final class SingleValueMatchQuery extends Query {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
+                final LeafFieldData lfd = fieldData.load(ctx);
+                // If field is singleton, then it is safe to cache this query, because no warning will ever be emitted.
+                if (lfd instanceof LeafNumericFieldData n) {
+                    if (SortedNumericLongValues.unwrapSingleton(n.getLongValues()) != null) {
+                        return true;
+                    }
+                } else if (lfd instanceof LeafOrdinalsFieldData o) {
+                    if (DocValues.unwrapSingleton(o.getOrdinalsValues()) != null) {
+                        return true;
+                    }
+                } else {
+                    var sortedBinaryDocValues = lfd.getBytesValues();
+                    if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
+                        return true;
+                    }
+                }
                 // don't cache so we can emit warnings
                 return false;
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedNumericDocValues sortedNumerics,
+                SortedNumericLongValues sortedNumerics,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedNumerics) != null) {
-                    // check for dense field
-                    final PointValues points = context.reader().getPointValues(fieldData.getFieldName());
-                    if (points != null && points.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, sortedNumerics::advanceExact);
-                    }
+                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedNumerics.advanceExact(doc)) {
                         return false;
                     }
                     if (sortedNumerics.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -138,46 +246,44 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (DocValues.unwrapSingleton(sortedSetDocValues) != null) {
-                    // check for dense field
-                    final Terms terms = context.reader().terms(fieldData.getFieldName());
-                    if (terms != null && terms.getDocCount() == maxDoc) {
-                        return new DocIdSetIteratorScorerSupplier(boost, scoreMode, DocIdSetIterator.all(maxDoc));
-                    } else {
-                        return new PredicateScorerSupplier(
-                            boost,
-                            scoreMode,
-                            maxDoc,
-                            MULTI_VALUE_MATCH_COST,
-                            sortedSetDocValues::advanceExact
-                        );
-                    }
+                SortedDocValues sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                if (sdv != null && sdv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    sdv = DocValues.unwrapSingleton(DocValues.getSortedSet(context.reader(), fieldData.getFieldName()));
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, sdv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
                     if (false == sortedSetDocValues.advanceExact(doc)) {
                         return false;
                     }
                     if (sortedSetDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedBinaryDocValues sortedBinaryDocValues,
+                SortableBinaryDocValues sortedBinaryDocValues,
                 float boost,
                 ScoreMode scoreMode
-            ) {
+            ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
+                // Where the field knows the documents holding one value, they are the answer, as a singleton's doc values are.
+                final DocIdSetIterator singleValuedDocs = sortedBinaryDocValues.singleValuedDocs();
+                if (singleValuedDocs != null) {
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, singleValuedDocs);
+                }
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
+                    || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
                     return new PredicateScorerSupplier(
                         boost,
                         scoreMode,
-                        maxDoc,
+                        approximationIterator,
                         MULTI_VALUE_MATCH_COST,
                         sortedBinaryDocValues::advanceExact
                     );
@@ -187,37 +293,63 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedBinaryDocValues.docValueCount() != 1) {
-                        warnings.registerException(MULTI_VALUE_EXCEPTION);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
         };
     }
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
+            return Queries.ALL_DOCS_INSTANCE;
+        }
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
+            final LeafReader reader = context.reader();
+            final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                final PointValues pointValues = context.reader().getPointValues(fieldData.getFieldName());
-                if (pointValues == null
-                    || pointValues.getDocCount() != context.reader().maxDoc()
-                    || pointValues.size() != pointValues.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                final PointValues points = reader.getPointValues(fieldData.getFieldName());
+                if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
-                final Terms terms = context.reader().terms(fieldData.getFieldName());
-                if (terms == null || terms.getDocCount() != context.reader().maxDoc() || terms.size() != terms.getDocCount()) {
-                    return super.rewrite(indexSearcher);
+                SortedDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedSet(reader, fieldData.getFieldName()));
+                if (singleton != null) {
+                    singleton.nextDoc();
+                    if (singleton.docIDRunEnd() == maxDoc) {
+                        continue;
+                    }
                 }
+                // TODO: check doc values skippers
+                Terms terms = reader.terms(fieldData.getFieldName());
+                if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {
+                    continue;
+                }
+                return super.rewrite(indexSearcher);
             } else {
+                var sortedBinaryDocValues = lfd.getBytesValues();
+                if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED
+                    && sortedBinaryDocValues.getSparsity() == SortableBinaryDocValues.Sparsity.DENSE) {
+                    continue;
+                }
                 return super.rewrite(indexSearcher);
             }
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -267,24 +399,43 @@ public final class SingleValueMatchQuery extends Query {
         }
     }
 
+    private void registerMultiValueException() {
+        warningsTarget.registerException(this, IllegalArgumentException.class, multiValueExceptionMessage);
+    }
+
+    static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {
+        var iterator = FieldExistsQuery.getDocValuesDocIdSetIterator(fieldName, reader);
+        if (iterator != null) {
+            return iterator;
+        } else {
+            return DocIdSetIterator.all(maxDoc);
+        }
+    }
+
     private static class PredicateScorerSupplier extends ScorerSupplier {
         private final float score;
         private final ScoreMode scoreMode;
-        private final int maxDoc;
         private final int matchCost;
         private final CheckedIntPredicate predicate;
+        private final DocIdSetIterator approximation;
 
-        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
+        private PredicateScorerSupplier(
+            float score,
+            ScoreMode scoreMode,
+            DocIdSetIterator approximation,
+            int matchCost,
+            CheckedIntPredicate predicate
+        ) {
             this.score = score;
             this.scoreMode = scoreMode;
-            this.maxDoc = maxDoc;
             this.matchCost = matchCost;
             this.predicate = predicate;
+            this.approximation = approximation;
         }
 
         @Override
         public Scorer get(long leadCost) {
-            TwoPhaseIterator iterator = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
+            TwoPhaseIterator iterator = new TwoPhaseIterator(approximation) {
                 @Override
                 public boolean matches() throws IOException {
                     return predicate.test(approximation.docID());
@@ -300,7 +451,7 @@ public final class SingleValueMatchQuery extends Query {
 
         @Override
         public long cost() {
-            return maxDoc;
+            return approximation.cost();
         }
     }
 

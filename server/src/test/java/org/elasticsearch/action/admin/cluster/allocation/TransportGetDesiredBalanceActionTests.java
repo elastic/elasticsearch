@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -80,7 +79,6 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             desiredBalanceShardsAllocator,
             clusterInfoService,
             TEST_WRITE_LOAD_FORECASTER
@@ -112,7 +110,6 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),
             mock(ClusterInfoService.class),
             mock(WriteLoadForecaster.class)
@@ -193,7 +190,8 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                         if (nodeIds.size() > 1) {
                             shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
-                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );
                         }
                         indexRoutingTableBuilder.addShard(shard);
@@ -254,7 +252,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             for (var shardDesiredBalance : shardsMap.entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShard = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
-                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
                 IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
                 for (int idx = 0; idx < indexShardRoutingTable.size(); idx++) {
                     ShardRouting shard = indexShardRoutingTable.shard(idx);

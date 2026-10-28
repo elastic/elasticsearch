@@ -18,9 +18,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponseUtils;
@@ -30,12 +32,15 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -47,10 +52,10 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
     private ClusterName clusterName;
     private ClusterState clusterState;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        action = new RestCatComponentTemplateAction();
+    @Before
+    public void initAction() throws Exception {
+        var projectId = randomProjectIdOrDefault();
+        action = new RestCatComponentTemplateAction(TestProjectResolvers.singleProject(projectId));
         clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         builder.add(DiscoveryNodeUtils.builder("node-1").roles(emptySet()).build());
@@ -61,14 +66,14 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         );
         Map<String, ComponentTemplate> componentTemplateMap = new HashMap<>();
         componentTemplateMap.put("test_ct", ct1);
-        Metadata metadata = Metadata.builder().componentTemplates(componentTemplateMap).build();
+        ProjectMetadata project = ProjectMetadata.builder(projectId).componentTemplates(componentTemplateMap).build();
         clusterState = mock(ClusterState.class);
+        final Metadata metadata = Metadata.builder().put(project).build();
         when(clusterState.metadata()).thenReturn(metadata);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void clearActionState() throws Exception {
         clusterName = null;
         clusterState = null;
     }
@@ -77,7 +82,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("_cat/component_templates")
             .build();
-        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true);
 
         // execute action
         try (var threadPool = createThreadPool()) {
@@ -96,7 +101,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
             .withPath("_cat/component_templates")
             .withParams(singletonMap("name", "test"))
             .build();
-        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
+        FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true);
 
         // execute action
         try (var threadPool = createThreadPool()) {
@@ -108,6 +113,20 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         assertThat(channel.responses().get(), equalTo(1));
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
         assertThat(channel.capturedResponse().content().utf8ToString(), emptyString());
+    }
+
+    public void testActionFailsWithMultipleProjects() throws Exception {
+        Metadata metadata = Metadata.builder(clusterState.metadata()).put(ProjectMetadata.builder(randomUniqueProjectId()).build()).build();
+        when(clusterState.metadata()).thenReturn(metadata);
+
+        FakeRestRequest getCatComponentTemplateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("_cat/component_templates")
+            .build();
+        final IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> action.buildTable(getCatComponentTemplateRequest, new ClusterStateResponse(ClusterName.DEFAULT, clusterState, false), "")
+        );
+        assertThat(ex.getMessage(), containsString("multiple projects"));
     }
 
     private NoOpNodeClient buildNodeClient(ThreadPool threadPool) {

@@ -9,23 +9,29 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCase {
 
-    public ESClientYamlSuiteTestCaseFailLogIT(final ClientYamlTestCandidate testCandidate) {
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    public ESClientYamlSuiteTestCaseFailLogIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        return createParameters("10_fail");
     }
 
     @TestLogging(
@@ -64,5 +70,10 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
 
             mockLog.assertAllExpectationsMatched();
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

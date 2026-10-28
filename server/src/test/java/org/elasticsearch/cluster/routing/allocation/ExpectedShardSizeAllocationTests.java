@@ -249,20 +249,17 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     }
 
     private static ClusterInfo createClusterInfoWith(ShardId shardId, long size) {
-        return new ClusterInfo(
-            Map.of(),
-            Map.of(),
-            Map.ofEntries(
-                Map.entry(ClusterInfo.shardIdentifierFromRouting(shardId, true), size),
-                Map.entry(ClusterInfo.shardIdentifierFromRouting(shardId, false), size)
-            ),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        return ClusterInfo.builder()
+            .shardSizes(
+                Map.ofEntries(
+                    Map.entry(ClusterInfo.shardIdentifierFromRouting(shardId, true), size),
+                    Map.entry(ClusterInfo.shardIdentifierFromRouting(shardId, false), size)
+                )
+            )
+            .build();
     }
 
     private static ClusterInfo createClusterInfo(Map<String, DiskUsage> diskUsage, Map<String, Long> shardSizes) {
-        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
+        return ClusterInfo.builder().leastAvailableSpaceUsage(diskUsage).mostAvailableSpaceUsage(diskUsage).shardSizes(shardSizes).build();
     }
 }

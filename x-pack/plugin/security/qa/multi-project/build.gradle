@@ -1,0 +1,19 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':test:external-modules:test-multi-project')
+  clusterModules project(':modules:analysis-common')
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation testArtifact(project(':x-pack:plugin:security'))
+}
+
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
+tasks.named('javaRestTest') {
+  it.onlyIf("snapshot build") { isSnapshotBuild }
+}
+
+tasks.withType(Test).configureEach {
+  it.systemProperty "tests.multi_project.enabled", true
+}

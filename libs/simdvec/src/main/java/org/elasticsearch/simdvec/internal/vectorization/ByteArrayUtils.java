@@ -1,0 +1,275 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.simdvec.internal.vectorization;
+
+import static org.apache.lucene.util.BitUtil.VH_LE_LONG;
+import static org.apache.lucene.util.BitUtil.VH_NATIVE_LONG;
+
+/** Byte array utilities. */
+final class ByteArrayUtils {
+
+    /**
+     * Implementation of {@link ESVectorUtilSupport#indexOf(byte[], int, int, byte)} using fast
+     * SWAR (SIMD Within A Register) loop.
+     */
+    static int indexOf(final byte[] bytes, final int offset, final int len, final byte marker) {
+        final int end = offset + len;
+        int i = offset;
+
+        // First, try to find the marker in the first few bytes, so we can enter the faster 8-byte aligned loop below.
+        // The idea for this logic is taken from Netty's io.netty.buffer.ByteBufUtil.firstIndexOf and optimized for little endian hardware.
+        // See e.g. https://richardstartin.github.io/posts/finding-bytes for the idea behind this optimization.
+        final int byteCount = len & 7;
+        if (byteCount > 0) {
+            final int index = unrolledFirstIndexOf(bytes, i, byteCount, marker);
+            if (index != -1) {
+                return index - offset;
+            }
+            i += byteCount;
+            if (i == end) {
+                return -1;
+            }
+        }
+        final int longCount = len >>> 3;
+        // faster SWAR (SIMD Within A Register) loop
+        final long pattern = compilePattern(marker);
+        for (int j = 0; j < longCount; j++) {
+            int index = findInLong(readLongLE(bytes, i), pattern);
+            if (index < Long.BYTES) {
+                return i + index - offset;
+            }
+            i += Long.BYTES;
+        }
+        return -1;
+    }
+
+    // See ESVectorUtil#indexOfLineTerminatorLeadByte's javadoc for where these 4 bytes come from and
+    // why there are exactly 4 of them.
+    private static final byte LT_NL = '\n';
+    private static final byte LT_CR = '\r';
+    private static final byte LT_C2 = (byte) 0xC2;
+    private static final byte LT_E2 = (byte) 0xE2;
+    // see PanamaESVectorUtilSupport#LT_HIGH_MASK for the full bit-trick rationale.
+    private static final byte LT_HIGH_MASK = (byte) 0xDF; // ~0x20
+
+    /**
+     * Implementation of {@link ESVectorUtilSupport#indexOfLineTerminatorLeadByte}: a SWAR (SIMD
+     * Within A Register) word scan for all four (fixed) marker bytes at once -- reject a whole 8-byte
+     * word in one go via the classic "has a zero byte" trick, and only fall to a per-byte scan within
+     * that word (to pin down the exact offset) on the rare word that contains a match.
+     */
+    static int indexOfLineTerminatorLeadByte(final byte[] bytes, final int offset, final int len) {
+        final int end = offset + len;
+        int i = offset;
+        final long pNL = compilePattern(LT_NL);
+        final long pCR = compilePattern(LT_CR);
+        final long pC2 = compilePattern(LT_C2);
+        final long pHighMask = compilePattern(LT_HIGH_MASK);
+        final int longCount = len >>> 3;
+        for (int j = 0; j < longCount; j++) {
+            long word = readLongLE(bytes, i);
+            if (hasZeroByte(word ^ pNL) || hasZeroByte(word ^ pCR) || hasZeroByte((word & pHighMask) ^ pC2)) {
+                for (int k = 0; k < Long.BYTES; k++) {
+                    byte c = bytes[i + k];
+                    if (c == LT_NL || c == LT_CR || c == LT_C2 || c == LT_E2) {
+                        return i + k - offset;
+                    }
+                }
+            }
+            i += Long.BYTES;
+        }
+        for (; i < end; i++) {
+            byte c = bytes[i];
+            if (c == LT_NL || c == LT_CR || c == LT_C2 || c == LT_E2) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
+
+    /** Classic "has a zero byte" trick: true iff any byte lane of {@code v} is exactly {@code 0x00}. */
+    private static boolean hasZeroByte(long v) {
+        long tmp = (v & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
+        return (~(tmp | v | 0x7F7F7F7F7F7F7F7FL)) != 0;
+    }
+
+    static int codePointCount(byte[] bytes, int offset, int length) {
+        int pos = offset;
+        int limit = offset + length;
+        int continuations = 0;
+
+        for (; pos <= limit - 8; pos += 8) {
+            long data = readLongNative(bytes, pos);
+            long high = data & 0x8080808080808080L;
+            // If all bytes start with 0, they are all ascii, so the block can be skipped.
+            if (high != 0) {
+                // Set the high bit in `mask` if the high bit in data is set and the second bit is not set
+                long mask = high & (~data << 1);
+                continuations += Long.bitCount(mask);
+            }
+        }
+
+        // Last 7 or fewer bytes
+        while (pos < limit) {
+            continuations += (bytes[pos] & 0xC0) == 0x80 ? 1 : 0;
+            pos++;
+        }
+
+        return length - continuations;
+    }
+
+    /**
+     * Checks whether {@code term} appears as a contiguous subsequence within {@code value}.
+     * Adapted from {@code StringUTF16.indexOfLatin1Unsafe}.
+     */
+    static boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
+        byte first = term[termOffset];
+        int max = valueOffset + valueLength - termLength;
+        for (int i = valueOffset; i <= max; i++) {
+            if (value[i] != first) {
+                while (++i <= max && value[i] != first)
+                    ;
+            }
+            if (i <= max) {
+                int j = i + 1;
+                int end = j + termLength - 1;
+                for (int k = termOffset + 1; j < end && value[j] == term[k]; j++, k++)
+                    ;
+                if (j == end) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The walk of {@link #contains} with both sides folded onto one case as they are compared. */
+    static boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength) >= 0;
+    }
+
+    /** The same walk, reporting the index instead of a yes or no. */
+    static int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        final byte first = foldAsciiCase(term[termOffset]);
+        final int max = valueOffset + valueLength - termLength;
+        for (int i = valueOffset; i <= max; i++) {
+            if (foldAsciiCase(value[i]) != first) {
+                while (++i <= max && foldAsciiCase(value[i]) != first)
+                    ;
+            }
+            if (i <= max && restFoldsOnto(value, i, term, termOffset, termLength)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A byte outside ASCII has its sign bit set. */
+    static boolean anyNonAscii(byte[] value, int offset, int length) {
+        for (int i = offset, to = offset + length; i < to; i++) {
+            if (value[i] < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the term's bytes after its first fold onto the value's at {@code valuePos}. */
+    private static boolean restFoldsOnto(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
+        for (int k = 1; k < termLength; k++) {
+            if (foldAsciiCase(value[valuePos + k]) != foldAsciiCase(term[termOffset + k])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Sets bit {@code 0x20}, which folds an ASCII letter onto its lower case. */
+    static byte foldAsciiCase(byte b) {
+        return (byte) (b | 0x20);
+    }
+
+    private static long readLongNative(byte[] arr, int offset) {
+        return (long) VH_NATIVE_LONG.get(arr, offset);
+    }
+
+    private static long readLongLE(byte[] arr, int offset) {
+        return (long) VH_LE_LONG.get(arr, offset);
+    }
+
+    private static long compilePattern(byte byteToFind) {
+        return (byteToFind & 0xFFL) * 0x101010101010101L;
+    }
+
+    private static int findInLong(long word, long pattern) {
+        long input = word ^ pattern;
+        long tmp = (input & 0x7F7F7F7F7F7F7F7FL) + 0x7F7F7F7F7F7F7F7FL;
+        tmp = ~(tmp | input | 0x7F7F7F7F7F7F7F7FL);
+        final int binaryPosition = Long.numberOfTrailingZeros(tmp);
+        return binaryPosition >>> 3;
+    }
+
+    private static int unrolledFirstIndexOf(byte[] buffer, int fromIndex, int byteCount, byte value) {
+        if (buffer[fromIndex] == value) {
+            return fromIndex;
+        }
+        if (byteCount == 1) {
+            return -1;
+        }
+        if (buffer[fromIndex + 1] == value) {
+            return fromIndex + 1;
+        }
+        if (byteCount == 2) {
+            return -1;
+        }
+        if (buffer[fromIndex + 2] == value) {
+            return fromIndex + 2;
+        }
+        if (byteCount == 3) {
+            return -1;
+        }
+        if (buffer[fromIndex + 3] == value) {
+            return fromIndex + 3;
+        }
+        if (byteCount == 4) {
+            return -1;
+        }
+        if (buffer[fromIndex + 4] == value) {
+            return fromIndex + 4;
+        }
+        if (byteCount == 5) {
+            return -1;
+        }
+        if (buffer[fromIndex + 5] == value) {
+            return fromIndex + 5;
+        }
+        if (byteCount == 6) {
+            return -1;
+        }
+        if (buffer[fromIndex + 6] == value) {
+            return fromIndex + 6;
+        }
+        return -1;
+    }
+}

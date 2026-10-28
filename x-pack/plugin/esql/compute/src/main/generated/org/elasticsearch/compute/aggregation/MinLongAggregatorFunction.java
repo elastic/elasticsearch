@@ -8,14 +8,19 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,16 +38,10 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongState state) {
+  MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinLongAggregatorFunction(driverContext, channels, new LongState(MinLongAggregator.init()));
+    this.state = new LongState(MinLongAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -58,73 +57,178 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
+    } else {
+      addRawInputMasked(page, mask);
+    }
+  }
+
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock, mask);
       return;
     }
-    if (mask.allTrue()) {
-      // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(LongVector vVector) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
       return;
     }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
-    } else {
-      addRawBlock(block, mask);
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        long vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, p);
+        bulkAcc = MinLongAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
-  private void addRawVector(LongVector vector) {
-    state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.longValue(MinLongAggregator.combine(state.longValue(), vector.getLong(i)));
+  private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == LongArrayVector.class) {
+      LongArrayVector specialized = (LongArrayVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
     }
-  }
-
-  private void addRawVector(LongVector vector, BooleanVector mask) {
+    if (vVector.getClass() == LongArrowBufVector.class) {
+      LongArrowBufVector specialized = (LongArrowBufVector) vVector;
+      MemorySegment bulkSegment = specialized.valuesSegment();
+      int bulkCount = specialized.getPositionCount();
+      long bulkAcc = state.longValue();
+      for (int p = 0; p < bulkCount; p++) {
+        if (mask.getBoolean(p) == false) {
+          continue;
+        }
+        long vValue = bulkSegment.getAtIndex(ValueLayout.JAVA_LONG_UNALIGNED, p);
+        bulkAcc = MinLongAggregator.combine(bulkAcc, vValue);
+      }
+      state.longValue(bulkAcc);
+      state.seen(true);
+      return;
+    }
+    if (vVector.getClass() == ConstantLongVector.class) {
+      ConstantLongVector specialized = (ConstantLongVector) vVector;
+      state.seen(true);
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        long vValue = specialized.getLong(valuesPosition);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
+      }
+      return;
+    }
     state.seen(true);
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      state.longValue(MinLongAggregator.combine(state.longValue(), vector.getLong(i)));
+      long vValue = vVector.getLong(valuesPosition);
+      state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(LongBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.longValue(MinLongAggregator.combine(state.longValue(), block.getLong(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(LongBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       state.seen(true);
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        state.longValue(MinLongAggregator.combine(state.longValue(), block.getLong(i)));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        long vValue = vBlock.getLong(vOffset);
+        state.longValue(MinLongAggregator.combine(state.longValue(), vValue));
       }
     }
   }
@@ -135,12 +239,30 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block minUncast = page.getBlock(channels.get(0));
     if (minUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector min = ((LongBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(1));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();

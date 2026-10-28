@@ -12,13 +12,15 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
+import org.elasticsearch.snapshots.SnapshotState;
 
 import java.util.Objects;
 
@@ -49,8 +51,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
-        createSnapshot(indexMetadata, new ActionListener<>() {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
+        createSnapshot(currentProject.id(), indexMetadata, new ActionListener<>() {
             @Override
             public void onResponse(Boolean complete) {
                 // based on the result of action we'll decide what the next step will be
@@ -77,7 +79,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         });
     }
 
-    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+    void createSnapshot(ProjectId projectId, IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -100,41 +102,54 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             );
             return;
         }
+        // If we performed the force merge step on the cloned index, we need to snapshot that index instead of the original.
+        final String clonedIndexName = lifecycleState.forceMergeCloneIndexName();
+        final String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : indexName;
         CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.MAX_VALUE, snapshotRepository, snapshotName);
-        request.indices(indexName);
+        request.indices(forceMergedIndexName);
         // this is safe as the snapshot creation will still be async, it's just that the listener will be notified when the snapshot is
         // complete
         request.waitForCompletion(true);
         request.includeGlobalState(false);
+        request.partial(true);
 
-        getClient().admin().cluster().createSnapshot(request, listener.map(response -> {
+        getClient(projectId).admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,
-                indexName,
+                forceMergedIndexName,
                 Strings.toString(response)
             );
             final SnapshotInfo snapInfo = response.getSnapshotInfo();
 
-            // Check that there are no failed shards, since the request may not entirely
-            // fail, but may still have failures (such as in the case of an aborted snapshot)
-            if (snapInfo.failedShards() == 0) {
+            if (snapshotCompletedSuccessfully(snapInfo, forceMergedIndexName)) {
                 return true;
             } else {
                 logger.warn(
                     Strings.format(
-                        "failed to create snapshot [%s:%s] for policy [%s] and index [%s]: %s of %s shards failed",
+                        "snapshot [%s:%s] for policy [%s] and index [%s] did not complete successfully: "
+                            + "state [%s], successful shards [%s], failed shards [%s] of [%s], indices %s",
                         snapshotRepository,
                         snapshotName,
                         policyName,
-                        indexName,
+                        forceMergedIndexName,
+                        snapInfo.state(),
+                        snapInfo.successfulShards(),
                         snapInfo.failedShards(),
-                        snapInfo.totalShards()
+                        snapInfo.totalShards(),
+                        snapInfo.indices()
                     )
                 );
                 return false;
             }
         }));
+    }
+
+    static boolean snapshotCompletedSuccessfully(SnapshotInfo snapshotInfo, String indexName) {
+        return snapshotInfo.state() == SnapshotState.SUCCESS
+            && snapshotInfo.failedShards() == 0
+            && snapshotInfo.successfulShards() > 0
+            && snapshotInfo.indices().contains(indexName);
     }
 
     @Override

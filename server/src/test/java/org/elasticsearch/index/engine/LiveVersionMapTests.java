@@ -36,7 +36,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomTranslogLocation;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomOperationLocation;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,7 +106,7 @@ public class LiveVersionMapTests extends ESTestCase {
     public void testBasics() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
         try (Releasable r = map.acquireLock(uid("test"))) {
-            Translog.Location tlogLoc = randomTranslogLocation();
+            Translog.OperationLocation tlogLoc = randomOperationLocation();
             map.putIndexUnderLock(uid("test"), new IndexVersionValue(tlogLoc, 1, 1, 1));
             assertEquals(new IndexVersionValue(tlogLoc, 1, 1, 1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
@@ -162,7 +162,12 @@ public class LiveVersionMapTests extends ESTestCase {
                         try (Releasable r = map.acquireLock(bytesRef)) {
                             VersionValue versionValue = values.computeIfAbsent(
                                 bytesRef,
-                                v -> new IndexVersionValue(randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong())
+                                v -> new IndexVersionValue(
+                                    randomOperationLocation(),
+                                    randomLong(),
+                                    maxSeqNo.incrementAndGet(),
+                                    randomLong()
+                                )
                             );
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
@@ -180,7 +185,7 @@ public class LiveVersionMapTests extends ESTestCase {
                                 map.putDeleteUnderLock(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
                                 versionValue = new IndexVersionValue(
-                                    randomTranslogLocation(),
+                                    randomOperationLocation(),
                                     versionValue.version + 1,
                                     maxSeqNo.incrementAndGet(),
                                     versionValue.term
@@ -342,7 +347,7 @@ public class LiveVersionMapTests extends ESTestCase {
         BytesRef uid = uid("1");
         VersionValue initialVersion;
         try (Releasable ignore = map.acquireLock(uid)) {
-            initialVersion = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+            initialVersion = new IndexVersionValue(randomOperationLocation(), version.incrementAndGet(), 1, 1);
             map.putIndexUnderLock(uid, (IndexVersionValue) initialVersion);
         }
         Thread t = new Thread(() -> {
@@ -359,7 +364,7 @@ public class LiveVersionMapTests extends ESTestCase {
                             underLock = nextVersionValue;
                         }
                         if (underLock.isDelete() || randomBoolean()) {
-                            nextVersionValue = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+                            nextVersionValue = new IndexVersionValue(randomOperationLocation(), version.incrementAndGet(), 1, 1);
                             map.putIndexUnderLock(uid, (IndexVersionValue) nextVersionValue);
                         } else {
                             nextVersionValue = new DeleteVersionValue(version.incrementAndGet(), 1, 1, 0);
@@ -428,7 +433,7 @@ public class LiveVersionMapTests extends ESTestCase {
                     versionMap.putDeleteUnderLock(uid, (DeleteVersionValue) latestVersion);
                     assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));
                 } else if (randomBoolean()) {
-                    latestVersion = new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomLong(), randomLong());
+                    latestVersion = new IndexVersionValue(randomOperationLocation(), randomNonNegativeLong(), randomLong(), randomLong());
                     versionMap.maybePutIndexUnderLock(uid, (IndexVersionValue) latestVersion);
                     if (versionMap.isSafeAccessRequired()) {
                         assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));

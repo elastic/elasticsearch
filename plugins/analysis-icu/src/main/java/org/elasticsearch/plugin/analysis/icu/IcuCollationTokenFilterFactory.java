@@ -19,9 +19,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.Analysis;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 
@@ -41,6 +42,7 @@ import java.nio.file.InvalidPathException;
 public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
+    private final Object sharingKey;
 
     @SuppressWarnings("HiddenField")
     public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
@@ -51,7 +53,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules != null) {
             Exception failureToResolve = null;
             try {
-                rules = Streams.copyToString(Files.newBufferedReader(environment.configDir().resolve(rules), Charset.forName("UTF-8")));
+                rules = Streams.copyToString(Files.newBufferedReader(environment.configDir().resolve(rules), StandardCharsets.UTF_8));
             } catch (IOException | SecurityException | InvalidPathException e) {
                 failureToResolve = e;
             }
@@ -160,10 +162,45 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.collator = collator;
+        // Keyed on the settings the collator is built from; rules are the resolved text, hashed since they are unbounded.
+        this.sharingKey = new Key(
+            rules == null ? null : Analysis.sha256Hex(rules),
+            settings.get("language"),
+            settings.get("country"),
+            settings.get("variant"),
+            strength,
+            decomposition,
+            alternate,
+            caseLevel,
+            caseFirst,
+            numeric,
+            variableTop,
+            hiraganaQuaternaryMode
+        );
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        String rulesSha256,
+        String language,
+        String country,
+        String variant,
+        String strength,
+        String decomposition,
+        String alternate,
+        Boolean caseLevel,
+        String caseFirst,
+        Boolean numeric,
+        String variableTop,
+        Boolean hiraganaQuaternaryMode
+    ) {}
 }

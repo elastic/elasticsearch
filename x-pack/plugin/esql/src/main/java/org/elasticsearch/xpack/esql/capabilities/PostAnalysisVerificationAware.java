@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.capabilities;
 
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+
+import java.util.function.Consumer;
 
 /**
  * Interface implemented by expressions or plans that require validation after query plan analysis,
@@ -43,4 +46,19 @@ public interface PostAnalysisVerificationAware {
      * @param failures the object to add failures to.
      */
     void postAnalysisVerification(Failures failures);
+
+    /**
+     * Overload that also exposes the node-level {@link AnalysisRegistry}, for implementers that
+     * need to validate references to named analyzers (or any other registry-backed resource) at
+     * verification time. By default it just delegates to {@link #postAnalysisVerification(Failures)};
+     * implementers that need the registry override this method instead.
+     */
+    default void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        postAnalysisVerification(failures);
+    }
+
+    /** Ignores {@code warnings} and delegates to {@link #postAnalysisVerification(AnalysisRegistry, Failures)}. */
+    default void postAnalysisVerification(AnalysisRegistry analysisRegistry, Consumer<String> warnings, Failures failures) {
+        postAnalysisVerification(analysisRegistry, failures);
+    }
 }

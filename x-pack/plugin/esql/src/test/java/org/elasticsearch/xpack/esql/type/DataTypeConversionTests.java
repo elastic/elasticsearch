@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -14,10 +15,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -39,6 +42,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converter
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
+
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
+    private static final double MAX_DOUBLE_CONVERTIBLE_TO_LONG = Math.nextDown(DOUBLE_TO_LONG_UPPER_BOUND);
 
     public void testConversionToString() {
         DataType to = KEYWORD;
@@ -70,9 +76,18 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
+            assertEquals(Long.MIN_VALUE, conversion.convert((double) Long.MIN_VALUE));
+            Exception belowLowerBound = expectThrows(
+                InvalidArgumentException.class,
+                () -> conversion.convert(Math.nextDown((double) Long.MIN_VALUE))
+            );
+            assertEquals("[" + Math.nextDown((double) Long.MIN_VALUE) + "] out of [long] range", belowLowerBound.getMessage());
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
             assertEquals(11L, conversion.convert(10.6));
+            assertEquals(Math.round(MAX_DOUBLE_CONVERTIBLE_TO_LONG), conversion.convert(MAX_DOUBLE_CONVERTIBLE_TO_LONG));
+            Exception boundary = expectThrows(InvalidArgumentException.class, () -> conversion.convert(DOUBLE_TO_LONG_UPPER_BOUND));
+            assertEquals("[" + DOUBLE_TO_LONG_UPPER_BOUND + "] out of [long] range", boundary.getMessage());
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
@@ -411,8 +426,9 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
             assertEquals(11, conversion.convert(10.6));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
-            assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
+            long outOfRange = (long) Integer.MAX_VALUE + 1;
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert((double) outOfRange));
+            assertEquals("[" + outOfRange + "] out of [integer] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
@@ -545,7 +561,7 @@ public class DataTypeConversionTests extends ESTestCase {
         Converter ipToString = converterFor(IP, KEYWORD);
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
-        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.keyword(s, "10.0.0.1"))));
     }
 
     public void testStringToVersion() {
@@ -562,10 +578,21 @@ public class DataTypeConversionTests extends ESTestCase {
         Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
         DataType stringType = randomFrom(TEXT, KEYWORD);
         Converter versionToString = converterFor(VERSION, stringType);
-        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
-        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, new Version("2.1.4").toBytesRef(), VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, new Version("2.1.4-SNAPSHOT").toBytesRef(), VERSION)));
         Converter stringToVersion = converterFor(stringType, VERSION);
-        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
-        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, BytesRefs.toBytesRef("2.1.4"), stringType))));
+        assertEquals(
+            "2.1.4-SNAPSHOT",
+            versionToString.convert(stringToVersion.convert(new Literal(s2, BytesRefs.toBytesRef("2.1.4-SNAPSHOT"), stringType)))
+        );
+    }
+
+    private ZonedDateTime asDateTime(long millis) {
+        return DateUtils.asDateTime(millis, ZoneOffset.UTC);
+    }
+
+    private ZonedDateTime asDateTime(String dateString) {
+        return DateUtils.asDateTime(dateString);
     }
 }

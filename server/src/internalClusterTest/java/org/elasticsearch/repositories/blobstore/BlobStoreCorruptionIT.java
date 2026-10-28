@@ -90,7 +90,7 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
                             "fallback message",
                             "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                             Level.ERROR,
-                            "index [*] shard generation [*] in ["
+                            "index [*] shard generation [*] in [default/"
                                 + repositoryName
                                 + "][*] not found - falling back to reading all shard snapshots"
                         )
@@ -100,7 +100,9 @@ public class BlobStoreCorruptionIT extends AbstractSnapshotIntegTestCase {
                             "shard blobs list",
                             "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                             Level.ERROR,
-                            "read shard snapshots [*] due to missing shard generation [*] for index [*] in [" + repositoryName + "][*]"
+                            "read shard snapshots [*] due to missing shard generation [*] for index [*] in [default/"
+                                + repositoryName
+                                + "][*]"
                         )
                     );
                     client().admin()

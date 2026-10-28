@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParame
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpStats;
@@ -40,9 +41,8 @@ public class RestClusterInfoActionTests extends ESTestCase {
     private RestClusterInfoAction action;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        action = new RestClusterInfoAction();
+    public void initAction() throws Exception {
+        action = new RestClusterInfoAction(() -> ProjectId.DEFAULT);
     }
 
     public void testUnrecognizediTarget() {

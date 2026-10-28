@@ -20,7 +20,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -72,6 +74,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private final ThreadPool threadPool;
     private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStopTransformAction(
@@ -80,7 +83,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         ClusterService clusterService,
         ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(
             StopTransformAction.NAME,
@@ -94,10 +98,11 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
+        this.projectResolver = projectResolver;
     }
 
-    static void validateTaskState(ClusterState state, List<String> transformIds, boolean isForce) {
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    static void validateTaskState(ProjectMetadata project, List<String> transformIds, boolean isForce) {
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(project);
         if (isForce == false && tasks != null) {
             List<String> failedTasks = new ArrayList<>();
             List<String> failedReasons = new ArrayList<>();
@@ -126,7 +131,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
-        if (TransformMetadata.upgradeMode(state)) {
+        final var projectMetadata = projectResolver.getProjectMetadata(state);
+        if (TransformMetadata.isUpgradeMode(projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
             );
@@ -148,7 +154,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 );
             }
         } else {
-            TransformNodes.warnIfNoTransformNodes(state);
+            TransformNodes.warnIfNoTransformNodes(projectMetadata, state.getNodes());
 
             final ActionListener<Response> finalListener;
             if (request.waitForCompletion()) {
@@ -163,11 +169,11 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 request.getTimeout(),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
-                    validateTaskState(state, hitsAndIds.v2().v1(), request.isForce());
+                    validateTaskState(projectMetadata, hitsAndIds.v2().v1(), request.isForce());
                     request.setExpandedIds(new HashSet<>(hitsAndIds.v2().v1()));
                     final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
                         hitsAndIds.v2().v1(),
-                        state
+                        projectMetadata
                     );
 
                     final ActionListener<Response> doExecuteListener = cancelTransformTasksListener(
@@ -192,7 +198,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     if (e instanceof ResourceNotFoundException) {
                         final TransformNodeAssignments transformNodeAssignments = TransformNodes.findPersistentTasks(
                             request.getId(),
-                            state
+                            projectResolver.getProjectMetadata(state)
                         );
 
                         if (transformNodeAssignments.getAssigned().isEmpty()
@@ -387,7 +393,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         // This map is accessed in the predicate and the listener callbacks
         final Map<String, ElasticsearchException> exceptions = new ConcurrentHashMap<>();
 
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        final var projectId = projectResolver.getProjectId();
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
             if (persistentTasksCustomMetadata == null) {
                 return true;
             }
@@ -444,9 +451,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             // waitForPersistentTasksCondition throws a IllegalStateException on timeout
             if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
-                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-                    .metadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksCustomMetadata persistentTasksCustomMetadata = PersistentTasksCustomMetadata.get(
+                    projectResolver.getProjectMetadata(clusterService.state())
+                );
 
                 if (persistentTasksCustomMetadata == null) {
                     listener.onResponse(new Response(Boolean.TRUE));
@@ -467,24 +474,31 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     return;
                 } else {
                     StringBuilder message = new StringBuilder();
+                    boolean lineAdded = false;
                     if (persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Successfully stopped [");
                         message.append(persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size());
-                        message.append("] transforms. ");
+                        message.append("] transforms.");
+                        lineAdded = true;
                     }
 
                     if (exceptions.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Could not stop the transforms ");
                         message.append(exceptions.keySet());
-                        message.append(" as they were failed. Use force stop to stop the transforms. ");
+                        message.append(" as they were failed. Use force stop to stop the transforms.");
+                        lineAdded = true;
                     }
 
                     if (stillRunningTasks.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Could not stop the transforms ");
                         message.append(stillRunningTasks);
                         message.append(" as they timed out [");
                         message.append(timeout.toString());
                         message.append("].");
+                        lineAdded = true;
                     }
 
                     listener.onFailure(new ElasticsearchStatusException(message.toString(), RestStatus.REQUEST_TIMEOUT));
@@ -541,5 +555,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 persistentTasksService.sendRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, groupedListener);
             }
         });
+    }
+
+    private static String optionalSpace(boolean spaceNeeded) {
+        return spaceNeeded ? " " : "";
     }
 }

@@ -1,6 +1,0 @@
-pr: 119691
-summary: Fix `bbq_hnsw` merge file cleanup on random IO exceptions
-area: Vector Search
-type: bug
-issues:
- - 119392

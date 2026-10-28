@@ -32,8 +32,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
@@ -152,8 +154,14 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         final ClusterStateResponse clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).metadata(true))
             .actionGet();
 
-        // We expect no reserved metadata state for file based settings, the operator file was deleted.
-        assertNull(clusterStateResponse.getState().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE));
+        // We expect empty reserved metadata state for file based settings, the operator file was deleted.
+        ReservedStateMetadata reservedState = clusterStateResponse.getState()
+            .metadata()
+            .reservedStateMetadata()
+            .get(FileSettingsService.NAMESPACE);
+        assertThat(reservedState, notNullValue());
+        assertThat(reservedState.version(), equalTo(EMPTY_VERSION));
+        assertTrue(reservedState.handlers().isEmpty());
 
         final ClusterGetSettingsAction.Response getSettingsResponse = clusterAdmin().execute(
             ClusterGetSettingsAction.INSTANCE,
@@ -164,8 +172,8 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
             getSettingsResponse.persistentSettings().get(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey()),
             equalTo("25s")
         );
-        // We didn't remove the setting set by file settings, we simply removed the reserved (operator) section.
-        assertThat(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"), equalTo("50mb"));
+        // File setting were re-set as the file was absent, this trumps the snapshot restore.
+        assertNull(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"));
         // cleanup
         updateClusterSettings(
             Settings.builder()

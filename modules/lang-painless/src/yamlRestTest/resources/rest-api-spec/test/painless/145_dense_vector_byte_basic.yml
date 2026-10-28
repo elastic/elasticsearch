@@ -107,6 +107,38 @@ setup:
   - match: {hits.hits.2._id: "1"}
   - match: {hits.hits.2._score: 1632.0}
 ---
+"Dot Product float":
+  - requires:
+      capabilities:
+        - path: /_search
+          capabilities: [byte_float_dot_product_capability]
+      test_runner_features: [capabilities]
+      reason: "float vector queries capability added"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0._score: 32865.2}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1._score: 21413.4}
+
+  - match: {hits.hits.2._id: "1"}
+  - match: {hits.hits.2._score: 1862.3}
+---
 "Cosine Similarity":
   - do:
       headers:
@@ -198,3 +230,39 @@ setup:
   - match: {hits.hits.2._id: "1"}
   - gte: {hits.hits.2._score: 0.509}
   - lte: {hits.hits.2._score: 0.512}
+
+---
+"Cosine Similarity float":
+  - requires:
+      capabilities:
+        - path: /_search
+          capabilities: [byte_float_dot_product_capability]
+      test_runner_features: [capabilities]
+      reason: "float vector queries capability added"
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "2"}
+  - gte: {hits.hits.0._score: 0.989}
+  - lte: {hits.hits.0._score: 0.992}
+
+  - match: {hits.hits.1._id: "3"}
+  - gte: {hits.hits.1._score: 0.885}
+  - lte: {hits.hits.1._score: 0.888}
+
+  - match: {hits.hits.2._id: "1"}
+  - gte: {hits.hits.2._score: 0.505}
+  - lte: {hits.hits.2._score: 0.508}

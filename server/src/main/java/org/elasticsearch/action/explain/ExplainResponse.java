@@ -10,12 +10,11 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -64,11 +63,7 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
-        super(in);
         index = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         exists = in.readBoolean();
         if (in.readBoolean()) {
@@ -114,9 +109,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeBoolean(exists);
         if (explanation == null) {
@@ -188,5 +180,10 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     @Override
     public int hashCode() {
         return Objects.hash(index, id, explanation, getResult.isExists(), getResult.sourceAsMap(), getResult.getFields());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

@@ -11,11 +11,11 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -122,9 +122,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_14_0)) {
-            encoder(in.readOptionalString());
-        }
         useExplicitFieldOrder(in.readBoolean());
         this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
@@ -132,9 +129,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_14_0)) {
-            out.writeOptionalString(encoder);
-        }
         out.writeBoolean(useExplicitFieldOrder);
         out.writeCollection(fields);
     }
@@ -247,11 +241,28 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
                 fieldOptionsBuilder.matchedFields(matchedFields);
             }
             transferOptions(field, fieldOptionsBuilder, context);
-            fieldOptions.add(
-                new SearchHighlightContext.Field(field.name(), fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build())
-            );
+            final FieldOptions options = fieldOptionsBuilder.merge(globalOptionsBuilder.build()).build();
+            validateNumberOfFragments(field.name(), options.numberOfFragments(), context.getIndexSettings());
+            fieldOptions.add(new SearchHighlightContext.Field(field.name(), options));
         }
         return new SearchHighlightContext(fieldOptions);
+    }
+
+    private static void validateNumberOfFragments(String fieldName, int numberOfFragments, IndexSettings indexSettings) {
+        final int maxNumberOfFragments = indexSettings.getHighlightMaxNumberOfFragments();
+        if (numberOfFragments > maxNumberOfFragments) {
+            throw new IllegalArgumentException(
+                "The number of fragments requested for highlighting field ["
+                    + fieldName
+                    + "] is ["
+                    + numberOfFragments
+                    + "] but the maximum allowed is ["
+                    + maxNumberOfFragments
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_NUMBER_OF_FRAGMENTS_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
     }
 
     /**
@@ -327,17 +338,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         }
     }
 
-    static Character[] convertCharArray(char[] array) {
-        if (array == null) {
-            return null;
-        }
-        Character[] charArray = new Character[array.length];
-        for (int i = 0; i < array.length; i++) {
-            charArray[i] = array[i];
-        }
-        return charArray;
-    }
-
     @Override
     public void innerXContent(XContentBuilder builder) throws IOException {
         // first write common options
@@ -410,7 +410,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
             this.name = name;
         }
 
-        private Field(Field template, QueryBuilder builder) {
+        Field(Field template, QueryBuilder builder) {
             super(template, builder);
             name = template.name;
             fragmentOffset = template.fragmentOffset;

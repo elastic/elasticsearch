@@ -11,7 +11,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 
@@ -25,11 +25,11 @@ public abstract class LeafGeoPointFieldData extends LeafPointFieldData<MultiGeoP
 
     @Override
     public final MultiGeoPointValues getPointValues() {
-        return new MultiGeoPointValues(getSortedNumericDocValues());
+        return new MultiGeoPointValues(getSortedNumericLongValues());
     }
 
     @Override
-    public final SortedBinaryDocValues getBytesValues() {
+    public final SortableBinaryDocValues getBytesValues() {
         return FieldData.toString(getPointValues());
     }
 

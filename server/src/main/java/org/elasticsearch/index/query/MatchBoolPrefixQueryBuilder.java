@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -320,12 +320,12 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         if (analyzer != null && context.getIndexAnalyzers().get(analyzer) == null) {
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        final MatchQueryParser queryParser = new MatchQueryParser(context);
+        final MatchQueryParser queryParser = new MatchQueryParser(context, queryVisitor);
         if (analyzer != null) {
             queryParser.setAnalyzer(analyzer);
         }
@@ -377,6 +377,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

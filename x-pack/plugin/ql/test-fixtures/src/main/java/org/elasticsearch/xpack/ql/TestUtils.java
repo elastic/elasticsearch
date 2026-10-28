@@ -75,6 +75,7 @@ import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -174,15 +175,17 @@ public final class TestUtils {
     // Common methods / assertions
     //
 
-    public static void assertNoSearchContexts(RestClient client) throws IOException {
-        Map<String, Object> stats = searchStats(client);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
-        for (String index : indicesStats.keySet()) {
-            if (index.startsWith(".") == false) { // We are not interested in internal indices
-                assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+    public static void assertNoSearchContexts(RestClient client) throws Exception {
+        assertBusy(() -> {
+            Map<String, Object> stats = searchStats(client);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> indicesStats = (Map<String, Object>) stats.get("indices");
+            for (String index : indicesStats.keySet()) {
+                if (index.startsWith(".") == false) { // We are not interested in internal indices
+                    assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
+                }
             }
-        }
+        });
     }
 
     public static int getNumberOfSearchContexts(RestClient client, String index) throws IOException {

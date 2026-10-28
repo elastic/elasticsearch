@@ -10,12 +10,15 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -30,14 +33,19 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
+import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -54,6 +62,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -66,19 +75,24 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 
 public class SearchSourceBuilderTests extends AbstractSearchTestCase {
@@ -125,16 +139,114 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testSerialization() throws IOException {
-        SearchSourceBuilder original = createSearchSourceBuilder();
+        SearchSourceBuilder original = createInternalSearchSourceBuilder();
         SearchSourceBuilder copy = copyBuilder(original);
         assertEquals(copy, original);
         assertEquals(copy.hashCode(), original.hashCode());
         assertNotSame(copy, original);
     }
 
+    public void testEmbeddingsFieldsSerializationBwc() throws IOException {
+        SearchSourceBuilder original = new SearchSourceBuilder();
+
+        List<FieldAndFormat> originalFetchFields = null;
+        if (randomBoolean()) {
+            originalFetchFields = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                FieldAndFormat field = new FieldAndFormat(
+                    randomAlphaOfLengthBetween(5, 10),
+                    randomBoolean() ? randomAlphaOfLengthBetween(5, 10) : null
+                );
+                originalFetchFields.add(field);
+                original.fetchField(field);
+            }
+        }
+
+        Map<String, VectorType> embeddingsFields = new LinkedHashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            // Add a prefix to guarantee no field name collision with fetch fields
+            String field = "embedding_" + randomAlphaOfLengthBetween(5, 10);
+            VectorType vectorType = randomVectorType();
+            embeddingsFields.put(field, vectorType);
+            original.fetchEmbeddingsField(field, vectorType);
+        }
+
+        List<FieldAndFormat> expectedFetchFields = originalFetchFields == null ? new ArrayList<>() : new ArrayList<>(originalFetchFields);
+        embeddingsFields.keySet().forEach(f -> expectedFetchFields.add(new FieldAndFormat(f, null)));
+
+        // The fixture must be a legal search source; in particular the fetch fields and embeddings fields must not overlap
+        assertNull(original.validate(null, false, false));
+
+        for (int i = 0; i < 20; i++) {
+            TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(
+                SearchSourceBuilder.SEARCH_SOURCE_EMBEDDINGS_FIELDS
+            );
+            SearchSourceBuilder copy = copyBuilder(original, oldVersion);
+
+            // embeddings fields are not sent to old nodes
+            assertThat(copy.fetchEmbeddingsFields(), anEmptyMap());
+            // they are downgraded to plain fetch fields (in insertion order, without their vector type)
+            assertThat(copy.fetchFields(), equalTo(expectedFetchFields));
+
+            // writeTo must not mutate the builder it serializes
+            assertThat(original.fetchFields(), equalTo(originalFetchFields));
+            assertThat(original.fetchEmbeddingsFields(), equalTo(embeddingsFields));
+        }
+    }
+
+    /**
+     * Fetch fields and embeddings fields are resolved into the same fetch fields context, which is keyed on field name, so an overlap
+     * between them is rejected. Fetch fields are patterns, so the overlap check must account for wildcards.
+     */
+    public void testFetchFieldsAndEmbeddingsFieldsOverlap() {
+        BiFunction<List<String>, List<String>, ActionRequestValidationException> validate = (fetchFields, embeddingsFields) -> {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            fetchFields.forEach(source::fetchField);
+            // The requested vector type has no bearing on the overlap check
+            embeddingsFields.forEach(f -> source.fetchEmbeddingsField(f, randomVectorType()));
+            return source.validate(null, false, false);
+        };
+
+        // An exact name match is rejected
+        ActionRequestValidationException exactMatch = validate.apply(List.of("my_field"), List.of("my_field"));
+        assertNotNull(exactMatch);
+        assertThat(
+            exactMatch.getMessage(),
+            containsString("[fields] entry [my_field] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        // A fetch field pattern that matches an embeddings field is rejected
+        ActionRequestValidationException prefixPattern = validate.apply(List.of("my_*"), List.of("my_field"));
+        assertNotNull(prefixPattern);
+        assertThat(
+            prefixPattern.getMessage(),
+            containsString("[fields] entry [my_*] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        assertNotNull(validate.apply(List.of("*"), List.of("my_field")));
+        assertNotNull(validate.apply(List.of("my_*_vector"), List.of("my_dense_vector")));
+
+        // Every overlapping pair is reported, not just the first
+        ActionRequestValidationException multipleOverlaps = validate.apply(List.of("*"), List.of("first_field", "second_field"));
+        assertNotNull(multipleOverlaps);
+        assertThat(multipleOverlaps.validationErrors(), hasSize(2));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [first_field]"));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [second_field]"));
+
+        // Distinct field names are accepted, whether the fetch field is a literal or a pattern
+        assertNull(validate.apply(List.of("other_field"), List.of("my_field")));
+        assertNull(validate.apply(List.of("other_*"), List.of("my_field")));
+        // A literal fetch field does not match on prefix
+        assertNull(validate.apply(List.of("my"), List.of("my_field")));
+
+        // Either option on its own is accepted
+        assertNull(validate.apply(List.of("my_field"), List.of()));
+        assertNull(validate.apply(List.of(), List.of("my_field")));
+    }
+
     public void testShallowCopy() {
         for (int i = 0; i < 10; i++) {
-            SearchSourceBuilder original = createSearchSourceBuilder();
+            SearchSourceBuilder original = createInternalSearchSourceBuilder();
             SearchSourceBuilder copy = original.shallowCopy();
             assertEquals(original, copy);
         }
@@ -142,7 +254,30 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testEqualsAndHashcode() throws IOException {
         // TODO add test checking that changing any member of this class produces an object that is not equal to the original
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createSearchSourceBuilder(), this::copyBuilder);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createInternalSearchSourceBuilder(), this::copyBuilder);
+    }
+
+    /**
+     * Creates a random {@link SearchSourceBuilder} that may also have options set which can only be set
+     * programmatically, i.e. options that are not parsed from or serialized to XContent. Builders returned by this
+     * method are therefore not suitable for XContent round-trip tests; use {@link #createSearchSourceBuilder()} there.
+     */
+    private SearchSourceBuilder createInternalSearchSourceBuilder() {
+        SearchSourceBuilder builder = createSearchSourceBuilder();
+        if (randomBoolean()) {
+            builder.skipInnerHits(randomBoolean());
+        }
+        if (randomBoolean()) {
+            int numEmbeddingsFields = randomIntBetween(1, 5);
+            for (int i = 0; i < numEmbeddingsFields; i++) {
+                builder.fetchEmbeddingsField(randomAlphaOfLengthBetween(5, 10), randomVectorType());
+            }
+        }
+        return builder;
+    }
+
+    private static VectorType randomVectorType() {
+        return randomBoolean() ? null : randomFrom(VectorType.values());
     }
 
     private SearchSourceBuilder copyBuilder(SearchSourceBuilder original) throws IOException {
@@ -194,6 +329,27 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[multi_match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", e.getMessage());
+        }
+    }
+
+    public void testAggsMaxNestedDepthIsNotRewrapped() throws IOException {
+        int tooDeep = AggregatorFactories.MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY) + 1;
+        StringBuilder restContent = new StringBuilder("{\"aggs\":");
+        for (int i = 0; i < tooDeep; i++) {
+            if (i > 0) {
+                restContent.append(",\"aggs\":");
+            }
+            restContent.append("{\"a").append(i).append("\":{\"terms\":{\"field\":\"f\"}");
+        }
+        restContent.append("}}".repeat(tooDeep)).append("}");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent.toString())) {
+            ParsingException e = expectThrows(
+                ParsingException.class,
+                () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+            );
+            assertThat(e.getMessage(), containsString("exceeds the maximum nested depth for aggregations"));
+            assertNull("the depth error must reach the REST layer unwrapped", e.getCause());
+            assertEquals(RestStatus.BAD_REQUEST, e.status());
         }
     }
 
@@ -670,6 +826,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSortUsage() throws IOException {
+        var sortFormats = List.of("\"_score\"", "\"field_name\"", "{ \"name\" : \"desc\" }", """
+              {
+                "_script": {
+                  "type": "number",
+                  "script": {
+                    "lang": "painless",
+                    "source": "doc['field_name'].value * 0.1"
+                  }
+                }
+              }
+            """, """
+                {
+                  "_geo_distance" : {
+                      "pin.location" : [-70, 40]
+                  }
+                }
+            """);
+
+        var expectedTypes = List.of("_score", "field_sort", "field_sort", "_script", "_geo_distance");
+
+        for (int i = 0; i < sortFormats.size(); i++) {
+            var sorter = sortFormats.get(i);
+            String restContent = Strings.format("""
+                {
+                    "query" : {
+                        "match": { "content": { "query": "foo bar" }}
+                     },
+                    "sort": %s
+                }
+                """, sorter);
+
+            SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder, nf -> false);
+                SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+                Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+                assertEquals(
+                    "Failed to correctly parse and record sort usage of '" + restContent + "'",
+                    1L,
+                    sectionsUsage.get("sort").longValue()
+                );
+                var extendedData = searchUsageStats.getExtendedSearchUsage().getCategorizedExtendedData().get("section").get("sort");
+                assertThat(extendedData, instanceOf(ExtendedSearchUsageLongCounter.class));
+                var counter = (ExtendedSearchUsageLongCounter) extendedData;
+                assertEquals(Map.of(expectedTypes.get(i), 1L), counter.getValues());
+            }
+        }
+    }
+
     public void testEmptySectionsAreNotTracked() throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
 
@@ -788,6 +994,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
               "search_after" : []
             }
             """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "sort" : {}
+            }
+            """);
     }
 
     private void assertSectionNotTracked(SearchUsageHolder searchUsageHolder, String request) throws IOException {
@@ -825,7 +1036,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.fetchField("field");
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
-        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, null, null)));
+        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, 10f, null, null)));
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pitid")));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");
@@ -995,6 +1206,40 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort("_score"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort(SortBuilders.fieldSort("field")));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms").subAggregation(new TopHitsAggregationBuilder("tophits")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new TopHitsAggregationBuilder("terms").sort(
+                    SortBuilders.scriptSort(new Script("id"), randomFrom(ScriptSortBuilder.ScriptSortType.values()))
+                )
+            );
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
@@ -1012,34 +1257,34 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(randomFrom(SortOrder.values()))
             );
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.fieldSort("field"));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.geoDistanceSort("field", 0, 0));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
-        }
-        {
-            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
-            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.sort(SortBuilders.pitTiebreaker());
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
             searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
-            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.sort(SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            searchSourceBuilder.sort(SortBuilders.scoreSort().order(randomFrom(SortOrder.values())));
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {

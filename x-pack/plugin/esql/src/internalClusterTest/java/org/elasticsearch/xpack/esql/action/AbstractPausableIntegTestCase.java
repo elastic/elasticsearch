@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
@@ -30,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTestCase {
 
     protected static final Semaphore scriptPermits = new Semaphore(0);
+    // Incremented onWait. Can be used to check if the onWait process has been reached.
+    protected static final Semaphore scriptWaits = new Semaphore(0);
 
     protected int pageSize = -1;
 
@@ -37,7 +40,11 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), PausableFieldPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), pausableFieldPluginClass());
+    }
+
+    protected Class<? extends Plugin> pausableFieldPluginClass() {
+        return PausableFieldPlugin.class;
     }
 
     protected int pageSize() {
@@ -52,6 +59,14 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             numberOfDocs = between(4 * pageSize(), 5 * pageSize());
         }
         return numberOfDocs;
+    }
+
+    protected int shardCount() {
+        return 1;
+    }
+
+    protected Settings.Builder testIndexSettings() {
+        return indexSettings(shardCount(), 0);
     }
 
     @Before
@@ -69,7 +84,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
             mapping.endObject();
         }
         mapping.endObject();
-        client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping(mapping.endObject()).get();
+        client().admin().indices().prepareCreate("test").setSettings(testIndexSettings()).setMapping(mapping.endObject()).get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numberOfDocs(); i++) {
@@ -87,10 +102,11 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
          * failed to reduce the index to a single segment and caused this test
          * to fail in very difficult to debug ways. If it fails again, it'll
          * trip here. Or maybe it won't! And we'll learn something. Maybe
-         * it's ghosts.
+         * it's ghosts. Extending classes can override the shardCount method if
+         * more than a single segment is expected.
          */
         SegmentsStats stats = client().admin().indices().prepareStats("test").get().getPrimaries().getSegments();
-        if (stats.getCount() != 1L) {
+        if (stats.getCount() != shardCount()) {
             fail(Strings.toString(stats));
         }
     }
@@ -98,6 +114,7 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
     public static class PausableFieldPlugin extends AbstractPauseFieldPlugin {
         @Override
         protected boolean onWait() throws InterruptedException {
+            scriptWaits.release();
             return scriptPermits.tryAcquire(1, TimeUnit.MINUTES);
         }
     }

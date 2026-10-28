@@ -11,8 +11,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,7 +19,9 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Captures the role of the failure store in this document response. For example,
@@ -102,7 +102,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // We avoid adding the not_applicable status in the response to not increase the size of bulk responses.
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
+        if (this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
             builder.field("failure_store", label);
         }
         return builder;
@@ -117,31 +117,34 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         private final IndexDocFailureStoreStatus failureStoreStatus;
 
+        @SuppressWarnings("this-escape")
         public ExceptionWithFailureStoreStatus(BulkItemResponse.Failure failure) {
             super(failure.getCause());
             this.failureStoreStatus = failure.getFailureStoreStatus();
+            // safe to attach here because this wrapper is never shared, unlike the cause
+            if (failure.getFailureStoreCause() != null) {
+                addSuppressed(failure.getFailureStoreCause());
+            }
         }
 
         public ExceptionWithFailureStoreStatus(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
-            } else {
-                failureStoreStatus = NOT_APPLICABLE_OR_UNKNOWN;
-            }
+            failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
         }
 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeByte(failureStoreStatus.getId());
-            }
+            out.writeByte(failureStoreStatus.getId());
         }
 
         @Override
-        protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
-            generateThrowableXContent(builder, params, this.getCause(), nestedLevel);
+        protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+            throws IOException {
+            Throwable[] allAdditionalSuppressed = additionalSuppressed.length == 0
+                ? getSuppressed()
+                : Stream.concat(Arrays.stream(getSuppressed()), Arrays.stream(additionalSuppressed)).toArray(Throwable[]::new);
+            generateThrowableXContent(builder, params, this.getCause(), nestedLevel, allAdditionalSuppressed);
             failureStoreStatus.toXContent(builder, params);
             return builder;
         }

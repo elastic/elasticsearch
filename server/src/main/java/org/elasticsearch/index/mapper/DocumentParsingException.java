@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -21,7 +20,7 @@ import java.io.IOException;
  *
  * Contains information about the location in the document where the error was encountered
  */
-public class DocumentParsingException extends ElasticsearchException {
+public class DocumentParsingException extends MapperException {
 
     public DocumentParsingException(XContentLocation location, String message) {
         super(message(location, message));

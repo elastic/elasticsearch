@@ -11,19 +11,51 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.function.LongSupplier;
 
 /**
- * {@link PrioritizedThrottledTaskRunner} performs the enqueued tasks in the order dictated by the
- * natural ordering of the tasks, limiting the max number of concurrently running tasks. Each new task
- * that is dequeued to be run, is forked off to the given executor.
+ * Same as {@link PrioritizedThrottledAsyncTaskRunner} but accepts synchronous tasks that extend {@link AbstractRunnable}.
  */
 public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Comparable<T>> {
 
-    private final AbstractThrottledTaskRunner<TaskWrapper<T>> runner;
-    private final PriorityBlockingQueue<TaskWrapper<T>> queue;
+    private final PrioritizedThrottledAsyncTaskRunner<TaskWrapper<T>> runner;
+
+    public PrioritizedThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
+        this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor);
+    }
+
+    /// @param name: name of the task runner that must be a valid metric name (see MetricValidator.validateMetricName)
+    public PrioritizedThrottledTaskRunner(
+        final String name,
+        final int maxRunningTasks,
+        final Executor executor,
+        MeterRegistry meterRegistry,
+        LongSupplier relativeTimeNanosProvider
+    ) {
+        this.runner = new PrioritizedThrottledAsyncTaskRunner<>(name, maxRunningTasks, executor, meterRegistry, relativeTimeNanosProvider);
+    }
+
+    /**
+     * Submits a task for execution. If there are fewer than {@code maxRunningTasks} tasks currently running then this task is immediately
+     * submitted to the executor. Otherwise this task is enqueued and will be submitted to the executor in turn on completion of some other
+     * task.
+     */
+    public void enqueueTask(final T task) {
+        runner.enqueueTask(new TaskWrapper<>(task));
+    }
+
+    // Only use for testing
+    public int runningTasks() {
+        return runner.runningTasks();
+    }
+
+    // Only use for testing
+    public int queueSize() {
+        return runner.queueSize();
+    }
 
     private static class TaskWrapper<T extends AbstractRunnable & Comparable<T>>
         implements
@@ -62,29 +94,5 @@ public class PrioritizedThrottledTaskRunner<T extends AbstractRunnable & Compara
                 task.onAfter();
             }
         }
-    }
-
-    public PrioritizedThrottledTaskRunner(final String name, final int maxRunningTasks, final Executor executor) {
-        this.queue = new PriorityBlockingQueue<>();
-        this.runner = new AbstractThrottledTaskRunner<>(name, maxRunningTasks, executor, queue);
-    }
-
-    /**
-     * Submits a task for execution. If there are fewer than {@code maxRunningTasks} tasks currently running then this task is immediately
-     * submitted to the executor. Otherwise this task is enqueued and will be submitted to the executor in turn on completion of some other
-     * task.
-     */
-    public void enqueueTask(final T task) {
-        runner.enqueueTask(new TaskWrapper<>(task));
-    }
-
-    // Only use for testing
-    public int runningTasks() {
-        return runner.runningTasks();
-    }
-
-    // Only use for testing
-    public int queueSize() {
-        return queue.size();
     }
 }

@@ -24,6 +24,7 @@ import static java.util.Collections.unmodifiableMap;
 public class ApiCallSection {
 
     private final String api;
+    private String method;
     private final Map<String, String> params = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
@@ -47,7 +48,22 @@ public class ApiCallSection {
             copy.addBody(b);
         }
         copy.nodeSelector = nodeSelector;
+        copy.method = method;
         return copy;
+    }
+
+    /**
+     * Gets the HTTP method override for this request, or null if not specified to randomly pick one of the methods specified in the spec.
+     */
+    public String getMethod() {
+        return method;
+    }
+
+    /**
+     * Sets the HTTP method override for this request. If null, a method will be randomly picked from the ones specified in the spec.
+     */
+    public void setMethod(String method) {
+        this.method = method;
     }
 
     public Map<String, String> getParams() {

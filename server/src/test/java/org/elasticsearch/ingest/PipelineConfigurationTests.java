@@ -28,9 +28,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -77,6 +79,36 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
         assertThat(serialized.getConfig(), anEmptyMap());
+    }
+
+    public void testSerializedSizeInBytes() throws IOException {
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray("""
+                {"description": "blah", "processors": [{"set": {"field": "f", "value": "v"}}]}""".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        // The reported size matches the number of bytes writeTo actually produces...
+        BytesStreamOutput out = new BytesStreamOutput();
+        configuration.writeTo(out);
+        assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
+    }
+
+    /**
+     * The put path measures a pipeline off the raw map it parsed from the request, rather than building a {@link PipelineConfiguration}
+     * just to size it. That shortcut is only sound if both routes report the same number, which this pins down: the raw map is a
+     * {@code HashMap} of {@code HashMap}s while the configuration holds unmodifiable {@code LinkedHashMap}s, and the generic stream
+     * writer distinguishes the two (type byte 9 vs 10) -- but only by a marker byte, so the totals must still agree.
+     */
+    public void testSerializedSizeInBytesOfRawConfigMatchesPipelineConfiguration() throws IOException {
+        String configJson = """
+            {"description": "blah", "_meta": {"foo": "bar", "n": 3}, "processors": [{"set": {"field": "f", "value": "v"}}]}""";
+        BytesArray source = new BytesArray(configJson.getBytes(StandardCharsets.UTF_8));
+
+        PipelineConfiguration configuration = new PipelineConfiguration("1", source, XContentType.JSON);
+        Map<String, Object> rawConfig = XContentHelper.convertToMap(source, randomBoolean(), XContentType.JSON).v2();
+
+        assertThat(PipelineConfiguration.serializedSizeInBytes("1", rawConfig), equalTo(configuration.serializedSizeInBytes()));
     }
 
     public void testMetaSerialization() throws IOException {
@@ -141,6 +173,41 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             );
             assertThat(configuration.getVersion(), equalTo(version));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMapKeyOrderingRoundTrip() throws IOException {
+        // make up two random keys
+        String key1 = randomAlphaOfLength(10);
+        String key2 = randomValueOtherThan(key1, () -> randomAlphaOfLength(10));
+        // stick them as mappings onto themselves in the _meta of a pipeline configuration
+        // this happens to use the _meta as a convenient map to test that the ordering of the key sets is the same
+        String configJson = Strings.format("""
+            {"description": "blah", "_meta" : {"foo": "bar", "%s": "%s", "%s": "%s"}}""", key1, key1, key2, key2);
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+
+        // serialize it to bytes
+        XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference bytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            configuration.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            bytes = BytesReference.bytes(builder);
+        }
+
+        // deserialize it back
+        ContextParser<Void, PipelineConfiguration> parser = PipelineConfiguration.getParser();
+        XContentParser xContentParser = xContentType.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
+        PipelineConfiguration parsed = parser.parse(xContentParser, null);
+
+        // make sure the _meta key sets are in the same order
+        Set<String> keys1 = ((Map<String, Object>) configuration.getConfig().get("_meta")).keySet();
+        Set<String> keys2 = ((Map<String, Object>) parsed.getConfig().get("_meta")).keySet();
+        assertThat(keys1, contains(keys2.toArray(new String[0])));
     }
 
     @Override

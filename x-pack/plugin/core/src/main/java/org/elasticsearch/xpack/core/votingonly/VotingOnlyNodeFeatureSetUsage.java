@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.votingonly;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -25,7 +24,7 @@ public class VotingOnlyNodeFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
 }

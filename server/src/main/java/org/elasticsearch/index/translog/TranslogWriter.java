@@ -9,23 +9,27 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,14 +41,13 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.zip.CRC32;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
@@ -67,8 +70,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier minTranslogGenerationSupplier;
 
-    // callback that's called whenever an operation with a given sequence number is successfully persisted.
-    private final LongConsumer persistedSequenceNumberConsumer;
+    // callback that's called whenever some operations with the given sequence numbers are successfully persisted
+    private final Consumer<LongsRef> persistedSequenceNumbersConsumer;
     private final OperationListener operationListener;
     private final TranslogOperationAsserter operationAsserter;
     private final boolean fsync;
@@ -79,10 +82,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
+    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private ReleasableBytesStreamOutput buffer;
+    private RecyclerBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -106,7 +109,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         LongSupplier minTranslogGenerationSupplier,
         TranslogHeader header,
         TragicExceptionHolder tragedy,
-        LongConsumer persistedSequenceNumberConsumer,
+        Consumer<LongsRef> persistedSequenceNumbersConsumer,
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
@@ -133,7 +136,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
         assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
+        this.persistedSequenceNumbersConsumer = persistedSequenceNumbersConsumer;
         this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
@@ -157,7 +160,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         LongSupplier minTranslogGenerationSupplier,
         long primaryTerm,
         TragicExceptionHolder tragedy,
-        LongConsumer persistedSequenceNumberConsumer,
+        Consumer<LongsRef> persistedSequenceNumbersConsumer,
         BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
         OperationListener operationListener,
@@ -202,7 +205,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 minTranslogGenerationSupplier,
                 header,
                 tragedy,
-                persistedSequenceNumberConsumer,
+                persistedSequenceNumbersConsumer,
                 bigArrays,
                 diskIoBufferPool,
                 operationListener,
@@ -228,14 +231,36 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
+     * Add the serialized operation to the translog with the specified sequence number; returns the location the operation was written to.
      *
-     * @param data  the bytes to write
+     * @param operation  the serialized operation to write
      * @param seqNo the sequence number associated with the operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.Serialized operation, final long seqNo) throws IOException {
+        return addRecord(operation, new long[] { seqNo }, null);
+    }
+
+    /**
+     * Add a serialized {@link IndexOperationBatch.TranslogRecord} record.
+     */
+    public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
+        throws IOException {
+        // TODO: Pass startSeqNo and operationCount as args. That will fully remove the need for the long[]
+        // since single operations and batches are always continuous ranges.
+        return addRecord(operation, batch.getSeqNos(), batch);
+    }
+
+    /**
+     * Shared implementation for {@link #add} and {@link #addBatch}: {@link IndexOperationBatch.TranslogRecord} is null for a
+     * single operation
+     */
+    private Translog.Location addRecord(
+        final Translog.Serialized operation,
+        final long[] seqNos,
+        @Nullable final IndexOperationBatch.TranslogRecord batch
+    ) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
@@ -245,37 +270,60 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new ReleasableBytesStreamOutput(bigArrays);
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
-            totalOffset += data.length();
-            data.writeTo(buffer);
+            totalOffset += operation.length();
+            operation.writeToTranslogBuffer(buffer);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+            for (long seqNo : seqNos) {
+                minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+                nonFsyncedSequenceNumbers.add(seqNo);
+            }
 
-            nonFsyncedSequenceNumbers.add(seqNo);
+            operationCounter += seqNos.length;
 
-            operationCounter++;
+            assert batch == null ? assertNoSeqNumberConflict(seqNos[0], operation) : assertNoSeqNumberConflict(batch);
 
-            assert assertNoSeqNumberConflict(seqNo, data);
-
-            location = new Translog.Location(generation, offset, data.length());
-            operationListener.operationAdded(data, seqNo, location);
+            location = new Translog.Location(generation, offset, operation.length());
+            operationListener.recordAdded(operation, seqNos, location);
             bufferedBytes = buffer.size();
         }
 
         return location;
     }
 
-    private synchronized boolean assertNoSeqNumberConflict(long seqNo, BytesReference data) throws IOException {
+    /**
+     * Batch variant of assertNoSeqNumberConflict
+     * Explode decodes the batch into one operation per replayable row and the assertion is then forwarded to the
+     * single operation variant.
+     */
+    private synchronized boolean assertNoSeqNumberConflict(IndexOperationBatch.TranslogRecord batch) throws IOException {
+        for (Translog.Operation op : batch.explode()) {
+            final Translog.Serialized operation;
+            try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+                Translog.writeHeaderWithSize(out, op);
+                final BytesReference source = op instanceof Translog.Index index ? index.source() : null;
+                operation = Translog.Serialized.create(out.bytes(), source, new CRC32());
+            }
+            assertNoSeqNumberConflict(op.seqNo(), operation);
+        }
+        return true;
+    }
+
+    private synchronized boolean assertNoSeqNumberConflict(long seqNo, Translog.Serialized serialized) throws IOException {
         if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             // nothing to do
-        } else if (seenSequenceNumbers.containsKey(seqNo)) {
+            return true;
+        }
+
+        BytesReference data = serialized.toBytesReference();
+        if (seenSequenceNumbers.containsKey(seqNo)) {
             final Tuple<BytesReference, Exception> previous = seenSequenceNumbers.get(seqNo);
             if (previous.v1().equals(data) == false) {
                 Translog.Operation newOp = Translog.readOperation(new BufferedChecksumStreamInput(data.streamInput(), "assertion"));
@@ -479,7 +527,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final List<Long> flushedSequenceNumbers;
+                    final LongArrayList flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -490,7 +538,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                 flushedSequenceNumbers = null;
                             } else {
                                 flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                                nonFsyncedSequenceNumbers = new ArrayList<>(64);
+                                nonFsyncedSequenceNumbers = new LongArrayList(64);
                             }
                         }
 
@@ -516,7 +564,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     if (flushedSequenceNumbers != null) {
-                        flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
+                        persistedSequenceNumbersConsumer.accept(
+                            new LongsRef(flushedSequenceNumbers.buffer, 0, flushedSequenceNumbers.size())
+                        );
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
@@ -544,10 +594,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            ReleasableBytesStreamOutput toWrite = this.buffer;
-            this.buffer = null;
-            this.bufferedBytes = 0;
-            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
+            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
+                this.buffer = null;
+                this.bufferedBytes = 0;
+                return toWrite.moveToBytesReference();
+            }
         } else {
             return ReleasableBytesReference.empty();
         }

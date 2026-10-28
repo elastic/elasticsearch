@@ -17,7 +17,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -57,7 +59,8 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
     }
 
     public void testSleepingToXContent() {
-        assertThat(Strings.toString(DriverSleeps.empty().sleep("driver iterations", 1723555763000L), true, true), equalTo("""
+        Formatter formatter = new Formatter(Locale.US);
+        String expected = formatter.format("""
             {
               "counts" : {
                 "driver iterations" : 1
@@ -65,6 +68,7 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
               "first" : [
                 {
                   "reason" : "driver iterations",
+                  "thread_name" : "%1$s",
                   "sleep" : "2024-08-13T13:29:23.000Z",
                   "sleep_millis" : 1723555763000
                 }
@@ -72,40 +76,47 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
               "last" : [
                 {
                   "reason" : "driver iterations",
+                  "thread_name" : "%1$s",
                   "sleep" : "2024-08-13T13:29:23.000Z",
                   "sleep_millis" : 1723555763000
                 }
               ]
-            }"""));
+            }""", Thread.currentThread().getName()).out().toString();
+        assertThat(Strings.toString(DriverSleeps.empty().sleep("driver iterations", 1723555763000L), true, true), equalTo(expected));
     }
 
     public void testWakingToXContent() {
+        Formatter formatter = new Formatter(Locale.US);
+        String expected = formatter.format("""
+            {
+              "counts" : {
+                "driver iterations" : 1
+              },
+              "first" : [
+                {
+                  "reason" : "driver iterations",
+                  "thread_name" : "%1$s",
+                  "sleep" : "2024-08-13T13:29:23.000Z",
+                  "sleep_millis" : 1723555763000,
+                  "wake" : "2024-08-13T13:31:03.000Z",
+                  "wake_millis" : 1723555863000
+                }
+              ],
+              "last" : [
+                {
+                  "reason" : "driver iterations",
+                  "thread_name" : "%1$s",
+                  "sleep" : "2024-08-13T13:29:23.000Z",
+                  "sleep_millis" : 1723555763000,
+                  "wake" : "2024-08-13T13:31:03.000Z",
+                  "wake_millis" : 1723555863000
+                }
+              ]
+            }""", Thread.currentThread().getName()).out().toString();
+
         assertThat(
             Strings.toString(DriverSleeps.empty().sleep("driver iterations", 1723555763000L).wake(1723555863000L), true, true),
-            equalTo("""
-                {
-                  "counts" : {
-                    "driver iterations" : 1
-                  },
-                  "first" : [
-                    {
-                      "reason" : "driver iterations",
-                      "sleep" : "2024-08-13T13:29:23.000Z",
-                      "sleep_millis" : 1723555763000,
-                      "wake" : "2024-08-13T13:31:03.000Z",
-                      "wake_millis" : 1723555863000
-                    }
-                  ],
-                  "last" : [
-                    {
-                      "reason" : "driver iterations",
-                      "sleep" : "2024-08-13T13:29:23.000Z",
-                      "sleep_millis" : 1723555763000,
-                      "wake" : "2024-08-13T13:31:03.000Z",
-                      "wake_millis" : 1723555863000
-                    }
-                  ]
-                }""")
+            equalTo(expected)
         );
     }
 
@@ -149,13 +160,13 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
             expectedCounts.compute(reason, (k, v) -> v == null ? 1 : v + 1);
 
             sleeps = sleeps.sleep(reason, now);
-            expectedFirst.add(new DriverSleeps.Sleep(reason, now, 0));
+            expectedFirst.add(new DriverSleeps.Sleep(reason, Thread.currentThread().getName(), now, 0));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedFirst)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedFirst);
 
             now++;
             sleeps = sleeps.wake(now);
-            expectedFirst.set(expectedFirst.size() - 1, new DriverSleeps.Sleep(reason, now - 1, now));
+            expectedFirst.set(expectedFirst.size() - 1, new DriverSleeps.Sleep(reason, Thread.currentThread().getName(), now - 1, now));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedFirst)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedFirst);
         }
@@ -172,13 +183,13 @@ public class DriverSleepsTests extends AbstractWireSerializingTestCase<DriverSle
 
             sleeps = sleeps.sleep(reason, now);
             expectedLast.remove(0);
-            expectedLast.add(new DriverSleeps.Sleep(reason, now, 0));
+            expectedLast.add(new DriverSleeps.Sleep(reason, Thread.currentThread().getName(), now, 0));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedLast)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedLast);
 
             now++;
             sleeps = sleeps.wake(now);
-            expectedLast.set(expectedLast.size() - 1, new DriverSleeps.Sleep(reason, now - 1, now));
+            expectedLast.set(expectedLast.size() - 1, new DriverSleeps.Sleep(reason, Thread.currentThread().getName(), now - 1, now));
             assertThat(sleeps, equalTo(new DriverSleeps(expectedCounts, expectedFirst, expectedLast)));
             assertXContent(sleeps, expectedCounts, expectedFirst, expectedLast);
         }

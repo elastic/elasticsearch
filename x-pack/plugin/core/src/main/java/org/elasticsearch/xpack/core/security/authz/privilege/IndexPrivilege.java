@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -28,16 +29,31 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -46,16 +62,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.SortedMap;
+import java.util.concurrent.ExecutionException;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
@@ -71,6 +90,8 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
  *
  * Also note that the `internal:transport/proxy/` prefix is automatically added and stripped for actions that go
  * through a CCR/CCS proxy. No action should be explicitly named like that.
+ *
+ * Each named privilege is associated with an {@link IndexComponentSelector} it grants access to.
  */
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
@@ -78,10 +99,24 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
+        "internal:transport/proxy/indices:data/read/*",
         ResolveIndexAction.NAME,
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME,  // cross-cluster inference for semantic search
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name()
     );
-    private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns(
+        "indices:data/read/*",
+        ResolveIndexAction.NAME,
+        "internal:transport/proxy/indices:data/read/*",
+        TransportClusterSearchShardsAction.TYPE.name(),
+        TransportSearchShardsAction.TYPE.name(),
+        TransportResolveClusterAction.NAME,
+        GetInferenceFieldsInternalAction.NAME // cross-cluster inference for semantic search
+    );
+    // NOTE: do not add new privileges here; use read or view_index_metadata instead
+    private static final Automaton DEPRECATED_READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
         TransportSearchShardsAction.TYPE.name(),
@@ -92,20 +127,26 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
         "indices:data/write/bulk*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/update*",
-        "indices:data/write/simulate/bulk*"
+        "indices:data/write/simulate/bulk*",
+        "indices:data/write/otlp/*",
+        "indices:data/write/prometheus/*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());
@@ -119,7 +160,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
         TransportCreateIndexAction.TYPE.name(),
         AutoCreateAction.NAME,
-        CreateDataStreamAction.NAME
+        CreateDataStreamAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
     );
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(TransportDeleteIndexAction.TYPE.name(), DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(
@@ -159,7 +201,11 @@ public final class IndexPrivilege extends Privilege {
         "indices:admin/synced_flush",
         "indices:admin/forcemerge*"
     );
-    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(TransportAutoPutMappingAction.TYPE.name(), AutoCreateAction.NAME);
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(
+        TransportAutoPutMappingAction.TYPE.name(),
+        AutoCreateAction.NAME,
+        PastTimeSeriesIndexCreationAction.NAME
+    );
 
     private static final Automaton CROSS_CLUSTER_REPLICATION_AUTOMATON = patterns(
         "indices:data/read/xpack/ccr/shard_changes*",
@@ -175,18 +221,36 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get*"
     );
+    private static final Automaton CREATE_VIEW_AUTOMATON = patterns(
+        EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME,
+        EsqlViewActionNames.ESQL_VALIDATE_VIEW_ACTION_NAME
+    );
+    private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
+    private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
+    private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
+    private static final Automaton CREATE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME);
+    private static final Automaton DELETE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME);
+    private static final Automaton READ_DATASET_METADATA_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME);
+    private static final Automaton MANAGE_DATASET_AUTOMATON = patterns("indices:admin/esql/dataset/*");
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
-    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
-    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
+    public static final IndexPrivilege DEPRECATED_READ_CROSS_CLUSTER = new IndexPrivilege(
+        "read_cross_cluster",
+        DEPRECATED_READ_CROSS_CLUSTER_AUTOMATON
+    );
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
     public static final IndexPrivilege DELETE = new IndexPrivilege("delete", DELETE_AUTOMATON);
     public static final IndexPrivilege WRITE = new IndexPrivilege("write", WRITE_AUTOMATON);
     public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
-    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege(
+        "manage",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
+    );
     public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
@@ -195,7 +259,8 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
     public static final IndexPrivilege MANAGE_DATA_STREAM_LIFECYCLE = new IndexPrivilege(
         "manage_data_stream_lifecycle",
-        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON
+        MANAGE_DATA_STREAM_LIFECYCLE_AUTOMATON,
+        IndexComponentSelectorPredicate.DATA_AND_FAILURES
     );
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
@@ -207,60 +272,296 @@ public final class IndexPrivilege extends Privilege {
         "cross_cluster_replication_internal",
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
+    public static final IndexPrivilege MANAGE_VIEW = new IndexPrivilege("manage_view", MANAGE_VIEW_AUTOMATON);
+    public static final IndexPrivilege CREATE_VIEW = new IndexPrivilege("create_view", CREATE_VIEW_AUTOMATON);
+    public static final IndexPrivilege DELETE_VIEW = new IndexPrivilege("delete_view", DELETE_VIEW_AUTOMATON);
+    public static final IndexPrivilege READ_VIEW_METADATA = new IndexPrivilege("read_view_metadata", READ_VIEW_METADATA_AUTOMATON);
+    public static final IndexPrivilege MANAGE_DATASET = new IndexPrivilege("manage_dataset", MANAGE_DATASET_AUTOMATON);
+    public static final IndexPrivilege CREATE_DATASET = new IndexPrivilege("create_dataset", CREATE_DATASET_AUTOMATON);
+    public static final IndexPrivilege DELETE_DATASET = new IndexPrivilege("delete_dataset", DELETE_DATASET_AUTOMATON);
+    public static final IndexPrivilege READ_DATASET_METADATA = new IndexPrivilege("read_dataset_metadata", READ_DATASET_METADATA_AUTOMATON);
+
+    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
+        "read_failure_store",
+        READ_FAILURE_STORE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
+    public static final IndexPrivilege MANAGE_FAILURE_STORE = new IndexPrivilege(
+        "manage_failure_store",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
 
     /**
      * If you are adding a new named index privilege, also add it to the
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
      */
-    @SuppressWarnings("unchecked")
-    private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
-        Stream.of(
-            entry("none", NONE),
-            entry("all", ALL),
-            entry("manage", MANAGE),
-            entry("create_index", CREATE_INDEX),
-            entry("monitor", MONITOR),
-            entry("read", READ),
-            entry("index", INDEX),
-            entry("delete", DELETE),
-            entry("write", WRITE),
-            entry("create", CREATE),
-            entry("create_doc", CREATE_DOC),
-            entry("delete_index", DELETE_INDEX),
-            entry("view_index_metadata", VIEW_METADATA),
-            entry("read_cross_cluster", READ_CROSS_CLUSTER),
-            entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
-            entry("manage_leader_index", MANAGE_LEADER_INDEX),
-            entry("manage_ilm", MANAGE_ILM),
-            entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
-            entry("maintenance", MAINTENANCE),
-            entry("auto_configure", AUTO_CONFIGURE),
-            entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-            entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
-        ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+    private static final Map<String, IndexPrivilege> VALUES = combineSortedInOrder(
+        sortByAccessLevel(
+            Stream.of(entry("read_failure_store", READ_FAILURE_STORE), entry("manage_failure_store", MANAGE_FAILURE_STORE))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+        ),
+        sortByAccessLevel(
+            Stream.of(
+                entry("none", NONE),
+                entry("all", ALL),
+                entry("manage", MANAGE),
+                entry("create_index", CREATE_INDEX),
+                entry("monitor", MONITOR),
+                entry("read", READ),
+                entry("index", INDEX),
+                entry("delete", DELETE),
+                entry("write", WRITE),
+                entry("create", CREATE),
+                entry("create_doc", CREATE_DOC),
+                entry("delete_index", DELETE_INDEX),
+                entry("view_index_metadata", VIEW_METADATA),
+                entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
+                entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
+                entry("manage_leader_index", MANAGE_LEADER_INDEX),
+                entry("manage_ilm", MANAGE_ILM),
+                entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
+                entry("maintenance", MAINTENANCE),
+                entry("auto_configure", AUTO_CONFIGURE),
+                entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
+                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+                entry("manage_view", MANAGE_VIEW),
+                entry("create_view", CREATE_VIEW),
+                entry("delete_view", DELETE_VIEW),
+                entry("read_view_metadata", READ_VIEW_METADATA),
+                entry("manage_dataset", MANAGE_DATASET),
+                entry("create_dataset", CREATE_DATASET),
+                entry("delete_dataset", DELETE_DATASET),
+                entry("read_dataset_metadata", READ_DATASET_METADATA)
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+        )
     );
+
+    private static Map<String, IndexPrivilege> combineSortedInOrder(
+        SortedMap<String, IndexPrivilege> first,
+        SortedMap<String, IndexPrivilege> second
+    ) {
+        if (first.isEmpty()) {
+            return second;
+        }
+        if (second.isEmpty()) {
+            return first;
+        }
+        final Map<String, IndexPrivilege> combined = new LinkedHashMap<>(first);
+        combined.putAll(second);
+        return Collections.unmodifiableMap(combined);
+    }
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, IndexPrivilege> CACHE = new ConcurrentHashMap<>();
+    /**
+     * The maximum estimated heap retained by the cache of resolved index privileges (see {@link #resolveBySelectorAccess}).
+     * <p>
+     * Resolving a set of privilege names compiles and minimizes the union of their automata, which is CPU intensive, so results are
+     * cached. There is one entry per distinct combination of privilege names used by some role or API key, so the number of entries
+     * is unbounded, and entries vary in size from a few KB (a single raw action) to ~100 KB (a union of most named privileges). The
+     * cache is therefore bounded by estimated bytes rather than by entry count.
+     */
+    public static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.memorySizeSetting(
+        setting("authz.index_privileges.cache.size"),
+        "5%",
+        Setting.Property.NodeScope
+    );
+
+    /** The least time between two warnings from {@link EvictionWarning}. */
+    private static final TimeValue EVICTION_WARNING_INTERVAL = TimeValue.timeValueMinutes(10);
+
+    private static final Set<IndexPrivilege> NONE_SET = Set.of(NONE);
+
+    private static volatile long cacheMaximumWeight = CACHE_SIZE_SETTING.get(Settings.EMPTY).getBytes();
+    private static volatile Cache<Set<String>, CachedPrivileges> cache = buildCache(cacheMaximumWeight);
+
+    private final IndexComponentSelectorPredicate selectorPredicate;
 
     private IndexPrivilege(String name, Automaton automaton) {
-        super(Collections.singleton(name), automaton);
+        this(Collections.singleton(name), automaton);
+    }
+
+    private IndexPrivilege(String name, Automaton automaton, IndexComponentSelectorPredicate selectorPredicate) {
+        this(Collections.singleton(name), automaton, selectorPredicate);
     }
 
     private IndexPrivilege(Set<String> name, Automaton automaton) {
-        super(name, automaton);
+        this(name, automaton, IndexComponentSelectorPredicate.DATA);
     }
 
-    public static IndexPrivilege get(Set<String> name) {
-        return CACHE.computeIfAbsent(name, (theName) -> {
-            if (theName.isEmpty()) {
-                return NONE;
-            } else {
-                return resolve(theName);
+    private IndexPrivilege(Set<String> name, Automaton automaton, IndexComponentSelectorPredicate selectorPredicate) {
+        super(name, automaton);
+        this.selectorPredicate = selectorPredicate;
+    }
+
+    /**
+     * Returns a {@link IndexPrivilege} that corresponds to the given raw action pattern or privilege name.
+     */
+    public static IndexPrivilege get(String actionOrPrivilege) {
+        final Set<IndexPrivilege> privilegeSingleton = resolveBySelectorAccess(Set.of(actionOrPrivilege));
+        if (privilegeSingleton.size() != 1) {
+            throw new IllegalArgumentException(
+                "index privilege name or action "
+                    + actionOrPrivilege
+                    + " must map to exactly one privilege but mapped to "
+                    + privilegeSingleton
+            );
+        }
+        return privilegeSingleton.iterator().next();
+    }
+
+    /**
+     * Returns a set {@link IndexPrivilege} that captures the access granted by the privileges and actions specified in the input name set.
+     * This method returns a set of index privileges, instead of a single index privilege to capture that different index privileges grant
+     * access to different {@link IndexComponentSelector}s. Most privileges grant access to the
+     * (implicit) {@link IndexComponentSelector#DATA} selector. The {@link IndexPrivilege#READ_FAILURE_STORE} grants access to
+     * {@link IndexComponentSelector#FAILURES}.
+     * The implementation for authorization for access by selector requires that index privileges are (generally) not combined across
+     * selector boundaries since their underlying automata would be combined, granting more access than is valid.
+     * This method conceptually splits the input names into ones that correspond to different selector access, and return an index privilege
+     * for each partition.
+     * For instance, `resolveBySelectorAccess(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index
+     * privileges one covering `view_index_metadata` and `write` for a {@link IndexComponentSelectorPredicate#DATA}, the other covering
+     * `read_failure_store` for a {@link IndexComponentSelectorPredicate#FAILURES} selector.
+     * A notable exception is the {@link IndexPrivilege#ALL} privilege. If this privilege is included in the input name set, this method
+     * returns a single index privilege that grants access to all selectors.
+     * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
+     * An empty input returns a shared set containing {@link #NONE} without using the cache.
+     */
+    public static Set<IndexPrivilege> resolveBySelectorAccess(Set<String> names) {
+        if (names.isEmpty()) {
+            return NONE_SET;
+        }
+        try {
+            return cache.computeIfAbsent(names, (theName) -> {
+                final Set<IndexPrivilege> privileges = resolve(theName);
+                return new CachedPrivileges(privileges, weigh(theName, privileges));
+            }).privileges();
+        } catch (ExecutionException e) {
+            throw FutureUtils.rethrowExecutionException(e);
+        }
+    }
+
+    /**
+     * Rebuilds the cache of resolved index privileges according to the given node settings, see {@link #CACHE_SIZE_SETTING}.
+     * Any previously cached entries are discarded.
+     */
+    public static void updateConfiguration(Settings settings) {
+        final long maximumWeight = CACHE_SIZE_SETTING.get(settings).getBytes();
+        cache = buildCache(maximumWeight);
+        cacheMaximumWeight = maximumWeight;
+    }
+
+    private static Cache<Set<String>, CachedPrivileges> buildCache(long maximumWeight) {
+        return CacheBuilder.<Set<String>, CachedPrivileges>builder()
+            .setMaximumWeight(maximumWeight)
+            .weigher((names, cached) -> cached.weight())
+            .removalListener(new EvictionWarning(maximumWeight, EVICTION_WARNING_INTERVAL, System::nanoTime))
+            .build();
+    }
+
+    /**
+     * Caches the estimated entry weight so LRU updates do not repeat memory accounting.
+     */
+    record CachedPrivileges(Set<IndexPrivilege> privileges, long weight) {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CachedPrivileges.class);
+    }
+
+    /**
+     * Warns when the cache evicts an entry, which means the resolved privileges in use do not fit and the node resolves the evicted ones
+     * again. Every eviction is caused by the size limit because the cache has no expiry. Warnings are at least an interval apart, and
+     * each reports the entries and bytes evicted since the previous one.
+     * <p>
+     * The listener is synchronized because the counters are read and reset together. The cache already serializes the calls under its
+     * LRU lock, so the monitor is uncontended.
+     */
+    static final class EvictionWarning implements RemovalListener<Set<String>, CachedPrivileges> {
+
+        private final long maximumWeight;
+        private final long intervalNanos;
+        private final LongSupplier nanoTime;
+        private long lastWarningNanos;
+        private long evictions;
+        private long evictedWeight;
+
+        EvictionWarning(long maximumWeight, TimeValue interval, LongSupplier nanoTime) {
+            this.maximumWeight = maximumWeight;
+            this.intervalNanos = interval.nanos();
+            this.nanoTime = nanoTime;
+            this.lastWarningNanos = nanoTime.getAsLong() - intervalNanos;
+        }
+
+        @Override
+        public synchronized void onRemoval(RemovalNotification<Set<String>, CachedPrivileges> notification) {
+            if (notification.getRemovalReason() != RemovalNotification.RemovalReason.EVICTED) {
+                return;
             }
-        });
+            logger.trace("evicted resolved index privileges for names {} from the cache", notification.getKey());
+            evictions++;
+            evictedWeight += notification.getValue().weight();
+            final long now = nanoTime.getAsLong();
+            if (now - lastWarningNanos >= intervalNanos) {
+                logger.warn(
+                    "The index privileges cache evicted [{}] entries ([{}]) because it reached its size limit of [{}]."
+                        + " Evicted entries are resolved again when they are next used, which is CPU intensive."
+                        + " Consider increasing the value of [{}]",
+                    evictions,
+                    ByteSizeValue.ofBytes(evictedWeight),
+                    ByteSizeValue.ofBytes(maximumWeight),
+                    CACHE_SIZE_SETTING.getKey()
+                );
+                lastWarningNanos = now;
+                evictions = 0;
+                evictedWeight = 0;
+            }
+        }
+    }
+
+    /**
+     * Estimates the heap a cache entry retains: the key with its names, the cached value wrapper, and the value set with its privileges,
+     * which account for their automata through {@link Privilege#ramBytesUsed()}. Shared built-in privilege instances are excluded because
+     * {@link #VALUES} retains them independently of the cache. The value set and its references are still counted.
+     */
+    private static long weigh(Set<String> names, Set<IndexPrivilege> privileges) {
+        final long entrySize = CachedPrivileges.SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(names);
+        if (isSharedNamedPrivilege(names, privileges)) {
+            // Match sizeOfCollection's estimate of a singleton set and its reference, excluding the shared privilege.
+            final long referenceArraySize = RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            );
+            return entrySize + RamUsageEstimator.shallowSizeOf(privileges) + referenceArraySize;
+        } else {
+            return entrySize + RamUsageEstimator.sizeOfCollection(privileges);
+        }
+    }
+
+    private static boolean isSharedNamedPrivilege(Set<String> names, Set<IndexPrivilege> privileges) {
+        return names.size() == 1 && privileges.size() == 1 && getNamedOrNull(names.iterator().next()) == privileges.iterator().next();
+    }
+
+    // visible for testing
+    static Cache<Set<String>, CachedPrivileges> getCache() {
+        return cache;
+    }
+
+    /** Hit, miss and eviction counts of the current cache of resolved privileges. */
+    public static Cache.Stats cacheStats() {
+        return cache.stats();
+    }
+
+    public static int cacheEntryCount() {
+        return cache.count();
+    }
+
+    public static long cacheWeightBytes() {
+        return cache.weight();
+    }
+
+    /** The limit the current cache was built with, see {@link #CACHE_SIZE_SETTING}. */
+    public static long cacheMaximumWeightBytes() {
+        return cacheMaximumWeight;
     }
 
     @Nullable
@@ -268,30 +569,49 @@ public final class IndexPrivilege extends Privilege {
         return VALUES.get(name.toLowerCase(Locale.ROOT));
     }
 
-    private static IndexPrivilege resolve(Set<String> name) {
+    private static Set<IndexPrivilege> resolve(Set<String> name) {
         final int size = name.size();
         if (size == 0) {
             throw new IllegalArgumentException("empty set should not be used");
         }
 
-        Set<String> actions = new HashSet<>();
-        Set<Automaton> automata = new HashSet<>();
+        final Set<String> actions = new HashSet<>();
+        final Set<IndexPrivilege> allSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> dataSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> failuresSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges = new HashSet<>();
+
+        boolean containsAllAccessPrivilege = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
-                actions.add(actionToPattern(part));
+                actions.add(part);
             } else {
                 IndexPrivilege indexPrivilege = part == null ? null : VALUES.get(part);
                 if (indexPrivilege != null && size == 1) {
-                    return indexPrivilege;
+                    return Set.of(indexPrivilege);
                 } else if (indexPrivilege != null) {
-                    automata.add(indexPrivilege.automaton);
+                    // if we have an all access privilege, we don't need to partition anymore since it grants access to all selectors and
+                    // any other name in the group has its selector-access superseded.
+                    if (containsAllAccessPrivilege) {
+                        allSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.DATA) {
+                        dataSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.FAILURES) {
+                        failuresSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.DATA_AND_FAILURES) {
+                        dataAndFailuresSelectorAccessPrivileges.add(indexPrivilege);
+                    } else {
+                        String errorMessage = "unexpected selector [" + indexPrivilege.selectorPredicate + "]";
+                        assert false : errorMessage;
+                        throw new IllegalStateException(errorMessage);
+                    }
                 } else {
                     String errorMessage = "unknown index privilege ["
                         + part
                         + "]. a privilege must be either "
                         + "one of the predefined fixed indices privileges ["
-                        + Strings.collectionToCommaDelimitedString(VALUES.entrySet())
+                        + Strings.collectionToCommaDelimitedString(names().stream().sorted().collect(Collectors.toList()))
                         + "] or a pattern over one of the available index"
                         + " actions";
                     logger.debug(errorMessage);
@@ -300,10 +620,79 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
-        if (actions.isEmpty() == false) {
-            automata.add(patterns(actions));
+        final Set<IndexPrivilege> combined = combineIndexPrivileges(
+            allSelectorAccessPrivileges,
+            dataSelectorAccessPrivileges,
+            failuresSelectorAccessPrivileges,
+            dataAndFailuresSelectorAccessPrivileges,
+            actions
+        );
+        assertNamesMatch(name, combined);
+        return Collections.unmodifiableSet(combined);
+    }
+
+    private static Set<IndexPrivilege> combineIndexPrivileges(
+        Set<IndexPrivilege> allSelectorAccessPrivileges,
+        Set<IndexPrivilege> dataSelectorAccessPrivileges,
+        Set<IndexPrivilege> failuresSelectorAccessPrivileges,
+        Set<IndexPrivilege> dataAndFailuresSelectorAccessPrivileges,
+        Set<String> actions
+    ) {
+        assert false == allSelectorAccessPrivileges.isEmpty()
+            || false == dataSelectorAccessPrivileges.isEmpty()
+            || false == failuresSelectorAccessPrivileges.isEmpty()
+            || false == dataAndFailuresSelectorAccessPrivileges.isEmpty()
+            || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
+
+        if (false == allSelectorAccessPrivileges.isEmpty()) {
+            assert failuresSelectorAccessPrivileges.isEmpty()
+                && dataSelectorAccessPrivileges.isEmpty()
+                && dataAndFailuresSelectorAccessPrivileges.isEmpty() : "data and failure access must be empty when all access is present";
+            return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
-        return new IndexPrivilege(name, unionAndMinimize(automata));
+
+        // linked hash set to preserve order across selectors
+        final Set<IndexPrivilege> combined = Sets.newLinkedHashSetWithExpectedSize(
+            dataAndFailuresSelectorAccessPrivileges.size() + failuresSelectorAccessPrivileges.size() + dataSelectorAccessPrivileges.size()
+                + actions.size()
+        );
+        if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
+            combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
+        }
+        if (false == dataAndFailuresSelectorAccessPrivileges.isEmpty()) {
+            combined.add(union(dataAndFailuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.DATA_AND_FAILURES));
+        }
+        if (false == failuresSelectorAccessPrivileges.isEmpty()) {
+            combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
+        }
+        return combined;
+    }
+
+    private static void assertNamesMatch(Set<String> names, Set<IndexPrivilege> privileges) {
+        assert names.stream()
+            .map(n -> n.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet())
+            .equals(privileges.stream().map(Privilege::name).flatMap(Set::stream).collect(Collectors.toSet()))
+            : "mismatch between names [" + names + "] and names on split privileges [" + privileges + "]";
+    }
+
+    private static IndexPrivilege union(
+        Collection<IndexPrivilege> privileges,
+        Collection<String> actions,
+        IndexComponentSelectorPredicate selectorPredicate
+    ) {
+        final Set<Automaton> automata = Sets.newHashSetWithExpectedSize(privileges.size() + actions.size());
+        final Set<String> names = Sets.newHashSetWithExpectedSize(privileges.size() + actions.size());
+        for (IndexPrivilege privilege : privileges) {
+            names.addAll(privilege.name());
+            automata.add(privilege.automaton);
+        }
+
+        if (false == actions.isEmpty()) {
+            names.addAll(actions);
+            automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
+        }
+        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {
@@ -321,6 +710,19 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
+        return findPrivilegesThatGrant(action, p -> p.getSelectorPredicate().test(IndexComponentSelector.DATA));
+    }
+
+    public static Collection<String> findPrivilegesThatGrant(String action, Predicate<IndexPrivilege> preCondition) {
+        return VALUES.entrySet()
+            .stream()
+            .filter(e -> preCondition.test(e.getValue()))
+            .filter(e -> e.getValue().predicate.test(action))
+            .map(Map.Entry::getKey)
+            .toList();
+    }
+
+    public IndexComponentSelectorPredicate getSelectorPredicate() {
+        return selectorPredicate;
     }
 }

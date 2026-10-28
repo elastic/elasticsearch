@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -50,11 +48,8 @@ public class DriverManagerRegistrationTests extends ESTestCase {
 
             c.accept(d);
 
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                // mimic DriverManager and unregister the driver
-                EsDriver.deregister();
-                return null;
-            });
+            // mimic DriverManager and unregister the driver
+            EsDriver.deregister();
 
             SQLException ex = expectThrows(SQLException.class, () -> DriverManager.getDriver(url));
             assertEquals("No suitable driver", ex.getMessage());

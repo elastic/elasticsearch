@@ -18,23 +18,66 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
     private final Integer ignoreAbove;
     private final boolean allIgnored;
     private final boolean store;
-    private final boolean docValues;
+    private final FieldMapper.DocValuesParameter.Values docValues;
     private final String nullValue;
+    private final boolean allowIgnoredSource;
+    private final boolean isColumnar;
 
-    KeywordFieldSyntheticSourceSupport(Integer ignoreAbove, boolean store, String nullValue, boolean useFallbackSyntheticSource) {
+    KeywordFieldSyntheticSourceSupport(
+        Integer ignoreAbove,
+        boolean store,
+        String nullValue,
+        boolean allowIgnoredSource,
+        FieldMapper.DocValuesParameter.Values docValues,
+        boolean isColumnar
+    ) {
         this.ignoreAbove = ignoreAbove;
         this.allIgnored = ignoreAbove != null && LuceneTestCase.rarely();
         this.store = store;
         this.nullValue = nullValue;
-        this.docValues = useFallbackSyntheticSource == false || ESTestCase.randomBoolean();
+        this.allowIgnoredSource = allowIgnoredSource;
+        this.docValues = docValues;
+        this.isColumnar = isColumnar;
+    }
+
+    @Override
+    public boolean isColumnar() {
+        return isColumnar;
+    }
+
+    public static FieldMapper.DocValuesParameter.Values randomDocValuesParams(boolean allowIgnoredSource, boolean isColumnar) {
+        // multi_value=false is only valid in strict-columnar index modes.
+        boolean multiValue = isColumnar == false || ESTestCase.randomBoolean();
+        FieldMapper.DocValuesParameter.Values.OnFailure onFailure = ESTestCase.randomFrom(
+            FieldMapper.DocValuesParameter.Values.OnFailure.FAIL,
+            FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE
+        );
+
+        // Generate nullability=true only: nullability=false has no synthetic-source roundtrip behavior to fuzz.
+        return switch (ESTestCase.randomInt(allowIgnoredSource ? 2 : 1)) {
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                multiValue,
+                true,
+                onFailure
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                multiValue,
+                true,
+                onFailure
+            );
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED_LOW_CARDINALITY;
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override
@@ -43,63 +86,95 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     @Override
+    public boolean enforcesSingleValue() {
+        // on_failure=FAIL: extra values throw → single-valued examples only.
+        // on_failure=IGNORE: extra values redirect to ._on_failure → multi-valued examples are valid.
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    /**
+     * {@code true} when {@code multi_value=false, on_failure=ignore}: extra values go to {@code ._on_failure} instead of failing.
+     * Used by the example generator to produce multi-valued inputs whose reconstruction preserves encounter order.
+     */
+    public boolean redirectsMultipleValues() {
+        return docValues.multiValue() == false && docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE;
+    }
+
+    @Override
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
-        return store == false && docValues == false;
+        return store == false && docValues.enabled() == false;
     }
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false);
+        // in columnar mode, ignored values (exceeding ignore_above) are stored in sorted binary doc values
+        return example(maxValues, false, false, isColumnar);
     }
 
-    public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
-        if (ESTestCase.randomBoolean()) {
+    public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
+        return example(maxValues, loadBlockFromSource, flipOrder, true);
+    }
+
+    public MapperTestCase.SyntheticSourceExample example(
+        int maxValues,
+        boolean loadBlockFromSource,
+        boolean flipOrder,
+        boolean ignoredValuesSorted
+    ) {
+        // Produce a single-value example when enforced (FAIL), maxValues < 2, or randomly when not in redirect mode.
+        if (enforcesSingleValue() || maxValues < 2 || (redirectsMultipleValues() == false && ESTestCase.randomBoolean())) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
-            Object loadBlock = v.v2();
-            if (loadBlockFromSource == false && ignoreAbove != null && v.v2().length() > ignoreAbove) {
-                loadBlock = null;
+            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, this::mapping);
+        }
+
+        if (redirectsMultipleValues()) {
+            // Position 0 → primary column: null_value substitution applies, so expected output is v2 (transformed).
+            // Positions 1+ → ._on_failure: raw bytes stored without substitution, so expected output is v1 (raw input).
+            List<Tuple<String, String>> values = ESTestCase.randomList(2, maxValues, this::generateValue);
+            List<String> expected = new ArrayList<>();
+            for (int i = 0; i < values.size(); i++) {
+                expected.add(i == 0 ? values.get(i).v2() : values.get(i).v1());
             }
-            return new MapperTestCase.SyntheticSourceExample(v.v1(), sourceValue, loadBlock, this::mapping);
+            return new MapperTestCase.SyntheticSourceExample(values.stream().map(Tuple::v1).toList(), expected, this::mapping);
         }
         List<Tuple<String, String>> values = ESTestCase.randomList(1, maxValues, this::generateValue);
         List<String> in = values.stream().map(Tuple::v1).toList();
 
         List<String> validValues = new ArrayList<>();
         List<String> ignoredValues = new ArrayList<>();
+        boolean ignoreAboveIsNoOp = isColumnar;
         values.stream().map(Tuple::v2).forEach(v -> {
-            if (ignoreAbove != null && v.length() > ignoreAbove) {
+            if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                 ignoredValues.add(v);
             } else {
                 validValues.add(v);
             }
         });
-        List<String> outputFromDocValues = new HashSet<>(validValues).stream().sorted().collect(Collectors.toList());
+        // columnar mode preserves insertion order and duplicates; non-columnar deduplicates and sorts
+        List<String> outputFromDocValues = isColumnar ? validValues : new HashSet<>(validValues).stream().sorted().toList();
 
         Object out;
         if (preservesExactSource()) {
             out = in;
         } else {
+            // stored fields are not sorted
             var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
-            var syntheticSourceOutputList = Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+            // when fallback fields use binary doc values, then ignored values are sorted
+            // however, when fallback fields use stored fields, then ignored values are not sorted
+            var ignoredValuesInCorrectOrder = ignoredValuesSorted ? ignoredValues.stream().sorted().toList() : ignoredValues;
+
+            // this is an ugly little hack that flips the order of ignored values, which is important for the text-family fields where the
+            // ordering of produced synthetic source values can be different from what was supplied
+            var syntheticSourceOutputList = flipOrder
+                ? Stream.concat(ignoredValuesInCorrectOrder.stream(), validValuesInCorrectOrder.stream()).toList()
+                : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValuesInCorrectOrder.stream()).toList();
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 
-        List<String> loadBlock;
-        if (loadBlockFromSource) {
-            // The block loader infrastructure will never return nulls. Just zap them all.
-            loadBlock = in.stream().filter(Objects::nonNull).toList();
-        } else if (docValues) {
-            loadBlock = List.copyOf(outputFromDocValues);
-        } else {
-            // Meaning loading from terms.
-            loadBlock = List.copyOf(validValues);
-        }
-
-        Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
-        return new MapperTestCase.SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
+        return new MapperTestCase.SyntheticSourceExample(in, out, this::mapping);
     }
 
     private Tuple<String, String> generateValue() {
@@ -125,8 +200,16 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (store) {
             b.field("store", true);
         }
-        if (docValues == false) {
+
+        if (docValues.enabled() == false) {
             b.field("doc_values", false);
+        } else if (docValues.multiValue() == false) {
+            b.field("multi_value", false);
+            if (docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                b.field("on_failure", "ignore");
+            }
+        } else {
+            b.field("doc_values", true);
         }
     }
 

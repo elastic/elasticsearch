@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -26,11 +27,11 @@ import org.junit.rules.TestRule;
  */
 public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
-            .version(OLD_CLUSTER_VERSION)
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
@@ -61,9 +62,19 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
+    public void configureRemoteClusterForTest() throws Exception {
         configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), false);
-        super.setUp();
+    }
+
+    public void testUserManagedServiceAccountCcsFailsClosedAgainstOlderFulfillingCluster() throws Exception {
+        Assume.assumeFalse(
+            "user-managed service account CCS against a fulfilling cluster that understands the kind is covered by "
+                + "RemoteClusterSecurityUserManagedServiceAccountRCS1IT",
+            fulfillingClusterSupportsUserManagedServiceAccounts()
+        );
+
+        try (var ignored = setupUserManagedServiceAccountCcsOnQueryCluster(false)) {
+            assertUserManagedServiceAccountCcsFailsClosed(ignored.context());
+        }
     }
 }

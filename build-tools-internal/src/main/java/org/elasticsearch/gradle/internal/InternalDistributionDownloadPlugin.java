@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -34,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
@@ -46,8 +46,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         // this is needed for isInternal
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
+        project.getPluginManager().apply(DockerSupportPlugin.class);
         var buildParams = loadBuildParams(project).get();
 
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
@@ -74,7 +74,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      */
     private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions, Provider<BwcVersions> bwcVersions) {
         resolutions.add(new DistributionResolution("local-build", (project, distribution) -> {
-            if (isCurrentVersion(distribution)) {
+            if (isCurrentVersion(distribution) && distribution.isDetachedVersion() == false) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
                     config -> projectDependency(project.getDependencies(), distributionProjectPath(distribution), config)
@@ -86,7 +86,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         resolutions.add(new DistributionResolution("bwc", (project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.get()
                 .unreleasedInfo(Version.fromString(distribution.getVersion()));
-            if (unreleasedInfo != null) {
+            if (unreleasedInfo != null && distribution.isDetachedVersion() == false) {
                 if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
@@ -103,18 +103,17 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             return null;
         }));
 
-        // Distribution resolution for "override" versions. This allows for building from source for any version, including the current
+        // Distribution resolution for "detached" versions. This allows for building from source for any version, including the current
         // version of existing released versions from a commit form the main branch. This is done by passing certain system properties, ex:
         //
         // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
         //
-        // The 'test.bwc.main.version' property should map to the version returned by the commit referenced in 'tests.bwc.refspec.main'.
-        resolutions.add(new DistributionResolution("override", (project, distribution) -> {
-            String versionProperty = System.getProperty("tests.bwc.main.version");
-            // We use this phony version as a placeholder for the real version
-            if (distribution.getVersion().equals("0.0.0")) {
+        // The distribution version set by 'test.bwc.main.version' property should map to the version returned by the commit
+        // referenced in 'tests.bwc.refspec.main'.
+        resolutions.add(new DistributionResolution("detached", (project, distribution) -> {
+            if (distribution.isDetachedVersion()) {
                 BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
-                    Version.fromString(versionProperty),
+                    Version.fromString(distribution.getVersion()),
                     "main",
                     ":distribution:bwc:main"
                 );

@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -46,13 +48,14 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
-    private static final Settings REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE = Settings.builder()
-        .putNull(IndexMetadata.SETTING_READ_ONLY)
-        .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-        .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
-        .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
-        .putNull(IndexMetadata.SETTING_BLOCKS_READ)
-        .build();
+    private final ProjectResolver projectResolver;
+    private static final Set<String> INDEX_BLOCK_SETTINGS = Set.of(
+        IndexMetadata.SETTING_READ_ONLY,
+        IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
+        IndexMetadata.SETTING_BLOCKS_WRITE,
+        IndexMetadata.SETTING_BLOCKS_METADATA,
+        IndexMetadata.SETTING_BLOCKS_READ
+    );
 
     @Inject
     public CreateIndexFromSourceTransportAction(
@@ -60,7 +63,8 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         ClusterService clusterService,
         ActionFilters actionFilters,
         Client client,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             CreateIndexFromSourceAction.NAME,
@@ -73,12 +77,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         this.clusterService = clusterService;
         this.client = client;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.sourceIndex());
+        IndexMetadata sourceIndex = projectResolver.getProjectMetadata(clusterService.state()).index(request.sourceIndex());
 
         if (sourceIndex == null) {
             listener.onFailure(new IndexNotFoundException(request.sourceIndex()));
@@ -89,12 +94,15 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         Settings.Builder settings = Settings.builder()
             // first settings from source index
-            .put(filterSettings(sourceIndex))
-            // then override with request settings
-            .put(request.settingsOverride());
+            .put(filterSettings(sourceIndex));
+
+        if (request.settingsOverride().isEmpty() == false) {
+            applyOverrides(settings, request.settingsOverride());
+        }
+
         if (request.removeIndexBlocks()) {
             // lastly, override with settings to remove index blocks if requested
-            settings.put(REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE);
+            INDEX_BLOCK_SETTINGS.forEach(settings::remove);
         }
 
         Map<String, Object> mergeMappings;
@@ -106,12 +114,23 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         }
 
         var createIndexRequest = new CreateIndexRequest(request.destIndex()).settings(settings);
+        createIndexRequest.cause("create-index-from-source");
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }
         createIndexRequest.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
 
         client.admin().indices().create(createIndexRequest, listener.map(response -> response));
+    }
+
+    private void applyOverrides(Settings.Builder settings, Settings overrides) {
+        overrides.keySet().forEach(key -> {
+            if (overrides.get(key) != null) {
+                settings.put(key, overrides.get(key));
+            } else {
+                settings.remove(key);
+            }
+        });
     }
 
     private static Map<String, Object> toMap(@Nullable MappingMetadata sourceMapping) {
@@ -140,6 +159,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private Settings filterSettings(IndexMetadata sourceIndex) {
         Settings sourceSettings = sourceIndex.getSettings();
         final Settings.Builder builder = Settings.builder();
+        final boolean isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
         for (final String key : sourceSettings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
@@ -153,6 +173,9 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
                 continue;
             }
             if (setting.getProperties().contains(Setting.Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
+                continue;
+            }
+            if (isServerless && setting.isServerlessPublic() == false) {
                 continue;
             }
             if (SPECIFIC_SETTINGS_TO_REMOVE.contains(key)) {

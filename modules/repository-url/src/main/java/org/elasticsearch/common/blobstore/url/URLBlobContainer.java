@@ -28,9 +28,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -156,13 +153,9 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
+    @SuppressForbidden(reason = "We need to open a stream to the URL to read its contents")
     private static InputStream getInputStream(URL url) throws IOException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<InputStream>) url::openStream);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return url.openStream();
     }
 
     @Override
@@ -176,4 +169,8 @@ public class URLBlobContainer extends AbstractBlobContainer {
         listener.onFailure(new UnsupportedOperationException("URL repositories do not support this operation"));
     }
 
+    @Override
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+        listener.onFailure(new UnsupportedOperationException("URL repositories do not support this operation"));
+    }
 }

@@ -86,9 +86,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     private Metadata metadata;
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initService() throws Exception {
         threadPool = createThreadPool();
         client = new NodeStatsClient(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
@@ -110,10 +108,8 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         threadPool.close();
-        super.tearDown();
     }
 
     public void testAddRemoveNode() {
@@ -421,7 +417,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     private static NodeStats statsForNode(DiscoveryNode node, long memory) {
         OsStats osStats = new OsStats(
             randomNonNegativeLong(),
-            new OsStats.Cpu(randomShort(), null),
+            new OsStats.Cpu(randomShort(), null, randomInt()),
             new OsStats.Mem(memory, randomLongBetween(0, memory), randomLongBetween(0, memory)),
             new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
             null

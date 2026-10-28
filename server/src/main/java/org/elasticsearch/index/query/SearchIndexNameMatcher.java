@@ -53,12 +53,11 @@ public class SearchIndexNameMatcher implements Predicate<String> {
      *  the separator ':', and must match on both the cluster alias and index name.
      */
     public boolean test(String pattern) {
-        String[] splitIndex = RemoteClusterAware.splitIndexName(pattern);
-
-        if (splitIndex[0] == null) {
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        if (split.clusterAlias() == null) {
             return clusterAlias == null && matchesIndex(pattern);
         } else {
-            return Regex.simpleMatch(splitIndex[0], clusterAlias) && matchesIndex(splitIndex[1]);
+            return Regex.simpleMatch(split.clusterAlias(), clusterAlias) && matchesIndex(split.indexExpression());
         }
     }
 

@@ -55,7 +55,6 @@ emp_no:integer | x:keyword                     | y:keyword
 10061          | 1985-09-17T00:00:00.000Z      | 1985-09-17                  
 ;
 
-
 compareToString
 from employees | where hire_date < "1985-03-01T00:00:00Z" | keep emp_no, hire_date;
 ignoreOrder:true
@@ -87,111 +86,6 @@ min:date                  | max:date
 1985-02-18T00:00:00.000Z  | 1999-04-30T00:00:00.000Z
 ;
 
-evalDateTruncIntervalExpressionPeriod
-from employees | sort hire_date | eval x = date_trunc(1 month, hire_date) | keep emp_no, hire_date, x | limit 5;
-
-emp_no:integer | hire_date:date                | x:date                    
-10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z         
-10048          | 1985-02-24T00:00:00.000Z      | 1985-02-01T00:00:00.000Z                  
-10098          | 1985-05-13T00:00:00.000Z      | 1985-05-01T00:00:00.000Z                  
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                 
-10061          | 1985-09-17T00:00:00.000Z      | 1985-09-01T00:00:00.000Z                  
-;
-
-evalDateTruncIntervalExpressionDuration
-from employees | sort hire_date | eval x = date_trunc(240 hours, hire_date) | keep emp_no, hire_date, x | limit 5;
-
-emp_no:integer | hire_date:date                | x:date                  
-10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z       
-10048          | 1985-02-24T00:00:00.000Z      | 1985-02-21T00:00:00.000Z                  
-10098          | 1985-05-13T00:00:00.000Z      | 1985-05-12T00:00:00.000Z               
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                
-10061          | 1985-09-17T00:00:00.000Z      | 1985-09-09T00:00:00.000Z                  
-;
-
-evalDateTruncWeeklyInterval
-from employees | sort hire_date | eval x = date_trunc(1 week, hire_date) | keep emp_no, hire_date, x | limit 5;
-
-emp_no:integer | hire_date:date                | x:date                  
-10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18T00:00:00.000Z       
-10048          | 1985-02-24T00:00:00.000Z      | 1985-02-18T00:00:00.000Z                  
-10098          | 1985-05-13T00:00:00.000Z      | 1985-05-13T00:00:00.000Z               
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-08T00:00:00.000Z                
-10061          | 1985-09-17T00:00:00.000Z      | 1985-09-16T00:00:00.000Z                  
-;
-
-evalDateTruncQuarterlyInterval
-from employees | sort hire_date | eval x = date_trunc(3 month, hire_date) | keep emp_no, hire_date, x | limit 5;
-
-emp_no:integer | hire_date:date                | x:date                    
-10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z         
-10048          | 1985-02-24T00:00:00.000Z      | 1985-01-01T00:00:00.000Z                  
-10098          | 1985-05-13T00:00:00.000Z      | 1985-04-01T00:00:00.000Z                  
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                 
-10061          | 1985-09-17T00:00:00.000Z      | 1985-07-01T00:00:00.000Z                  
-;
-
-evalDateTruncNullDate
-from employees | where emp_no == 10040 | eval x = date_trunc(1 day, birth_date) | keep emp_no, birth_date, x;
-
-emp_no:integer | birth_date:date               | x:date
-10040          | null                          | null  
-;
-
-evalDateTruncGrouping
-from employees | eval y = date_trunc(1 year, hire_date) | stats c = count(emp_no) by y | sort y | keep y, c | limit 5;
-
-y:date                        | c:long
-1985-01-01T00:00:00.000Z      | 11       
-1986-01-01T00:00:00.000Z      | 11                  
-1987-01-01T00:00:00.000Z      | 15                 
-1988-01-01T00:00:00.000Z      | 9                
-1989-01-01T00:00:00.000Z      | 13                  
-;
-
-in
-from employees | eval x = date_trunc(1 year, hire_date) | where birth_date not in (x, hire_date) | keep x, hire_date | sort x desc, hire_date | limit 4;
-
-x:date                  |hire_date:date
-1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z
-1997-01-01T00:00:00.000Z|1997-05-19T00:00:00.000Z
-1996-01-01T00:00:00.000Z|1996-11-05T00:00:00.000Z
-1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
-;
-
-dateTruncHour
-  FROM sample_data
-| SORT @timestamp ASC
-| EVAL t = DATE_TRUNC(1 HOUR, @timestamp)
-| KEEP t;
-
-t:date
-2023-10-23T12:00:00
-2023-10-23T12:00:00
-2023-10-23T13:00:00
-2023-10-23T13:00:00
-2023-10-23T13:00:00
-2023-10-23T13:00:00
-2023-10-23T13:00:00
-;
-
-dateTruncMinute
-  FROM sample_data
-| SORT @timestamp ASC
-| EVAL t = DATE_TRUNC(1 MINUTE, @timestamp)
-| KEEP t;
-
-t:date
-2023-10-23T12:15:00
-2023-10-23T12:27:00
-2023-10-23T13:33:00
-2023-10-23T13:51:00
-2023-10-23T13:52:00
-2023-10-23T13:53:00
-2023-10-23T13:55:00
-;
-
-
 convertFromDatetime
 from employees | sort emp_no | keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
 
@@ -200,7 +94,38 @@ birth_date:date         |bd:date
 1964-06-02T00:00:00.000Z|1964-06-02T00:00:00.000Z
 ;
 
-convertFromString#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
+convertFromKeywordField
+FROM conv_from_keyword | EVAL dt = TO_DATETIME(datetime_str) | KEEP datetime_str, dt;
+
+datetime_str:keyword     | dt:date
+2023-01-01T00:00:00.000Z | 2023-01-01T00:00:00.000Z
+;
+
+convert with zones
+ROW str = "2025-04-11T05:00:00+0400"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00+0400" | 2025-04-11T01:00:00.000Z
+;
+
+equality with zones
+ROW dt = TO_DATETIME("2025-04-11T01:00:00.000Z")
+| EVAL bool = "2025-04-11T05:00:00+0400" == dt;
+
+dt:datetime              | bool:boolean
+2025-04-11T01:00:00.000Z | true
+;
+
+convert no zone
+ROW str = "2025-04-11T05:00:00.000"
+| EVAL dt = TO_DATETIME(str);
+
+str:String                 | dt:datetime
+"2025-04-11T05:00:00.000" | 2025-04-11T05:00:00.000Z
+;
+
+convertFromString
 // tag::to_datetime-str[]
 ROW string = ["1953-09-02T00:00:00.000Z", "1964-06-02T00:00:00.000Z", "1964-06-02 00:00:00"]
 | EVAL datetime = TO_DATETIME(string)
@@ -281,7 +206,7 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
-evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInNanoAndMicroAndMilliSeconds
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T11:00:00.001Z") 
 | EVAL dd_ns1=date_diff("nanoseconds", date1, date2), dd_ns2=date_diff("ns", date1, date2)
 | EVAL dd_mcs1=date_diff("microseconds", date1, date2), dd_mcs2=date_diff("mcs", date1, date2)
@@ -293,7 +218,7 @@ dd_ns1:integer  | dd_ns2:integer    | dd_mcs1:integer   | dd_mcs2:integer   | dd
 1000000         | 1000000           | 1000              | 1000              | 1                 | 1                         
 ;
 
-evalDateDiffInSecondsAndMinutesAndHours#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInSecondsAndMinutesAndHours
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-02T12:00:00.000Z") 
 | EVAL dd_s1=date_diff("seconds", date1, date2), dd_s2=date_diff("ss", date1, date2), dd_s3=date_diff("s", date1, date2)
 | EVAL dd_m1=date_diff("minutes", date1, date2), dd_m2=date_diff("mi", date1, date2), dd_m3=date_diff("n", date1, date2)
@@ -305,7 +230,7 @@ dd_s1:integer   | dd_s2:integer | dd_s3:integer | dd_m1:integer | dd_m2:integer 
 3600            | 3600          | 3600          | 60            | 60            | 60            | 1             | 1                         
 ;
 
-evalDateDiffInDaysAndWeeks#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInDaysAndWeeks
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-24T11:00:00.000Z") 
 | EVAL dd_wd1=date_diff("weekdays", date1, date2), dd_wd2=date_diff("dw", date1, date2)
 | EVAL dd_w1=date_diff("weeks", date1, date2), dd_w2=date_diff("wk", date1, date2), dd_w3=date_diff("ww", date1, date2)
@@ -318,7 +243,7 @@ dd_wd1:integer  | dd_wd2:integer    | dd_w1:integer | dd_w2:integer | dd_w3:inte
 22              | 22                | 3             | 3             | 3             | 22            | 22            | 22                | 22                | 22                     
 ;
 
-evalDateDiffInMonthsAndQuartersAndYears#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffInMonthsAndQuartersAndYears
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2024-12-24T11:00:00.000Z") 
 | EVAL dd_m1=date_diff("months", date1, date2), dd_m2=date_diff("mm", date1, date2), dd_m3=date_diff("m", date1, date2)
 | EVAL dd_q1=date_diff("quarters", date1, date2), dd_q2=date_diff("qq", date1, date2), dd_q3=date_diff("q", date1, date2)
@@ -330,7 +255,7 @@ dd_m1:integer   | dd_m2:integer | dd_m3:integer | dd_q1:integer | dd_q2:integer 
 12              | 12            | 12            | 4             | 4             | 4             | 1             | 1             | 1                                     
 ;
 
-evalDateDiffErrorOutOfIntegerRange#[skip:-8.12.99, reason:date_diff added in 8.13]
+evalDateDiffErrorOutOfIntegerRange
 ROW date1=to_datetime("2023-12-02T11:00:00.000Z"), date2=to_datetime("2023-12-23T11:00:00.000Z") 
 | EVAL dd_oo=date_diff("nanoseconds", date1, date2)
 | keep dd_oo
@@ -342,9 +267,10 @@ dd_oo:integer
 null
 ;
 
-docsDateDiff#[skip:-8.12.99, reason:date_diff added in 8.13]
+docsDateDiff
 // tag::docsDateDiff[]
-ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"),
+    date2 = TO_DATETIME("2023-12-02T11:00:00.001Z")
 | EVAL dd_ms = DATE_DIFF("microseconds", date1, date2)
 // end::docsDateDiff[]
 ;
@@ -366,7 +292,28 @@ date1:date               | dd_ms:integer
 2023-12-02T11:00:00.000Z | 1000
 ;
 
-evalDateDiffMonthAsWhole0Months#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
+dateDiffTestWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| WHERE first_name IN ("Alejandro", "Mary")
+| SORT first_name ASC
+| EVAL date = TO_DATETIME("2023-12-02T11:00:00.000Z")
+| EVAL dd_ms = DATE_DIFF(first_name, date, date)
+| KEEP date, dd_ms
+| LIMIT 2
+;
+
+warning:Line 5:16: evaluation of [DATE_DIFF(first_name, date, date)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:16: java.lang.IllegalArgumentException: A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [Alejandro]
+warning:Line 5:16: java.lang.IllegalArgumentException: Received value [Mary] is not valid date part to add; did you mean [day]? 
+
+date:date                | dd_ms:integer
+2023-12-02T11:00:00.000Z | null
+2023-12-02T11:00:00.000Z | null
+;
+
+evalDateDiffMonthAsWhole0Months
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
@@ -377,7 +324,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 
 ;
 
-evalDateDiffMonthAsWhole1Month#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
+evalDateDiffMonthAsWhole1Month
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-02-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)
@@ -399,7 +346,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|1                  |0
 ;
 
-evalDateDiffYearAsWhole1Year
+evalDateDiffYearAsWhole1YearEndOfYear
 required_capability: date_diff_year_calendarial
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2025-01-01T00:00:00")
@@ -425,12 +372,12 @@ evalDateDiffYearForDocs
 required_capability: date_diff_year_calendarial
 
 // tag::evalDateDiffYearForDocs[]
-ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),
-  start_24=TO_DATETIME("2024-01-01T00:00:00.000Z"),
-    end_24=TO_DATETIME("2024-12-31T23:59:59.999")
-| EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
-| EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
-| EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)
+ROW end_23 = TO_DATETIME("2023-12-31T23:59:59.999Z"),
+  start_24 = TO_DATETIME("2024-01-01T00:00:00.000Z"),
+    end_24 = TO_DATETIME("2024-12-31T23:59:59.999")
+| EVAL end23_to_start24 = DATE_DIFF("year", end_23, start_24)
+| EVAL end23_to_end24   = DATE_DIFF("year", end_23, end_24)
+| EVAL start_to_end_24  = DATE_DIFF("year", start_24, end_24)
 // end::evalDateDiffYearForDocs[]
 ;
 
@@ -438,6 +385,42 @@ ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),
          end_23:date    |        start_24:date   |         end_24:date    |end23_to_start24:integer|end23_to_end24:integer|start_to_end_24:integer
 2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|2024-12-31T23:59:59.999Z|0                       |1                     |0
 // end::evalDateDiffYearForDocs-result[]
+;
+
+dateDiffOffsetTimezone
+required_capability: date_diff_timezone_support
+
+set time_zone="+03:00"\;
+ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23:01:00-04:00"::date)
+;
+
+diff:integer
+1
+;
+
+dateDiffDstTimezone
+required_capability: date_diff_timezone_support
+
+set time_zone="America/Goose_Bay"\;
+ROW diff = DATE_DIFF("months", "2010-10-07T00:00:00-03:00"::date, "2010-11-06T23:01:00-04:00"::date)
+;
+
+diff:integer
+0
+;
+
+dateDiffUnitFromField
+required_capability: casting_operator_for_date
+FROM date_extract_fields
+| EVAL diff = DATE_DIFF(inner_val, "2022-01-01T00:00:00.000Z"::date, "2023-01-01T00:00:00.000Z"::date)
+| KEEP inner_val, diff
+| SORT inner_val;
+
+inner_val:keyword | diff:integer
+day               | 365
+hour              | 8760
+month             | 12
+year              | 1
 ;
 
 evalDateParseWithSimpleDate
@@ -470,6 +453,15 @@ b:datetime
 null
 ;
 
+evalDateParseInvalidDate
+required_capability: date_time_exceptions_handled
+row a = "2026-02-29 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
+warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: failed to parse date field [2026-02-29 foo] with format [yyyy-MM-dd]
+b:datetime
+null
+;
+
 evalDateParseNotMatching
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM", a) | keep b;
 warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM\", a)] failed, treating result as null. Only first 20 failures recorded.
@@ -488,7 +480,9 @@ null
 ;
 
 evalDateParseNullPattern
+required_capability: warn_null_misuse
 row a = "2023-02-01" | eval b = date_parse(null, a) | keep b;
+warning:Line 1:33: Expression [date_parse(null, a)] always evaluates to NULL.
 
 b:datetime
 null
@@ -598,6 +592,75 @@ emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:
 10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
 ;
 
+evalDateParseWithTimezoneOption
+required_capability: date_parse_options
+row a = "10-10-2025" | eval b = date_parse("dd-mm-yyyy", a, {"time_zone":"Europe/Paris"}) | keep b;
+
+b:datetime
+2024-12-31T23:00:00.000Z
+;
+
+evalDateParseWithLocaleOption
+required_capability: date_parse_options
+row a = "10 septembre 2025" | eval b = date_parse("dd MMMM yyyy", a, {"locale":"fr"}) | keep b;
+
+b:datetime
+2025-09-10T00:00:00.000Z
+;
+
+evalDateParseWithLocaleAndTimezoneOption
+required_capability: date_parse_options
+row a = "10 septembre 2025" | eval b = date_parse("dd MMMM yyyy", a, {"locale":"fr","time_zone":"Europe/Paris"}) | keep b;
+
+b:datetime
+2025-09-09T22:00:00.000Z
+;
+
+evalDateParseDefaultFormatWithTimezoneOption
+required_capability: date_parse_options
+row a = "2023-02-01T12:15:55.000+01:00" | eval b = date_parse(a, {"time_zone":"Europe/Paris"}) | keep b;
+
+b:datetime
+2023-02-01T11:15:55.000Z
+;
+
+evalDateParseDefaultFormatWithLocaleOption
+required_capability: date_parse_options
+row a = "2023-02-01T12:15:55.000Z" | eval b = date_parse(a, {"locale":"fr"}) | keep b;
+
+b:datetime
+2023-02-01T12:15:55.000Z
+;
+
+rowDateParseDefaultFormatWithSetTimezone
+required_capability: date_format_date_parse_timezone_support
+SET time_zone="Europe/Paris"\;
+row a = "2023-02-01T12:15:55.000+01:00" | eval b = date_parse(a) | keep b;
+
+b:datetime
+2023-02-01T11:15:55.000Z
+;
+
+rowDateParseDefaultFormatWithSetTimezoneOverride
+required_capability: date_format_date_parse_timezone_support
+SET time_zone="America/New_York"\;
+row a = "2023-02-01T12:15:55.000+01:00" | eval b = date_parse(a, {"time_zone":"Europe/Paris"}) | keep b;
+
+b:datetime
+2023-02-01T11:15:55.000Z
+;
+
+fromDateParseFormatSameWithSetTimezone
+required_capability: date_format_date_parse_timezone_support
+SET time_zone="Europe/Paris"\;
+from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
+| eval new_date = date_parse(date_format(birth_date)) | eval bool = new_date == birth_date | keep emp_no, new_date, birth_date, bool;
+
+emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:boolean
+10049           | null                       | null                      | null
+10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
+;
+
 dateFields
 from employees | where emp_no == 10049 or emp_no == 10050 
 | eval year = date_extract("year", birth_date), month = date_extract("month_of_year", birth_date), day = date_extract("day_of_month", birth_date)
@@ -619,6 +682,33 @@ ignoreOrder:true
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword
 10049           |  null                      | null
 10050           |  1958-05-21T00:00:00.000Z  | May
+;
+
+dateFormatTimezone
+required_capability: date_format_date_parse_timezone_support
+set time_zone="Europe/Rome"\;
+from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
+| eval formatted = date_format(birth_date) | keep emp_no, birth_date, formatted;
+
+emp_no:integer  |  birth_date:datetime       | formatted:keyword
+10049           |  null                      | null
+10050           |  1958-05-21T00:00:00.000Z  | 1958-05-21T01:00:00.000+01:00
+;
+
+dateFormatTimezoneRow
+required_capability: date_format_date_parse_timezone_support
+set time_zone="Europe/Rome"\;
+ROW
+  date = date_format("2020-02-01T00:00:00.000+01:00"::date),
+  date_dst = date_format("2020-06-01T00:00:00.000+02:00"::date),
+  month = date_format("MMM", "2020-02-01T00:00:00.000+01:00"::date),
+  day = date_format("dd", "2020-02-01T00:00:00.000+01:00"::date),
+  hour = date_format("HH", "2020-02-01T00:00:00.000+01:00"::date),
+  hour_dst = date_format("HH", "2020-06-01T00:00:00.000+02:00"::date)
+;
+
+date:keyword                  | date_dst:keyword              | month:keyword | day:keyword | hour:keyword | hour_dst:keyword
+2020-02-01T00:00:00.000+01:00 | 2020-06-01T00:00:00.000+02:00 | Feb           | 01          | 00          | 00
 ;
 
 datePlusPeriod
@@ -731,25 +821,34 @@ dt:datetime              |plus:datetime
 2100-01-01T01:01:01.001Z |2100-01-01T00:00:00.000Z
 ;
 
-datePlusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNull
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null, plus_pre = null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:42: Expression [null + dt] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
-datePlusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNullAndDuration
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:51: Expression [1 second + null] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
-datePlusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+datePlusNullAndPeriod
+required_capability: warn_null_misuse
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:52: Expression [3 weeks + null] always evaluates to NULL.
 
 dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
@@ -822,28 +921,34 @@ then:datetime
 1953-04-04T00:00:00.000Z
 ;
 
-dateMinusNull#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNull
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
-dateMinusNullAndPeriod#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNullAndPeriod
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - null - 4 minutes
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
 ;
 
-dateMinusNullAndDuration#[skip:-8.12.99, reason:date math with null enabled in 8.13]
+dateMinusNullAndDuration
+required_capability: warn_null_misuse
 row dt = to_dt("1953-04-04T04:03:02.001Z")
 | eval minus = dt - 6 days - null
 ;
+warning:Line 2:16: Expression [dt - 6 days - null] always evaluates to NULL.
 
 dt:datetime              |minus:datetime
 1953-04-04T04:03:02.001Z |null
@@ -999,16 +1104,117 @@ date:date                 | year:long
 2022-05-06T00:00:00.000Z  | 2022
 ;
 
+dateExtractSetTimezoneFrom
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="+07:00"\;
+from employees
+| sort hire_date
+| eval hour = date_extract("hour_of_day", hire_date)
+| keep emp_no, hire_date, hour
+| limit 2;
+
+emp_no:integer | hire_date:date           | hour:long
+10009          | 1985-02-18T00:00:00.000Z | 7
+10048          | 1985-02-24T00:00:00.000Z | 7
+;
+
+dateExtractSetTimezoneRow
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="+07:00"\;
+ROW hire_date = "2020-02-28T23:00:00.000Z"::date
+| EVAL hour = date_extract("hour_of_day", hire_date)
+| KEEP hour;
+
+hour:long
+6
+;
+
 docsDateExtractBusinessHours
 // tag::docsDateExtractBusinessHours[]
 FROM sample_data
-| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9 AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
+| WHERE DATE_EXTRACT("hour_of_day", @timestamp) < 9
+    AND DATE_EXTRACT("hour_of_day", @timestamp) >= 17
 // end::docsDateExtractBusinessHours[]
 ;
 
 // tag::docsDateExtractBusinessHours-result[]
 @timestamp:date       |   client_ip:ip   |event_duration:long |       message:keyword
 // end::docsDateExtractBusinessHours-result[]
+;
+
+dateExtractFromFields
+required_capability: fn_date_extract
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, date_val)
+| KEEP date_part, date_val, result
+| SORT date_part;
+
+date_part:keyword | date_val:date            | result:long
+day_of_month      | 2022-05-06T14:30:00.000Z | 6
+hour_of_day       | 2022-05-06T14:30:00.000Z | 14
+month_of_year     | 2022-05-06T14:30:00.000Z | 5
+year              | 2022-05-06T14:30:00.000Z | 2022
+;
+
+dateExtractFieldDatePart
+required_capability: fn_date_extract
+required_capability: casting_operator_for_date
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)
+| KEEP date_part, result
+| SORT date_part;
+
+date_part:keyword | result:long
+day_of_month      | 6
+hour_of_day       | 14
+month_of_year     | 5
+year              | 2022
+;
+
+dateFormatFromFields
+required_capability: fn_date_format
+
+FROM date_fn_fields
+| EVAL formatted = DATE_FORMAT(date_format, date_val)
+| KEEP date_format, date_val, formatted
+| SORT date_val;
+
+date_format:keyword | date_val:date            | formatted:keyword
+HH:mm               | 2021-12-25T08:15:00.000Z | 08:15
+yyyy                | 2023-02-10T00:00:00.000Z | 2023
+yyyy-MM-dd          | 2024-02-15T14:30:00.000Z | 2024-02-15
+;
+
+dateParseFromFields
+required_capability: fn_date_parse
+
+FROM date_fn_fields
+| EVAL parsed = DATE_PARSE(date_pattern, date_string)
+| KEEP date_pattern, date_string, parsed
+| SORT date_string;
+
+date_pattern:keyword | date_string:keyword | parsed:date
+yyyy-MM-dd           | 2021-12-25          | 2021-12-25T00:00:00.000Z
+yyyy-MM-dd           | 2023-02-10          | 2023-02-10T00:00:00.000Z
+yyyy-MM-dd           | 2024-02-15          | 2024-02-15T00:00:00.000Z
+;
+
+dateUnitCountFromFields
+required_capability: esql_date_unit_count_fn
+
+FROM date_fn_fields
+| EVAL n = DATE_UNIT_COUNT(to_unit, from_unit, date_val)
+| KEEP to_unit, from_unit, date_val, n
+| SORT date_val;
+
+to_unit:keyword | from_unit:keyword | date_val:date            | n:long
+hour            | day               | 2021-12-25T08:15:00.000Z | 24
+day             | month             | 2023-02-10T00:00:00.000Z | 28
+day             | month             | 2024-02-15T14:30:00.000Z | 29
 ;
 
 docsDateFormat
@@ -1029,6 +1235,221 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
+docsDateUnitCount
+required_capability: esql_date_unit_count_fn
+
+// tag::docsDateUnitCount[]
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+// end::docsDateUnitCount[]
+;
+
+// tag::docsDateUnitCount-result[]
+dt:date                | days:long
+2024-02-15T00:00:00.000Z | 29
+// end::docsDateUnitCount-result[]
+;
+
+dateUnitCountDaysInMonthNonLeapYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2023-02-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2023-02-15T00:00:00.000Z | 28
+;
+
+dateUnitCountDaysInMonth31
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-01-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2024-01-15T00:00:00.000Z | 31
+;
+
+dateUnitCountDaysInMonth30
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-04-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "month", dt)
+;
+
+dt:date                  | days:long
+2024-04-15T00:00:00.000Z | 30
+;
+
+dateUnitCountDaysInYear
+required_capability: esql_date_unit_count_fn
+
+ROW leap = to_datetime("2024-06-01T00:00:00.000Z"), normal = to_datetime("2023-06-01T00:00:00.000Z")
+| EVAL leap_days = DATE_UNIT_COUNT("day", "year", leap), normal_days = DATE_UNIT_COUNT("day", "year", normal)
+;
+
+leap:date                | normal:date              | leap_days:long | normal_days:long
+2024-06-01T00:00:00.000Z | 2023-06-01T00:00:00.000Z | 366            | 365
+;
+
+dateUnitCountHoursInDay
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL hours = DATE_UNIT_COUNT("hour", "day", dt)
+;
+
+dt:date                  | hours:long
+2024-03-15T10:30:00.000Z | 24
+;
+
+dateUnitCountMinutesInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL minutes = DATE_UNIT_COUNT("minute", "hour", dt)
+;
+
+dt:date                  | minutes:long
+2024-03-15T10:30:00.000Z | 60
+;
+
+dateUnitCountSecondsInMinute
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL seconds = DATE_UNIT_COUNT("second", "hour", dt)
+;
+
+dt:date                  | seconds:long
+2024-03-15T10:30:00.000Z | 3600
+;
+
+dateUnitCountMillisInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL millis = DATE_UNIT_COUNT("millisecond", "hour", dt)
+;
+
+dt:date                  | millis:long
+2024-03-15T10:30:00.000Z | 3600000
+;
+
+dateUnitCountMonthsInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL months = DATE_UNIT_COUNT("month", "year", dt)
+;
+
+dt:date                  | months:long
+2024-06-15T00:00:00.000Z | 12
+;
+
+dateUnitCountWeeksInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL weeks = DATE_UNIT_COUNT("week", "year", dt)
+;
+
+dt:date                  | weeks:long
+2024-06-15T00:00:00.000Z | 52
+;
+
+dateUnitCountDaysInWeek
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL days = DATE_UNIT_COUNT("day", "week", dt)
+;
+
+dt:date                  | days:long
+2024-03-15T00:00:00.000Z | 7
+;
+
+dateUnitCountHoursInWeek
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL hours = DATE_UNIT_COUNT("hour", "week", dt)
+;
+
+dt:date                  | hours:long
+2024-03-15T00:00:00.000Z | 168
+;
+
+dateUnitCountMinutesInDay
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T00:00:00.000Z")
+| EVAL minutes = DATE_UNIT_COUNT("minute", "day", dt)
+;
+
+dt:date                  | minutes:long
+2024-03-15T00:00:00.000Z | 1440
+;
+
+dateUnitCountQuartersInYear
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-06-15T00:00:00.000Z")
+| EVAL quarters = DATE_UNIT_COUNT("quarter", "year", dt)
+;
+
+dt:date                  | quarters:long
+2024-06-15T00:00:00.000Z | 4
+;
+
+dateUnitCountHoursInMonth
+required_capability: esql_date_unit_count_fn
+
+ROW feb_leap = to_datetime("2024-02-15T00:00:00.000Z"), jan = to_datetime("2024-01-15T00:00:00.000Z")
+| EVAL feb_hours = DATE_UNIT_COUNT("hour", "month", feb_leap), jan_hours = DATE_UNIT_COUNT("hour", "month", jan)
+;
+
+feb_leap:date            | jan:date                 | feb_hours:long | jan_hours:long
+2024-02-15T00:00:00.000Z | 2024-01-15T00:00:00.000Z | 696            | 744
+;
+
+dateUnitCountNanosInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL nanos = DATE_UNIT_COUNT("nanosecond", "hour", dt)
+;
+
+dt:date                  | nanos:long
+2024-03-15T10:30:00.000Z | 3600000000000
+;
+
+dateUnitCountMicrosInHour
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-03-15T10:30:00.000Z")
+| EVAL micros = DATE_UNIT_COUNT("microsecond", "hour", dt)
+;
+
+dt:date                  | micros:long
+2024-03-15T10:30:00.000Z | 3600000000
+;
+
+dateUnitCountMultipleUnitsAtOnce
+required_capability: esql_date_unit_count_fn
+
+ROW dt = to_datetime("2024-02-15T00:00:00.000Z")
+| EVAL days_in_month = DATE_UNIT_COUNT("day", "month", dt),
+       hours_in_day = DATE_UNIT_COUNT("hour", "day", dt),
+       months_in_year = DATE_UNIT_COUNT("month", "year", dt)
+;
+
+dt:date                  | days_in_month:long | hours_in_day:long | months_in_year:long
+2024-02-15T00:00:00.000Z | 29                 | 24                | 12
+;
+
 evalDateFormatString
 required_capability: string_literal_auto_casting
 
@@ -1038,63 +1459,6 @@ ROW a = 1
 
 a:integer | df:keyword
 1         | 1989-06-02
-;
-
-docsDateTrunc
-// tag::docsDateTrunc[]
-FROM employees
-| KEEP first_name, last_name, hire_date
-| EVAL year_hired = DATE_TRUNC(1 year, hire_date)
-// end::docsDateTrunc[]
-| SORT first_name
-| LIMIT 3
-;
-
-// tag::docsDateTrunc-result[]
-first_name:keyword   |   last_name:keyword   | hire_date:date           | year_hired:date
-Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-01-01T00:00:00.000Z
-Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-01-01T00:00:00.000Z
-Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000Z
-// end::docsDateTrunc-result[]
-;
-
-evalDateTruncString
-required_capability: string_literal_auto_casting
-
-ROW a = 1
-| EVAL year_hired = DATE_TRUNC(1 year, "1991-06-26T00:00:00.000Z")
-;
-
-a:integer | year_hired:date
-1         | 1991-01-01T00:00:00.000Z
-;
-
-docsDateTruncHistogram
-// tag::docsDateTruncHistogram[]
-FROM employees
-| EVAL year = DATE_TRUNC(1 year, hire_date)
-| STATS hires = COUNT(emp_no) BY year
-| SORT year
-// end::docsDateTruncHistogram[]
-;
-
-// tag::docsDateTruncHistogram-result[]
-hires:long     | year:date
-11             |1985-01-01T00:00:00.000Z
-11             |1986-01-01T00:00:00.000Z
-15             |1987-01-01T00:00:00.000Z
-9              |1988-01-01T00:00:00.000Z
-13             |1989-01-01T00:00:00.000Z
-12             |1990-01-01T00:00:00.000Z
-6              |1991-01-01T00:00:00.000Z
-8              |1992-01-01T00:00:00.000Z
-3              |1993-01-01T00:00:00.000Z
-4              |1994-01-01T00:00:00.000Z
-5              |1995-01-01T00:00:00.000Z
-1              |1996-01-01T00:00:00.000Z
-1              |1997-01-01T00:00:00.000Z
-1              |1999-01-01T00:00:00.000Z
-// end::docsDateTruncHistogram-result[]
 ;
 
 docsNow
@@ -1118,9 +1482,7 @@ FROM sample_data
 // end::docsNowWhere[]
 ;
 
-// tag::docsNowWhere-result[]
 @timestamp:date   | client_ip:ip | event_duration:long | message:keyword
-// end::docsNowWhere-result[]
 ;
 
 mvSort
@@ -1214,16 +1576,20 @@ required_capability: agg_values
 mvAppendDates
 required_capability: fn_mv_append
 
+// tag::mv_append_date[]
 FROM employees
 | WHERE emp_no == 10039 OR emp_no == 10040
 | SORT emp_no
-| EVAL dates = mv_append(birth_date, hire_date)
+| EVAL dates = MV_APPEND(birth_date, hire_date)
 | KEEP emp_no, birth_date, hire_date, dates
+// end::mv_append_date[]
 ;
 
+// tag::mv_append_date-result[]
 emp_no:integer | birth_date:date      | hire_date:date       | dates:date
 10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
 10040          | null                 | 1993-02-14T00:00:00Z | null 
+// end::mv_append_date-result[]
 ;
 
 
@@ -1297,13 +1663,30 @@ a:datetime | b:datetime | c:datetime | d:datetime
 ;
 
 temporalAmountWithNulls
+required_capability: warn_null_misuse
 from employees
 | eval a = to_dt(null) - 1 day
 | keep a
 | limit 1;
+warning:Line 2:12: Expression [to_dt(null) - 1 day] always evaluates to NULL.
 
 a:datetime
 null
+;
+
+dateMathWithTimezonesRow
+required_capability: add_sub_operator_timezone_support
+
+set time_zone="America/New_York"\;
+row
+  date_add = "2025-03-09T01:02:03.123-05:00" + 1d,
+  date_sub = "2025-03-10T01:02:03.123-04:00" - 1d,
+  nanos_add = "2025-03-09T01:02:03.123000001-05:00"::date_nanos + 1d,
+  nanos_sub = "2025-03-10T01:02:03.123000001-04:00"::date_nanos - 1d
+;
+
+date_add:datetime        | date_sub:datetime        | nanos_add:date_nanos           | nanos_sub:date_nanos
+2025-03-10T05:02:03.123Z | 2025-03-09T06:02:03.123Z | 2025-03-10T05:02:03.123000001Z | 2025-03-09T06:02:03.123000001Z
 ;
 
 ImplicitCastingEqual
@@ -1346,99 +1729,6 @@ a:datetime
 1958-02-19T00:00:00
 ;
 
-evalDateTruncMonthInString
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-FROM employees
-| SORT hire_date
-| EVAL x = date_trunc("1 month", hire_date)
-| KEEP emp_no, hire_date, x
-| LIMIT 5;
-
-emp_no:integer | hire_date:date                | x:date
-10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
-10048          | 1985-02-24T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
-10098          | 1985-05-13T00:00:00.000Z      | 1985-05-01T00:00:00.000Z
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
-10061          | 1985-09-17T00:00:00.000Z      | 1985-09-01T00:00:00.000Z
-;
-
-evalDateTruncHourInString
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-FROM employees
-| SORT hire_date
-| EVAL x = date_trunc("240 hours", hire_date)
-| KEEP emp_no, hire_date, x
-| LIMIT 5;
-
-emp_no:integer | hire_date:date                | x:date
-10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z
-10048          | 1985-02-24T00:00:00.000Z      | 1985-02-21T00:00:00.000Z
-10098          | 1985-05-13T00:00:00.000Z      | 1985-05-12T00:00:00.000Z
-10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
-10061          | 1985-09-17T00:00:00.000Z      | 1985-09-09T00:00:00.000Z
-;
-
-evalDateTruncDayInString
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-FROM sample_data
-| SORT @timestamp ASC
-| EVAL t = DATE_TRUNC("1 day", @timestamp)
-| KEEP t;
-
-t:date
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-2023-10-23T00:00:00
-;
-
-evalDateTruncMinuteInString
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-FROM sample_data
-| SORT @timestamp ASC
-| EVAL t = DATE_TRUNC("1 minute", @timestamp)
-| KEEP t;
-
-t:date
-2023-10-23T12:15:00
-2023-10-23T12:27:00
-2023-10-23T13:33:00
-2023-10-23T13:51:00
-2023-10-23T13:52:00
-2023-10-23T13:53:00
-2023-10-23T13:55:00
-;
-
-evalDateTruncDayInStringNull
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-FROM employees
-| WHERE emp_no == 10040
-| EVAL x = date_trunc("1 day", birth_date)
-| KEEP emp_no, birth_date, x;
-
-emp_no:integer | birth_date:date               | x:date
-10040          | null                          | null
-;
-
-evalDateTruncYearInString
-required_capability: implicit_casting_string_literal_to_temporal_amount
-
-ROW a = 1
-| EVAL year_hired = DATE_TRUNC("1 year", "1991-06-26T00:00:00.000Z")
-;
-
-a:integer | year_hired:date
-1         | 1991-01-01T00:00:00.000Z
-;
-
 filteringWithTemporalAmountInString
 required_capability: implicit_casting_string_literal_to_temporal_amount
 
@@ -1452,7 +1742,7 @@ cnt:long
 ;
 
 implicit casting strings to dates for IN operator
-required_capability: string_literal_auto_casting
+required_capability: rangequery_for_datetime
 FROM employees
 | WHERE birth_date IN ("1953-04-20", "1958-10-31")
 | KEEP emp_no, first_name;
@@ -1463,8 +1753,8 @@ emp_no:integer | first_name:keyword
 10025          | Prasadram 
 ;
 
-IN operator with null in list, finds match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, finds match
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | WHERE birth_date IN (TO_DATETIME("1958-02-19T00:00:00Z"), x)
@@ -1474,8 +1764,8 @@ birth_date:datetime      | first_name:keyword
 1958-02-19T00:00:00.000Z | Saniya     
 ;
 
-IN operator with null in list, doesn't find match#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, doesn't find match
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | WHERE birth_date IN (TO_DATETIME("1900-02-19T00:00:00Z"), x)
@@ -1484,8 +1774,8 @@ FROM employees
 birth_date:datetime      | first_name:keyword
 ;
 
-IN operator with null in list, doesn't find match, EVAL to check value#[skip:-8.13.99, reason: default date formatter is changed in 8.14]
-
+IN operator with null in list, doesn't find match, EVAL to check value
+required_capability: rangequery_for_datetime
 FROM employees
 | EVAL x = NULL
 | EVAL result = birth_date IN (TO_DATETIME("1900-02-19T00:00:00Z"), x)
@@ -1494,4 +1784,660 @@ FROM employees
 
 result:boolean
 null
+;
+
+evalInvalidDate
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATE | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATE] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:datetime
+null
+;
+
+evalInvalidDateNanos
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATE_NANOS | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATE_NANOS] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:date_nanos
+null
+;
+
+evalInvalidDateTime
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATETIME | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATETIME] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:datetime
+null
+;
+
+dayNameRowTest
+required_capability:fn_day_name
+// tag::docsDayName[]
+ROW dt = to_datetime("1953-09-02T00:00:00.000Z")
+| EVAL weekday = DAY_NAME(dt);
+// end::docsDayName[]
+
+dt:date   | weekday:keyword
+1953-09-02T00:00:00.000Z | Wednesday
+;
+
+dayNameSimple
+required_capability:fn_day_name
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval day = day_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | day:keyword
+10001          | 1986-06-26T00:00:00.000Z   | Thursday     
+;
+
+dayNameTruncate
+required_capability:fn_day_name
+FROM employees
+| EVAL a = hire_date
+| RENAME hire_date as b
+| WHERE a > "1987-01-01" and a < "1988-01-01"
+| EVAL y = date_trunc(1 month, b) 
+| STATS c = count(emp_no) by y
+| EVAL week_day = day_name(y)
+| SORT y
+| KEEP y, c, week_day
+| LIMIT 5;
+
+y:date                   | c:long   | week_day:keyword
+1987-03-01T00:00:00.000Z | 5        | Sunday
+1987-04-01T00:00:00.000Z | 3        | Wednesday
+1987-05-01T00:00:00.000Z | 1        | Friday
+1987-07-01T00:00:00.000Z | 1        | Wednesday
+1987-08-01T00:00:00.000Z | 2        | Saturday
+;
+
+dayNameNestedCall
+required_capability:fn_day_name
+from employees 
+| sort emp_no 
+| eval first_day_of_month = day_name(date_trunc(1 month, hire_date))
+| keep emp_no, hire_date, first_day_of_month
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+10001          | 1986-06-26T00:00:00.000Z | Sunday
+10002          | 1985-11-21T00:00:00.000Z | Friday
+10003          | 1986-08-28T00:00:00.000Z | Friday
+10004          | 1986-12-01T00:00:00.000Z | Monday
+10005          | 1989-09-12T00:00:00.000Z | Friday
+10006          | 1989-06-02T00:00:00.000Z | Thursday
+10007          | 1989-02-10T00:00:00.000Z | Wednesday
+10008          | 1994-09-15T00:00:00.000Z | Thursday
+10009          | 1985-02-18T00:00:00.000Z | Friday
+10010          | 1989-08-24T00:00:00.000Z | Tuesday
+;
+
+dayNameNestedCallDesc
+required_capability:fn_day_name
+from employees 
+| sort emp_no desc
+| eval first_day_of_month = to_upper(day_name(date_trunc(1 month, hire_date)))
+| keep emp_no, hire_date, first_day_of_month
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
+10100          | 1987-09-21T00:00:00.000Z | TUESDAY
+10099          | 1988-10-18T00:00:00.000Z | SATURDAY
+10098          | 1985-05-13T00:00:00.000Z | WEDNESDAY
+10097          | 1990-09-15T00:00:00.000Z | SATURDAY
+10096          | 1990-01-14T00:00:00.000Z | MONDAY
+10095          | 1986-07-15T00:00:00.000Z | TUESDAY
+10094          | 1987-04-18T00:00:00.000Z | WEDNESDAY
+10093          | 1996-11-05T00:00:00.000Z | FRIDAY
+10092          | 1989-09-22T00:00:00.000Z | FRIDAY
+10091          | 1992-11-18T00:00:00.000Z | SUNDAY
+;
+
+dayNameNull
+required_capability:fn_day_name
+from employees | where emp_no == 10040 | eval x = day_name(birth_date) | keep emp_no, birth_date, hire_date, x;
+
+emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword
+10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;
+
+dayNameSetTimezoneRow
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="-02:00"\;
+row dt = to_datetime("1953-09-02T00:00:00.000Z")
+| eval weekday = day_name(dt);
+
+dt:date   | weekday:keyword
+1953-09-02T00:00:00.000Z | Tuesday
+;
+
+dayNameSetTimezoneFrom
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="-02:00"\;
+from employees
+| sort emp_no
+| keep emp_no, hire_date
+| eval day = day_name(hire_date)
+| limit 1;
+
+emp_no:integer | hire_date:date             | day:keyword
+10001          | 1986-06-26T00:00:00.000Z   | Wednesday
+;
+
+monthNameRowTest
+required_capability:fn_month_name
+// tag::docsMonthName[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL monthName = MONTH_NAME(dt);
+// end::docsMonthName[]
+
+dt:date   | monthName:keyword
+1996-03-21T00:00:00.000Z | March
+;
+
+monthNameSimple
+required_capability:fn_month_name
+from employees 
+| sort emp_no 
+| keep emp_no, hire_date
+| eval monthName = month_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | monthName:keyword
+10001          | 1986-06-26T00:00:00.000Z   | June     
+;
+
+monthNameTruncate
+required_capability:fn_month_name
+FROM employees
+| EVAL a = hire_date
+| RENAME hire_date as b
+| WHERE a > "1987-01-01" and a < "1988-01-01"
+| EVAL y = date_trunc(1 month, b) 
+| STATS c = count(emp_no) by y
+| EVAL monthName = month_name(y)
+| SORT y
+| KEEP y, c, monthName
+| LIMIT 5;
+
+y:date                   | c:long   | monthName:keyword
+1987-03-01T00:00:00.000Z | 5      | March
+1987-04-01T00:00:00.000Z | 3      | April
+1987-05-01T00:00:00.000Z | 1      | May
+1987-07-01T00:00:00.000Z | 1      | July
+1987-08-01T00:00:00.000Z | 2      | August
+;
+
+monthNameNestedCall
+required_capability:fn_month_name
+from employees 
+| sort emp_no 
+| eval monthName = month_name(date_trunc(1 month, hire_date))
+| keep emp_no, hire_date, monthName
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | monthName:keyword
+10001          | 1986-06-26T00:00:00.000Z | June
+10002          | 1985-11-21T00:00:00.000Z | November
+10003          | 1986-08-28T00:00:00.000Z | August
+10004          | 1986-12-01T00:00:00.000Z | December
+10005          | 1989-09-12T00:00:00.000Z | September
+10006          | 1989-06-02T00:00:00.000Z | June
+10007          | 1989-02-10T00:00:00.000Z | February
+10008          | 1994-09-15T00:00:00.000Z | September
+10009          | 1985-02-18T00:00:00.000Z | February
+10010          | 1989-08-24T00:00:00.000Z | August
+;
+
+monthNameNestedCallDesc
+required_capability:fn_month_name
+from employees 
+| sort emp_no desc
+| eval monthName = to_upper(month_name(date_trunc(1 month, hire_date)))
+| keep emp_no, hire_date, monthName
+| limit 10;
+
+emp_no:integer | hire_date:datetime       | monthName:keyword
+10100          | 1987-09-21T00:00:00.000Z | SEPTEMBER
+10099          | 1988-10-18T00:00:00.000Z | OCTOBER
+10098          | 1985-05-13T00:00:00.000Z | MAY
+10097          | 1990-09-15T00:00:00.000Z | SEPTEMBER
+10096          | 1990-01-14T00:00:00.000Z | JANUARY
+10095          | 1986-07-15T00:00:00.000Z | JULY
+10094          | 1987-04-18T00:00:00.000Z | APRIL
+10093          | 1996-11-05T00:00:00.000Z | NOVEMBER
+10092          | 1989-09-22T00:00:00.000Z | SEPTEMBER
+10091          | 1992-11-18T00:00:00.000Z | NOVEMBER
+;
+
+monthNameNull
+required_capability:fn_month_name
+from employees 
+| where emp_no == 10040 
+| eval monthName = month_name(birth_date) 
+| keep emp_no, birth_date, hire_date, monthName;
+
+emp_no:integer | birth_date:date                     | hire_date:date             | monthName:keyword
+10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
+;
+
+monthNameSetTimezoneRow
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="Europe/Paris"\;
+row dt = to_datetime("1996-01-31T23:00:00.000Z")
+| eval monthName = MONTH_NAME(dt);
+
+dt:date                  | monthName:keyword
+1996-01-31T23:00:00.000Z | February
+;
+
+monthNameSetTimezoneFrom
+required_capability: global_timezone_parameter_with_output
+
+set time_zone="-10:00"\;
+from employees 
+| WHERE emp_no == 10004 
+| keep emp_no, hire_date
+| eval monthName = month_name(hire_date) 
+| limit 1;
+
+emp_no:integer | hire_date:date             | monthName:keyword
+10004          | 1986-12-01T00:00:00.000Z   | November
+;
+
+dateFormatFormatFieldDateConstant
+required_capability: string_literal_auto_casting
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL df = DATE_FORMAT(format_val, "1989-06-02T00:00:00.000Z")
+| KEEP df
+;
+
+df:keyword
+1989-06-02
+;
+
+dateFormatFormatFieldDateField
+required_capability: string_literal_auto_casting
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL df = DATE_FORMAT(format_val, date_val)
+| KEEP df
+;
+
+df:keyword
+2022-05-06
+;
+
+dateParseFormatFieldStringConstant
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL b = date_parse(format_val, "2023-02-01")
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateParseFormatFieldStringField
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL b = date_parse(format_val, date_string)
+| KEEP b
+;
+
+b:datetime
+2023-02-01T00:00:00.000Z
+;
+
+dateUnitCountInnerFieldOuterConstant
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT(inner_val, "month", date_val)
+| KEEP days
+;
+
+days:long
+31
+;
+
+dateUnitCountInnerConstantOuterField
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT("day", outer_val, date_val)
+| KEEP days
+;
+
+days:long
+31
+;
+
+dateUnitCountInnerFieldOuterField
+required_capability: esql_date_unit_count_fn
+
+FROM date_extract_fields
+| WHERE date_part == "day_of_month"
+| EVAL days = DATE_UNIT_COUNT(inner_val, outer_val, date_val)
+| KEEP days
+;
+
+days:long
+31
+;
+
+mvInRangeDate
+required_capability: fn_mv_in_range
+ROW d = ["2024-03-01T00:00:00.000Z", "2024-09-01T00:00:00.000Z"]::datetime
+| EVAL in_range = mv_in_range(d, "2024-06-01T00:00:00.000Z"::datetime, "2024-12-01T00:00:00.000Z"::datetime)
+;
+
+d:datetime | in_range:boolean
+[2024-03-01T00:00:00.000Z, 2024-09-01T00:00:00.000Z] | true
+;
+
+dateExtractYearEquals1986
+FROM employees
+| WHERE DATE_EXTRACT("year", hire_date) == 1986
+| KEEP emp_no, hire_date
+| SORT emp_no
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+10003          | 1986-08-28T00:00:00.000Z
+10004          | 1986-12-01T00:00:00.000Z
+10053          | 1986-02-04T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z
+10081          | 1986-10-30T00:00:00.000Z
+10087          | 1986-09-08T00:00:00.000Z
+10089          | 1986-08-12T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z
+10095          | 1986-07-15T00:00:00.000Z
+;
+
+docsYear
+required_capability: fn_year
+// tag::docsYear[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL year = YEAR(dt)
+// end::docsYear[]
+;
+
+dt:date                      | year:long
+1996-03-21T00:00:00.000Z     | 1996
+;
+
+docsMonth
+required_capability: fn_month
+// tag::docsMonth[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL month = MONTH(dt)
+// end::docsMonth[]
+;
+
+dt:date                      | month:long
+1996-03-21T00:00:00.000Z     | 3
+;
+
+docsDay
+required_capability: fn_day
+// tag::docsDay[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL day = DAY(dt)
+// end::docsDay[]
+;
+
+dt:date                      | day:long
+1996-03-21T00:00:00.000Z     | 21
+;
+
+docsHour
+required_capability: fn_hour
+// tag::docsHour[]
+ROW dt = to_datetime("1996-03-21T00:00:00.000Z")
+| EVAL hour = HOUR(dt)
+// end::docsHour[]
+;
+
+dt:date                      | hour:long
+1996-03-21T00:00:00.000Z     | 0
+;
+
+yearFromEmployees
+required_capability: fn_year
+FROM employees
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL y = YEAR(hire_date)
+| LIMIT 1
+;
+
+emp_no:integer | hire_date:date             | y:long
+10001          | 1986-06-26T00:00:00.000Z   | 1986
+;
+
+monthDayHourFromEmployees
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+FROM employees
+| SORT emp_no
+| KEEP emp_no, hire_date
+| EVAL month = MONTH(hire_date), day = DAY(hire_date), hour = HOUR(hire_date)
+| LIMIT 1
+;
+
+emp_no:integer | hire_date:date             | month:long | day:long | hour:long
+10001          | 1986-06-26T00:00:00.000Z   | 6          | 26       | 0
+;
+
+yearEquals1986
+required_capability: fn_year
+FROM employees
+| WHERE YEAR(hire_date) == 1986
+| KEEP emp_no, hire_date
+| SORT emp_no
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+10003          | 1986-08-28T00:00:00.000Z
+10004          | 1986-12-01T00:00:00.000Z
+10053          | 1986-02-04T00:00:00.000Z
+10066          | 1986-02-26T00:00:00.000Z
+10079          | 1986-03-27T00:00:00.000Z
+10081          | 1986-10-30T00:00:00.000Z
+10087          | 1986-09-08T00:00:00.000Z
+10089          | 1986-08-12T00:00:00.000Z
+10090          | 1986-03-14T00:00:00.000Z
+10095          | 1986-07-15T00:00:00.000Z
+;
+
+yearFromString
+required_capability: fn_year
+required_capability: string_literal_auto_casting
+ROW y = YEAR("2022-05-06")
+;
+
+y:long
+2022
+;
+
+yearSetTimezone
+required_capability: fn_year
+required_capability: global_timezone_parameter_with_output
+set time_zone="+07:00"\;
+ROW hire_date = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(hire_date)
+| KEEP y
+;
+
+y:long
+2020
+;
+
+datePartsUtc
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2019   | 12     | 31     | 23
+;
+
+datePartsPlusSeven
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: global_timezone_parameter_with_output
+set time_zone="+07:00"\;
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2020   | 1      | 1      | 6
+;
+
+datePartsNewYork
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: global_timezone_parameter_with_output
+set time_zone="America/New_York"\;
+ROW dt = "2019-12-31T23:00:00.000Z"::date
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+2019   | 12     | 31     | 18
+;
+
+datePartsNanos
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+ROW dt = "1996-03-21T15:04:05.123456789Z"::date_nanos
+| EVAL y = YEAR(dt), m = MONTH(dt), d = DAY(dt), h = HOUR(dt)
+| KEEP y, m, d, h
+;
+
+y:long | m:long | d:long | h:long
+1996   | 3      | 21     | 15
+;
+
+yearNullBirthDate
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+FROM employees
+| WHERE emp_no == 10040
+| EVAL y = YEAR(birth_date), m = MONTH(birth_date), d = DAY(birth_date), h = HOUR(birth_date)
+| KEEP emp_no, birth_date, y, m, d, h
+;
+
+emp_no:integer | birth_date:date | y:long | m:long | d:long | h:long
+10040          | null            | null   | null   | null   | null
+;
+
+yearOnMultivalue
+required_capability: fn_year
+required_capability: fn_month
+required_capability: fn_day
+required_capability: fn_hour
+required_capability: fn_mv_append
+FROM employees
+| WHERE emp_no == 10039
+| EVAL dates = MV_APPEND(birth_date, hire_date)
+| EVAL y = YEAR(dates), m = MONTH(dates), d = DAY(dates), h = HOUR(dates)
+| KEEP y, m, d, h
+;
+warning:Line 4:12: evaluation of [YEAR(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:12: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:29: evaluation of [MONTH(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:29: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:47: evaluation of [DAY(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:47: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 4:63: evaluation of [HOUR(dates)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+y:long | m:long | d:long | h:long
+null   | null   | null   | null
+;
+
+monthEqualsJune
+required_capability: fn_month
+FROM employees
+| WHERE emp_no == 10001 AND MONTH(hire_date) == 6
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;
+
+dayEquals26
+required_capability: fn_day
+FROM employees
+| WHERE emp_no == 10001 AND DAY(hire_date) == 26
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;
+
+hourEquals0
+required_capability: fn_hour
+FROM employees
+| WHERE emp_no == 10001 AND HOUR(hire_date) == 0
+| KEEP emp_no, hire_date
+;
+
+emp_no:integer | hire_date:date
+10001          | 1986-06-26T00:00:00.000Z
+;
+
+dateTruncSingleBucketKeepsNullsForMissingField
+required_capability: fix_round_to_pushdown_single_point_null_bucket
+
+// All sample_data timestamps fall into one month, so the query-and-tags pushdown of the
+// DATE_TRUNC-derived ROUND_TO sees a single rounding point. The employees docs have no @timestamp
+// field and must keep a null DATE_TRUNC result instead of being tagged with the bucket value.
+FROM sample_data, employees
+| STATS t = MIN(DATE_TRUNC(1 month, @timestamp)), c = COUNT(*) BY missing = @timestamp IS NULL
+| SORT missing
+;
+
+t:datetime               | c:long | missing:boolean
+2023-10-01T00:00:00.000Z | 7      | false
+null                     | 100    | true
 ;

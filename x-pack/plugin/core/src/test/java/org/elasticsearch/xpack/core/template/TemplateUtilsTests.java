@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.core.template;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -18,7 +20,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,7 +36,7 @@ public class TemplateUtilsTests extends ESTestCase {
     public void testLoadTemplate() throws IOException {
         final int version = randomIntBetween(0, 10_000);
         String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
-        String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version");
+        String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version", emptyMap());
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
@@ -86,20 +90,39 @@ public class TemplateUtilsTests extends ESTestCase {
             }""", version, version))));
     }
 
+    public void testLoadTemplateWithTemplateDecorator() throws IOException {
+        String resource = "/settings-only.json";
+        Template.TemplateDecorator keepRefreshIntervalOnly = new Template.TemplateDecorator() {
+            @Override
+            public Settings decorate(String template, Settings settings) {
+                return settings.filter("index.refresh_interval"::equals);
+            }
+        };
+
+        var template = TemplateUtils.loadTemplate(resource, "1", "version", emptyMap(), false, Template::parse, keepRefreshIntervalOnly);
+        assertThat(template.settings().keySet(), equalTo(Set.of("index.refresh_interval")));
+    }
+
     public void testValidateNullSource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(null));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> TemplateUtils.validate(null, "version", false)
+        );
         assertThat(exception.getMessage(), is("Template must not be null"));
     }
 
     public void testValidateEmptySource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(""));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> TemplateUtils.validate("", "version", false)
+        );
         assertThat(exception.getMessage(), is("Template must not be empty"));
     }
 
     public void testValidateInvalidSource() {
         ElasticsearchParseException exception = expectThrows(
             ElasticsearchParseException.class,
-            () -> TemplateUtils.validate("{\"foo\": \"bar")
+            () -> TemplateUtils.validate("{\"foo\": \"bar", "version", false)
         );
         assertThat(exception.getMessage(), is("Invalid template"));
     }
@@ -108,8 +131,20 @@ public class TemplateUtilsTests extends ESTestCase {
         String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         try (InputStream is = TemplateUtilsTests.class.getResourceAsStream(resource)) {
             assert is != null;
-            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8));
+            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8), "version", false);
         }
+    }
+
+    public void testValidateWithValidateVersion() {
+        String withVersion = "{\"index_patterns\": [\"test-*\"], \"version\": 42}";
+        TemplateUtils.validate(withVersion, "42", true);
+
+        var exception = expectThrows(IllegalArgumentException.class, () -> TemplateUtils.validate(withVersion, "99", true));
+        assertThat(exception.getMessage(), is("Template must have a version property set to the given version property"));
+
+        String noVersion = "{\"index_patterns\": [\"test-*\"]}";
+        exception = expectThrows(IllegalArgumentException.class, () -> TemplateUtils.validate(noVersion, "99", true));
+        assertThat(exception.getMessage(), is("Template must have a version property set to the given version property"));
     }
 
     public void testReplaceVariable() {

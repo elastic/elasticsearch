@@ -43,6 +43,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -278,13 +279,26 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void close() {
+            handleClose(null);
+        }
+
+        @Override
+        public void closeAndFail(Exception e) {
+            handleClose(e);
+        }
+
+        private void handleClose(Exception e) {
             if (isClosing.compareAndSet(false, true)) {
                 try {
                     boolean block = lifecycle.stopped() && Transports.isTransportThread(Thread.currentThread()) == false;
                     CloseableChannel.closeChannels(channels, block);
                 } finally {
                     // Call the super method to trigger listeners
-                    super.close();
+                    if (e == null) {
+                        super.close();
+                    } else {
+                        super.closeAndFail(e);
+                    }
                 }
             }
         }
@@ -760,6 +774,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } finally {
             if (closeChannel) {
+                channel.setCloseException(e);
                 CloseableChannel.closeChannel(channel);
             }
         }
@@ -813,9 +828,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public void inboundMessage(TcpChannel channel, InboundMessage message) {
         try {
-            inboundHandler.inboundMessage(channel, message);
+            inboundHandler.inboundMessage(channel, /* autocloses absent exception */ message);
+            message = null;
         } catch (Exception e) {
             onException(channel, e);
+        } finally {
+            if (message != null) {
+                message.close();
+            }
         }
     }
 
@@ -968,8 +988,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return new RecyclerBytesStreamOutput(recycler);
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+        return new RecyclerBytesStreamOutput(recycler, circuitBreaker);
     }
 
     /**
@@ -996,8 +1016,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             bytesRead,
             messagesSent,
             bytesWritten,
-            networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram(),
+            networkService.getHandlingTimeTracker().getSnapshot(),
+            outboundHandlingTimeTracker.getSnapshot(),
             requestHandlers.getStats()
         );
     }
@@ -1115,7 +1135,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(ActionListener.running(nodeChannels::close));
+                            ch.addCloseListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void ignored) {
+                                    nodeChannels.close();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    nodeChannels.closeAndFail(new NodeDisconnectedException(node, "closed exceptionally: " + ch, null, e));
+                                }
+                            });
                         });
                         keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
                         nodeChannels.addCloseListener(new ChannelCloseLogger(node, connectionId, relativeMillisTime));
@@ -1176,7 +1206,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception e) {
-            assert false : e; // never called
+            long closeTimeMillis = threadPool.relativeTimeInMillis();
+            logger.debug(
+                () -> format(
+                    "closed transport connection [%d] to [%s] with age [%dms], exception:",
+                    connectionId,
+                    node,
+                    closeTimeMillis - openTimeMillis
+                ),
+                e
+            );
         }
     }
 

@@ -80,7 +80,7 @@ public class UnusedStateRemover implements MlDataRemover {
         List<String> stateDocIdsToDelete = new ArrayList<>();
         BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(
             client,
-            AnomalyDetectorsIndex.jobStateIndexPattern()
+            AnomalyDetectorsIndex.jobStateIndexPatterns()
         );
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
@@ -137,8 +137,19 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
         LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+
+        var indicesToQuery = WritableIndexExpander.getInstance()
+            .getWritableIndices(Arrays.asList(AnomalyDetectorsIndex.jobStateIndexPatterns()));
+
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for unused state documents");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setIndicesOptions(
+            IndicesOptions.lenientExpandOpen()
+        )
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
             .setTimeout(DEFAULT_MAX_DURATION)
@@ -149,7 +160,7 @@ public class UnusedStateRemover implements MlDataRemover {
         deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+            if (response.getBulkFailures().isEmpty() == false || response.getSearchFailures().isEmpty() == false) {
                 LOGGER.error(
                     "Some unused state documents could not be deleted due to failures: {}",
                     Strings.collectionToCommaDelimitedString(response.getBulkFailures())

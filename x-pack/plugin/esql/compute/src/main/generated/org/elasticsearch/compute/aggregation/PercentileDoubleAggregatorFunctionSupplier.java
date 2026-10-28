@@ -15,24 +15,39 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class PercentileDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final double percentile;
 
-  public PercentileDoubleAggregatorFunctionSupplier(List<Integer> channels, double percentile) {
-    this.channels = channels;
+  private final double tDigestStateCompression;
+
+  private final boolean allowNonFinite;
+
+  public PercentileDoubleAggregatorFunctionSupplier(double percentile,
+      double tDigestStateCompression, boolean allowNonFinite) {
     this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
+    this.allowNonFinite = allowNonFinite;
   }
 
   @Override
-  public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext) {
-    return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public PercentileDoubleGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return PercentileDoubleGroupingAggregatorFunction.create(channels, driverContext, percentile);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new PercentileDoubleAggregatorFunction(driverContext, channels, percentile, tDigestStateCompression, allowNonFinite);
+  }
+
+  @Override
+  public PercentileDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new PercentileDoubleGroupingAggregatorFunction(channels, driverContext, percentile, tDigestStateCompression, allowNonFinite);
   }
 
   @Override

@@ -27,6 +27,7 @@ public class ExchangeSinkExec extends UnaryExec {
     );
 
     private final List<Attribute> output;
+    // TODO: remove this flag
     private final boolean intermediateAgg;
 
     public ExchangeSinkExec(Source source, List<Attribute> output, boolean intermediateAgg, PhysicalPlan child) {
@@ -74,6 +75,11 @@ public class ExchangeSinkExec extends UnaryExec {
     @Override
     public ExchangeSinkExec replaceChild(PhysicalPlan newChild) {
         return new ExchangeSinkExec(source(), output, intermediateAgg, newChild);
+    }
+
+    /** Like {@link #replaceChild(PhysicalPlan)} but sets the output to the new child's output. */
+    public ExchangeSinkExec replaceChildAndUpdateOutput(PhysicalPlan newChild) {
+        return new ExchangeSinkExec(source(), newChild.output(), intermediateAgg, newChild);
     }
 
     @Override

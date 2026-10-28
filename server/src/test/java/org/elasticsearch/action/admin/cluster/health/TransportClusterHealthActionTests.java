@@ -14,12 +14,18 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -36,19 +42,25 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForNoInitializingShards(true);
-        ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
-        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
+        var projectId = randomUniqueProjectId();
+        ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0, projectId);
+        var project = clusterState.metadata().getProject(projectId);
+        ClusterHealthResponse response = createResponse(indices, clusterState, project);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(1));
 
         request.waitForNoInitializingShards(true);
-        clusterState = randomClusterStateWithInitializingShards("test", between(1, 10));
-        response = new ClusterHealthResponse("", indices, clusterState);
-        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
+        projectId = randomUniqueProjectId();
+        clusterState = randomClusterStateWithInitializingShards("test", between(1, 10), projectId);
+        project = clusterState.metadata().getProject(projectId);
+        response = createResponse(indices, clusterState, project);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(0));
 
         request.waitForNoInitializingShards(false);
-        clusterState = randomClusterStateWithInitializingShards("test", randomInt(20));
-        response = new ClusterHealthResponse("", indices, clusterState);
-        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
+        projectId = randomUniqueProjectId();
+        clusterState = randomClusterStateWithInitializingShards("test", randomInt(20), projectId);
+        project = clusterState.metadata().getProject(projectId);
+        response = createResponse(indices, clusterState, project);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(0));
     }
 
     public void testWaitForAllShards() {
@@ -56,20 +68,19 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         request.waitForActiveShards(ActiveShardCount.ALL);
 
-        ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
-        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
+        var projectId = randomUniqueProjectId();
+        ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1, projectId);
+        var project = clusterState.metadata().getProject(projectId);
+        ClusterHealthResponse response = createResponse(indices, clusterState, project);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(0));
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-        response = new ClusterHealthResponse("", indices, clusterState);
-        assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
+        project = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        response = createResponse(Strings.EMPTY_ARRAY /* no indices */ , clusterState, project);
+        assertThat(TransportClusterHealthAction.prepareResponse(request, response, project, null), equalTo(1));
     }
 
-    ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
-        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(IndexVersion.current(), between(1, 10), randomInt(20)))
-            .build();
-
+    ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards, ProjectId projectId) {
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
         if (initializingShards == 1 && randomBoolean()) {
             shardRoutingStates.add(ShardRoutingState.INITIALIZING);
@@ -85,8 +96,13 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             Randomness.shuffle(shardRoutingStates);
 
             // primary must be active, otherwise replicas can't in initializing or relocating state.
-            shardRoutingStates.add(0, randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
+            shardRoutingStates.addFirst(randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING));
         }
+
+        final int numberOfReplicas = shardRoutingStates.size() - 1;
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
+            .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas))
+            .build();
 
         final ShardId shardId = new ShardId(indexMetadata.getIndex(), 0);
         final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(
@@ -96,7 +112,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
         // Primary
         {
-            ShardRoutingState state = shardRoutingStates.remove(0);
+            ShardRoutingState state = shardRoutingStates.removeFirst();
             String node = "node";
             String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state));
@@ -110,9 +126,17 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, false, state));
         }
 
+        final var projects = randomMap(0, 5, () -> {
+            var id = randomUniqueProjectId();
+            return Tuple.tuple(id, ProjectMetadata.builder(id).build());
+        });
         return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(RoutingTable.builder().add(routingTable.build()).build())
+            .metadata(Metadata.builder().projectMetadata(projects).put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build())
+            .routingTable(GlobalRoutingTable.builder().put(projectId, RoutingTable.builder().add(routingTable.build()).build()).build())
             .build();
+    }
+
+    private static ClusterHealthResponse createResponse(String[] indices, ClusterState clusterState, ProjectMetadata project) {
+        return new ClusterHealthResponse("", indices, clusterState, project.id(), -1, -1, -1, TimeValue.timeValueHours(0));
     }
 }

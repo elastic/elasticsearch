@@ -23,11 +23,19 @@ public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequ
 
     /**
      * Set the throttle to apply to all matching requests in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle.
-     * Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure
-     * that it contains any time that we might wait.
+     * Throttling is done between batches, as we start the next paginated search batch. That way we can extend the search context
+     * keep-alive to make sure that it contains any time that we might wait.
      */
     public RethrottleRequestBuilder setRequestsPerSecond(float requestsPerSecond) {
         request.setRequestsPerSecond(requestsPerSecond);
+        return this;
+    }
+
+    /**
+     * Whether to follow the relocation chain when the target task has already relocated to another node.
+     */
+    public RethrottleRequestBuilder setFollowRelocations(boolean followRelocations) {
+        request.setFollowRelocations(followRelocations);
         return this;
     }
 }

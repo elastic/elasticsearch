@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.internal.snyk.SnykDependencyMonitoringGradlePlugin;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
@@ -27,6 +27,8 @@ import org.gradle.initialization.layout.BuildLayout;
 import java.io.File;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -50,18 +52,15 @@ public class BuildPlugin implements Plugin<Project> {
 
     @Override
     public void apply(final Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        if (project.getPluginManager().hasPlugin("elasticsearch.standalone-rest-test")) {
-            throw new InvalidUserDataException(
-                "elasticsearch.standalone-test, " + "elasticsearch.standalone-rest-test, and elasticsearch.build are mutually exclusive"
-            );
+        applyGlobalBuildInfoIfRoot(project);
+        if (project.getPluginManager().hasPlugin("elasticsearch.standalone-test")) {
+            throw new InvalidUserDataException("elasticsearch.standalone-test and elasticsearch.build are mutually exclusive");
         }
 
         project.getPluginManager().apply("elasticsearch.java");
-        project.getPluginManager().apply("elasticsearch.publish");
         project.getPluginManager().apply(ElasticsearchJavadocPlugin.class);
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
+        project.getPluginManager().apply(LicensingPlugin.class);
         project.getPluginManager().apply(SnykDependencyMonitoringGradlePlugin.class);
         project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
         InternalPrecommitTasks.create(project, true);

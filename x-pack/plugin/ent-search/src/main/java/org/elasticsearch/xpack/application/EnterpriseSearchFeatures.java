@@ -9,13 +9,21 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.application.rules.QueryRule;
 
 import java.util.Set;
 
 public class EnterpriseSearchFeatures implements FeatureSpecification {
 
+    public static final NodeFeature QUERY_RULES_FIX_MULTIPLE_EXCLUDE = new NodeFeature("query_rules_fix_multiple_exclude_rules");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of();
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(QueryRule.NUMERIC_VALIDATION, QUERY_RULES_FIX_MULTIPLE_EXCLUDE);
     }
 }

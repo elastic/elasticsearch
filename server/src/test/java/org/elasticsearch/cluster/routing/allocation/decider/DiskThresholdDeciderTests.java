@@ -17,13 +17,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -40,6 +45,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -74,6 +80,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.containsString;
@@ -130,9 +137,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+                    .build()
+            )
             .build();
 
         logger.info("--> adding two nodes");
@@ -300,9 +312,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+                    .build()
+            )
             .build();
 
         logger.info("--> adding node1 and node2 node");
@@ -509,9 +526,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+                    .build()
+            )
             .build();
         logger.info("--> adding node1");
         // node2 is added because DiskThresholdDecider automatically ignore single-node clusters
@@ -560,9 +582,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
+                    .build()
+            )
             .build();
         logger.info("--> adding node1");
         clusterState = ClusterState.builder(clusterState)
@@ -600,7 +627,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(node1Usage.freeBytes(), equalTo(25L));
     }
 
-    private void doTestShardRelocationsTakenIntoAccount(boolean testMaxHeadroom) {
+    private void doTestShardRelocationsTakenIntoAccount(boolean testMaxHeadroom, boolean multipleProjects) {
         Settings.Builder diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
@@ -648,23 +675,30 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         var indexMetadata1 = IndexMetadata.builder("test")
-            .settings(settings(IndexVersion.current()))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
         var indexMetadata2 = IndexMetadata.builder("test2")
-            .settings(settings(IndexVersion.current()))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
+        var metadataBuilder = Metadata.builder();
+        final ProjectId projectId1, projectId2;
+        if (multipleProjects) {
+            projectId1 = randomUniqueProjectId();
+            projectId2 = randomUniqueProjectId();
+            metadataBuilder.put(ProjectMetadata.builder(projectId1).put(indexMetadata1, false));
+            metadataBuilder.put(ProjectMetadata.builder(projectId2).put(indexMetadata2, false));
+        } else {
+            projectId1 = projectId2 = Metadata.DEFAULT_PROJECT_ID;
+            metadataBuilder.put(ProjectMetadata.builder(projectId2).put(indexMetadata1, false).put(indexMetadata2, false));
+        }
+        var metadata = metadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).build())
-            .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNew(indexMetadata1)
-                    .addAsNew(indexMetadata2)
-                    .build()
-            )
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
             .build();
 
         logger.info("--> adding two nodes");
@@ -693,7 +727,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3", projectId1);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = strategy.reroute(clusterState, cmds, false, false, false, ActionListener.noop()).clusterState();
@@ -720,7 +754,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         final ClusterInfo overfullClusterInfo = new DevNullClusterInfo(overfullUsages, overfullUsages, largerShardSizes);
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3", projectId2);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             final ClusterState clusterStateThatRejectsCommands = clusterState;
@@ -754,7 +788,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         }
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3", projectId2);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -803,11 +837,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testShardRelocationsTakenIntoAccountWithPercentages() {
-        doTestShardRelocationsTakenIntoAccount(false);
+        doTestShardRelocationsTakenIntoAccount(false, false);
     }
 
     public void testShardRelocationsTakenIntoAccountWithMaxHeadroom() {
-        doTestShardRelocationsTakenIntoAccount(true);
+        doTestShardRelocationsTakenIntoAccount(true, false);
+    }
+
+    public void testShardRelocationsTakenIntoAccountWithPercentagesOnMultipleProjects() {
+        doTestShardRelocationsTakenIntoAccount(false, true);
+    }
+
+    public void testShardRelocationsTakenIntoAccountWithMaxHeadroomOnMultipleProjects() {
+        doTestShardRelocationsTakenIntoAccount(true, true);
     }
 
     private void doTestCanRemainWithShardRelocatingAway(boolean testMaxHeadroom) {
@@ -859,10 +901,16 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState baseClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(testMetadata, false).put(fooMetadata, false).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(testMetadata, false).put(fooMetadata, false)).build())
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(testMetadata).addAsNew(fooMetadata).build()
+                GlobalRoutingTable.builder()
+                    .put(
+                        projectId,
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(testMetadata).addAsNew(fooMetadata)
+                    )
+                    .build()
             )
             .nodes(DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build())
             .build();
@@ -877,18 +925,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                     .addIndexShard(IndexShardRoutingTable.builder(firstRouting.shardId()).addShard(firstRouting))
                     .addIndexShard(IndexShardRoutingTable.builder(secondRouting.shardId()).addShard(secondRouting))
             );
-        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        ClusterState clusterState = ClusterState.builder(baseClusterState)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, builder.build()).build())
+            .build();
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            routingAllocation.metadata().getProject(projectId).getIndexSafe(firstRouting.index()),
             firstRouting,
             firstRoutingNode,
             routingAllocation
@@ -940,18 +983,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                     .addIndexShard(new IndexShardRoutingTable.Builder(fooRouting.shardId()).addShard(fooRouting))
                     .build()
             );
-        clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
-        routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        clusterState = ClusterState.builder(baseClusterState)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, builder.build()).build())
+            .build();
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            routingAllocation.metadata().getProject(projectId).getIndexSafe(firstRouting.index()),
             firstRouting,
             firstRoutingNode,
             routingAllocation
@@ -963,6 +1001,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 : "there is enough disk on this node for the shard to remain, free: [60b]",
             decision.getExplanation()
         );
+
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(GlobalRoutingTableTestHelper.updateRoutingTable(clusterState, (builder1, indexMetadata) -> {
+                builder1.addAsNew(indexMetadata);
+            }, (ignore1, ignore2) -> {}))
+            .build();
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
+        routingAllocation.debugDecision(true);
+
         decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         if (fooRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE) {
@@ -1019,30 +1066,35 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         // Populate the in-sync allocation IDs so that the overall cluster state is valid enough to run reroute()
-        final var metadataBuilder = Metadata.builder(clusterState.metadata());
-        metadataBuilder.put(
-            clusterState.metadata().index(fooRouting.index()).withInSyncAllocationIds(fooRouting.id(), Set.of(randomUUID())),
+        final var projectBuilder = ProjectMetadata.builder(clusterState.metadata().getProject(projectId));
+        projectBuilder.put(
+            clusterState.metadata()
+                .getProject(projectId)
+                .index(fooRouting.index())
+                .withInSyncAllocationIds(fooRouting.id(), Set.of(randomUUID())),
             false
         );
-        metadataBuilder.put(
+        projectBuilder.put(
             clusterState.metadata()
+                .getProject(projectId)
                 .index(firstRouting.index())
                 .withInSyncAllocationIds(firstRouting.id(), Set.of(firstRouting.allocationId().getId()))
                 .withInSyncAllocationIds(secondRouting.id(), Set.of(secondRouting.allocationId().getId())),
             false
         );
-        final var clusterStateWithInSyncIds = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+        final var metadataBuilder = Metadata.builder(clusterState.metadata()).put(projectBuilder);
+        final var clusterStateWithInSyncIds = ClusterState.builder(clusterState).metadata(metadataBuilder.build()).build();
 
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
         // and therefore we will have sufficient disk space on node1.
         ClusterState result = strategy.reroute(clusterStateWithInSyncIds, "reroute", ActionListener.noop());
         assertThat(result, sameInstance(clusterStateWithInSyncIds));
-        assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(result.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").shard(0).primaryShard().relocatingNodeId(), nullValue());
-        assertThat(result.routingTable().index("test").shard(1).primaryShard().state(), equalTo(RELOCATING));
-        assertThat(result.routingTable().index("test").shard(1).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").shard(1).primaryShard().relocatingNodeId(), equalTo("node2"));
+        assertThat(result.routingTable(projectId).index("test").shard(0).primaryShard().state(), equalTo(STARTED));
+        assertThat(result.routingTable(projectId).index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable(projectId).index("test").shard(0).primaryShard().relocatingNodeId(), nullValue());
+        assertThat(result.routingTable(projectId).index("test").shard(1).primaryShard().state(), equalTo(RELOCATING));
+        assertThat(result.routingTable(projectId).index("test").shard(1).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable(projectId).index("test").shard(1).primaryShard().relocatingNodeId(), equalTo("node2"));
     }
 
     public void testCanRemainWithShardRelocatingAwayWithPercentages() {
@@ -1087,6 +1139,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             discoveryNodesBuilder.add(newNode("master", "master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         }
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         var testMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
@@ -1094,15 +1147,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodesBuilder.build())
-            .metadata(Metadata.builder().put(testMetadata, false).build())
-            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(testMetadata).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(testMetadata, false)).build())
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(testMetadata))
+                    .build()
+            )
             .build();
 
         // validate that the shard cannot be allocated
         AllocationService strategy = createAllocationService(clusterInfo, diskThresholdDecider);
         ClusterState result = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
-        ShardRouting shardRouting = result.routingTable().index("test").shard(0).primaryShard();
+        ShardRouting shardRouting = result.routingTable(projectId).index("test").shard(0).primaryShard();
         assertThat(shardRouting.state(), equalTo(UNASSIGNED));
         assertThat(shardRouting.currentNodeId(), nullValue());
         assertThat(shardRouting.relocatingNodeId(), nullValue());
@@ -1116,19 +1173,14 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                     .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard))
             )
             .build();
-        clusterState = ClusterState.builder(clusterState).routingTable(forceAssignedRoutingTable).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, forceAssignedRoutingTable).build())
+            .build();
 
-        RoutingAllocation routingAllocation = new RoutingAllocation(
-            null,
-            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().getIndexSafe(startedShard.index()),
+            routingAllocation.metadata().getProject(projectId).getIndexSafe(startedShard.index()),
             startedShard,
             clusterState.getRoutingNodes().node("data"),
             routingAllocation
@@ -1189,6 +1241,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         final IndexId indexId = new IndexId("_indexid_name", UUIDs.randomBase64UUID(random()));
         final ShardId shardId = new ShardId(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), 0);
 
+        final ProjectId projectId = randomProjectIdOrDefault();
         var indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
@@ -1196,13 +1249,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .putInSyncAllocationIds(0, Set.of(AllocationId.newInitializing().getId()))
             .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
-            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build())
             .routingTable(
-                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-                    .addAsNewRestore(
-                        indexMetadata,
-                        new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId),
-                        new HashSet<>()
+                GlobalRoutingTable.builder()
+                    .put(
+                        projectId,
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                            .addAsNewRestore(
+                                indexMetadata,
+                                new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, IndexVersion.current(), indexId),
+                                new HashSet<>()
+                            )
                     )
                     .build()
             )
@@ -1298,6 +1355,38 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         doTestDiskThresholdWithSnapshotShardSizes(true);
     }
 
+    public void testIsNewCloneTargetWorksForDeletedSourceIndex() {
+        final var projectId = randomProjectIdOrDefault();
+        final var metaBuilder = Metadata.builder();
+        final var targetIndexName = "target";
+        metaBuilder.put(
+            ProjectMetadata.builder(projectId)
+                .put(
+                    IndexMetadata.builder(targetIndexName)
+                        .settings(
+                            settings(IndexVersion.current()).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), "deleted-source")
+                                .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, IndexMetadata.INDEX_UUID_NA_VALUE)
+                        )
+                        .numberOfShards(4)
+                        .numberOfReplicas(0)
+                )
+        );
+        final var metadata = metaBuilder.build();
+        final var clusterState = ClusterState.builder(new ClusterName(getTestName()))
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
+
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
+        final Index idx = clusterState.metadata().getProject(projectId).index(targetIndexName).getIndex();
+        final int shardId = randomIntBetween(0, 3);
+        final var shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
+        assertFalse(DiskThresholdDecider.isNewCloneTarget(shardRouting, routingAllocation));
+    }
+
     public void logShardStates(ClusterState state) {
         RoutingNodes rn = state.getRoutingNodes();
         logger.info(
@@ -1371,7 +1460,26 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            super(
+                leastAvailableSpaceUsage,
+                mostAvailableSpaceUsage,
+                shardSizes,
+                Map.of(),
+                Map.of(),
+                reservedSpace,
+                Map.of(),
+                Map.of(),
+                ShardAndIndexHeapUsage.ZERO,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            );
         }
 
         @Override

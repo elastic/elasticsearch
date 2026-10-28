@@ -2,7 +2,7 @@ scm:
   enabled: true
   owner: elastic
   repository: elasticsearch
-  branch: main
+  branch: "main" # this value is overwritten by the GH workflow to match current branch
   commitusingapi: true
   # begin updatecli-compose policy values
   user: elasticmachine

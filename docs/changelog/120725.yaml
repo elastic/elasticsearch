@@ -1,7 +1,0 @@
-pr: 120725
-summary: |-
-  A new query parameter `?include_source_on_error` was added for create / index, update and bulk REST APIs to control
-  if to include the document source in the error response in case of parsing errors. The default value is `true`.
-area: Infra/REST API
-type: enhancement
-issues: []

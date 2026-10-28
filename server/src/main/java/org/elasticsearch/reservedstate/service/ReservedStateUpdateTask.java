@@ -15,19 +15,24 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.reservedstate.ReservedStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.SequencedCollection;
+import java.util.SequencedSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -41,23 +46,29 @@ import static org.elasticsearch.core.Strings.format;
  * Reserved cluster state can only be modified by using the {@link ReservedClusterStateService}. Updating
  * the reserved cluster state through REST APIs is not permitted.
  */
-public class ReservedStateUpdateTask implements ClusterStateTaskListener {
+public abstract class ReservedStateUpdateTask<T extends ReservedStateHandler<?>> implements ClusterStateTaskListener {
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTask.class);
 
     private final String namespace;
     private final ReservedStateChunk stateChunk;
     private final ReservedStateVersionCheck versionCheck;
-    private final Map<String, ReservedClusterStateHandler<?>> handlers;
-    private final Collection<String> orderedHandlers;
+    private final Map<String, T> handlers;
+    private final SequencedCollection<String> updateSequence;
     private final Consumer<ErrorState> errorReporter;
     private final ActionListener<ActionResponse.Empty> listener;
 
+    /**
+     * @param updateSequence the names of handlers corresponding to configuration sections present in the source,
+     *                       in the order they should be processed according to their dependencies.
+     *                       It equals the result of applying {@link #orderedStateHandlers} to {@code stateChunk.state().keySet()}
+     *                       but the caller will typically also need it for a <i>trial run</i>, so we avoid computing it twice.
+     */
     public ReservedStateUpdateTask(
         String namespace,
         ReservedStateChunk stateChunk,
         ReservedStateVersionCheck versionCheck,
-        Map<String, ReservedClusterStateHandler<?>> handlers,
-        Collection<String> orderedHandlers,
+        Map<String, T> handlers,
+        SequencedCollection<String> updateSequence,
         Consumer<ErrorState> errorReporter,
         ActionListener<ActionResponse.Empty> listener
     ) {
@@ -65,9 +76,18 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         this.stateChunk = stateChunk;
         this.versionCheck = versionCheck;
         this.handlers = handlers;
-        this.orderedHandlers = orderedHandlers;
+        this.updateSequence = updateSequence;
         this.errorReporter = errorReporter;
         this.listener = listener;
+
+        // We can't assert the order here, even if we'd like to, because in general,
+        // there is not necessarily one unique correct order.
+        // But we can at least assert that updateSequence has the right elements.
+        assert Set.copyOf(updateSequence).equals(stateChunk.state().keySet())
+            : "updateSequence is supposed to be computed from stateChunk.state().keySet(): "
+                + updateSequence
+                + " vs "
+                + stateChunk.state().keySet();
     }
 
     @Override
@@ -79,36 +99,58 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         return listener;
     }
 
-    protected ClusterState execute(final ClusterState currentState) {
-        if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // If cluster state has become blocked, this task was submitted while the node was master but is now not master.
-            // The new master will re-read file settings, so whatever update was to be written here will be handled
-            // by the new master.
-            return currentState;
-        }
+    protected abstract Optional<ProjectId> projectId();
 
-        ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(namespace);
+    protected abstract TransformState transform(T handler, Object state, TransformState transformState) throws Exception;
+
+    protected abstract ClusterState remove(T handler, TransformState prevState) throws Exception;
+
+    abstract ClusterState execute(ClusterState currentState);
+
+    /**
+     * Produces a new state {@code S} with the reserved state info in {@code reservedStateMap}
+     * @return A tuple of the new state and new reserved state metadata, or {@code null} if no changes are required.
+     */
+    final Tuple<ClusterState, ReservedStateMetadata> execute(ClusterState state, Map<String, ReservedStateMetadata> reservedStateMap) {
         Map<String, Object> reservedState = stateChunk.state();
         ReservedStateVersion reservedStateVersion = stateChunk.metadata();
+        ReservedStateMetadata reservedStateMetadata = reservedStateMap.get(namespace);
 
-        if (checkMetadataVersion(namespace, existingMetadata, reservedStateVersion, versionCheck) == false) {
-            return currentState;
+        if (checkMetadataVersion(projectId(), namespace, reservedStateMetadata, reservedStateVersion, versionCheck) == false) {
+            return null;
         }
 
         var reservedMetadataBuilder = new ReservedStateMetadata.Builder(namespace).version(reservedStateVersion.version());
         List<String> errors = new ArrayList<>();
 
-        ClusterState state = currentState;
-        // Transform the cluster state first
-        for (var handlerName : orderedHandlers) {
-            ReservedClusterStateHandler<?> handler = handlers.get(handlerName);
+        // First apply the updates to transform the cluster state
+        for (var handlerName : updateSequence) {
+            T handler = handlers.get(handlerName);
             try {
-                Set<String> existingKeys = keysForHandler(existingMetadata, handlerName);
-                TransformState transformState = handler.transform(reservedState.get(handlerName), new TransformState(state, existingKeys));
+                Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                TransformState transformState = transform(handler, reservedState.get(handlerName), new TransformState(state, existingKeys));
                 state = transformState.state();
                 reservedMetadataBuilder.putHandler(new ReservedStateHandlerMetadata(handlerName, transformState.keys()));
             } catch (Exception e) {
                 errors.add(format("Error processing %s state change: %s", handler.name(), stackTrace(e)));
+            }
+        }
+
+        // Now, any existing handler not listed in updateSequence must have been removed.
+        // We do removals after updates in case one of the updated handlers depends on one of these,
+        // to give that handler a chance to clean up before its dependency vanishes.
+        if (reservedStateMetadata != null) {
+            Set<String> toRemove = new HashSet<>(reservedStateMetadata.handlers().keySet());
+            toRemove.removeAll(updateSequence);
+            SequencedSet<String> removalSequence = orderedStateHandlers(toRemove, handlers).reversed();
+            for (var handlerName : removalSequence) {
+                T handler = handlers.get(handlerName);
+                try {
+                    Set<String> existingKeys = keysForHandler(reservedStateMetadata, handlerName);
+                    state = remove(handler, new TransformState(state, existingKeys));
+                } catch (Exception e) {
+                    errors.add(format("Error processing %s state removal: %s", handler.name(), stackTrace(e)));
+                }
             }
         }
 
@@ -117,10 +159,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         // Remove the last error if we had previously encountered any in prior processing of reserved state
         reservedMetadataBuilder.errorMetadata(null);
 
-        ClusterState.Builder stateBuilder = new ClusterState.Builder(state);
-        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(reservedMetadataBuilder.build());
-
-        return stateBuilder.metadata(metadataBuilder).build();
+        return Tuple.tuple(state, reservedMetadataBuilder.build());
     }
 
     private void checkAndThrowOnError(List<String> errors, ReservedStateVersion version, ReservedStateVersionCheck versionCheck) {
@@ -129,6 +168,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             var errorState = new ErrorState(
+                projectId(),
                 namespace,
                 version.version(),
                 versionCheck,
@@ -156,6 +196,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
     }
 
     static boolean checkMetadataVersion(
+        Optional<ProjectId> projectId,
         String namespace,
         ReservedStateMetadata existingMetadata,
         ReservedStateVersion reservedStateVersion,
@@ -164,7 +205,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (reservedStateVersion.buildVersion().isFutureVersion()) {
             logger.warn(
                 () -> format(
-                    "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    "Reserved %s version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
+                    projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                     reservedStateVersion.buildVersion(),
                     namespace
                 )
@@ -181,7 +223,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (newVersion <= 0L) {
             logger.warn(
                 () -> format(
-                    "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
+                    "Not updating reserved %s for namespace [%s], because version [%s] is less or equal to 0",
+                    projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                     namespace,
                     newVersion
                 )
@@ -200,7 +243,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
 
         logger.warn(
             () -> format(
-                "Not updating reserved cluster state for namespace [%s], because version [%s] is %s the current metadata version [%s]",
+                "Not updating reserved %s for namespace [%s], because version [%s] is %s the current metadata version [%s]",
+                projectId.map(p -> "project state [" + p + "]").orElse("cluster state"),
                 namespace,
                 newVersion,
                 switch (versionCheck) {
@@ -211,6 +255,72 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             )
         );
         return false;
+    }
+
+    /**
+     * Returns the given {@code handlerNames} in order of their handler dependencies.
+     */
+    static SequencedSet<String> orderedStateHandlers(
+        Collection<String> handlerNames,
+        Map<String, ? extends ReservedStateHandler<?>> handlersByName
+    ) {
+        LinkedHashSet<String> orderedHandlers = new LinkedHashSet<>();
+
+        for (String key : handlerNames) {
+            addStateHandler(handlersByName, key, handlerNames, orderedHandlers, new LinkedHashSet<>());
+        }
+
+        assert Set.copyOf(handlerNames).equals(orderedHandlers);
+        return orderedHandlers;
+    }
+
+    /**
+     * @param inProgress a sequenced set so that "cycle found" error message can list the handlers
+     *                   in an order that demonstrates the cycle
+     */
+    private static void addStateHandler(
+        Map<String, ? extends ReservedStateHandler<?>> handlers,
+        String key,
+        Collection<String> keys,
+        SequencedSet<String> ordered,
+        SequencedSet<String> inProgress
+    ) {
+        if (ordered.contains(key)) {
+            // already added by another dependent handler
+            return;
+        }
+
+        if (false == inProgress.add(key)) {
+            StringBuilder msg = new StringBuilder("Cycle found in settings dependencies: ");
+            inProgress.forEach(s -> {
+                msg.append(s);
+                msg.append(" -> ");
+            });
+            msg.append(key);
+            throw new IllegalStateException(msg.toString());
+        }
+
+        ReservedStateHandler<?> handler = handlers.get(key);
+
+        if (handler == null) {
+            throw new IllegalStateException("Unknown handler type: " + key);
+        }
+
+        for (String dependency : handler.dependencies()) {
+            if (keys.contains(dependency) == false) {
+                throw new IllegalStateException("Missing handler dependency definition: " + key + " -> " + dependency);
+            }
+            addStateHandler(handlers, dependency, keys, ordered, inProgress);
+        }
+
+        for (String dependency : handler.optionalDependencies()) {
+            if (keys.contains(dependency)) {
+                addStateHandler(handlers, dependency, keys, ordered, inProgress);
+            }
+        }
+
+        inProgress.remove(key);
+        ordered.add(key);
     }
 
 }

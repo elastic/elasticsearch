@@ -21,7 +21,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.sourcebatch.SourceRow;
+import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -33,7 +37,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -45,6 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk1() throws Exception {
@@ -52,9 +59,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
-        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value3\" }")));
     }
 
     public void testSimpleBulkWithCarriageReturn() throws Exception {
@@ -65,7 +72,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalBytes(new BytesArray("{ \"field1\" : \"value1\" }")));
         Map<String, Object> sourceMap = XContentHelper.convertToMap(
             ((IndexRequest) bulkRequest.requests().get(0)).source(),
             false,
@@ -388,6 +395,35 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(), equalTo(Map.of()));
     }
 
+    public void testDynamicTemplateParams() throws Exception {
+        BytesArray data = new BytesArray("""
+            { "index":{"_index":"test","dynamic_template_params":{"field1":{"param1": "value1", "param2":"value2"}}}}
+            { "field1" : "value1" }
+            { "delete" : { "_index" : "test", "_id" : "2" } }
+            { "create" : {"_index":"test","dynamic_template_params":{"field1":{"param1": "value1"}}}}
+            { "field1" : "value3" }
+            { "create" : {"dynamic_template_params":{"field1":{"param1": "value1"},"field2":{"param2": "value2"}}}}
+            { "field1" : "value3" }
+            { "index" : {"dynamic_templates":{}}}
+            { "field1" : "value3" }
+            """);
+        BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
+        assertThat(bulkRequest.requests, hasSize(5));
+        assertThat(
+            ((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplateParams(),
+            equalTo(Map.of("field1", Map.of("param1", "value1", "param2", "value2")))
+        );
+        assertThat(
+            ((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplateParams(),
+            equalTo(Map.of("field1", Map.of("param1", "value1")))
+        );
+        assertThat(
+            ((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplateParams(),
+            equalTo(Map.of("field1", Map.of("param1", "value1"), "field2", Map.of("param2", "value2")))
+        );
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplateParams(), equalTo(Map.of()));
+    }
+
     public void testInvalidDynamicTemplates() {
         BytesArray deleteWithDynamicTemplates = new BytesArray("""
             {"delete" : { "_index" : "test", "_id" : "2", "dynamic_templates":{"baz":"t1"}} }
@@ -495,5 +531,98 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(shallowCopy.routing(), equalTo(bulkRequest.routing()));
         assertThat(shallowCopy.requireAlias(), equalTo(bulkRequest.requireAlias()));
         assertThat(shallowCopy.requireDataStream(), equalTo(bulkRequest.requireDataStream()));
+    }
+
+    public void testTakePreBuiltBatchesTransfersOwnership() {
+        CloseCountingBatch a = new CloseCountingBatch();
+        CloseCountingBatch b = new CloseCountingBatch();
+        BulkRequest request = new BulkRequest();
+        request.setPreBuiltBatches(Map.of("a", a, "b", b));
+        assertTrue(request.hasPreBuiltBatches());
+
+        Map<String, SourceBatch> taken = request.takePreBuiltBatches();
+        assertThat(taken.get("a"), sameInstance(a));
+        assertThat(taken.get("b"), sameInstance(b));
+        assertFalse(request.hasPreBuiltBatches());
+
+        request.releasePreBuiltBatches();
+        expectThrows(IllegalStateException.class, request::takePreBuiltBatches);
+        assertThat(a.closeCount.get(), equalTo(0));
+        assertThat(b.closeCount.get(), equalTo(0));
+
+        Releasables.close(taken.values());
+        assertThat(a.closeCount.get(), equalTo(1));
+        assertThat(b.closeCount.get(), equalTo(1));
+    }
+
+    public void testReleasePreBuiltBatchesClosesEachOnce() {
+        CloseCountingBatch a = new CloseCountingBatch();
+        CloseCountingBatch b = new CloseCountingBatch();
+        BulkRequest request = new BulkRequest();
+        request.setPreBuiltBatches(Map.of("a", a, "b", b));
+
+        request.releasePreBuiltBatches();
+        request.releasePreBuiltBatches();
+        assertFalse(request.hasPreBuiltBatches());
+        expectThrows(IllegalStateException.class, request::takePreBuiltBatches);
+
+        assertThat(a.closeCount.get(), equalTo(1));
+        assertThat(b.closeCount.get(), equalTo(1));
+    }
+
+    public void testNoPreBuiltBatchesByDefault() {
+        BulkRequest request = new BulkRequest();
+        assertFalse(request.hasPreBuiltBatches());
+        request.releasePreBuiltBatches();
+        expectThrows(IllegalStateException.class, request::takePreBuiltBatches);
+    }
+
+    static final class CloseCountingBatch implements SourceBatch {
+        final AtomicInteger closeCount = new AtomicInteger();
+
+        @Override
+        public int docCount() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SourceSchema schema() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int columnCount() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesReference data() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SourceRow row(int docIndex) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SourceBatch slice(int from, int to) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int estimatedBytes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            closeCount.incrementAndGet();
+        }
     }
 }

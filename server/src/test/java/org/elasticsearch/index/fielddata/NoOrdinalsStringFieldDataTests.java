@@ -80,4 +80,14 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
     public void testTermsEnum() throws Exception {
         assumeTrue("We can't test this, since the returned IFD instance doesn't implement IndexFieldData.WithOrdinals", false);
     }
+
+    @Override
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
 }

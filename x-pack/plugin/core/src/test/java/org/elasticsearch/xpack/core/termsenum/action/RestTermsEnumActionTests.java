@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -20,6 +21,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -48,7 +50,7 @@ import static org.mockito.Mockito.mock;
 public class RestTermsEnumActionTests extends ESTestCase {
 
     private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
-    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+    private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(
@@ -58,7 +60,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
         usageService,
         TelemetryProvider.NOOP
     );
-    private static RestTermsEnumAction action = new RestTermsEnumAction();
+    private static RestTermsEnumAction action = new RestTermsEnumAction(CrossProjectModeDecider.NOOP);
 
     /**
      * Configures {@link NodeClient} to stub {@link TermsEnumAction} transport action.
@@ -71,7 +73,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             taskManager,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
@@ -79,8 +81,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
         };
 
-        final Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local", mock(Transport.Connection.class), null);
@@ -124,7 +125,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);
@@ -152,7 +153,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
             }""";
 
         final RestRequest request = createRestRequest(content);
-        final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+        final FakeRestChannel channel = new FakeRestChannel(request, true);
 
         // WHEN
         action.handleRequest(request, channel, client);

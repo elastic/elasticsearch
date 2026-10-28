@@ -38,7 +38,7 @@ SELECT TRUNCATE(YEAR(TODAY() - INTERVAL 50 YEARS) / 1000) AS result;
 
 
 currentDateFilter
-SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 45 YEARS ORDER BY first_name ASC LIMIT 10;
+SELECT first_name FROM test_emp WHERE hire_date > DATE_TRUNC('CENTURY', CURRENT_DATE()) - INTERVAL 11 YEARS ORDER BY first_name ASC LIMIT 10;
 
     first_name
 -----------------
@@ -46,12 +46,12 @@ Alejandro
 Amabile
 Anneke
 Anoosh
-Arumugam
 Basil
-Berhard
-Berni
-Bezalel
 Bojan
+Brendon
+Cristinel
+Divier
+Domenick
 ;
 
 currentDateFilterScript

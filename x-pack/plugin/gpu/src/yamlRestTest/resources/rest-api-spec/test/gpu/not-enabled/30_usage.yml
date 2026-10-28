@@ -1,0 +1,26 @@
+---
+"Test GPU vector indexing xpack info with GPU disabled":
+  - requires:
+      cluster_features: ["vectors.indexing.gpu_monitoring"]
+      reason: "GPU monitoring feature required"
+
+  - do:
+      xpack.info: {}
+  - is_true: features.gpu_vector_indexing
+  - exists: features.gpu_vector_indexing.available
+  - is_false: features.gpu_vector_indexing.enabled
+
+---
+"Test GPU vector indexing xpack usage with GPU disabled":
+  - requires:
+      cluster_features: ["vectors.indexing.gpu_monitoring"]
+      reason: "GPU monitoring feature required"
+
+  - do:
+      xpack.usage: {}
+  - is_true: gpu_vector_indexing
+  - is_true: gpu_vector_indexing.available
+  - is_false: gpu_vector_indexing.enabled
+  - match: { gpu_vector_indexing.index_build_count: 0 }
+  - gte: { gpu_vector_indexing.nodes_with_gpu: 0 }
+  - exists: gpu_vector_indexing.nodes

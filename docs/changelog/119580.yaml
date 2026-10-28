@@ -1,5 +1,0 @@
-pr: 119580
-summary: Do not serialize `EsIndex` in plan
-area: ES|QL
-type: enhancement
-issues: []

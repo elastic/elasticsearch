@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+// trigger repeat pipeline test
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

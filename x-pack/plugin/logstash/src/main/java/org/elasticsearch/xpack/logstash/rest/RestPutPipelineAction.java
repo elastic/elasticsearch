@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.logstash.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -16,7 +18,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.Pipeline;
 import org.elasticsearch.xpack.logstash.action.PutPipelineAction;
 import org.elasticsearch.xpack.logstash.action.PutPipelineRequest;
@@ -24,11 +26,23 @@ import org.elasticsearch.xpack.logstash.action.PutPipelineResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutPipelineAction extends BaseRestHandler {
+
+    // A pipeline ID pattern to validate.
+    // Reference: https://www.elastic.co/docs/reference/logstash/configuring-centralized-pipelines#wildcard-in-pipeline-id
+    private static final Pattern PIPELINE_ID_PATTERN = Pattern.compile("[a-zA-Z_][a-zA-Z0-9_-]*");
+
+    private final Supplier<ByteSizeValue> maxSize;
+
+    public RestPutPipelineAction(Supplier<ByteSizeValue> maxSize) {
+        this.maxSize = maxSize;
+    }
 
     @Override
     public String getName() {
@@ -40,9 +54,45 @@ public class RestPutPipelineAction extends BaseRestHandler {
         return List.of(new Route(PUT, "/_logstash/pipeline/{id}"));
     }
 
+    /**
+     * Validates pipeline ID for:
+     * - must begin with a letter or underscore
+     * - can contain only letters, underscores, dashes, and numbers
+     */
+    private static void validatePipelineId(String id) {
+        if (Strings.isEmpty(id)) {
+            throw new IllegalArgumentException("Pipeline ID cannot be null or empty");
+        }
+
+        if (PIPELINE_ID_PATTERN.matcher(id).matches() == false) {
+            throw new IllegalArgumentException(
+                "Invalid pipeline ["
+                    + id
+                    + "] ID received. Pipeline ID must begin with a letter or underscore and can contain only letters, "
+                    + "underscores, dashes, hyphens, and numbers"
+            );
+        }
+    }
+
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String id = request.param("id");
+        validatePipelineId(id);
+
+        final int contentLength = request.content().length();
+        final ByteSizeValue max = maxSize.get();
+        if (contentLength > max.getBytes()) {
+            throw new IllegalArgumentException(
+                "Pipeline body ["
+                    + contentLength
+                    + " bytes] exceeds the maximum allowed size of ["
+                    + max
+                    + "]. This limit can be raised with the ["
+                    + Logstash.PIPELINE_MAX_SIZE.getKey()
+                    + "] cluster setting."
+            );
+        }
+
         try (XContentParser parser = request.contentParser()) {
             // parse pipeline for validation
             Pipeline.PARSER.apply(parser, id);
@@ -55,9 +105,9 @@ public class RestPutPipelineAction extends BaseRestHandler {
                 new PutPipelineRequest(id, content, request.getXContentType()),
                 new RestActionListener<>(restChannel) {
                     @Override
-                    protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
+                    protected void processResponse(PutPipelineResponse putPipelineResponse) {
                         channel.sendResponse(
-                            new RestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
+                            new RestResponse(putPipelineResponse.status(), RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
                         );
                     }
                 }

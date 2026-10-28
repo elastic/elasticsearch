@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.ClassModel;
+import com.carrotsearch.randomizedtesting.TestMethodProvider;
+import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -24,14 +28,22 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.Matchers.containsString;
 
+@TestMethodProviders({ EsqlDisruptionIT.LimitedTests.class })
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
 public class EsqlDisruptionIT extends EsqlActionIT {
 
@@ -67,54 +79,92 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         return plugins;
     }
 
+    private boolean runningWithDisruption;
+
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
-        boolean singleIndex = request.query().startsWith("from test |");
-        if (singleIndex && randomIntBetween(0, 100) <= 20) {
-            return runQueryWithDisruption(request);
+        boolean singleIndex = request.queryDescription().startsWith("from test |");
+        if (singleIndex) {
+            // Fail fast if the retry ever re-enters the disruption path, instead of looping until the suite timeout.
+            assertFalse("runQueryWithDisruption must not re-enter itself", runningWithDisruption);
+            runningWithDisruption = true;
+            try {
+                return runQueryWithDisruption(request, timeout);
+            } finally {
+                runningWithDisruption = false;
+            }
         } else {
-            return super.run(request);
+            return super.run(request, timeout);
         }
     }
 
-    private EsqlQueryResponse runQueryWithDisruption(EsqlQueryRequest request) {
+    /**
+     * Queries that fail during planning, such as verification errors, must surface to the caller instead of being retried
+     * forever under disruption. {@link LimitedTests} always runs the tests declared here, so a regression fails every run.
+     */
+    public void testVerificationFailureUnderDisruption() {
+        var e = expectThrows(VerificationException.class, () -> run("from test | eval x = unknown_field"));
+        assertThat(e.getMessage(), containsString("Unknown column [unknown_field]"));
+    }
+
+    private EsqlQueryResponse runQueryWithDisruption(EsqlQueryRequest request, TimeValue timeout) {
         final ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
-        logger.info("--> executing esql query with disruption {} ", request.query());
+        logger.info("--> executing esql query with disruption {} ", request.queryDescription());
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        EsqlQueryResponse resp = null;
         try {
-            return future.actionGet(2, TimeUnit.MINUTES);
+            resp = future.actionGet(2, TimeUnit.MINUTES);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
         } catch (Exception ignored) {
 
         } finally {
             clearDisruption();
         }
-        try {
-            return future.actionGet(2, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            logger.info(
-                "running tasks: {}",
-                client().admin()
-                    .cluster()
-                    .prepareListTasks()
-                    .get()
-                    .getTasks()
-                    .stream()
-                    .filter(
-                        // Skip the tasks we that'd get in the way while debugging
-                        t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
-                            && false == t.action().contains(HealthNode.TASK_NAME)
-                    )
-                    .toList()
-            );
-            assertTrue("request must be failed or completed after clearing disruption", future.isDone());
-            ensureBlocksReleased();
-            logger.info("--> failed to execute esql query with disruption; retrying...", e);
-            EsqlTestUtils.assertEsqlFailure(e);
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+        // wait for the response after clear disruption
+        if (resp == null) {
+            try {
+                resp = future.actionGet(2, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                logger.info(
+                    "running tasks: {}",
+                    client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .get()
+                        .getTasks()
+                        .stream()
+                        .filter(
+                            // Skip the tasks we that'd get in the way while debugging
+                            t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                && false == t.action().contains(HealthNode.TASK_NAME)
+                        )
+                        .toList()
+                );
+                assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+                ensureBlocksReleased();
+                logger.info("--> failed to execute esql query with disruption; retrying...", e);
+                EsqlTestUtils.assertEsqlFailure(e);
+            }
         }
+        // use the response if it's not partial
+        if (resp != null) {
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (var ignored = resp) {
+                assertTrue(request.allowPartialResults());
+            }
+        }
+        // re-run the query without disruption; the one-argument run would dispatch back into this method
+        return super.run(request, timeout);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
@@ -146,6 +196,27 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             ensureYellow();
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static class LimitedTests implements TestMethodProvider {
+        @Override
+        public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
+            List<Method> all = Arrays.stream(suiteClass.getMethods())
+                .filter(m -> m.getName().startsWith("test"))
+                .filter(m -> m.getParameterCount() == 0)
+                .sorted(java.util.Comparator.comparing(Method::getName))
+                .collect(Collectors.toList());
+            String seedStr = System.getProperty("tests.seed");
+            if (seedStr == null || seedStr.isEmpty()) {
+                throw new AssertionError("tests.seed is not provided");
+            }
+            long seed = Long.parseUnsignedLong(seedStr.substring(0, Math.min(16, seedStr.length())), 16);
+            Random rng = new Random(seed);
+            Collections.shuffle(all, rng);
+            List<Method> selected = all.stream().filter(m -> m.getDeclaringClass() == suiteClass).collect(Collectors.toList());
+            all.stream().filter(m -> m.getDeclaringClass() != suiteClass).limit(5).forEach(selected::add);
+            return selected;
         }
     }
 }

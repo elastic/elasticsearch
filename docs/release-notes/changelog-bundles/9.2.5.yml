@@ -1,0 +1,85 @@
+version: 9.2.5
+released: true
+generated: 2026-01-31T00:09:12.893973818Z
+changelogs:
+  - pr: 135899
+    summary: Fix date fields sort formatting with missing values
+    area: Search
+    type: bug
+    issues:
+      - 81960
+  - pr: 136438
+    summary: '`BlockSourceReader` should always apply source filtering'
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 138951
+    summary: Retry bulk-delete items in GCS
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 138364
+  - pr: 140163
+    summary: Disallow `max_number_of_allocations` > 1 for low priority model deployments
+    area: Machine Learning
+    type: bug
+    issues:
+      - 111227
+  - pr: 140301
+    summary: Disable `_delete_by_query` and `_update_by_query` for CCS/stateful
+    area: Reindex
+    type: bug
+    issues: []
+  - pr: 140331
+    summary: "[Inference API] Include rerank in supported tasks for IBM watsonx integration"
+    area: Inference
+    type: bug
+    issues:
+      - 140328
+  - pr: 140536
+    summary: Support `LimitedRole` in idp role resolution
+    area: IdentityProvider
+    type: enhancement
+    issues: []
+  - pr: 140622
+    summary: Use sub keyword block loader with `ignore_above` for text fields
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 140699
+    summary: Handle deleted source index in allocation deciders
+    area: Allocation
+    type: bug
+    issues:
+      - 140630
+  - pr: 140701
+    summary: Fix stderr leak in Docker ES process detection
+    area: Packaging
+    type: bug
+    issues: []
+  - pr: 140886
+    summary: Fix `_index` on missing events in CCS
+    area: EQL
+    type: bug
+    issues: []
+  - pr: 140892
+    summary: Remove ILM-stopped-check before the cluster update in `migrateToDataTiersRouting`
+    area: ILM
+    type: bug
+    issues:
+      - 140885
+  - pr: 141157
+    summary: Fix folding of case() function with date period and time duration
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 141185
+    summary: Add `max_batch_size` setting to EIS dense and sparse service settings
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 141323
+    summary: Fix race condition in `CancellableRateLimitedFluxIterator`
+    area: Snapshot/Restore
+    type: bug
+    issues: []

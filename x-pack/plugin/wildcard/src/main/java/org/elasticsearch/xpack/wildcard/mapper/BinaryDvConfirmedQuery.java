@@ -1,0 +1,542 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.wildcard.mapper;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortingArrayOrderBinaryDocValues;
+import org.elasticsearch.lucene.queries.BinaryDocValuesScanCost;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.function.Supplier;
+
+/**
+ * Query that provided an arbitrary match across all binary doc values (but only for docs that also
+ * match a provided approximation query which is key to getting good performance).
+ */
+
+abstract class BinaryDvConfirmedQuery extends Query implements BinaryDocValuesScanCost {
+
+    protected final String field;
+    protected final Query approxQuery;
+    protected final boolean arrayOrder;
+
+    private BinaryDvConfirmedQuery(Query approximation, String field, boolean arrayOrder) {
+        this.approxQuery = approximation;
+        this.field = field;
+        this.arrayOrder = arrayOrder;
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a range query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromRangeQuery(
+        Query approximation,
+        String field,
+        BytesRef lower,
+        BytesRef upper,
+        boolean includeLower,
+        boolean includeUpper,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new RangeAutomatonProvider(lower, upper, includeLower, includeUpper),
+            arrayOrder,
+            breaker
+        );
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a wildcard query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromWildcardQuery(
+        Query approximation,
+        String field,
+        String matchPattern,
+        boolean caseInsensitive,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new PatternAutomatonProvider(matchPattern, caseInsensitive),
+            arrayOrder,
+            breaker
+        );
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a regexp query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromRegexpQuery(
+        Query approximation,
+        String field,
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new RegexAutomatonProvider(value, syntaxFlags, matchFlags, maxDeterminizedStates),
+            arrayOrder,
+            breaker
+        );
+    }
+
+    /**
+     * Returns a query that runs the generated Automaton from a fuzzy query across
+     * all binary doc values (but only for docs that also match a provided approximation query which is key
+     * to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromFuzzyQuery(
+        Query approximation,
+        String field,
+        String searchTerm,
+        FuzzyQuery fuzzyQuery,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery),
+            arrayOrder,
+            breaker
+        );
+    }
+
+    /**
+     * Returns a query that runs the provided supplier-based automaton across all binary doc values
+     * (but only for docs that also match a provided approximation query which is key to getting good
+     * performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     * <p>
+     * The {@code description} is used as the equality proxy for query-cache identity; it must be derived
+     * deterministically from the pattern list and case-sensitivity flag that produced the automaton.
+     */
+    public static Query fromAutomaton(
+        Query approximation,
+        String field,
+        Supplier<Automaton> automatonSupplier,
+        String description,
+        boolean arrayOrder,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new BinaryDvConfirmedAutomatonQuery(
+            approximation,
+            field,
+            new SuppliedAutomatonProvider(automatonSupplier, description),
+            arrayOrder,
+            breaker
+        );
+    }
+
+    /**
+     * Returns a query that checks for equality of at least one of the provided terms across
+     * all binary doc values (but only for docs that also match a provided approximation query which
+     * is key to getting good performance). Reads the field's binary doc values using the in-order
+     * {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ArrayOrderInlineNull ArrayOrderInlineNull} format when
+     * {@code arrayOrder} is {@code true} (high-cardinality columnar fields in strictly columnar index mode).
+     */
+    public static Query fromTerms(Query approximation, String field, boolean arrayOrder, BytesRef... terms) {
+        Arrays.sort(terms, BytesRef::compareTo);
+        return new BinaryDvConfirmedTermsQuery(approximation, field, terms, arrayOrder);
+    }
+
+    protected abstract BinaryDVMatcher getBinaryDVMatcher();
+
+    protected abstract Query rewrite(Query approxRewrite) throws IOException;
+
+    @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query approxRewrite = approxQuery.rewrite(searcher);
+        if (approxRewrite instanceof MatchNoDocsQuery) {
+            return MatchNoDocsQuery.INSTANCE;
+        }
+        if (approxQuery != approxRewrite) {
+            return rewrite(approxRewrite);
+        }
+        return this;
+    }
+
+    @Override
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
+        final CircuitBreaker breaker = ContextIndexSearcher.circuitBreakerOrNull(searcher);
+        final BinaryDVMatcher matcher = getBinaryDVMatcher();
+        return new ConstantScoreWeight(this, boost) {
+
+            @Override
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier approxScorerSupplier = approxWeight.scorerSupplier(context);
+                if (approxScorerSupplier == null) {
+                    // No matches to be had
+                    return null;
+                }
+
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        // Checkpoint before opening the binary doc values reader for this surviving clause/segment pair.
+                        ContextIndexSearcher.checkBinaryDvDecodeBreaker(breaker);
+                        final SortableBinaryDocValues values = arrayOrder
+                            ? SortingArrayOrderBinaryDocValues.from(context.reader(), field)
+                            : MultiValuedSortableBinaryDocValues.fromMultiValued(context.reader(), field);
+                        final Scorer approxScorer = approxScorerSupplier.get(leadCost);
+                        final DocIdSetIterator approxDisi = approxScorer.iterator();
+                        final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                if (values.advanceExact(approxDisi.docID()) == false) {
+                                    // Can happen when approxQuery resolves to some form of MatchAllDocs expression
+                                    return false;
+                                }
+                                return matcher.matchesBinaryDV(values);
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                // TODO: how can we compute this?
+                                return 1000f;
+                            }
+                        };
+                        return new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return approxScorerSupplier.cost();
+                    }
+                };
+            }
+
+            @Override
+            public boolean isCacheable(LeafReaderContext ctx) {
+                return true;
+            }
+        };
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (sameClassAs(obj) == false) {
+            return false;
+        }
+        BinaryDvConfirmedQuery other = (BinaryDvConfirmedQuery) obj;
+        return arrayOrder == other.arrayOrder && Objects.equals(field, other.field) && Objects.equals(approxQuery, other.approxQuery);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(classHash(), field, approxQuery, arrayOrder);
+    }
+
+    Query getApproximationQuery() {
+        return approxQuery;
+    }
+
+    @Override
+    public String field() {
+        return field;
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            approxQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
+            visitor.visitLeaf(this);
+        }
+    }
+
+    interface BinaryDVMatcher {
+        boolean matchesBinaryDV(SortableBinaryDocValues values) throws IOException;
+    }
+
+    /**
+     * Builds its automaton when the query is built, not when its weight is created, so that the retained automaton is a part of the
+     * query that {@link org.elasticsearch.search.internal.MaxClauseCountQueryVisitor} can charge to the request breaker through
+     * {@link Accountable}. {@code automatonProvider} is kept only because the automaton has no value equality.
+     */
+    private static class BinaryDvConfirmedAutomatonQuery extends BinaryDvConfirmedQuery implements Accountable {
+
+        /**
+         * Not used to build anything after construction. It stays for {@code equals}, {@code hashCode} and {@code toString}: it has cheap
+         * value equality on the source parameters and can print the pattern, neither of which the built automaton offers.
+         */
+        private final AutomatonProvider automatonProvider;
+        private final ByteRunAutomaton byteRunAutomaton;
+
+        private BinaryDvConfirmedAutomatonQuery(
+            Query approximation,
+            String field,
+            AutomatonProvider automatonProvider,
+            boolean arrayOrder,
+            @Nullable CircuitBreaker breaker
+        ) {
+            this(approximation, field, automatonProvider, automatonProvider.getAutomaton(field, breaker), arrayOrder);
+        }
+
+        private BinaryDvConfirmedAutomatonQuery(
+            Query approximation,
+            String field,
+            AutomatonProvider automatonProvider,
+            ByteRunAutomaton byteRunAutomaton,
+            boolean arrayOrder
+        ) {
+            super(approximation, field, arrayOrder);
+            this.automatonProvider = automatonProvider;
+            this.byteRunAutomaton = byteRunAutomaton;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return byteRunAutomaton.ramBytesUsed() + RamUsageEstimator.shallowSizeOf(this);
+        }
+
+        @Override
+        protected BinaryDVMatcher getBinaryDVMatcher() {
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
+                    if (byteRunAutomaton.run(val.bytes, val.offset, val.length)) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+        }
+
+        @Override
+        protected Query rewrite(Query approxRewrite) {
+            return new BinaryDvConfirmedAutomatonQuery(approxRewrite, field, automatonProvider, byteRunAutomaton, arrayOrder);
+        }
+
+        @Override
+        public String toString(String field) {
+            return field + ":" + automatonProvider.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            BinaryDvConfirmedAutomatonQuery other = (BinaryDvConfirmedAutomatonQuery) o;
+            return Objects.equals(automatonProvider, other.automatonProvider);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), automatonProvider);
+        }
+    }
+
+    private static class BinaryDvConfirmedTermsQuery extends BinaryDvConfirmedQuery {
+
+        private final BytesRef[] terms;
+
+        private BinaryDvConfirmedTermsQuery(Query approximation, String field, BytesRef[] terms, boolean arrayOrder) {
+            super(approximation, field, arrayOrder);
+            // terms must already be sorted
+            this.terms = terms;
+        }
+
+        @Override
+        protected BinaryDVMatcher getBinaryDVMatcher() {
+            return (values) -> {
+                int count = values.docValueCount();
+                for (int i = 0; i < count; i++) {
+                    BytesRef val = values.nextValue();
+                    if (terms.length == 1) {
+                        if (terms[0].bytesEquals(val)) {
+                            return true;
+                        }
+                    } else {
+                        final int pos = Arrays.binarySearch(terms, val, BytesRef::compareTo);
+                        if (pos >= 0) {
+                            assert terms[pos].bytesEquals(val) : "Expected term at position " + pos + " to match value, but it did not.";
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+        }
+
+        @Override
+        protected Query rewrite(Query approxRewrite) {
+            return new BinaryDvConfirmedTermsQuery(approxRewrite, field, terms, arrayOrder);
+        }
+
+        @Override
+        public String toString(String field) {
+            StringBuilder builder = new StringBuilder(field + ": [");
+            for (int i = 0; i < terms.length; i++) {
+                if (i > 0) {
+                    builder.append(", ");
+                }
+                builder.append(terms[i].utf8ToString());
+            }
+            builder.append("]");
+            return builder.toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            BinaryDvConfirmedTermsQuery that = (BinaryDvConfirmedTermsQuery) o;
+            return Arrays.equals(this.terms, that.terms);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), Arrays.hashCode(terms));
+        }
+    }
+
+    private interface AutomatonProvider {
+        ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker);
+    }
+
+    private record PatternAutomatonProvider(String matchPattern, boolean caseInsensitive) implements AutomatonProvider {
+        @Override
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            try {
+                Term term = new Term(field, matchPattern);
+                return AutomatonQueries.toWildcardByteRunAutomaton(term, caseInsensitive, breaker);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+        }
+    }
+
+    private record RegexAutomatonProvider(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates)
+        implements
+            AutomatonProvider {
+        @Override
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            try {
+                return AutomatonQueries.toRegexpByteRunAutomaton(field, value, syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+        }
+    }
+
+    private record RangeAutomatonProvider(BytesRef lower, BytesRef upper, boolean includeLower, boolean includeUpper)
+        implements
+            AutomatonProvider {
+        @Override
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            return AutomatonQueries.toByteRunAutomaton(
+                TermRangeQuery.toAutomaton(lower, upper, includeLower, includeUpper),
+                breaker,
+                ChildMemoryCircuitBreaker.CATEGORY_RANGE
+            );
+        }
+    }
+
+    private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
+        @Override
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            return fuzzyQuery.getAutomata().runAutomaton;
+        }
+    }
+
+    /**
+     * Wraps an already-built automaton supplier. Equality keys on {@code description} only because
+     * {@link Supplier} has no value-based equality; the description must be derived deterministically
+     * from the pattern list and case-sensitivity flag that produced the automaton.
+     */
+    private static final class SuppliedAutomatonProvider implements AutomatonProvider {
+        private final Supplier<Automaton> supplier;
+        private final String description;
+
+        SuppliedAutomatonProvider(Supplier<Automaton> supplier, String description) {
+            this.supplier = Objects.requireNonNull(supplier);
+            this.description = Objects.requireNonNull(description);
+        }
+
+        @Override
+        public ByteRunAutomaton getAutomaton(String field, @Nullable CircuitBreaker breaker) {
+            return AutomatonQueries.toByteRunAutomaton(supplier.get(), breaker, ChildMemoryCircuitBreaker.CATEGORY_QUERY);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SuppliedAutomatonProvider that = (SuppliedAutomatonProvider) o;
+            return Objects.equals(description, that.description);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(description);
+        }
+
+        @Override
+        public String toString() {
+            return description;
+        }
+    }
+}

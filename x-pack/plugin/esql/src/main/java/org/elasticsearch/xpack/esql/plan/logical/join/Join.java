@@ -7,40 +7,116 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
+    private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
+    public static final DataType[] UNSUPPORTED_TYPES = {
+        TEXT,
+        VERSION,
+        UNSIGNED_LONG,
+        GEO_POINT,
+        GEO_SHAPE,
+        CARTESIAN_POINT,
+        CARTESIAN_SHAPE,
+        GEOHASH,
+        GEOTILE,
+        GEOHEX,
+        UNSUPPORTED,
+        NULL,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE,
+        FLATTENED,
+        OBJECT,
+        SOURCE,
+        DATE_PERIOD,
+        TIME_DURATION,
+        DOC_DATA_TYPE,
+        TSID_DATA_TYPE,
+        AGGREGATE_METRIC_DOUBLE,
+        EXPONENTIAL_HISTOGRAM,
+        TDIGEST,
+        HISTOGRAM,
+        DENSE_VECTOR,
+        DATE_RANGE,
+        DOUBLE_RANGE,
+        PARTIAL_AGG };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
+    // Where this join executes — relevant only on the coordinating node, thus transient.
+    private final transient ExecuteLocation mode;
 
-    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, ExecuteLocation mode) {
         super(source, left, right);
         this.config = config;
+        this.mode = mode;
     }
 
     public Join(
@@ -48,25 +124,39 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         LogicalPlan left,
         LogicalPlan right,
         JoinType type,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
-        List<Attribute> rightFields
+        List<Attribute> rightFields,
+        Expression joinOnConditions,
+        ExecuteLocation mode
     ) {
-        super(source, left, right);
-        this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
+        this(source, left, right, new JoinConfig(type, leftFields, rightFields, joinOnConditions), mode);
     }
 
     public Join(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
+        this.mode = ExecuteLocation.ANY;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(left());
-        out.writeNamedWriteable(right());
+        out.writeNamedWriteable(getRightToSerialize(out));
         config.writeTo(out);
+    }
+
+    protected LogicalPlan getRightToSerialize(StreamOutput out) {
+        LogicalPlan rightToSerialize = right();
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
+            // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
+            // we do not support a filter on top of the right side of the join
+            // As we consider the filters optional, we remove them here
+            while (rightToSerialize instanceof Filter filter) {
+                rightToSerialize = filter.child();
+            }
+        }
+        return rightToSerialize;
     }
 
     @Override
@@ -88,16 +178,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
             left(),
             right(),
             config.type(),
-            config.matchFields(),
             config.leftFields(),
-            config.rightFields()
+            config.rightFields(),
+            config.joinOnConditions(),
+            mode
         );
     }
 
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput(left().output(), right().output(), config);
+            lazyOutput = Expressions.asAttributes(computeOutputExpressions(left().output(), right().output()));
         }
         return lazyOutput;
     }
@@ -112,6 +203,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         return Expressions.references(config().rightFields());
     }
 
+    /**
+     * The output fields obtained from the right child.
+     */
     public List<Attribute> rightOutputFields() {
         AttributeSet leftInputs = left().outputSet();
 
@@ -125,19 +219,36 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         return rightOutputFields;
     }
 
+    public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
+        return computeOutputExpressions(left, right, config);
+    }
+
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
      */
-    public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
+    public static List<NamedExpression> computeOutputExpressions(
+        List<? extends NamedExpression> leftOutput,
+        List<? extends NamedExpression> rightOutput,
+        JoinConfig config
+    ) {
         JoinType joinType = config.type();
-        List<Attribute> output;
+        List<NamedExpression> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
-            AttributeSet rightKeys = new AttributeSet(config.rightFields());
-            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
-            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
+            if (config.joinOnConditions() == null) {
+                // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+                AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+                List<? extends NamedExpression> rightOutputWithoutMatchFields = rightOutput.stream()
+                    .filter(ne -> rightKeys.contains(ne.toAttribute()) == false)
+                    .toList();
+                output = mergeOutputExpressions(rightOutputWithoutMatchFields, leftOutput);
+            } else {
+                // We don't allow any attributes in the joinOnConditions that don't have unique names
+                // so right always overwrites left in case of name clashes
+                output = mergeOutputExpressions(rightOutput, leftOutput);
+            }
+
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
@@ -159,7 +270,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             if (a.resolved() && a instanceof ReferenceAttribute == false) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
+                out.add(new ReferenceAttribute(a.source(), a.qualifier(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }
@@ -181,17 +292,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config);
+        return new Join(source(), left(), right(), config, mode);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config);
+        return new Join(source(), left, right, config, mode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right());
+        return Objects.hash(config, left(), right(), mode);
     }
 
     @Override
@@ -204,7 +315,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         }
 
         Join other = (Join) obj;
-        return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return config.equals(other.config)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right())
+            && mode == other.mode;
     }
 
     @Override
@@ -212,7 +326,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
         for (int i = 0; i < config.leftFields().size(); i++) {
             Attribute leftField = config.leftFields().get(i);
             Attribute rightField = config.rightFields().get(i);
-            if (leftField.dataType().noText() != rightField.dataType().noText()) {
+            if (comparableTypes(leftField, rightField) == false) {
                 failures.add(
                     fail(
                         leftField,
@@ -224,11 +338,73 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
                     )
                 );
             }
-            if (rightField.dataType().equals(TEXT)) {
+            // TODO: Add support for VERSION by implementing QueryList.versionTermQueryList similar to ipTermQueryList
+            if (Arrays.stream(UNSUPPORTED_TYPES).anyMatch(t -> rightField.dataType().equals(t))) {
                 failures.add(
                     fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
                 );
             }
+        }
+    }
+
+    private static boolean comparableTypes(Attribute left, Attribute right) {
+        DataType leftType = left.dataType();
+        DataType rightType = right.dataType();
+        if (leftType == NULL) {
+            // A field can have NULL type when UNMAPPED_FIELDS="NULLIFY" resolves a missing field to null.
+            // Only the left side needs checking: lookup indices are excluded from nullification (see ResolveUnmapped#nullify),
+            // and for INLINE STATS the right side's grouping key inherits its type from the left.
+            return true;
+        }
+        if (leftType.isNumeric() && rightType.isNumeric()) {
+            // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
+            return commonType(leftType, rightType) != null;
+        }
+        return leftType.noText() == rightType.noText();
+    }
+
+    @Override
+    public ExecuteLocation executesOn() {
+        return mode;
+    }
+
+    private void checkRemoteJoin(Failures failures) {
+        checkForRemoteJoinBlockers(this, failures);
+    }
+
+    private void checkForRemoteJoinBlockers(LogicalPlan plan, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            // The right side is an independent subquery; do not traverse into it.
+            checkForRemoteJoinBlockers(subqueryJoin.left(), failures);
+        } else {
+            if (plan != this) {
+                if (plan instanceof Limit == false) {
+                    // Limit is ok because it can be moved in by the optimizer
+                    // We check LIMITs in LookupJoin pre-optimization so they are still not allowed there
+                    if (plan instanceof PipelineBreaker
+                        || (plan instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
+                        failures.add(
+                            fail(
+                                this,
+                                "LOOKUP JOIN with remote indices can't be executed after ["
+                                    + plan.source().text()
+                                    + "]"
+                                    + plan.source().source()
+                            )
+                        );
+                    }
+                }
+            }
+            for (LogicalPlan child : plan.children()) {
+                checkForRemoteJoinBlockers(child, failures);
+            }
+        }
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (executesOn() == ExecuteLocation.REMOTE) {
+            checkRemoteJoin(failures);
         }
     }
 }

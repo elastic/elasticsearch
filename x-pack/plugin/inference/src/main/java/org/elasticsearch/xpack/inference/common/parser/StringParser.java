@@ -1,0 +1,85 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.common.parser;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Nullable;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeNonEmptyString;
+import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.pathToKey;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
+
+public final class StringParser {
+
+    /**
+     * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
+     */
+    public static void validateStringIsNotNullOrEmpty(@Nullable String value, String settingName) {
+        if (value == null) {
+            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, SERVICE_SETTINGS.toString()));
+        }
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, SERVICE_SETTINGS.toString()));
+        }
+    }
+
+    public static List<String> extractStringList(
+        Map<String, Object> map,
+        String field,
+        String root,
+        ValidationException validationException
+    ) {
+        try {
+            return StringParser.extractStringList(map, field, root);
+        } catch (IllegalArgumentException e) {
+            validationException.addValidationError(e.getMessage());
+            return null;
+        }
+    }
+
+    public static List<String> extractStringList(Map<String, Object> map, String key, String root, @Nullable List<String> defaultValue) {
+        var list = extractStringList(map, key, root);
+        if (list == null) {
+            return defaultValue;
+        }
+
+        return list;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> extractStringList(Map<String, Object> map, String key, String root) {
+        var list = ObjectParserUtils.removeAsType(map, key, root, List.class);
+        if (list == null) {
+            return null;
+        }
+
+        for (int i = 0; i < list.size(); i++) {
+            var item = list.get(i);
+            if (item instanceof String == false) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Expected all items in list for field [%s] to be of type String but item [%s] at index [%d] is of type [%s]",
+                        pathToKey(root, key),
+                        item,
+                        i,
+                        item.getClass().getSimpleName()
+                    )
+                );
+            }
+        }
+
+        return (List<String>) list;
+    }
+
+    private StringParser() {}
+}

@@ -19,6 +19,8 @@ import java.util.function.Consumer;
 final class StackTrace implements ToXContentObject {
     private static final String[] PATH_FRAME_IDS = new String[] { "Stacktrace", "frame", "ids" };
     private static final String[] PATH_FRAME_TYPES = new String[] { "Stacktrace", "frame", "types" };
+    private static final String[] PATH_FRAME_IDS_OTEL = new String[] { "frame", "ids" };
+    private static final String[] PATH_FRAME_TYPES_OTEL = new String[] { "frame", "types" };
 
     static final int NATIVE_FRAME_TYPE = 3;
     static final int KERNEL_FRAME_TYPE = 4;
@@ -31,22 +33,14 @@ final class StackTrace implements ToXContentObject {
     double annualCostsUSD;
     long count;
 
-    StackTrace(
-        int[] addressOrLines,
-        String[] fileIds,
-        String[] frameIds,
-        int[] typeIds,
-        double annualCO2Tons,
-        double annualCostsUSD,
-        long count
-    ) {
+    StackTrace(int[] addressOrLines, String[] fileIds, String[] frameIds, int[] typeIds) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
         this.typeIds = typeIds;
-        this.annualCO2Tons = annualCO2Tons;
-        this.annualCostsUSD = annualCostsUSD;
-        this.count = count;
+        annualCO2Tons = 0.0d;
+        annualCostsUSD = 0.0d;
+        count = 0;
     }
 
     private static final int BASE64_FRAME_ID_LENGTH = 32;
@@ -182,9 +176,34 @@ final class StackTrace implements ToXContentObject {
         return frameID.substring(0, 21) + SAFE_BASE64_ENCODER.charAt(frameID.charAt(21) & 0x30);
     }
 
+    public static StackTrace fromOtelSource(Map<String, Object> source) {
+        return fromRawSource(source, PATH_FRAME_IDS_OTEL, PATH_FRAME_TYPES_OTEL, null, null);
+    }
+
     public static StackTrace fromSource(Map<String, Object> source) {
-        String inputFrameIDs = ObjectPath.eval(PATH_FRAME_IDS, source);
-        String inputFrameTypes = ObjectPath.eval(PATH_FRAME_TYPES, source);
+        return fromRawSource(source, PATH_FRAME_IDS, PATH_FRAME_TYPES, "Stacktrace.frame.ids", "Stacktrace.frame.types");
+    }
+
+    private static StackTrace fromRawSource(
+        Map<String, Object> source,
+        String[] frameIdsPath,
+        String[] frameTypesPath,
+        String frameIdsFallback,
+        String frameTypesFallback
+    ) {
+        String inputFrameIDs = ObjectPath.eval(frameIdsPath, source);
+        if (inputFrameIDs == null && frameIdsFallback != null) {
+            // If synthetic source is disabled, fallback to dotted field names.
+            inputFrameIDs = (String) source.get(frameIdsFallback);
+        }
+        String inputFrameTypes = ObjectPath.eval(frameTypesPath, source);
+        if (inputFrameTypes == null && frameTypesFallback != null) {
+            // If synthetic source is disabled, fallback to dotted field names.
+            inputFrameTypes = (String) source.get(frameTypesFallback);
+        }
+        if (inputFrameIDs == null || inputFrameTypes == null) {
+            return new StackTrace(new int[0], new String[0], new String[0], new int[0]);
+        }
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
         String[] fileIDs = new String[countsFrameIDs];
@@ -210,7 +229,7 @@ final class StackTrace implements ToXContentObject {
         // Step 2: Convert the run-length byte encoding into a list of uint8s.
         int[] typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
-        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs, 0, 0, 0);
+        return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs);
     }
 
     public void forNativeAndKernelFrames(Consumer<String> consumer) {
@@ -224,15 +243,15 @@ final class StackTrace implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("address_or_lines", this.addressOrLines);
-        builder.field("file_ids", this.fileIds);
-        builder.field("frame_ids", this.frameIds);
-        builder.field("type_ids", this.typeIds);
-        builder.field("annual_co2_tons", this.annualCO2Tons);
-        builder.field("annual_costs_usd", this.annualCostsUSD);
-        builder.field("count", this.count);
-        builder.endObject();
+        builder.startObject()
+            .field("address_or_lines", this.addressOrLines)
+            .field("file_ids", this.fileIds)
+            .field("frame_ids", this.frameIds)
+            .field("type_ids", this.typeIds)
+            .field("annual_co2_tons", this.annualCO2Tons)
+            .field("annual_costs_usd", this.annualCostsUSD)
+            .field("count", this.count)
+            .endObject();
         return builder;
     }
 

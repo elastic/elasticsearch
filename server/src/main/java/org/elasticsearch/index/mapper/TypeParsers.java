@@ -161,13 +161,22 @@ public class TypeParsers {
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on field ["
+                            + multiFieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
                 }
                 if (typeParser instanceof FieldMapper.TypeParser == false) {
                     throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
                 }
 
                 FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
+                parserContext.checkFieldNameLength(multiFieldName);
                 multiFieldsBuilder.accept(fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext));
                 multiFieldNodes.remove("type");
                 MappingParser.checkNoRemainingFields(propName, multiFieldNodes);

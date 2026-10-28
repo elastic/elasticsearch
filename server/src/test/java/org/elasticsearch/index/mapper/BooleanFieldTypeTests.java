@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
+
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
@@ -40,13 +42,23 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", MOCK_CONTEXT));
         assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", MOCK_CONTEXT));
 
-        MappedFieldType ft2 = new BooleanFieldMapper.BooleanFieldType("field", false);
+        MappedFieldType ft2 = new BooleanFieldMapper.BooleanFieldType("field", IndexType.terms(false, true));
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 1), ft2.termQuery("true", MOCK_CONTEXT));
         assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 0), ft2.termQuery("false", MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", IndexType.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", MOCK_CONTEXT));
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+    }
+
+    public void testLongIllegalValueIsTruncatedInError() {
+        MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(value, MOCK_CONTEXT));
+        assertEquals(
+            "Can't parse boolean value [" + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "], expected [true] or [false]",
+            e.getMessage()
+        );
     }
 
     public void testRangeQuery() {
@@ -54,11 +66,11 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
         Query expected = new TermRangeQuery("field", BooleanFieldMapper.Values.FALSE, BooleanFieldMapper.Values.TRUE, true, true);
         assertEquals(expected, ft.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT));
 
-        ft = new BooleanFieldMapper.BooleanFieldType("field", false);
+        ft = new BooleanFieldMapper.BooleanFieldType("field", IndexType.points(false, true));
         expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 0, 1);
         assertEquals(expected, ft.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", IndexType.NONE);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT)
@@ -75,12 +87,12 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType nullFieldType = new BooleanFieldMapper.BooleanFieldType(
             "field",
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             true,
             null,
             Collections.emptyMap(),
+            false,
             false
         );
         assertEquals(List.of(true), fetchSourceValue(nullFieldType, null));

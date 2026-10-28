@@ -14,9 +14,13 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -27,6 +31,7 @@ import java.util.Set;
 public class CreateIndexClusterStateUpdateRequest {
 
     private final String cause;
+    private final ProjectId projectId;
     private final String index;
     private String dataStreamName;
     private final String providedName;
@@ -34,6 +39,7 @@ public class CreateIndexClusterStateUpdateRequest {
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemIndexDescriptor systemIndexDescriptor;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
     private boolean isFailureIndex = false;
 
@@ -45,12 +51,21 @@ public class CreateIndexClusterStateUpdateRequest {
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    private boolean performReroute = true;
-
     private ComposableIndexTemplate matchingTemplate;
 
+    private boolean settingsSystemProvided = false;
+
+    /**
+     * @deprecated project id ought always be specified
+     */
+    @Deprecated(forRemoval = true)
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
+        this(cause, Metadata.DEFAULT_PROJECT_ID, index, providedName);
+    }
+
+    public CreateIndexClusterStateUpdateRequest(String cause, ProjectId projectId, String index, String providedName) {
         this.cause = cause;
+        this.projectId = projectId;
         this.index = index;
         this.providedName = providedName;
     }
@@ -98,6 +113,11 @@ public class CreateIndexClusterStateUpdateRequest {
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest systemIndexDescriptor(SystemIndexDescriptor systemIndexDescriptor) {
+        this.systemIndexDescriptor = systemIndexDescriptor;
+        return this;
+    }
+
     public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
         this.systemDataStreamDescriptor = systemDataStreamDescriptor;
         return this;
@@ -116,6 +136,10 @@ public class CreateIndexClusterStateUpdateRequest {
         return index;
     }
 
+    public ProjectId projectId() {
+        return projectId;
+    }
+
     public Settings settings() {
         return settings;
     }
@@ -130,6 +154,10 @@ public class CreateIndexClusterStateUpdateRequest {
 
     public Index recoverFrom() {
         return recoverFrom;
+    }
+
+    public SystemIndexDescriptor systemIndexDescriptor() {
+        return systemIndexDescriptor;
     }
 
     public SystemDataStreamDescriptor systemDataStreamDescriptor() {
@@ -183,15 +211,6 @@ public class CreateIndexClusterStateUpdateRequest {
         return this;
     }
 
-    public boolean performReroute() {
-        return performReroute;
-    }
-
-    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
-        this.performReroute = performReroute;
-        return this;
-    }
-
     /**
      * @return The composable index template that matches with the index that will be created by this request.
      */
@@ -207,11 +226,32 @@ public class CreateIndexClusterStateUpdateRequest {
         return this;
     }
 
+    /**
+     * Indicates whether the {@link #settings} of this request are system provided.
+     * System-provided settings are allowed to configure {@linkplain Setting.Property#PrivateIndex private} settings.
+     * These are typically coming from an {@link org.elasticsearch.index.IndexSettingProvider}.
+     */
+    public CreateIndexClusterStateUpdateRequest settingsSystemProvided(boolean settingsSystemProvided) {
+        this.settingsSystemProvided = settingsSystemProvided;
+        return this;
+    }
+
+    public boolean settingsSystemProvided() {
+        return settingsSystemProvided;
+    }
+
+    public boolean isSystem() {
+        return systemIndexDescriptor != null || systemDataStreamDescriptor != null;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{"
             + "cause='"
             + cause
+            + '\''
+            + ", projectId='"
+            + projectId
             + '\''
             + ", index='"
             + index

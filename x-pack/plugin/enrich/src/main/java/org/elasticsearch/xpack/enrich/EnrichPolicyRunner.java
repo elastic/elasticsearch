@@ -40,10 +40,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -58,9 +59,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -88,7 +89,7 @@ public class EnrichPolicyRunner {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
+    static final String ENRICH_POLICY_NAME_FIELD_NAME = EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME;
     static final String ENRICH_POLICY_TYPE_FIELD_NAME = "enrich_policy_type";
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
     static final String ENRICH_README_FIELD_NAME = "enrich_readme";
@@ -102,6 +103,7 @@ public class EnrichPolicyRunner {
      */
     static final TimeValue ENRICH_MASTER_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
+    private final ProjectId projectId;
     private final String policyName;
     private final EnrichPolicy policy;
     private final ExecuteEnrichPolicyTask task;
@@ -114,6 +116,7 @@ public class EnrichPolicyRunner {
     private final int maxForceMergeAttempts;
 
     EnrichPolicyRunner(
+        ProjectId projectId,
         String policyName,
         EnrichPolicy policy,
         ExecuteEnrichPolicyTask task,
@@ -125,6 +128,7 @@ public class EnrichPolicyRunner {
         int fetchSize,
         int maxForceMergeAttempts
     ) {
+        this.projectId = projectId;
         this.policyName = Objects.requireNonNull(policyName);
         this.policy = Objects.requireNonNull(policy);
         this.task = Objects.requireNonNull(task);
@@ -480,7 +484,7 @@ public class EnrichPolicyRunner {
 
     private void prepareReindexOperation(ActionListener<AcknowledgedResponse> listener) {
         // Check to make sure that the enrich pipeline exists, and create it if it is missing.
-        if (EnrichPolicyReindexPipeline.exists(clusterService.state())) {
+        if (EnrichPolicyReindexPipeline.exists(clusterService.state().getMetadata().getProject(projectId))) {
             listener.onResponse(null);
         } else {
             EnrichPolicyReindexPipeline.create(enrichOriginClient(), listener);
@@ -508,16 +512,16 @@ public class EnrichPolicyRunner {
 
         client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
-                if (bulkByScrollResponse.getBulkFailures().size() > 0) {
+                if (bulkByPaginatedSearchResponse.getBulkFailures().size() > 0) {
                     logger.warn(
                         "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
                         policyName,
-                        bulkByScrollResponse.getBulkFailures().size()
+                        bulkByPaginatedSearchResponse.getBulkFailures().size()
                     );
                     if (logger.isDebugEnabled()) {
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                        for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                             logger.debug(
                                 () -> format(
                                     "Policy [%s]: bulk index failed for index [%s], id [%s]",
@@ -530,14 +534,14 @@ public class EnrichPolicyRunner {
                         }
                     }
                     delegate.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
-                } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
+                } else if (bulkByPaginatedSearchResponse.getSearchFailures().size() > 0) {
                     logger.warn(
                         "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
                         policyName,
-                        bulkByScrollResponse.getSearchFailures().size()
+                        bulkByPaginatedSearchResponse.getSearchFailures().size()
                     );
                     if (logger.isDebugEnabled()) {
-                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                        for (PaginatedSearchFailure failure : bulkByPaginatedSearchResponse.getSearchFailures()) {
                             logger.debug(
                                 () -> format(
                                     "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",
@@ -555,7 +559,7 @@ public class EnrichPolicyRunner {
                     logger.info(
                         "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
                         policyName,
-                        bulkByScrollResponse.getCreated(),
+                        bulkByPaginatedSearchResponse.getCreated(),
                         enrichIndexName
                     );
                     delegate.onResponse(null);
@@ -700,8 +704,8 @@ public class EnrichPolicyRunner {
      * and recreated with invalid mappings/data. We validate that the mapping exists and that it contains the expected meta fields on it to
      * guard against accidental removal and recreation during policy execution.
      */
-    private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
-        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+    private void validateIndexBeforePromotion(String destinationIndexName, ProjectMetadata project) {
+        IndexMetadata destinationIndex = project.index(destinationIndexName);
         if (destinationIndex == null) {
             throw new IndexNotFoundException(
                 "was not able to promote it as part of executing enrich policy [" + policyName + "]",
@@ -749,12 +753,12 @@ public class EnrichPolicyRunner {
         String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, enrichIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, enrichIndexBase);
-        ClusterState clusterState = clusterService.state();
-        validateIndexBeforePromotion(enrichIndexName, clusterState);
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
+        final var project = clusterService.state().metadata().getProject(projectId);
+        validateIndexBeforePromotion(enrichIndexName, project);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(project, aliasRequest);
         String[] aliases = aliasRequest.aliases();
-        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
+        IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, ENRICH_MASTER_REQUEST_TIMEOUT);
+        String[] indices = project.findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

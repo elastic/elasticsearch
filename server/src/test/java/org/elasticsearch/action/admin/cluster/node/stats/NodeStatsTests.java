@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -78,6 +78,7 @@ import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportActionStats;
@@ -129,6 +130,10 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getOs().getMem().getFreePercent(), deserializedNodeStats.getOs().getMem().getFreePercent());
                     assertEquals(nodeStats.getOs().getMem().getUsedPercent(), deserializedNodeStats.getOs().getMem().getUsedPercent());
                     assertEquals(nodeStats.getOs().getCpu().getPercent(), deserializedNodeStats.getOs().getCpu().getPercent());
+                    assertEquals(
+                        nodeStats.getOs().getCpu().getAvailableProcessors(),
+                        deserializedNodeStats.getOs().getCpu().getAvailableProcessors()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuAcctControlGroup(),
                         deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup()
@@ -468,11 +473,13 @@ public class NodeStatsTests extends ESTestCase {
                     assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
 
-                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
-                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
-
+                RepositoriesStats repoSnapshotStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoSnapshotStats.getRepositorySnapshotStats().containsKey("test-repository"));
+                RepositoriesStats.SnapshotStats expectedSnapshotStats = nodeStats.getRepositoriesStats()
+                    .getRepositorySnapshotStats()
+                    .get("test-repository");
+                RepositoriesStats.SnapshotStats actualSnapshotStats = repoSnapshotStats.getRepositorySnapshotStats().get("test-repository");
+                assertEquals(XContentTestUtils.convertToMap(expectedSnapshotStats), XContentTestUtils.convertToMap(actualSnapshotStats));
             }
         }
     }
@@ -533,7 +540,12 @@ public class NodeStatsTests extends ESTestCase {
     private static int expectedChunks(IngestStats ingestStats) {
         return 2 + ingestStats.pipelineStats()
             .stream()
-            .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
+            .mapToInt(
+                pipelineStats -> 2 + ingestStats.processorStats()
+                    .getOrDefault(pipelineStats.projectId(), Map.of())
+                    .getOrDefault(pipelineStats.pipelineId(), List.of())
+                    .size()
+            )
             .sum();
     }
 
@@ -591,6 +603,9 @@ public class NodeStatsTests extends ESTestCase {
             false,
             ++iota,
             ++iota,
+            ++iota,
+            ++iota,
+            ++iota,
             ++iota
         );
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
@@ -598,6 +613,7 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
 
         final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
             ++iota,
             ++iota,
             ++iota,
@@ -637,8 +653,16 @@ public class NodeStatsTests extends ESTestCase {
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
 
         RecoveryStats recoveryStats = new RecoveryStats();
-        recoveryStats.incCurrentAsSource();
-        recoveryStats.incCurrentAsTarget();
+        recoveryStats.sourceRecoveryQueued();
+        recoveryStats.sourceRecoveryStarted();
+        recoveryStats.sourceRecoveryQueued();
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.PEER);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryDequeuedAndStarted(RecoverySource.Type.EXISTING_STORE);
+        recoveryStats.targetRecoveryQueued(RecoverySource.Type.EMPTY_STORE);
         recoveryStats.addThrottleTime(++iota);
         indicesCommonStats.getRecoveryStats().add(recoveryStats);
 
@@ -657,7 +681,8 @@ public class NodeStatsTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())
@@ -669,7 +694,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
@@ -686,7 +711,8 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
+            Map<Index, ProjectId> projectsByIndex = Map.of(indexTest, randomUniqueProjectId());
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, projectsByIndex, true);
         }
         OsStats osStats = null;
         if (frequently()) {
@@ -698,7 +724,7 @@ public class NodeStatsTests extends ESTestCase {
             long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(
                 System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
+                new OsStats.Cpu(randomShort(), loadAverages, randomInt()),
                 new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal)),
                 new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                 new OsStats.Cgroup(
@@ -968,11 +994,13 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
-            Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = Maps.newMapWithExpectedSize(numPipelines);
+            Map<ProjectId, Map<String, List<IngestStats.ProcessorStat>>> ingestProcessorStats = new HashMap<>();
             for (int i = 0; i < numPipelines; i++) {
+                ProjectId projectId = randomProjectIdOrDefault();
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
                 ingestPipelineStats.add(
                     new IngestStats.PipelineStat(
+                        projectId,
                         pipelineId,
                         new IngestStats.Stats(
                             randomLongBetween(0, maxStatValue),
@@ -996,7 +1024,7 @@ public class NodeStatsTests extends ESTestCase {
                         new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), processorStats)
                     );
                 }
-                ingestProcessorStats.put(pipelineId, processorPerPipeline);
+                ingestProcessorStats.computeIfAbsent(projectId, k -> new HashMap<>()).put(pipelineId, processorPerPipeline);
             }
             ingestStats = new IngestStats(totalStats, ingestPipelineStats, ingestProcessorStats);
         }
@@ -1051,11 +1079,26 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue)
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
-            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+            Map.of(
+                "test-repository",
+                new RepositoriesStats.SnapshotStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            )
         );
         NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
             randomIntBetween(0, 10000),

@@ -1,0 +1,360 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.core.expression;
+
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
+
+public final class Expressions {
+
+    private Expressions() {}
+
+    public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
+        if (named.isEmpty()) {
+            return emptyList();
+        }
+        List<Attribute> list = new ArrayList<>(named.size());
+        for (NamedExpression exp : named) {
+            list.add(exp.toAttribute());
+        }
+        return list;
+    }
+
+    /**
+     * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
+     * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
+     * <p>
+     * Exceptions to the {@link ReferenceAttribute} conversion:
+     * <ul>
+     *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
+     *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
+     *   clear user-facing error. Exception: a two-legged PUNK ({@link TypeConflictedField#isSingleTypePotentiallyUnmapped()})
+     *   keeps its single mapped type on the {@link ReferenceAttribute} so it surfaces through a
+     *   {@link org.elasticsearch.xpack.esql.plan.logical.MergePlan} output.</li>
+     *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
+     *   "virtual column" identity must survive operators that re-class their output (e.g. {@code MergePlan.refreshOutput()})
+     *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
+     *   {@code _file.*} from the default top-level projection) and the predicate-pushdown helpers
+     *   ({@code PushdownPredicates#isVirtualColumn}) test this subtype to decide whether an attribute is
+     *   a virtual column or a real data column. Erasing the type would silently leak {@code _file.*}
+     *   into default output and would also re-enable predicate pushdown on virtual columns past a {@code MergePlan}.</li>
+     * </ul>
+     */
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<? extends NamedExpression> named,
+        List<Attribute> existingOutput
+    ) {
+        if (named.isEmpty()) {
+            return emptyList();
+        }
+        Map<String, Attribute> existingByName = HashMap.newHashMap(existingOutput.size());
+        for (Attribute attr : existingOutput) {
+            existingByName.put(attr.name(), attr);
+        }
+        List<Attribute> list = new ArrayList<>(named.size());
+        for (NamedExpression exp : named) {
+            Attribute existing = existingByName.get(exp.name());
+            NameId id = existing != null ? existing.id() : new NameId();
+            Attribute refAttr = switch (exp) {
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField tcf ->
+                    // A two-legged PUNK is not a genuine conflict: keep its single mapped type instead of flagging it.
+                    tcf.isSingleTypePotentiallyUnmapped()
+                        ? new ReferenceAttribute(
+                            fa.source(),
+                            null,
+                            fa.name(),
+                            tcf.singleMappedTypeWidened(),
+                            fa.nullable(),
+                            id,
+                            fa.synthetic()
+                        )
+                        : fa.flagTypeConflicts();
+                case UnsupportedAttribute ua -> new UnsupportedAttribute(
+                    ua.source(),
+                    ua.qualifier(),
+                    ua.name(),
+                    ua.field(),
+                    ua.hasCustomMessage() ? ua.unresolvedMessage() : null,
+                    id
+                );
+                case ReferenceAttribute ra -> ra.withId(id);
+                case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
+                    xa.source(),
+                    xa.name(),
+                    xa.dataType(),
+                    xa.nullable(),
+                    id,
+                    xa.synthetic()
+                );
+                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            };
+            list.add(refAttr);
+        }
+        return list;
+    }
+
+    /**
+     * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
+     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
+     * from the children would report {@code keyword} and drop {@code original_types}.
+     */
+    public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
+        Map<String, Attribute> existing = existingOutput.stream()
+            .filter(attr -> attr instanceof UnsupportedAttribute)
+            .map(attr -> (UnsupportedAttribute) attr)
+            .collect(Collectors.toMap(FieldAttribute::name, e -> e));
+        return existing.isEmpty()
+            ? converted
+            : new ArrayList<>(converted.stream().map(attr -> existing.getOrDefault(attr.name(), attr)).toList());
+    }
+
+    public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+        for (Expression exp : exps) {
+            if (exp.anyMatch(predicate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean match(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
+        for (Expression exp : exps) {
+            if (predicate.test(exp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Return the logical AND of a list of {@code Nullability}
+     * <pre>
+     *  UNKNOWN AND TRUE/FALSE/UNKNOWN = UNKNOWN
+     *  FALSE AND FALSE = FALSE
+     *  TRUE AND FALSE/TRUE = TRUE
+     * </pre>
+     */
+    public static Nullability nullable(List<? extends Expression> exps) {
+        return exps.stream().anyMatch(e -> e.nullable() == Nullability.TRUE) ? Nullability.TRUE : Nullability.FALSE;
+    }
+
+    public static List<Expression> canonicalize(List<? extends Expression> exps) {
+        List<Expression> canonical = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            canonical.add(exp.canonical());
+        }
+        return canonical;
+    }
+
+    /**
+     * Stable, total order on expressions that does not depend on runtime-assigned {@link NameId}s.
+     * Intended for canonicalization, which has to order operands the same way on every JVM.
+     *
+     * <p>The class name is compared first so the order stays transitive: an expression's own
+     * fields are only ever compared against another instance of the same concrete type. Leaves
+     * are then ordered by their stable fields and inner nodes by their children, so no strings
+     * are built along the way.
+     *
+     * <p>Only fields that cannot throw take part - notably not {@code dataType()}, which throws
+     * for unresolved attributes. Comparing too few fields is safe: a tie costs a missed
+     * canonical match, never a wrong one.
+     *
+     * <p>Null operands sort before everything else, as null qualifiers do, rather than throwing.
+     */
+    public static int compareStable(Expression a, Expression b) {
+        // TODO: figure out a better plan than walking subtrees field by field. This orders
+        // operands the same way on every JVM, but each comparison costs O(depth), and it cannot
+        // tell apart attributes differing only by NameId, so some equivalent expressions still
+        // end up with different canonical forms. A stable per-expression key computed once, or
+        // deterministic NameIds, would replace all of this with one cheap comparison.
+        if (a == null) {
+            return b == null ? 0 : -1;
+        }
+        if (b == null) {
+            return 1;
+        }
+
+        int c = a.getClass().getName().compareTo(b.getClass().getName());
+        if (c != 0) {
+            return c;
+        }
+
+        // equal class names mean equal concrete types, so the casts below cannot fail
+        if (a instanceof Attribute aa) {
+            Attribute bb = (Attribute) b;
+
+            c = aa.name().compareTo(bb.name());
+            return c != 0 ? c : compareNullsFirst(aa.qualifier(), bb.qualifier());
+        }
+
+        if (a instanceof Literal la) {
+            Literal lb = (Literal) b;
+
+            c = la.dataType().typeName().compareTo(lb.dataType().typeName());
+            return c != 0 ? c : Objects.toString(la.value()).compareTo(Objects.toString(lb.value()));
+        }
+
+        var ac = a.children();
+        var bc = b.children();
+        int n = Math.min(ac.size(), bc.size());
+
+        for (int i = 0; i < n; i++) {
+            c = compareStable(ac.get(i), bc.get(i));
+            if (c != 0) {
+                return c;
+            }
+        }
+
+        return Integer.compare(ac.size(), bc.size());
+    }
+
+    private static int compareNullsFirst(String a, String b) {
+        if (a == null) {
+            return b == null ? 0 : -1;
+        }
+        return b == null ? 1 : a.compareTo(b);
+    }
+
+    public static boolean foldable(List<? extends Expression> exps) {
+        for (Expression exp : exps) {
+            if (exp.foldable() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
+        List<Object> folded = new ArrayList<>(exps.size());
+        for (Expression exp : exps) {
+            folded.add(exp.fold(ctx));
+        }
+
+        return folded;
+    }
+
+    public static AttributeSet references(List<? extends Expression> exps) {
+        if (exps.size() == 1) {
+            /*
+             * If we're getting the references from a single expression it's safe
+             * to just use its references. This is quite common. We use a ton of
+             * Aliases, for example. And every unary function can share its references
+             * with its input.
+             */
+            return exps.getFirst().references();
+        }
+        return AttributeSet.of(exps, Expression::references);
+    }
+
+    public static String name(Expression e) {
+        return e instanceof Attribute attr && attr.qualifier() != null ? attr.qualifiedName()
+            : e instanceof NamedExpression ne ? ne.name()
+            : e.sourceText();
+    }
+
+    /**
+     * Is this {@linkplain Expression} <strong>guaranteed</strong> to have
+     * only the {@code null} value. {@linkplain Expression}s that
+     * {@link Expression#fold} to {@code null} <strong>may</strong>
+     * return {@code false} here, but should <strong>eventually</strong> be folded
+     * into a {@link Literal} containing {@code null} which will return
+     * {@code true} from here.
+     */
+    public static boolean isGuaranteedNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e instanceof Literal lit && lit.value() == null);
+    }
+
+    public static List<String> names(Collection<? extends Expression> e) {
+        List<String> names = new ArrayList<>(e.size());
+        for (Expression ex : e) {
+            names.add(name(ex));
+        }
+
+        return names;
+    }
+
+    public static Attribute attribute(Expression e) {
+        if (e instanceof NamedExpression ne) {
+            return ne.toAttribute();
+        }
+        return null;
+    }
+
+    public static boolean isPresent(NamedExpression e) {
+        return e instanceof EmptyAttribute == false;
+    }
+
+    public static boolean equalsAsAttribute(Expression left, Expression right) {
+        if (left.semanticEquals(right) == false) {
+            Attribute l = attribute(left);
+            return (l != null && l.semanticEquals(attribute(right)));
+        }
+        return true;
+    }
+
+    public static boolean listSemanticEqualsIgnoreOrder(List<Expression> left, List<Expression> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+
+        Set<SemanticExpression> rightLookup = new HashSet<>(right.size());
+        for (Expression e : right) {
+            rightLookup.add(new SemanticExpression(e));
+        }
+        for (Expression l : left) {
+            if (rightLookup.contains(new SemanticExpression(l)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Wrapper that delegates {@code hashCode} and {@code equals} to
+     * {@link Expression#semanticHash()} and {@link Expression#semanticEquals(Expression)}.
+     */
+    private record SemanticExpression(Expression expression) {
+        @Override
+        public int hashCode() {
+            return expression.semanticHash();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof SemanticExpression other && expression.semanticEquals(other.expression);
+        }
+    }
+
+    public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {
+        // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
+        List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
+        for (NamedExpression ne : named) {
+            if (ne instanceof Alias as) {
+                aliases.add(new Tuple<>(ne.toAttribute(), as.child()));
+            }
+        }
+        return aliases;
+    }
+
+    public static String id(Expression e) {
+        return Integer.toHexString(e.hashCode());
+    }
+}

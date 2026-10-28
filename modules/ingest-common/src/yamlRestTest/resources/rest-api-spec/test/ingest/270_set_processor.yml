@@ -6,7 +6,7 @@ teardown:
         ignore: 404
 
 ---
-"Test set processor with template value":
+"Test set processor with a templated value":
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -53,6 +53,7 @@ teardown:
         index: test
         id: "2"
   - match: { _source.foo: "hello" }
+
 ---
 "Test set processor with index change and require_alias":
   - do:
@@ -295,3 +296,133 @@ teardown:
   - match: { _source.result_2: "{{bar}}" }
   - match: { _source.old_bar: 2 }
   - match: { _source.bar: 3 }
+
+---
+"Test set processor with ignore_empty_value and a literal empty value":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "description": "we don't forbid this, even though it's a little silly",
+                  "field" : "foo",
+                  "value" : "",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "" }
+
+---
+"Test set processor with copy_from handles BigInteger":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "copied_big_int",
+                  "copy_from": "big_int"
+                }
+              },
+              {
+                "script": {
+                  "description": "Divide by 10000000000 to produce a value the test framework can assert on -- the YAML test runner cannot parse integers larger than Long.MAX_VALUE from JSON responses",
+                  "lang": "painless",
+                  "source": "ctx.divided = ((java.math.BigInteger)ctx.copied_big_int).divide(new java.math.BigInteger(\"10000000000\")).longValueExact()"
+                }
+              },
+              {
+                "remove": {
+                  "field": ["big_int", "copied_big_int"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          big_int: 12345678900000000000
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.divided: 1234567890 }
+
+---
+"Test set processor with more interesting mustache":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "{{{#id_parts.p1}}}{{{ id_parts.p1 }}}{{{/id_parts.p1}}}|{{{#id_parts.p2}}}{{{ id_parts.p2 }}}{{{/id_parts.p2}}}|{{{#id_parts.p3}}}{{{ id_parts.p3 }}}{{{/id_parts.p3}}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+            p3: "goodbye"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|goodbye" }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|" }

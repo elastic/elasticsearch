@@ -1,0 +1,83 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.custom;
+
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+
+import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
+
+/**
+ * Defines how to handle various response types returned from the custom integration.
+ */
+public class CustomResponseHandler extends BaseResponseHandler {
+    // default for testing
+    static final Function<HttpResult, ErrorResponse> ERROR_PARSER = (httpResult) -> {
+        try {
+            return new ErrorResponse(new String(httpResult.body(), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new ErrorResponse(Strings.format("Failed to parse error response body: %s", e.getMessage()));
+        }
+    };
+
+    public CustomResponseHandler(String requestType, ResponseParser parseFunction) {
+        super(requestType, parseFunction, ERROR_PARSER);
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
+        try {
+            return nonStreamingResponseParseFunction.apply(outboundRequest, result);
+        } catch (Exception e) {
+            // if we get a parse failure it's probably an incorrect configuration of the service so report the error back to the user
+            // immediately without retrying
+            throw new RetryException(
+                false,
+                new ElasticsearchStatusException(
+                    "Failed to parse custom model response, please check that the response parser path matches the response format.",
+                    RestStatus.BAD_REQUEST,
+                    e
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the status code and returns a RetryException if not in the range [200, 300).
+     *
+     * @param outboundRequest The http request
+     * @param result  The http response and body
+     * @return a RetryException describing the failure
+     */
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+        int statusCode = result.response().getCode();
+
+        // handle error codes
+        if (statusCode >= 500) {
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+        } else if (statusCode == 429) {
+            return new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
+        } else if (statusCode == 401) {
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+        } else if (statusCode >= 300 && statusCode < 400) {
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+        } else {
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+        }
+    }
+}

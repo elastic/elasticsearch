@@ -24,12 +24,12 @@ import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -154,7 +154,12 @@ public class PlainHighlighter implements Highlighter {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
-                TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
+                TextFragment[] bestTextFragments = entry.getBestTextFragments(
+                    tokenStream,
+                    text,
+                    false,
+                    cappedNumberOfFragments(numberOfFragments, textLength)
+                );
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {
                         fragsList.add(new OrderedTextFragment(bestTextFragment, bestTextFragment.getFragNum() + fragNumBase));
@@ -244,6 +249,11 @@ public class PlainHighlighter implements Highlighter {
             // We've exhausted the token stream so we should just highlight everything.
             return end;
         }
+    }
+
+    /** Bounds the requested number of fragments to the number of fragments the text could actually produce. */
+    static int cappedNumberOfFragments(int requestedNumberOfFragments, int textLength) {
+        return Math.min(requestedNumberOfFragments, Math.max(1, textLength));
     }
 
     private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {

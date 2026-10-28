@@ -1,0 +1,4 @@
+FROM employees
+| EVAL x = null
+| SORT x
+| LIMIT 20

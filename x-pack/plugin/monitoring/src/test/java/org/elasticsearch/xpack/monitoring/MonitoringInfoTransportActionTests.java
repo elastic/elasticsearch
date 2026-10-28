@@ -57,7 +57,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion();
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -98,11 +98,10 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
             null,
             threadPool,
             mock(ActionFilters.class),
-            null,
             new MonitoringUsageServices(monitoring, exporters)
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(serializedVersion);

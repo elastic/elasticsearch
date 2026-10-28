@@ -12,9 +12,11 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 
@@ -22,10 +24,12 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
     private static final Logger logger = LogManager.getLogger(ESWordnetSynonymParser.class);
 
     private final boolean lenient;
+    private final ESSynonymMapBuilder esBuilder;
 
-    public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
+    public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer, CircuitBreaker circuitBreaker) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
+        this.esBuilder = new ESSynonymMapBuilder(dedup, circuitBreaker);
     }
 
     @Override
@@ -37,8 +41,15 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
-            super.add(input, output, includeOrig);
+            // Does not call super.add(): state is owned by esBuilder; build() is also overridden.
+            // Revisit if Lucene ever uses SynonymMap.Builder state outside of build().
+            esBuilder.add(input, output, includeOrig);
         }
+    }
+
+    @Override
+    public SynonymMap build() throws IOException {
+        return esBuilder.build();
     }
 
     @Override

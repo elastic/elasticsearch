@@ -1,0 +1,49 @@
+{
+  "inference.put_openshift_ai": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-openshift-ai",
+      "description": "Create an OpenShift AI inference endpoint"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{task_type}/{openshiftai_inference_id}",
+          "methods": ["PUT"],
+          "parts": {
+            "task_type": {
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "rerank",
+                "text_embedding",
+                "completion",
+                "chat_completion"
+              ]
+            },
+            "openshiftai_inference_id": {
+              "type": "string",
+              "description": "The inference ID"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference endpoint's task and service settings",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
+    }
+  }
+}

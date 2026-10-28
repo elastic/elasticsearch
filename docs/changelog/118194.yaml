@@ -1,5 +1,0 @@
-pr: 118194
-summary: Retry on `ClusterBlockException` on transform destination index
-area: Machine Learning
-type: enhancement
-issues: []

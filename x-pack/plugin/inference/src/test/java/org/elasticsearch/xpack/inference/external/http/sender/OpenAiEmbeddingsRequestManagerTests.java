@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.services.openai.request.OpenAiEmbeddingsRequest;
 
+import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 
 public class OpenAiEmbeddingsRequestManagerTests {
-    public static OpenAiEmbeddingsRequestManager makeCreator(
+    public static RequestManager makeCreator(
         String url,
         @Nullable String org,
         String apiKey,
@@ -22,12 +25,17 @@ public class OpenAiEmbeddingsRequestManagerTests {
         @Nullable String user,
         ThreadPool threadPool
     ) {
-        var model = createModel(url, org, apiKey, modelName, user);
-
-        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
+        var model = createModel(url, org, apiKey, modelName, user, TaskType.TEXT_EMBEDDING);
+        return new TruncatingRequestManager(
+            threadPool,
+            model,
+            EMBEDDINGS_HANDLER,
+            (truncationResult) -> new OpenAiEmbeddingsRequest(TruncatorTests.createTruncator(), truncationResult, model),
+            null
+        );
     }
 
-    public static OpenAiEmbeddingsRequestManager makeCreator(
+    public static RequestManager makeCreator(
         String url,
         @Nullable String org,
         String apiKey,
@@ -36,8 +44,13 @@ public class OpenAiEmbeddingsRequestManagerTests {
         String inferenceEntityId,
         ThreadPool threadPool
     ) {
-        var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId);
-
-        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
+        var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId, TaskType.TEXT_EMBEDDING);
+        return new TruncatingRequestManager(
+            threadPool,
+            model,
+            EMBEDDINGS_HANDLER,
+            (truncationResult) -> new OpenAiEmbeddingsRequest(TruncatorTests.createTruncator(), truncationResult, model),
+            null
+        );
     }
 }

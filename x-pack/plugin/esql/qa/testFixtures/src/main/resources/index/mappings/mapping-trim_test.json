@@ -1,0 +1,16 @@
+{
+    "properties": {
+        "id": {
+            "type": "integer"
+        },
+        "col_leading": {
+            "type": "keyword"
+        },
+        "col_trailing": {
+            "type": "keyword"
+        },
+        "col_both": {
+            "type": "keyword"
+        }
+    }
+}

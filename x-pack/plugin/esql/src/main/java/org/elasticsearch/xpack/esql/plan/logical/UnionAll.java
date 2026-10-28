@@ -1,0 +1,274 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.plan.logical;
+
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+public class UnionAll extends MergePlan {
+
+    public UnionAll(Source source, List<LogicalPlan> children, List<Attribute> output) {
+        super(source, children, output);
+    }
+
+    @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        return new UnionAll(source(), newChildren, output());
+    }
+
+    @Override
+    protected NodeInfo<? extends LogicalPlan> info() {
+        return NodeInfo.create(this, UnionAll::new, children(), output());
+    }
+
+    @Override
+    public UnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
+        return new UnionAll(source(), subPlans, output());
+    }
+
+    @Override
+    public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+        return new UnionAll(source(), subPlans, output);
+    }
+
+    /**
+     * Override of {@link MergePlan#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * (rather than letting the base implementation produce whatever {@link #replaceChildren}
+     * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
+     * (callers that want to collapse to the lone child do so explicitly).
+     */
+    @Override
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        List<LogicalPlan> kept = new ArrayList<>(children().size());
+        for (LogicalPlan child : children()) {
+            if (isEmpty.test(child) == false) {
+                kept.add(child);
+            }
+        }
+        if (kept.size() == children().size()) {
+            return this;
+        }
+        return new UnionAll(source(), kept, output());
+    }
+
+    @Override
+    public int hashCode() {
+        return hasUnmappedFieldsAttribute()
+            ? Objects.hash(UnionAll.class, output(), children())
+            : Objects.hash(UnionAll.class, children(), output().size());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        UnionAll other = (UnionAll) o;
+        if (Objects.equals(children(), other.children()) == false) {
+            return false;
+        }
+        // Output arity is resolution state: view compaction builds unions with an empty output that resolveMergePlan fills
+        // in later, possibly without rewriting any branch (every branch may already end in a user projection of exactly the
+        // merge columns). If the filled-in node compared equal to the stale one, transformUp would discard the rewrite and
+        // the union could never resolve. Same-arity attribute churn (ids/types) keeps the children-only identity below.
+        if (output().size() != other.output().size()) {
+            return false;
+        }
+        // LOAD_ALL alignment can rewrite output without changing children. Default UnionAll identity is children-only.
+        return (hasUnmappedFieldsAttribute() || other.hasUnmappedFieldsAttribute()) == false || Objects.equals(output(), other.output());
+    }
+
+    private boolean hasUnmappedFieldsAttribute() {
+        return output().stream().anyMatch(attr -> attr instanceof UnmappedFieldsAttribute);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return UnionAll::checkUnionAll;
+    }
+
+    private static void checkUnionAll(LogicalPlan plan, Failures failures) {
+        // Check that all UnionAll branches have compatible data types for each column
+        if (plan instanceof UnionAll unionAll) {
+            Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));
+
+            unionAll.children().forEach(subPlan -> {
+                for (Attribute attr : subPlan.output()) {
+                    var expected = outputTypes.get(attr.name());
+
+                    // UnionAll with unsupported types should not be allowed, otherwise runtime couldn't handle it
+                    // Verifier checkUnresolvedAttributes should have caught it already, this check is similar to Fork
+                    if (expected == null || expected == DataType.UNSUPPORTED) {
+                        continue;
+                    }
+
+                    var actual = attr.dataType();
+                    if (actual != expected) {
+                        failures.add(
+                            Failure.fail(
+                                attr,
+                                "Column [{}] has conflicting data types in subqueries: [{}] and [{}]",
+                                attr.name(),
+                                actual,
+                                expected
+                            )
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Checks max_branch_count and max_branch_level for the main query and every {@code IN} subquery independently.
+     */
+    public static void checkNestedSubqueryLimits(
+        LogicalPlan optimizedPlan,
+        int maxBranchCount,
+        int maxBranchLevel,
+        String maxBranchCountSource,
+        String maxBranchLevelSource,
+        Failures failures
+    ) {
+        UnionStats stats = unionStats(optimizedPlan);
+        checkTotalBranchCount(stats, maxBranchCount, maxBranchCountSource, failures);
+        checkMaxNestingLevel(stats, maxBranchLevel, maxBranchLevelSource, failures);
+        checkInSubqueryLimits(optimizedPlan, maxBranchCount, maxBranchLevel, maxBranchCountSource, maxBranchLevelSource, failures);
+    }
+
+    private static void checkInSubqueryLimits(
+        LogicalPlan plan,
+        int maxBranches,
+        int maxLevels,
+        String branchCountSource,
+        String branchLevelSource,
+        Failures failures
+    ) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            checkNestedSubqueryLimits(subqueryJoin.right(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+            checkInSubqueryLimits(subqueryJoin.left(), maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkInSubqueryLimits(child, maxBranches, maxLevels, branchCountSource, branchLevelSource, failures);
+        }
+    }
+
+    /**
+     * Rejects a query whose leaf branches exceed {@code maxBranches}, taken from the {@link QueryPragmas#MAX_BRANCH_COUNT} query pragma
+     * when that pragma is set, otherwise from {@code esql.query.max_branch_count}.
+     * <p>
+     * Only producer leaves are counted — {@link UnionAll} nodes themselves are coordinator merge segments, not branches, and are bounded
+     * separately by the maximum nesting-level check.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the
+     * compute service. It counts leaves under {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs
+     * exactly the same at execution time as one the user wrote.
+     */
+    private static void checkTotalBranchCount(UnionStats stats, int maxBranches, String branchCountSource, Failures failures) {
+        if (stats.first() == null || stats.leaves() <= maxBranches) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.first(),
+                "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
+                    + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+                    + " or split this into multiple queries.",
+                stats.leaves(),
+                maxBranches,
+                branchCountSource
+            )
+        );
+    }
+
+    /**
+     * Rejects a query whose {@link MergePlan}s nest deeper than {@code maxLevels}, taken from the {@link QueryPragmas#MAX_BRANCH_LEVEL}
+     * query pragma when that pragma is set, otherwise from {@code esql.query.max_branch_level}.
+     * <p>
+     * Each nested union becomes a coordinator merge segment that is wired before any leaf runs, so the depth is what a
+     * single request commits the coordinator to on the merge-segment stack. {@link #checkTotalBranchCount} bounds how
+     * many branches there are in total, but a skinny chain of two-way unions can stay under that cap at arbitrary depth.
+     * <p>
+     * Unlike the other checks here this one looks at a complete independently executed query rather than a single node, so it is called
+     * from {@code LogicalVerifier} instead of through {@code postOptimizationPlanVerification()}, which applies each registered check to
+     * every node. The main query and each {@code IN} subquery are checked separately because each is executed independently by the compute
+     * service. It counts {@link BranchPlan}s too: a union produced by expanding a {@code FROM} pattern or view costs exactly the same at
+     * execution time as one the user wrote.
+     */
+    private static void checkMaxNestingLevel(UnionStats stats, int maxLevels, String branchLevelSource, Failures failures) {
+        if (stats.depth() <= maxLevels) {
+            return;
+        }
+        failures.add(
+            Failure.fail(
+                stats.deepest(),
+                "query resolved to {} nested union levels, exceeding the limit of {} set by the {}. "
+                    + "Reduce the nesting of sources - subqueries, patterns expanding to several indices, or views - "
+                    + "or split this into multiple queries.",
+                stats.depth(),
+                maxLevels,
+                branchLevelSource
+            )
+        );
+    }
+
+    /**
+     * Summarizes the merge plans under {@code plan}. A subtree with no merge plan is one producer leaf. Otherwise its leaf count is the
+     * sum of its children's leaves. Its depth is the longest child depth, plus one when {@code plan} is itself a merge plan. The right
+     * side of a {@link Join} is excluded: a {@code LOOKUP JOIN} (and {@code INLINE STATS}) lookup/stub is not a union producer leaf, and
+     * the right side of an {@link AbstractSubqueryJoin} is an independently executed query counted via {@link #checkInSubqueryLimits}. The
+     * first and deepest unions provide distinct failure locations when both limits are exceeded.
+     */
+    private static UnionStats unionStats(LogicalPlan plan) {
+        MergePlan first = plan instanceof MergePlan mergePlan ? mergePlan : null;
+        MergePlan deepest = first;
+        int leaves = 0;
+        int depth = 0;
+        List<LogicalPlan> children = plan instanceof Join join ? List.of(join.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            UnionStats childStats = unionStats(child);
+            if (first == null) {
+                first = childStats.first();
+            }
+            leaves += childStats.leaves();
+            if (childStats.depth() > depth) {
+                depth = childStats.depth();
+                deepest = childStats.deepest();
+            }
+        }
+        if (plan instanceof MergePlan) {
+            return new UnionStats(first, deepest, leaves, depth + 1);
+        }
+        if (first == null) {
+            return new UnionStats(null, null, 1, 0);
+        }
+        return new UnionStats(first, deepest, leaves, depth);
+    }
+
+    private record UnionStats(MergePlan first, MergePlan deepest, int leaves, int depth) {}
+}

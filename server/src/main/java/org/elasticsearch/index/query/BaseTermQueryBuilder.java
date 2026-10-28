@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
+public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> extends LeafQueryBuilder<QB> {
 
     public static final ParseField VALUE_FIELD = new ParseField("value");
 

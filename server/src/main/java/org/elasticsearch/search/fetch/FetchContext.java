@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -32,6 +31,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.LongConsumer;
 
 /**
  * Encapsulates state required to execute fetch phases
@@ -42,13 +42,14 @@ public class FetchContext {
     private final SourceLoader sourceLoader;
     private final FetchSourceContext fetchSourceContext;
     private final StoredFieldsContext storedFieldsContext;
+    private LongConsumer innerHitsByteChecker = bytes -> {};
 
     /**
      * Create a FetchContext based on a SearchContext
      */
-    public FetchContext(SearchContext searchContext) {
+    public FetchContext(SearchContext searchContext, SourceLoader sourceLoader) {
         this.searchContext = searchContext;
-        this.sourceLoader = searchContext.newSourceLoader();
+        this.sourceLoader = sourceLoader;
         this.storedFieldsContext = buildStoredFieldsContext(searchContext);
         this.fetchSourceContext = buildFetchSourceContext(searchContext);
     }
@@ -69,7 +70,9 @@ public class FetchContext {
         if (sfc != null && sfc.fetchFields()) {
             for (String field : sfc.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field)) {
-                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                    fsc = fsc == null
+                        ? FetchSourceContext.of(true)
+                        : FetchSourceContext.of(true, fsc.excludeVectors(), fsc.includes(), fsc.excludes());
                 }
             }
         }
@@ -86,10 +89,6 @@ public class FetchContext {
             sfc = StoredFieldsContext.metadataOnly();
         }
         return sfc;
-    }
-
-    public BitsetFilterCache bitsetFilterCache() {
-        return searchContext.bitsetFilterCache();
     }
 
     /**
@@ -286,5 +285,20 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
+    }
+
+    public void setInnerHitsByteChecker(LongConsumer innerHitsByteChecker) {
+        this.innerHitsByteChecker = innerHitsByteChecker;
+    }
+
+    /**
+     * Forwards {@code bytes} from a completed inner-hit fetch to the registered checker, charging
+     * them against the parent fetch context's circuit-breaker counter. Called by {@code InnerHitsPhase}.
+     */
+    public void chargeInnerHitsBytes(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        innerHitsByteChecker.accept(bytes);
     }
 }

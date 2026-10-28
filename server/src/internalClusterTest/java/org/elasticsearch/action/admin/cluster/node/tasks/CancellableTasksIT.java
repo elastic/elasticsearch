@@ -14,11 +14,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -44,7 +44,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,7 +65,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -118,6 +116,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     /**
      * Allow some parts of the request to be completed
+     *
      * @return a pending child requests
      */
     static Set<TestRequest> allowPartialRequest(TestRequest request) throws Exception {
@@ -204,7 +203,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         } finally {
             allowEntireRequest(rootRequest);
             cancelFuture.actionGet();
-            waitForRootTask(rootTaskFuture, false);
+            waitForRootTask(rootTaskFuture);
             ensureBansAndCancellationsConsistency();
         }
     }
@@ -225,7 +224,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
         assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
-        waitForRootTask(mainTaskFuture, false);
+        waitForRootTask(mainTaskFuture);
         ListTasksResponse cancelError = clusterAdmin().prepareCancelTasks()
             .setTargetTaskId(taskId)
             .waitForCompletion(randomBoolean())
@@ -255,7 +254,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             cancelFuture.get();
         }
         allowEntireRequest(rootRequest);
-        waitForRootTask(mainTaskFuture, false);
+        waitForRootTask(mainTaskFuture);
         if (waitForCompletion) {
             cancelFuture.actionGet();
         }
@@ -277,7 +276,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TaskCancelledException te = expectThrows(TaskCancelledException.class, future);
         assertThat(te.getMessage(), equalTo("parent task was cancelled [by user request]"));
         allowEntireRequest(rootRequest);
-        waitForRootTask(rootTaskFuture, false);
+        waitForRootTask(rootTaskFuture);
         ensureBansAndCancellationsConsistency();
     }
 
@@ -362,20 +361,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
             allowEntireRequest(rootRequest);
             cancelFuture.actionGet();
             ensureBansAndCancellationsConsistency();
-        }
-    }
-
-    public void testChildrenTasksCancelledOnTimeout() throws Exception {
-        Set<DiscoveryNode> nodes = clusterService().state().nodes().stream().collect(Collectors.toSet());
-        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4), true);
-        ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
-        allowEntireRequest(rootRequest);
-        waitForRootTask(rootTaskFuture, true);
-        ensureBansAndCancellationsConsistency();
-
-        // Make sure all descendent requests have completed
-        for (TestRequest subRequest : rootRequest.descendants()) {
-            safeAwait(completedLatches.get(subRequest));
+            // This method will call the cluster health API with wait_for_tasks set to Priority#LANGUID. This will ensure that all tasks
+            // currently submitted to the master service (included re-election after a disconnect) are processed before returning. This
+            // ensures cluster stability for the post-test consistency checks.
+            ensureStableCluster(nodes.size());
         }
     }
 
@@ -396,29 +385,24 @@ public class CancellableTasksIT extends ESIntegTestCase {
         return taskId.get();
     }
 
-    static void waitForRootTask(ActionFuture<TestResponse> rootTask, boolean expectToTimeout) {
+    static void waitForRootTask(ActionFuture<TestResponse> rootTask) {
         try {
             rootTask.actionGet();
         } catch (Exception e) {
-            final Throwable cause = ExceptionsHelper.unwrap(
-                e,
-                expectToTimeout ? ReceiveTimeoutTransportException.class : TaskCancelledException.class
-            );
+            final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
             assertNotNull(cause);
             assertThat(
                 cause.getMessage(),
-                expectToTimeout
-                    ? containsStringIgnoringCase("timed out after")
-                    : anyOf(
-                        equalTo("parent task was cancelled [by user request]"),
-                        equalTo("task cancelled before starting [by user request]"),
-                        equalTo("task cancelled [by user request]")
-                    )
+                anyOf(
+                    equalTo("parent task was cancelled [by user request]"),
+                    equalTo("task cancelled before starting [by user request]"),
+                    equalTo("task cancelled [by user request]")
+                )
             );
         }
     }
 
-    static class TestRequest extends ActionRequest {
+    static class TestRequest extends UntypedActionRequest {
         final int id;
         final DiscoveryNode node;
         final List<TestRequest> subRequests;
@@ -495,9 +479,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         }
 
-        public TestResponse(StreamInput in) throws IOException {
-            super(in);
-        }
+        public TestResponse(StreamInput in) {}
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -578,7 +560,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                     assertTrue(beforeSendLatches.get(subRequest).await(60, TimeUnit.SECONDS));
                     if (client.getLocalNodeId().equals(subRequest.node.getId()) && subRequest.timeout == false && randomBoolean()) {
                         try {
-                            client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
+                            client.executeAndReturnTask(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
                             latchedListener.onFailure(new SendRequestTransportException(subRequest.node, ACTION.name(), e));
                         }
@@ -605,8 +587,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public static class TaskPlugin extends Plugin implements ActionPlugin {
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(new ActionHandler<>(TransportTestAction.ACTION, TransportTestAction.class));
+        public List<ActionHandler> getActions() {
+            return Collections.singletonList(new ActionHandler(TransportTestAction.ACTION, TransportTestAction.class));
         }
     }
 

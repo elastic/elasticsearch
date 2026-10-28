@@ -9,11 +9,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -33,16 +35,10 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  public MaxBooleanGroupingAggregatorFunction(List<Integer> channels, BooleanArrayState state,
-      DriverContext driverContext) {
+  MaxBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new BooleanArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxBooleanAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MaxBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxBooleanGroupingAggregatorFunction(channels, new BooleanArrayState(driverContext.bigArrays(), MaxBooleanAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -55,23 +51,35 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BooleanBlock valuesBlock = page.getBlock(channels.get(0));
-    BooleanVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+    BooleanBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
+    BooleanVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, vBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, vBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, vBlock);
         }
 
         @Override
@@ -81,13 +89,18 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, vVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, vVector);
       }
 
       @Override
@@ -96,28 +109,77 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BooleanBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BooleanBlock vBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
         continue;
       }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(v)));
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int vStart = vBlock.getFirstValueIndex(valuesPosition);
+        int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+        for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+          boolean vValue = vBlock.getBoolean(vOffset);
+          MaxBooleanAggregator.combine(state, groupId, vValue);
+        }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BooleanVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BooleanVector vVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        boolean vValue = vVector.getBoolean(valuesPosition);
+        MaxBooleanAggregator.combine(state, groupId, vValue);
+      }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BooleanBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector max = ((BooleanBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -126,19 +188,85 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(v)));
+        int valuesPosition = groupPosition + positionOffset;
+        if (seen.getBoolean(valuesPosition)) {
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BooleanVector values) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BooleanBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int vStart = vBlock.getFirstValueIndex(valuesPosition);
+        int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+        for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+          boolean vValue = vBlock.getBoolean(vOffset);
+          MaxBooleanAggregator.combine(state, groupId, vValue);
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BooleanVector vVector) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        boolean vValue = vVector.getBoolean(valuesPosition);
+        MaxBooleanAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector max = ((BooleanBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -147,8 +275,98 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), values.getBoolean(groupPosition + positionOffset)));
+        int valuesPosition = groupPosition + positionOffset;
+        if (seen.getBoolean(valuesPosition)) {
+          MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
+        }
       }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BooleanBlock vBlock) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (vBlock.isNull(valuesPosition)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int vStart = vBlock.getFirstValueIndex(valuesPosition);
+      int vEnd = vStart + vBlock.getValueCount(valuesPosition);
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        boolean vValue = vBlock.getBoolean(vOffset);
+        MaxBooleanAggregator.combine(state, groupId, vValue);
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, BooleanVector vVector) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      int groupId = groups.getInt(groupPosition);
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      MaxBooleanAggregator.combine(state, groupId, vValue);
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector max = ((BooleanBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      int valuesPosition = groupPosition + positionOffset;
+      if (seen.getBoolean(valuesPosition)) {
+        MaxBooleanAggregator.combine(state, groupId, max.getBoolean(valuesPosition));
+      }
+    }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(1))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock vBlock) {
+    if (vBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 
@@ -158,49 +376,65 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
   }
 
   @Override
-  public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block maxUncast = page.getBlock(channels.get(0));
-    if (maxUncast.areAllValuesNull()) {
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
+      GroupingAggregatorEvaluationContext ctx) {
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = state.toValuesBlock(selectedInPage, driverContext);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    if (length == 0) {
       return;
     }
-    BooleanVector max = ((BooleanBlock) maxUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
+    boolean[] values = state.partitionValues(source, partition);
+    boolean[] seen = state.partitionSeen(source, partition);
+    if (seen == null) {
+      if (appendOnly) {
+        state.appendPartition(values, dstIds[0], length);
+      } else {
+        for (int i = 0; i < length; i++) {
+          MaxBooleanAggregator.combine(state, dstIds[i], values[i]);
+        }
+      }
       return;
     }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert max.getPositionCount() == seen.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), max.getBoolean(groupPosition + positionOffset)));
+    for (int i = 0; i < length; i++) {
+      if (seen[i]) {
+        MaxBooleanAggregator.combine(state, dstIds[i], values[i]);
       }
     }
-  }
-
-  @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    BooleanArrayState inState = ((MaxBooleanGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxBooleanAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
-  }
-
-  @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
-  }
-
-  @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = state.toValuesBlock(selected, driverContext);
   }
 
   @Override

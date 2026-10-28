@@ -27,9 +27,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -193,25 +196,25 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownField() throws IOException {
         super.testUnknownField();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownObjectException() throws IOException {
         super.testUnknownObjectException();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testValidOutput() throws IOException {
         super.testValidOutput();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     public void testPruningIsAppliedCorrectly() throws IOException {

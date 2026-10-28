@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -20,7 +20,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,27 +30,36 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_REALM_DOMAINS;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCloudApiKeyAuthentication;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -61,6 +69,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
+
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
+    public static final TransportVersion[] AUTHENTICATION_TRANSPORT_VERSIONS = {
+        VERSION_7_0_0,
+        Authentication.VERSION_SYNTHETIC_ROLE_NAMES,
+        Authentication.VERSION_API_KEY_ROLES_AS_BYTES,
+        Authentication.VERSION_REALM_DOMAINS,
+        Authentication.VERSION_METADATA_BEYOND_GENERIC_MAP,
+        Authentication.VERSION_CROSS_CLUSTER_ACCESS,
+        TransportVersion.current() };
 
     public void testIsFailedRunAs() {
         final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);
@@ -114,9 +132,15 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, randomAlphaOfLengthBetween(10, 20))
         );
 
+        // realms are different, it's not the same owner
+        assertCannotAccessResources(randomAuthentication(user1, realm1), randomCloudApiKeyAuthentication(user1));
+
         // Same API key ID are the same owner
         final String apiKeyId1 = randomAlphaOfLengthBetween(10, 20);
         assertCanAccessResources(randomApiKeyAuthentication(user1, apiKeyId1), randomApiKeyAuthentication(user1, apiKeyId1));
+
+        // cloud API key is the user subject it represents, it's not tied to an owner (creator user)
+        assertCanAccessResources(randomCloudApiKeyAuthentication(user1), randomCloudApiKeyAuthentication(user1));
 
         // Two API keys (2 API key IDs) are not the same owner
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
@@ -124,6 +148,8 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
         );
+        assertCannotAccessResources(randomCloudApiKeyAuthentication(apiKeyId1), randomCloudApiKeyAuthentication(apiKeyId2));
+
         final User user3 = randomValueOtherThanMany(
             u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
             AuthenticationTests::randomUser
@@ -144,6 +170,115 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(user1, apiKeyId1).runAs(user3, realm2),
             randomApiKeyAuthentication(user2, apiKeyId2).runAs(user3, realm2)
         );
+    }
+
+    public void testCloudServiceAccountCanAccessResourcesOf() {
+        final String serviceAccountId1 = randomAlphanumericOfLength(20);
+        final String serviceAccountId2 = randomValueOtherThan(serviceAccountId1, () -> randomAlphanumericOfLength(20));
+
+        // the same cloud service account is the same owner
+        assertCanAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1)
+        );
+
+        // different cloud service accounts are not the same owner
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId2)
+        );
+
+        // a cloud service account cannot access resources of other subject types even with the same principal
+        final User user1 = new User(serviceAccountId1, "role_a");
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            randomAuthentication(user1, randomRealmRef(false))
+        );
+        assertCannotAccessResources(
+            AuthenticationTestHelper.randomCloudServiceAccountAuthentication(serviceAccountId1),
+            randomCloudApiKeyAuthentication(serviceAccountId1)
+        );
+    }
+
+    public void testCloudLimitedByRolesSurviveSerializationRoundTrip() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = randomBoolean()
+            ? randomCloudApiKeyAuthentication(null, null, limitedByRoleNames)
+            : AuthenticationTestHelper.randomCloudUserAuthentication(limitedByRoleNames);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            authentication.writeTo(out);
+            final Authentication deserialized = new Authentication(out.bytes().streamInput());
+            assertThat(deserialized, equalTo(authentication));
+            assertThat(
+                deserialized.getAuthenticatingSubject().getMetadata(),
+                hasEntry(AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames)
+            );
+        }
+    }
+
+    /**
+     * An older node has no notion of a cloud role cap, so it would authorize the assigned roles in full. Serialization must fail rather
+     * than silently escalate the subject's privileges.
+     */
+    public void testCloudLimitedByRolesCannotBeSentToNodeThatCannotEnforceThem() {
+        final TransportVersion limitedByRolesVersion = TransportVersion.fromName("security_cloud_service_account_and_limited_by_roles");
+        final TransportVersion cloudApiKeyVersion = TransportVersion.fromName("security_cloud_api_key_realm_and_type");
+        // a version that can parse a cloud API key subject but cannot enforce a cap on it, so the cap guard is what rejects the write
+        final TransportVersion olderVersion = randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(cloudApiKeyVersion) && false == v.supports(limitedByRolesVersion))
+                .toList()
+        );
+        final Authentication capped = randomCloudApiKeyAuthentication(null, null, AuthenticationTestHelper.randomCloudLimitedByRoleNames());
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> capped.maybeRewriteForOlderVersion(olderVersion)).getMessage(),
+            containsString("can't enforce cloud limited-by roles")
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(olderVersion);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> capped.writeTo(out)).getMessage(),
+                containsString("can't enforce cloud limited-by roles")
+            );
+        }
+
+        // an uncapped cloud API key must keep serializing to the same node
+        final Authentication uncapped = randomCloudApiKeyAuthentication();
+        assertThat(uncapped.maybeRewriteForOlderVersion(olderVersion), notNullValue());
+    }
+
+    /**
+     * An older node has no notion of a user-managed account. It parses one happily, because the marker that distinguishes it is an
+     * ordinary metadata entry, then discards the assigned roles and resolves the principal as a built-in account that cannot exist.
+     * Serialization must fail on the sending node rather than leave the remote to report a missing built-in account.
+     */
+    public void testUserManagedServiceAccountCannotBeSentToNodeThatResolvesItAsBuiltIn() {
+        final TransportVersion userManagedVersion = TransportVersion.fromName("user_managed_service_account_info");
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(userManagedVersion);
+        final Authentication userManaged = AuthenticationTestHelper.builder()
+            .userManagedServiceAccount(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8), "role_a")
+            .build();
+
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> userManaged.maybeRewriteForOlderVersion(olderVersion)).getMessage(),
+            containsString("can't handle user-managed service account authentication")
+        );
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(olderVersion);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> userManaged.writeTo(out)).getMessage(),
+                containsString("can't handle user-managed service account authentication")
+            );
+        }
+
+        // a built-in account authenticates through the same realm and must keep serializing to the same node
+        final Authentication builtIn = AuthenticationTestHelper.builder().serviceAccount().build();
+        assertThat(builtIn.maybeRewriteForOlderVersion(olderVersion), notNullValue());
     }
 
     public void testCrossClusterAccessCanAccessResourceOf() throws IOException {
@@ -668,13 +803,12 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersions.V_8_0_0);
+            out.setTransportVersion(TransportVersion.minimumCompatible());
             test.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(TransportVersions.V_8_0_0);
+            in.setTransportVersion(TransportVersion.minimumCompatible());
             Authentication testBack = new Authentication(in);
-            assertThat(testBack.getDomain(), nullValue());
-            assertThat(testBack.isAssignedToDomain(), is(false));
+            assertThat(testBack.getDomain(), equalTo(test.getDomain()));
         }
     }
 
@@ -759,6 +893,12 @@ public class AuthenticationTests extends ESTestCase {
 
         // Remote access cannot run-as
         assertThat(AuthenticationTestHelper.builder().crossClusterAccess().build().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud API key cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudApiKeyAuthentication().supportsRunAs(anonymousUser), is(false));
+
+        // Cloud service account cannot run-as
+        assertThat(AuthenticationTestHelper.randomCloudServiceAccountAuthentication().supportsRunAs(anonymousUser), is(false));
     }
 
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
@@ -776,7 +916,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication1,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
 
@@ -796,7 +941,12 @@ public class AuthenticationTests extends ESTestCase {
             authentication,
             m -> assertThat(
                 m,
-                hasEntry("api_key", apiKeyName != null ? Map.of("id", apiKeyId, "name", apiKeyName) : Map.of("id", apiKeyId))
+                hasEntry(
+                    "api_key",
+                    apiKeyName != null
+                        ? Map.of("id", apiKeyId, "name", apiKeyName, "managed_by", "elasticsearch")
+                        : Map.of("id", apiKeyId, "managed_by", "elasticsearch")
+                )
             )
         );
     }
@@ -811,8 +961,34 @@ public class AuthenticationTests extends ESTestCase {
             + authentication1.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
         runWithAuthenticationToXContent(
             authentication1,
-            m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))
+            m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType, "managed_by", "elasticsearch")))
         );
+    }
+
+    public void testToXContentWithToken() throws IOException {
+        final Authentication realmTokenAuth = AuthenticationTestHelper.builder().realm().build(false).token();
+        runWithAuthenticationToXContent(realmTokenAuth, m -> assertThat(m, hasEntry("token", Map.of("managed_by", "elasticsearch"))));
+    }
+
+    public void testToXContentWithCloudLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication capped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            limitedByRoleNames
+        );
+        runWithAuthenticationToXContent(capped, m -> {
+            assertThat(m, hasEntry("limited_by_roles", limitedByRoleNames));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
+
+        final Authentication uncapped = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            randomAlphanumericOfLength(20),
+            null
+        );
+        runWithAuthenticationToXContent(uncapped, m -> {
+            assertThat(m, not(hasKey("limited_by_roles")));
+            assertThat(m, hasEntry("token", Map.of("type", "_cloud_service_account", "managed_by", "cloud")));
+        });
     }
 
     public void testBwcWithStoredAuthenticationHeaders() throws IOException {
@@ -826,7 +1002,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV6.encode(), equalTo(headerV6));
 
         // Rewrite for a different version
-        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion();
         final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
         assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
         assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
@@ -843,46 +1019,8 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV7.encode(), equalTo(headerV7));
     }
 
-    public void testMaybeRewriteForOlderVersionWithCrossClusterAccessThrowsOnUnsupportedVersion() {
-        final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
-            : AuthenticationTestHelper.builder().build();
-
-        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-        );
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,  // the minimum compatible version of 8.x
-            versionBeforeCrossClusterAccessRealm
-        );
-
-        if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
-            assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version.toReleaseVersion()
-                        + "]"
-                )
-            );
-        } else {
-            // Assert that rewriting took place; the details of rewriting logic are checked in other tests
-            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
-        }
-    }
-
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion =
-            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            TransportVersion.current()
-        );
+        final TransportVersion version = randomTransportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS);
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
@@ -890,11 +1028,9 @@ public class AuthenticationTests extends ESTestCase {
                 new CrossClusterAccessSubjectInfo(innerAuthentication, RoleDescriptorsIntersection.EMPTY)
             )
             .build();
-        final TransportVersion maybeOldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            crossClusterAccessRealmVersion,
-            version
-        );
+        final TransportVersion maybeOldVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS == version
+            ? version
+            : randomTransportVersionBetween(Authentication.VERSION_CROSS_CLUSTER_ACCESS, version);
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(maybeOldVersion);
 
@@ -913,10 +1049,8 @@ public class AuthenticationTests extends ESTestCase {
             )
             .build();
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(
+            authentication.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = Authentication.maybeRewriteMetadataForCrossClusterAccessAuthentication(
@@ -955,36 +1089,12 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
-    public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-        );
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            .transportVersion(TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null))
-            .build();
-        assertThat(authentication.getEffectiveSubject().getTransportVersion().after(olderVersion), is(true));
-
-        final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
-
-        assertThat(actual.getEffectiveSubject().getTransportVersion(), equalTo(olderVersion));
-        assertThat(actual.getAuthenticatingSubject().getRealm().getDomain(), nullValue());
-        assertThat(actual.getEffectiveSubject().getRealm().getDomain(), nullValue());
-    }
-
     public void testMaybeRewriteForOlderVersionDoesNotEraseDomainForVersionsAfterDomains() {
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            Authentication.VERSION_REALM_DOMAINS,
-            // Don't include CURRENT, so we always have at least one newer version available below
-            TransportVersionUtils.getPreviousVersion()
-        );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(random(), olderVersion, null);
+        final TransportVersion olderVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionSupporting(olderVersion);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
-            // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
+            // Use CURRENT to force newer version in case randomVersionSupporting above picks olderVersion
             .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
             .build();
 
@@ -998,6 +1108,26 @@ public class AuthenticationTests extends ESTestCase {
             actual.getEffectiveSubject().getRealm().getDomain(),
             equalTo(authentication.getEffectiveSubject().getRealm().getDomain())
         );
+    }
+
+    public void testMaybeRewriteForOlderVersionDowngradesEnrichUser() {
+        final String nodeName = randomAlphaOfLength(8);
+        final Authentication enrichAuth = Authentication.newInternalAuthentication(
+            InternalUsers.ENRICH_USER,
+            TransportVersion.current(),
+            nodeName
+        );
+
+        // Rewriting for a version that supports the enrich user: unchanged
+        final TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenNew = enrichAuth.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenNew.getEffectiveSubject().getUser(), equalTo(InternalUsers.ENRICH_USER));
+
+        // Rewriting for an older version: must become _xpack so the older node can decode it
+        final TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Authentication.SECURITY_ENRICH_INTERNAL_USER);
+        final Authentication rewrittenOld = enrichAuth.maybeRewriteForOlderVersion(oldVersion);
+        assertThat(rewrittenOld.getEffectiveSubject().getUser(), equalTo(InternalUsers.XPACK_USER));
+        assertThat(rewrittenOld.getEffectiveSubject().getTransportVersion(), equalTo(oldVersion));
     }
 
     public void testToCrossClusterAccess() {
@@ -1024,31 +1154,6 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
-    public void testMaybeRewriteRealmRef() {
-        final RealmRef realmRefWithDomain = AuthenticationTests.randomRealmRef(true);
-        assertThat(realmRefWithDomain.getDomain(), notNullValue());
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    null,
-                    TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
-                ),
-                realmRefWithDomain
-            ).getDomain(),
-            nullValue()
-        );
-
-        assertThat(
-            Authentication.maybeRewriteRealmRef(
-                TransportVersionUtils.randomVersionBetween(random(), Authentication.VERSION_REALM_DOMAINS, null),
-                realmRefWithDomain
-            ),
-            equalTo(realmRefWithDomain)
-        );
-    }
-
     public void testMaybeRewriteMetadataForApiKeyRoleDescriptorsWithRemoteIndices() {
         final String apiKeyId = randomAlphaOfLengthBetween(1, 10);
         final String apiKeyName = randomAlphaOfLengthBetween(1, 10);
@@ -1068,14 +1173,13 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+            .transportVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
+        final TransportVersion olderVersion = randomTransportVersionBetween(
             VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1117,10 +1221,9 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
+        final TransportVersion olderVersion = randomTransportVersionBetween(
             VERSION_API_KEY_ROLES_AS_BYTES,
-            TransportVersionUtils.getPreviousVersion(original.getEffectiveSubject().getTransportVersion())
+            original.getEffectiveSubject().getTransportVersion()
         );
 
         final Map<String, Object> rewrittenMetadata = original.maybeRewriteForOlderVersion(olderVersion)
@@ -1162,11 +1265,7 @@ public class AuthenticationTests extends ESTestCase {
             .build();
 
         // pick a version that will only remove one of the two privileges
-        final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            ROLE_REMOTE_CLUSTER_PRIVS,
-            TransportVersionUtils.getPreviousVersion(ROLE_MONITOR_STATS)
-        );
+        final TransportVersion olderVersion = RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 
         Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();
         assertThat(rewrittenMetadata.keySet(), equalTo(with2privs.getAuthenticatingSubject().getMetadata().keySet()));
@@ -1240,7 +1339,7 @@ public class AuthenticationTests extends ESTestCase {
         );
 
         // check null value
-        assertThat(null, equalTo(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
+        assertThat(null, equalBytes(Authentication.maybeRemoveRemoteIndicesFromRoleDescriptors(null)));
 
         // and an empty map
         final BytesReference empty = randomBoolean() ? new BytesArray("""
@@ -1300,8 +1399,8 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         // If the realm is expected to have a domain, we need a version that's at least compatible with domains
-        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersions.V_7_0_0;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.current());
+        final TransportVersion minVersion = realmRef.getDomain() != null ? VERSION_REALM_DOMAINS : VERSION_7_0_0;
+        final TransportVersion version = randomTransportVersion(minVersion);
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -1314,11 +1413,35 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
-        return randomApiKeyAuthentication(
-            user,
-            apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersion.current())
+        return randomApiKeyAuthentication(user, apiKeyId, randomTransportVersion());
+    }
+
+    /**
+     * @param minVersion minimum version, inclusive
+     * @param maxVersion maximum version, exclusive
+     */
+    public static TransportVersion randomTransportVersionBetween(TransportVersion minVersion, TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS)
+                .filter(v -> v.supports(minVersion) && v.supports(maxVersion) == false)
+                .toArray(TransportVersion[]::new)
         );
+    }
+
+    public static TransportVersion randomTransportVersionBefore(TransportVersion maxVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(maxVersion) == false).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion(TransportVersion minVersion) {
+        return randomFrom(
+            Arrays.stream(AUTHENTICATION_TRANSPORT_VERSIONS).filter(v -> v.supports(minVersion)).toArray(TransportVersion[]::new)
+        );
+    }
+
+    public static TransportVersion randomTransportVersion() {
+        return randomFrom(AUTHENTICATION_TRANSPORT_VERSIONS);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, TransportVersion version) {
@@ -1371,5 +1494,144 @@ public class AuthenticationTests extends ESTestCase {
 
     private boolean realmIsSingleton(RealmRef realmRef) {
         return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
+    }
+
+    public void testRamBytesUsedIncludesApiKeyRoleDescriptorBytes() throws IOException {
+        final BytesArray roleDescriptorBytes = new BytesArray(randomAlphaOfLengthBetween(1024, 32 * 1024));
+        final BytesArray limitedByRoleDescriptorBytes = new BytesArray(randomAlphaOfLengthBetween(1024, 32 * 1024));
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(
+                Map.of(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    roleDescriptorBytes,
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    limitedByRoleDescriptorBytes
+                )
+            )
+            .build(false);
+        final long rawRoleDescriptorBytes = roleDescriptorBytes.length() + limitedByRoleDescriptorBytes.length();
+        assertThat(authentication.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+
+        // dropping the role descriptors from the metadata removes at least their raw size from the estimate
+        final Set<String> fieldsToKeep = authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .keySet()
+            .stream()
+            .filter(
+                key -> key.equals(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY) == false
+                    && key.equals(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY) == false
+            )
+            .collect(Collectors.toSet());
+        final Authentication withoutRoleDescriptors = authentication.copyWithFilteredMetadataFields(fieldsToKeep);
+        assertThat(authentication.ramBytesUsed() - withoutRoleDescriptors.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+
+        // the estimate holds after a round trip through the transport header, which is how receiving nodes materialize it
+        final Authentication decoded = AuthenticationContextSerializer.decode(authentication.encode());
+        assertThat(decoded.ramBytesUsed(), greaterThanOrEqualTo(rawRoleDescriptorBytes));
+    }
+
+    public void testRamBytesUsedIncludesNestedCrossClusterAccessAuthentication() {
+        final CrossClusterAccessSubjectInfo subjectInfo = randomCrossClusterAccessSubjectInfo();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLength(20), subjectInfo)
+            .build(false);
+        long nestedBytes = subjectInfo.getAuthentication().ramBytesUsed();
+        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : subjectInfo.getRoleDescriptorsBytesList()) {
+            nestedBytes += roleDescriptorsBytes.ramBytesUsed();
+        }
+        assertThat(authentication.ramBytesUsed(), greaterThanOrEqualTo(nestedBytes));
+    }
+
+    public void testRamBytesUsedCountsRunAsEffectiveSubject() {
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLength(8)),
+            new RealmRef("realm", "type", "node")
+        );
+        final User runAsUser = new User(randomAlphaOfLength(40));
+        final Authentication runAs = authentication.runAs(runAsUser, new RealmRef("lookup", "lookup-type", "node"));
+        assertThat(runAs.isRunAs(), is(true));
+        assertThat(
+            runAs.ramBytesUsed() - authentication.ramBytesUsed(),
+            greaterThanOrEqualTo(RamUsageEstimator.sizeOf(runAsUser.principal()))
+        );
+    }
+
+    public void testRamBytesUsedCountsEachUserRole() {
+        final String username = randomAlphaOfLength(8);
+        final String[] roles = randomArray(1, 8, String[]::new, () -> randomAlphaOfLengthBetween(5, 64));
+        final RealmRef realmRef = AuthenticationTestHelper.randomRealmRef(false);
+        final long withRoles = Authentication.newRealmAuthentication(new User(username, roles), realmRef).ramBytesUsed();
+        final long withoutRoles = Authentication.newRealmAuthentication(new User(username), realmRef).ramBytesUsed();
+        long roleBytes = 0;
+        for (String role : roles) {
+            roleBytes += RamUsageEstimator.sizeOf(role);
+        }
+        assertThat(withRoles - withoutRoles, greaterThanOrEqualTo(roleBytes));
+    }
+
+    public void testRamBytesUsedCountsRealmDomainAndItsRealms() {
+        final Set<RealmConfig.RealmIdentifier> identifiers = Set.of(
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(6), randomAlphaOfLength(6)),
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(7), randomAlphaOfLength(7)),
+            new RealmConfig.RealmIdentifier(randomAlphaOfLength(8), randomAlphaOfLength(8))
+        );
+        final RealmDomain domain = new RealmDomain(randomAlphaOfLength(9), identifiers);
+        final User user = new User(randomAlphaOfLength(8));
+        final long withDomain = Authentication.newRealmAuthentication(user, new RealmRef("realm", "type", "node", domain)).ramBytesUsed();
+        final long withoutDomain = Authentication.newRealmAuthentication(user, new RealmRef("realm", "type", "node")).ramBytesUsed();
+        long domainBytes = RamUsageEstimator.sizeOf(domain.name());
+        for (RealmConfig.RealmIdentifier identifier : identifiers) {
+            domainBytes += RamUsageEstimator.sizeOf(identifier.getType()) + RamUsageEstimator.sizeOf(identifier.getName());
+        }
+        assertThat(withDomain - withoutDomain, greaterThanOrEqualTo(domainBytes));
+    }
+
+    public void testRamBytesUsedSizesEachMetadataValueType() {
+        final String key = randomAlphaOfLengthBetween(5, 20);
+        final long keyBytes = RamUsageEstimator.sizeOf(key);
+
+        final String string = randomAlphaOfLength(200);
+        assertThat(metadataEntryBytes(key, string), greaterThanOrEqualTo(keyBytes + RamUsageEstimator.sizeOf(string)));
+
+        final List<String> collection = List.of(randomAlphaOfLength(50), randomAlphaOfLength(60));
+        long collectionBytes = keyBytes;
+        for (String element : collection) {
+            collectionBytes += RamUsageEstimator.sizeOf(element);
+        }
+        assertThat(metadataEntryBytes(key, collection), greaterThanOrEqualTo(collectionBytes));
+
+        final Map<String, String> map = Map.of(randomAlphaOfLength(30), randomAlphaOfLength(70));
+        long mapBytes = keyBytes;
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            mapBytes += RamUsageEstimator.sizeOf(entry.getKey()) + RamUsageEstimator.sizeOf(entry.getValue());
+        }
+        assertThat(metadataEntryBytes(key, map), greaterThanOrEqualTo(mapBytes));
+
+        // a value of any other type is charged a constant on top of its key, and a null value costs nothing beyond its key
+        assertThat(metadataEntryBytes(key, randomInt()), greaterThan(keyBytes));
+        assertThat(metadataEntryBytes(key, null), greaterThanOrEqualTo(keyBytes));
+    }
+
+    /** The estimate attributable to a single subject metadata entry: the authentication with it, less the same one without it. */
+    private static long metadataEntryBytes(String key, Object value) {
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .apiKey()
+            .metadata(Collections.singletonMap(key, value))
+            .build(false);
+        final Set<String> otherFields = new HashSet<>(authentication.getAuthenticatingSubject().getMetadata().keySet());
+        otherFields.remove(key);
+        return authentication.ramBytesUsed() - authentication.copyWithFilteredMetadataFields(otherFields).ramBytesUsed();
+    }
+
+    public void testRamBytesUsedToleratesRunAsWithoutLookupRealm() {
+        final Authentication authentication = Authentication.newRealmAuthentication(
+            new User(randomAlphaOfLength(8)),
+            new RealmRef("realm", "type", "node")
+        );
+        // the lookup realm is null when the impersonated user does not exist
+        final Authentication runAs = authentication.runAs(new User(randomAlphaOfLength(8)), null);
+        assertThat(runAs.getEffectiveSubject().getRealm(), nullValue());
+        assertThat(runAs.ramBytesUsed(), greaterThanOrEqualTo(authentication.ramBytesUsed()));
     }
 }

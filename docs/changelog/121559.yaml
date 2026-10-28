@@ -1,6 +1,0 @@
-pr: 121559
-summary: Skip Usage stats update when ML is disabled
-area: Machine Learning
-type: bug
-issues:
- - 121532

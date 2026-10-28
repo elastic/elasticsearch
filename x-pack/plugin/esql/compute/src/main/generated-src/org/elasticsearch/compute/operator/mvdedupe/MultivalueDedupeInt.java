@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -60,10 +60,13 @@ public class MultivalueDedupeInt {
         }
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         /*
@@ -110,10 +113,13 @@ public class MultivalueDedupeInt {
         }
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         copyAndSort(first, count);
@@ -140,10 +146,13 @@ public class MultivalueDedupeInt {
         }
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         copyMissing(first, count);
@@ -161,10 +170,13 @@ public class MultivalueDedupeInt {
     public IntBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendInt(block.getInt(first));
                     default -> {
                         copyAndSort(first, count);
@@ -181,17 +193,18 @@ public class MultivalueDedupeInt {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHash hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    sawNull = true;
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> {
-                        sawNull = true;
-                        builder.appendInt(0);
-                    }
                     case 1 -> {
                         int v = block.getInt(first);
                         hashAdd(builder, hash, v);
@@ -215,13 +228,16 @@ public class MultivalueDedupeInt {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, LongHash hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendInt(0);
                     case 1 -> {
                         int v = block.getInt(first);
                         hashLookupSingle(builder, hash, v);
@@ -243,7 +259,7 @@ public class MultivalueDedupeInt {
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
+     * and then encodes the results into a {@code byte[]} which can be used for
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
@@ -261,10 +277,13 @@ public class MultivalueDedupeInt {
                     position++;
                 }
                 for (; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        encodeNull();
+                        continue;
+                    }
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
                         case 1 -> {
                             int v = block.getInt(first);
                             if (hasCapacity(1)) {
@@ -389,7 +408,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -404,7 +423,7 @@ public class MultivalueDedupeInt {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -424,7 +443,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -483,7 +502,7 @@ public class MultivalueDedupeInt {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(LongHash hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -581,15 +600,15 @@ public class MultivalueDedupeInt {
         work = ArrayUtil.grow(work, size);
     }
 
-    private void hashAdd(IntBlock.Builder builder, LongHash hash, int v) {
+    private void hashAdd(IntBlock.Builder builder, LongHashTable hash, int v) {
         appendFound(builder, hash.add(v));
     }
 
-    private long hashLookup(LongHash hash, int v) {
+    private long hashLookup(LongHashTable hash, int v) {
         return hash.find(v);
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, LongHash hash, int v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongHashTable hash, int v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);

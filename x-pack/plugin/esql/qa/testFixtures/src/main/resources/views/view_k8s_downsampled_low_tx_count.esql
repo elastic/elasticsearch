@@ -1,0 +1,3 @@
+TS "k8s-downsampled"
+| WHERE network.eth0.tx < 512.0
+| STATS count=COUNT(network.eth0.tx) BY cluster

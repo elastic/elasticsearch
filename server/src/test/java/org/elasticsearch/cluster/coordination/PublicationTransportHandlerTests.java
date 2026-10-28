@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -68,6 +68,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.service.MasterService.STATE_UPDATE_ACTION_NAME;
@@ -85,7 +86,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+        when(transportService.newNetworkBytesStream(any())).then(
+            invocation -> new RecyclerBytesStreamOutput(recycler, invocation.getArgument(0))
+        );
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
         when(transportService.getConnection(any())).thenReturn(connection);
@@ -145,7 +148,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             StreamInput in = null;
             try {
                 in = request.bytes().streamInput();
-                final Compressor compressor = CompressorFactory.compressor(request.bytes());
+                final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
                 if (compressor != null) {
                     in = compressor.threadLocalStreamInput(in);
                 }
@@ -207,8 +210,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 }
 
                 @Override
-                public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                    return new RecyclerBytesStreamOutput(recycler);
+                public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+                    return new RecyclerBytesStreamOutput(recycler, circuitBreaker);
                 }
             };
 
@@ -228,16 +231,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             while (allNodes.size() < 10) {
                 var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
                     .version(
-                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                        VersionUtils.randomCompatibleVersion(Version.CURRENT),
                         IndexVersions.MINIMUM_COMPATIBLE,
-                        IndexVersionUtils.randomCompatibleVersion(random())
+                        IndexVersionUtils.randomCompatibleVersion()
                     )
                     .build();
                 allNodes.add(node);
-                nodeTransports.put(
-                    node,
-                    TransportVersionUtils.randomVersionBetween(random(), TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current())
-                );
+                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion());
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -354,21 +354,160 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
 
-        final var transportsByNode = new HashMap<DiscoveryNode, MockTransport>();
-        final var transportHandlersByNode = new HashMap<DiscoveryNode, PublicationTransportHandler>();
-        final var transportServicesByNode = new HashMap<DiscoveryNode, TransportService>();
         final var receivedStateRef = new AtomicReference<ClusterState>();
         final var completed = new AtomicBoolean();
 
         final var localNode = DiscoveryNodeUtils.create("localNode");
         final var otherNode = DiscoveryNodeUtils.builder("otherNode")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
-        for (final var discoveryNode : List.of(localNode, otherNode)) {
+        final var transportHandlersByNode = createConnectedHandlers(threadPool, publishRequest -> {
+            assertTrue(receivedStateRef.compareAndSet(null, publishRequest.getAcceptedState()));
+            return acceptedResponse(publishRequest);
+        }, localNode, otherNode);
+
+        threadPool.getThreadContext().markAsSystemContext();
+
+        final var clusterState0 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder().lastAcceptedConfiguration(VotingConfiguration.of(localNode)).build()
+                    )
+                    .generateClusterUuidIfNeeded()
+            )
+            .build();
+
+        final ClusterState receivedState0;
+        var context0 = transportHandlersByNode.get(localNode).newPublicationContext(publicationEvent(clusterState0, clusterState0));
+        try {
+            context0.sendPublishRequest(
+                otherNode,
+                new PublishRequest(clusterState0),
+                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(completed.getAndSet(false));
+            receivedState0 = receivedStateRef.getAndSet(null);
+            assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
+            assertEquals(otherNode, receivedState0.nodes().getLocalNode());
+            assertFalse(receivedState0.metadata().clusterUUIDCommitted());
+            assertEquals(VotingConfiguration.of(), receivedState0.getLastCommittedConfiguration());
+            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
+            assertEquals(0, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
+        } finally {
+            context0.decRef();
+        }
+
+        final var committedClusterState0 = ClusterState.builder(clusterState0)
+            .metadata(clusterState0.metadata().withLastCommittedValues(true, clusterState0.getLastAcceptedConfiguration()))
+            .build();
+        assertEquals(clusterState0.stateUUID(), committedClusterState0.stateUUID());
+        assertEquals(clusterState0.term(), committedClusterState0.term());
+        assertEquals(clusterState0.version(), committedClusterState0.version());
+
+        final var clusterState1 = ClusterState.builder(committedClusterState0).incrementVersion().build();
+        assertSame(committedClusterState0.metadata(), clusterState1.metadata());
+
+        var context1 = transportHandlersByNode.get(localNode)
+            .newPublicationContext(publicationEvent(committedClusterState0, clusterState1));
+        try {
+            context1.sendPublishRequest(
+                otherNode,
+                new PublishRequest(clusterState1),
+                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(completed.getAndSet(false));
+            var receivedState1 = receivedStateRef.getAndSet(null);
+            assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());
+            assertEquals(otherNode, receivedState1.nodes().getLocalNode());
+            assertSame(receivedState0.nodes(), receivedState1.nodes()); // it was a diff
+            assertTrue(receivedState1.metadata().clusterUUIDCommitted());
+            assertEquals(VotingConfiguration.of(localNode), receivedState1.getLastCommittedConfiguration());
+            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
+            assertEquals(1, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
+            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
+        } finally {
+            context1.decRef();
+        }
+
+        assertFalse(deterministicTaskQueue.hasRunnableTasks());
+        assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    }
+
+    /**
+     * A master never receives its own publications over the wire, so locally accepted states must update the last-seen state used as the
+     * base for diffs; otherwise, after losing the mastership, the next diff would be applied to (or rejected because of) a stale state.
+     */
+    public void testLocallyPublishedStateIsUsedAsBaseForSubsequentDiff() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        threadPool.getThreadContext().markAsSystemContext();
+
+        final var nodeA = DiscoveryNodeUtils.builder("nodeA").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        final var nodeB = DiscoveryNodeUtils.create("nodeB");
+
+        final var handlers = createConnectedHandlers(threadPool, PublicationTransportHandlerTests::acceptedResponse, nodeA, nodeB);
+        final var handlerA = handlers.get(nodeA);
+        final var handlerB = handlers.get(nodeB);
+
+        // nodeA is master and publishes state1 to itself
+        final var state1OnA = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(DiscoveryNodes.builder().add(nodeA).add(nodeB).localNodeId(nodeA.getId()).masterNodeId(nodeA.getId()))
+            .metadata(Metadata.builder().generateClusterUuidIfNeeded())
+            .build();
+        final var contextA = handlerA.newPublicationContext(publicationEvent(state1OnA, state1OnA));
+        try {
+            contextA.sendPublishRequest(nodeA, new PublishRequest(state1OnA), ActionListener.noop());
+            deterministicTaskQueue.runAllRunnableTasks();
+        } finally {
+            contextA.decRef();
+        }
+
+        // nodeB then becomes master and publishes state2 to nodeA as a diff against state1
+        final var state1OnB = ClusterState.builder(state1OnA)
+            .nodes(DiscoveryNodes.builder().add(nodeA).add(nodeB).localNodeId(nodeB.getId()).masterNodeId(nodeA.getId()))
+            .build();
+        final var state2OnB = ClusterState.builder(state1OnB)
+            .nodes(DiscoveryNodes.builder().add(nodeA).add(nodeB).localNodeId(nodeB.getId()).masterNodeId(nodeB.getId()))
+            .incrementVersion()
+            .build();
+        final var contextB = handlerB.newPublicationContext(publicationEvent(state1OnB, state2OnB));
+        try {
+            contextB.sendPublishRequest(nodeA, new PublishRequest(state2OnB), ActionListener.noop());
+            deterministicTaskQueue.runAllRunnableTasks();
+        } finally {
+            contextB.decRef();
+        }
+
+        final var statsA = handlerA.stats();
+        assertEquals(1, statsA.getCompatibleClusterStateDiffReceivedCount());
+        assertEquals(0, statsA.getIncompatibleClusterStateDiffReceivedCount());
+        assertEquals(0, statsA.getFullClusterStateReceivedCount());
+    }
+
+    /**
+     * Creates a {@link PublicationTransportHandler} per node, wired so that a request sent to a node is delivered synchronously to the
+     * handlers registered by that node's transport service.
+     */
+    private Map<DiscoveryNode, PublicationTransportHandler> createConnectedHandlers(
+        ThreadPool threadPool,
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
+        DiscoveryNode... discoveryNodes
+    ) {
+        final var transportsByNode = new HashMap<DiscoveryNode, MockTransport>();
+        final var transportServices = new ArrayList<TransportService>();
+        final var handlersByNode = new HashMap<DiscoveryNode, PublicationTransportHandler>();
+        for (final var discoveryNode : discoveryNodes) {
             final var transport = new MockTransport() {
                 @Override
                 protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
@@ -407,117 +546,31 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 null,
                 Set.of()
             );
-            transportServicesByNode.put(discoveryNode, transportService);
-
-            final var publicationTransportHandler = new PublicationTransportHandler(
-                transportService,
-                writableRegistry(),
-                publishRequest -> {
-                    assertTrue(receivedStateRef.compareAndSet(null, publishRequest.getAcceptedState()));
-                    return new PublishWithJoinResponse(
-                        new PublishResponse(publishRequest.getAcceptedState().term(), publishRequest.getAcceptedState().version()),
-                        Optional.empty()
-                    );
-                }
-            );
-            transportHandlersByNode.put(discoveryNode, publicationTransportHandler);
+            transportServices.add(transportService);
+            handlersByNode.put(discoveryNode, new PublicationTransportHandler(transportService, writableRegistry(), handlePublishRequest));
         }
-
-        for (final var transportService : transportServicesByNode.values()) {
+        for (final var transportService : transportServices) {
             transportService.start();
             transportService.acceptIncomingRequests();
         }
+        return handlersByNode;
+    }
 
-        threadPool.getThreadContext().markAsSystemContext();
+    private static PublishWithJoinResponse acceptedResponse(PublishRequest publishRequest) {
+        return new PublishWithJoinResponse(
+            new PublishResponse(publishRequest.getAcceptedState().term(), publishRequest.getAcceptedState().version()),
+            Optional.empty()
+        );
+    }
 
-        final var clusterState0 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .metadata(
-                Metadata.builder()
-                    .coordinationMetadata(
-                        CoordinationMetadata.builder().lastAcceptedConfiguration(VotingConfiguration.of(localNode)).build()
-                    )
-                    .generateClusterUuidIfNeeded()
-            )
-            .build();
-
-        final ClusterState receivedState0;
-        var context0 = transportHandlersByNode.get(localNode)
-            .newPublicationContext(
-                new ClusterStatePublicationEvent(
-                    new BatchSummary(() -> "test"),
-                    clusterState0,
-                    clusterState0,
-                    new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
-                    0L,
-                    0L
-                )
-            );
-        try {
-            context0.sendPublishRequest(
-                otherNode,
-                new PublishRequest(clusterState0),
-                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
-            );
-            deterministicTaskQueue.runAllRunnableTasks();
-            assertTrue(completed.getAndSet(false));
-            receivedState0 = receivedStateRef.getAndSet(null);
-            assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
-            assertEquals(otherNode, receivedState0.nodes().getLocalNode());
-            assertFalse(receivedState0.metadata().clusterUUIDCommitted());
-            assertEquals(VotingConfiguration.of(), receivedState0.getLastCommittedConfiguration());
-            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
-            assertEquals(0, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
-            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
-            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
-        } finally {
-            context0.decRef();
-        }
-
-        final var committedClusterState0 = ClusterState.builder(clusterState0)
-            .metadata(clusterState0.metadata().withLastCommittedValues(true, clusterState0.getLastAcceptedConfiguration()))
-            .build();
-        assertEquals(clusterState0.stateUUID(), committedClusterState0.stateUUID());
-        assertEquals(clusterState0.term(), committedClusterState0.term());
-        assertEquals(clusterState0.version(), committedClusterState0.version());
-
-        final var clusterState1 = ClusterState.builder(committedClusterState0).incrementVersion().build();
-        assertSame(committedClusterState0.metadata(), clusterState1.metadata());
-
-        var context1 = transportHandlersByNode.get(localNode)
-            .newPublicationContext(
-                new ClusterStatePublicationEvent(
-                    new BatchSummary(() -> "test"),
-                    committedClusterState0,
-                    clusterState1,
-                    new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
-                    0L,
-                    0L
-                )
-            );
-        try {
-            context1.sendPublishRequest(
-                otherNode,
-                new PublishRequest(clusterState1),
-                ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
-            );
-            deterministicTaskQueue.runAllRunnableTasks();
-            assertTrue(completed.getAndSet(false));
-            var receivedState1 = receivedStateRef.getAndSet(null);
-            assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());
-            assertEquals(otherNode, receivedState1.nodes().getLocalNode());
-            assertSame(receivedState0.nodes(), receivedState1.nodes()); // it was a diff
-            assertTrue(receivedState1.metadata().clusterUUIDCommitted());
-            assertEquals(VotingConfiguration.of(localNode), receivedState1.getLastCommittedConfiguration());
-            final var receivedStateStats = transportHandlersByNode.get(otherNode).stats();
-            assertEquals(1, receivedStateStats.getCompatibleClusterStateDiffReceivedCount());
-            assertEquals(1, receivedStateStats.getIncompatibleClusterStateDiffReceivedCount());
-            assertEquals(1, receivedStateStats.getFullClusterStateReceivedCount());
-        } finally {
-            context1.decRef();
-        }
-
-        assertFalse(deterministicTaskQueue.hasRunnableTasks());
-        assertFalse(deterministicTaskQueue.hasDeferredTasks());
+    private static ClusterStatePublicationEvent publicationEvent(ClusterState oldState, ClusterState newState) {
+        return new ClusterStatePublicationEvent(
+            new BatchSummary(() -> "test"),
+            oldState,
+            newState,
+            new Task(randomNonNegativeLong(), "test", "test", "", TaskId.EMPTY_TASK_ID, Map.of()),
+            0L,
+            0L
+        );
     }
 }

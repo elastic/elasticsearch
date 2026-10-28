@@ -11,7 +11,38 @@ package org.elasticsearch.common.text;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class SizeLimitingStringWriterTests extends ESTestCase {
+    public void testWriteProducesCorrectOutput() throws Exception {
+        final var writer = new SizeLimitingStringWriter(100);
+        writer.write('A');
+        writer.write(new char[] { 'B', 'C' });
+        writer.write(new char[] { 'D', 'E' }, 0, 2);
+        writer.write("FG");
+        writer.write("HIJ", 0, 2);
+        writer.append('K');
+        writer.append("LM");
+        writer.append("NOP", 0, 2);
+        assertThat(writer.toString(), equalTo("ABCDEFGHIKLMNO"));
+    }
+
+    public void testZeroLengthWriteAtCapacity() throws Exception {
+        final var writer = new SizeLimitingStringWriter(3);
+        writer.write("abc");
+        // zero-length writes must not throw even when the writer is at capacity
+        writer.write(new char[0]);
+        writer.write(new char[] { 'x', 'y' }, 0, 0);
+        writer.write("", 0, 0);
+        assertThat(writer.toString(), equalTo("abc"));
+    }
+
+    public void testPartialWriteBeforeLimit() throws Exception {
+        final var writer = new SizeLimitingStringWriter(5);
+        expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.write("abcdefgh"));
+        assertThat(writer.toString(), equalTo("abcde"));
+    }
+
     public void testSizeIsLimited() {
         SizeLimitingStringWriter writer = new SizeLimitingStringWriter(10);
 
@@ -25,5 +56,12 @@ public class SizeLimitingStringWriterTests extends ESTestCase {
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append('a'));
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append("a"));
         expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.append("a", 0, 1));
+    }
+
+    public void testLimitMessage() {
+        SizeLimitingStringWriter writer = new SizeLimitingStringWriter(3);
+
+        var e = expectThrows(SizeLimitingStringWriter.SizeLimitExceededException.class, () -> writer.write("abcdefgh"));
+        assertThat(e.getMessage(), equalTo("String [abc...] has size [8] which exceeds the size limit [3]"));
     }
 }

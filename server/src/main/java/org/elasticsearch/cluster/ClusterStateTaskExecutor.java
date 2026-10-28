@@ -74,8 +74,6 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         Strings.collectionToDelimitedStringWithLimit(
             (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
             ", ",
-            "",
-            "",
             1024,
             output
         );

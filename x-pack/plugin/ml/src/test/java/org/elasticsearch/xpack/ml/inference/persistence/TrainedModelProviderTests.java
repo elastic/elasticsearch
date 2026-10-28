@@ -6,22 +6,43 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.ShardRestoringException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -31,9 +52,11 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadataTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.hamcrest.Matchers;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +70,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
 import static org.hamcrest.Matchers.containsString;
@@ -58,6 +84,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -539,6 +566,240 @@ public class TrainedModelProviderTests extends ESTestCase {
 
             trainedModelProvider.storeTrainedModelMetadata(metadata, future, true);
             assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
+        }
+    }
+
+    /**
+     * Verifies that getInferenceStats retries when a per-item MultiSearchResponse failure contains
+     * SearchPhaseExecutionException.
+     */
+    public void testGetInferenceStatsRetriesOnSearchPhaseExecutionException() {
+        try (
+            var threadPool = createThreadPool(
+                new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
+            )
+        ) {
+            var multiSearchCallCount = new AtomicInteger(0);
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (request instanceof ClusterHealthRequest) {
+                        listener.onResponse((Response) new ClusterHealthResponse());
+                    } else if (request instanceof MultiSearchRequest multiSearchRequest) {
+                        if (multiSearchCallCount.incrementAndGet() == 1) {
+                            // Simulate the real failure path: per-item failure inside MultiSearchResponse
+                            var items = new MultiSearchResponse.Item[] {
+                                new MultiSearchResponse.Item(
+                                    null,
+                                    new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+                                ) };
+                            var msResponse = new MultiSearchResponse(items, 0L);
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
+                            }
+                        } else {
+                            var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
+                            for (int i = 0; i < items.length; i++) {
+                                items[i] = new MultiSearchResponse.Item(
+                                    SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                                    null
+                                );
+                            }
+                            var msResponse = new MultiSearchResponse(items, 0L);
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
+                            }
+                        }
+                    }
+                }
+            };
+
+            var provider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
+            var future = new PlainActionFuture<List<InferenceStats>>();
+            provider.getInferenceStats(new String[] { "model-1" }, null, future);
+
+            List<InferenceStats> result = future.actionGet(10, TimeUnit.SECONDS);
+            assertThat(result, is(not(nullValue())));
+            assertThat(multiSearchCallCount.get(), equalTo(2));
+        }
+    }
+
+    /**
+     * Verifies that getInferenceStats retries when a per-item MultiSearchResponse failure contains
+     * NoShardAvailableActionException.
+     */
+    public void testGetInferenceStatsRetriesOnNoShardAvailableActionException() {
+        assertGetInferenceStatsRetriesOn(new NoShardAvailableActionException(null, "no shard available"));
+    }
+
+    /**
+     * Verifies that getInferenceStats retries when a per-item MultiSearchResponse failure is a 403 because a shard is being
+     * restored: restores are expected to be short.
+     */
+    public void testGetInferenceStatsRetriesOnShardRestoringException() {
+        assertGetInferenceStatsRetriesOn(new ShardRestoringException("stats-index", randomUUID()));
+    }
+
+    private void assertGetInferenceStatsRetriesOn(Exception firstFailure) {
+        try (
+            var threadPool = createThreadPool(
+                new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
+            )
+        ) {
+            var multiSearchCallCount = new AtomicInteger(0);
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (request instanceof ClusterHealthRequest) {
+                        listener.onResponse((Response) new ClusterHealthResponse());
+                    } else if (request instanceof MultiSearchRequest multiSearchRequest) {
+                        if (multiSearchCallCount.incrementAndGet() == 1) {
+                            var items = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, firstFailure) };
+                            var msResponse = new MultiSearchResponse(items, 0L);
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
+                            }
+                        } else {
+                            var items = new MultiSearchResponse.Item[multiSearchRequest.requests().size()];
+                            for (int i = 0; i < items.length; i++) {
+                                items[i] = new MultiSearchResponse.Item(
+                                    SearchResponse.emptyResponseBuilder().tookInMillis(1L).build(),
+                                    null
+                                );
+                            }
+                            var msResponse = new MultiSearchResponse(items, 0L);
+                            try {
+                                listener.onResponse((Response) msResponse);
+                            } finally {
+                                msResponse.decRef();
+                            }
+                        }
+                    }
+                }
+            };
+
+            var provider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
+            var future = new PlainActionFuture<List<InferenceStats>>();
+            provider.getInferenceStats(new String[] { "model-1" }, null, future);
+
+            List<InferenceStats> result = future.actionGet(10, TimeUnit.SECONDS);
+            assertThat(result, is(not(nullValue())));
+            assertThat(multiSearchCallCount.get(), equalTo(2));
+        }
+    }
+
+    /**
+     * Verifies that getInferenceStats does not retry on non-transient per-item failures, and that a client error keeps its 4xx status.
+     */
+    public void testGetInferenceStatsDoesNotRetryOnNonTransientException() {
+        var itemFailure = new IllegalArgumentException("bad request");
+
+        Exception e = getInferenceStatsFailure(itemFailure);
+
+        assertThat(e, instanceOf(ElasticsearchStatusException.class));
+        assertThat(e.getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /**
+     * A client closing the HTTP channel cancels the stats task. That must surface as the cancellation's 4xx status, not as a 500 that
+     * trips the suppressed-rest-error alert, and must not be logged as a warning.
+     */
+    public void testGetInferenceStatsCancelledReturnsClientStatus() {
+        var itemFailure = new TaskCancelledException("parent task was cancelled [http channel closed]");
+        var failure = new AtomicReference<Exception>();
+
+        MockLog.assertThatLogger(
+            () -> failure.set(getInferenceStatsFailure(itemFailure)),
+            TrainedModelProvider.class,
+            new MockLog.UnseenEventExpectation("no warning", TrainedModelProvider.class.getCanonicalName(), Level.WARN, "*")
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    /**
+     * A genuine server-side per-item failure still surfaces as a 5xx and is logged as a warning.
+     */
+    public void testGetInferenceStatsServerFailureStays5xx() {
+        var itemFailure = new ElasticsearchException("boom");
+        var failure = new AtomicReference<Exception>();
+
+        MockLog.assertThatLogger(
+            () -> failure.set(getInferenceStatsFailure(itemFailure)),
+            TrainedModelProvider.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                TrainedModelProvider.class.getCanonicalName(),
+                Level.WARN,
+                "[model-1] search failed for models"
+            )
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchStatusException.class));
+        assertThat(failure.get().getCause(), sameInstance(itemFailure));
+        assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * Runs getInferenceStats against a client whose multi-search always fails its single item with {@code itemFailure}, asserts that
+     * the multi-search is not retried, and returns the failure delivered to the caller.
+     */
+    private Exception getInferenceStatsFailure(Exception itemFailure) {
+        try (
+            var threadPool = createThreadPool(
+                new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
+            )
+        ) {
+            var multiSearchCallCount = new AtomicInteger(0);
+            var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (request instanceof ClusterHealthRequest) {
+                        listener.onResponse((Response) new ClusterHealthResponse());
+                    } else if (request instanceof MultiSearchRequest) {
+                        multiSearchCallCount.incrementAndGet();
+                        var items = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, itemFailure) };
+                        var msResponse = new MultiSearchResponse(items, 0L);
+                        try {
+                            listener.onResponse((Response) msResponse);
+                        } finally {
+                            msResponse.decRef();
+                        }
+                    }
+                }
+            };
+
+            var provider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
+            var future = new PlainActionFuture<List<InferenceStats>>();
+            provider.getInferenceStats(new String[] { "model-1" }, null, future);
+
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+            assertThat(multiSearchCallCount.get(), equalTo(1));
+            return e;
         }
     }
 

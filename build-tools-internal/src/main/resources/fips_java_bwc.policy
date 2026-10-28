@@ -1,0 +1,16 @@
+grant {
+     permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
+     permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
+     permission java.lang.RuntimePermission "getProtectionDomain";
+     permission java.util.PropertyPermission "java.runtime.name", "read";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "tlsAlgorithmsEnabled";
+     //io.netty.handler.codec.DecoderException
+     permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+     //java.security.InvalidAlgorithmParameterException: Cannot process GCMParameterSpec
+     permission java.lang.RuntimePermission "accessDeclaredMembers";
+     permission java.util.PropertyPermission "intellij.debug.agent", "read";
+     permission java.util.PropertyPermission "intellij.debug.agent", "write";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
+     permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
+     permission java.io.FilePermission "${javax.net.ssl.trustStore}", "read";
+};

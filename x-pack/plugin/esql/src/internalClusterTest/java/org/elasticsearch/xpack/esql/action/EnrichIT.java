@@ -14,26 +14,30 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -48,9 +52,10 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -65,24 +70,30 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(EsqlPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(TestEncryptionServicePlugin.class);
+        plugins.add(EsqlActionBreakerIT.EsqlTestPluginWithMockBlockFactory.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
@@ -127,7 +138,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         final Client client;
         if (randomBoolean()) {
             client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());
@@ -338,10 +349,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testProfile() {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.pragmas(randomPragmas());
-        request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
-        request.profile(true);
+        EsqlQueryRequest request = syncEsqlQueryRequest(
+            "from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist"
+        ).pragmas(randomPragmas()).profile(true);
         try (var resp = run(request)) {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
@@ -350,11 +360,30 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             assertNotNull(profile);
             List<DriverProfile> drivers = profile.drivers();
             assertThat(drivers.size(), greaterThanOrEqualTo(2));
-            List<DriverStatus.OperatorStatus> enrichOperators = drivers.stream()
+            List<OperatorStatus> enrichOperators = drivers.stream()
                 .flatMap(d -> d.operators().stream())
                 .filter(status -> status.operator().startsWith("EnrichOperator"))
                 .toList();
             assertThat(enrichOperators, not(emptyList()));
+        }
+    }
+
+    public void testBytesReadAccountedForEnrich() {
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM listens | " + enrichSongCommand() + " | STATS count(*) BY artist").profile(
+            true
+        );
+        try (EsqlQueryResponse resp = run(request)) {
+            assertThat(resp.bytesRead(), greaterThan(0L));
+
+            List<OperatorStatus> enrichOperatorStatuses = resp.profile()
+                .drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(op -> op.status() instanceof EnrichLookupOperator.Status)
+                .toList();
+            assertThat(enrichOperatorStatuses, not(emptyList()));
+            long enrichBytesRead = enrichOperatorStatuses.stream().mapToLong(OperatorStatus::bytesRead).sum();
+            assertThat(enrichBytesRead, greaterThan(0L));
         }
     }
 
@@ -444,6 +473,130 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 ((MockTransportService) ts).clearAllRules();
             }
         }
+    }
+
+    /**
+     * A lookup can reach a copy of the enrich index that was just relocated away, before the coordinating node
+     * applies the cluster state that removes it. The lookup must move on to another copy instead of failing.
+     */
+    public void testEnrichRetriesAnotherCopyWhenShardIsNotAvailable() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen();
+        AtomicBoolean failedOnce = new AtomicBoolean();
+        for (var ts : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {
+                if (failedOnce.compareAndSet(false, true)) {
+                    channel.sendResponse(shardCopyUnavailable(ts));
+                } else {
+                    h.messageReceived(r, channel, t);
+                }
+            });
+        }
+        try {
+            try (
+                var resp = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(rowEnrichQuery()))
+                    .actionGet(30, TimeUnit.SECONDS)
+            ) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(ROW_ENRICH_RESULT));
+            }
+            assertTrue("the first lookup should have been failed", failedOnce.get());
+        } finally {
+            for (var ts : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * A coordinating node that is more than one cluster state behind can route a lookup only to copies that
+     * are all gone. The lookup must wait for a newer cluster state and try the copies it lists.
+     */
+    public void testEnrichResolvesCopiesAgainAfterAllCopiesFail() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen();
+        int copies = clusterService().state().nodes().getDataNodes().size();
+        AtomicInteger failures = failFirstLookupOnEveryNode();
+        try {
+            var future = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(rowEnrichQuery()));
+            assertBusy(() -> assertThat(failures.get(), equalTo(copies)));
+            createIndex("cluster-state-change");
+            try (var resp = future.actionGet(30, TimeUnit.SECONDS)) {
+                assertThat(EsqlTestUtils.getValuesList(resp), equalTo(ROW_ENRICH_RESULT));
+            }
+        } finally {
+            for (var ts : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * The enrich index can be deleted while a lookup waits to resolve its copies again, for example after a policy
+     * re-execution replaced it. The lookup must then fail with the missing index instead of waiting forever.
+     */
+    public void testEnrichFailsWhenIndexIsDeletedAfterAllCopiesFail() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen();
+        int copies = clusterService().state().nodes().getDataNodes().size();
+        String enrichIndex = clusterService().state()
+            .metadata()
+            .getProject(ProjectId.DEFAULT)
+            .getIndicesLookup()
+            .get(EnrichPolicy.getBaseName("songs"))
+            .getIndices()
+            .getFirst()
+            .getName();
+        AtomicInteger failures = failFirstLookupOnEveryNode();
+        try {
+            var future = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(rowEnrichQuery()));
+            assertBusy(() -> assertThat(failures.get(), equalTo(copies)));
+            assertAcked(client().admin().indices().prepareDelete(enrichIndex));
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+            var indexNotFound = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+            assertThat(indexNotFound, notNullValue());
+            assertThat(indexNotFound.getIndex().getName(), equalTo(enrichIndex));
+        } finally {
+            for (var ts : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) ts).clearAllRules();
+            }
+        }
+    }
+
+    /**
+     * Makes every node fail the first lookup it receives as if its copy of the enrich index were gone,
+     * and returns the count of lookups failed this way.
+     */
+    private static AtomicInteger failFirstLookupOnEveryNode() {
+        AtomicInteger failures = new AtomicInteger();
+        for (var ts : internalCluster().getInstances(TransportService.class)) {
+            AtomicBoolean failedOnce = new AtomicBoolean();
+            ((MockTransportService) ts).addRequestHandlingBehavior(EnrichLookupService.LOOKUP_ACTION_NAME, (h, r, channel, t) -> {
+                if (failedOnce.compareAndSet(false, true)) {
+                    failures.incrementAndGet();
+                    channel.sendResponse(shardCopyUnavailable(ts));
+                } else {
+                    h.messageReceived(r, channel, t);
+                }
+            });
+        }
+        return failures;
+    }
+
+    // ROW runs on the coordinator only, so no data-node retry on another copy of a source index can hide a failed lookup.
+    private static String rowEnrichQuery() {
+        return "ROW song_id = \"s1\" | " + enrichSongCommand() + " | KEEP title, artist";
+    }
+
+    private static final List<List<Object>> ROW_ENRICH_RESULT = List.of(List.of("Hotel California", "Eagles"));
+
+    private static RemoteTransportException shardCopyUnavailable(TransportService ts) {
+        Exception cause = switch (between(0, 2)) {
+            case 0 -> new IndexNotFoundException(".enrich-songs");
+            case 1 -> new NodeClosedException(ts.getLocalNode());
+            case 2 -> new ConnectTransportException(ts.getLocalNode(), "test");
+            default -> throw new AssertionError("unexpected");
+        };
+        return new RemoteTransportException("test", cause);
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

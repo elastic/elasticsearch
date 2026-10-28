@@ -9,7 +9,9 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -17,13 +19,17 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -49,10 +55,22 @@ public class ReaderContext implements Releasable {
     private final AbstractRefCounted refCounted;
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
+    // Phases still inside the try-with-resources that owns their SearchContext. Closed only when
+    // those phases return, which does not happen if this reader is freed while they are blocked.
+    private final Set<CancellableTask> inFlightSearches = ConcurrentCollections.newConcurrentSet();
+    // Set once index removal has cancelled the in-flight phases, so a phase registering afterward is rejected instead of missed.
+    private volatile String inFlightCancelReason;
 
     private final long startTimeInNano = System.nanoTime();
 
     private Map<String, Object> context;
+
+    // Id of the task that opened this reader context, captured for diagnostic logging on close.
+    // {@code 0L} sentinel means "not available" (e.g. relocated PIT contexts where the original
+    // creator is not recoverable, or test instantiations). Task ids issued by {@code TaskManager}
+    // start at 1, so 0 is unambiguous. The owning node id is the local SearchService node id, so
+    // it isn't stored here. See https://github.com/elastic/elasticsearch/issues/112680.
+    private final long creatorTaskId;
 
     @SuppressWarnings("this-escape")
     public ReaderContext(
@@ -61,13 +79,15 @@ public class ReaderContext implements Releasable {
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
         long keepAliveInMillis,
-        boolean singleSession
+        boolean singleSession,
+        long creatorTaskId
     ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
+        this.creatorTaskId = creatorTaskId;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
         this.refCounted = AbstractRefCounted.of(this::doClose);
@@ -77,7 +97,7 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected final long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
@@ -94,6 +114,38 @@ public class ReaderContext implements Releasable {
 
     public void addOnClose(Releasable releasable) {
         onCloses.add(releasable);
+    }
+
+    /**
+     * Tracks a search phase that is still using this reader. {@link #cancelInFlightSearches} stops it
+     * when the reader is freed, so the phase can release its {@link SearchContext}. The task is untracked
+     * automatically when the given search context is closed.
+     */
+    public void addInFlightSearch(CancellableTask task, SearchContext searchContext) {
+        inFlightSearches.add(task);
+        searchContext.addReleasable(() -> inFlightSearches.remove(task));
+    }
+
+    /**
+     * Cancels phases registered with {@link #addInFlightSearch} through {@link TaskManager}. The reader stays open
+     * until those phases release it, so they must be cancelled before {@link #close()}. Phases registered afterwards
+     * observe the reason through {@link #inFlightCancelReason()}.
+     */
+    public void cancelInFlightSearches(TaskManager taskManager, String reason) {
+        // Publish the reason before iterating over inFlightSearches. addInFlightSearch adds to inFlightSearches before the
+        // caller reads the reason, so a concurrent phase is either seen by the loop below or sees the reason.
+        inFlightCancelReason = reason;
+        for (CancellableTask task : inFlightSearches) {
+            taskManager.cancel(task, reason, () -> {});
+        }
+    }
+
+    /**
+     * The reason {@link #cancelInFlightSearches} was called with, or {@code null} if it has not been.
+     */
+    @Nullable
+    public String inFlightCancelReason() {
+        return inFlightCancelReason;
     }
 
     public ShardSearchContextId id() {
@@ -116,13 +168,19 @@ public class ReaderContext implements Releasable {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
+    public long keepAlive() {
+        return keepAlive.longValue();
+    }
+
     /**
      * Returns a releasable to indicate that the caller has stopped using this reader.
      * The time to live of the reader after usage can be extended using the provided
      * <code>keepAliveInMillis</code>.
      */
     public Releasable markAsUsed(long keepAliveInMillis) {
-        refCounted.incRef();
+        if (refCounted.tryIncRef() == false) {
+            throw new SearchContextMissingException(id);
+        }
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
             this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
@@ -131,11 +189,38 @@ public class ReaderContext implements Releasable {
     }
 
     public boolean isExpired() {
-        if (refCounted.refCount() > 1) {
+        if (hasOutstandingRefs()) {
             return false; // being used by markAsUsed
         }
+
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
+    }
+
+    protected final boolean hasOutstandingRefs() {
+        return refCounted.refCount() > 1;
+    }
+
+    public boolean isRelocating() {
+        return false;
+    }
+
+    /**
+     * Marks this context as relocating so that the background Reaper will drain it gracefully
+     * once all in-flight {@link #markAsUsed} references are released (plus a grace period),
+     * rather than closing it immediately. Overridden in {@link PitReaderContext}.
+     */
+    public void relocate() {
+        // no-op for non-PIT contexts
+    }
+
+    /**
+     * Returns the id of the task that opened this reader context, or {@code 0L} if it was
+     * not captured (relocated PIT contexts and test instantiations). The owning node id is
+     * the local node id at open time and is formatted by the caller for logging.
+     */
+    public long creatorTaskId() {
+        return creatorTaskId;
     }
 
     // BWC

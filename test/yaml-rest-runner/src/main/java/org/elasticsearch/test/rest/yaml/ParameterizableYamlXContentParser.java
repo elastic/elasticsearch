@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -144,6 +145,16 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     }
 
     @Override
+    public XContentString optimizedText() throws IOException {
+        return delegate.optimizedText();
+    }
+
+    @Override
+    public XContentString optimizedTextOrNull() throws IOException {
+        return delegate.optimizedTextOrNull();
+    }
+
+    @Override
     public CharBuffer charBufferOrNull() throws IOException {
         return delegate.charBufferOrNull();
     }
@@ -261,6 +272,11 @@ public class ParameterizableYamlXContentParser implements XContentParser {
     @Override
     public XContentLocation getTokenLocation() {
         return delegate.getTokenLocation();
+    }
+
+    @Override
+    public XContentLocation getCurrentLocation() {
+        return delegate.getCurrentLocation();
     }
 
     @Override

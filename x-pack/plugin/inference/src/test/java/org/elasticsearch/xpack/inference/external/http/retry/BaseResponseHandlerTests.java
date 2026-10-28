@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.logging.log4j.Logger;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler.toRestStatus;
 import static org.hamcrest.core.Is.is;
@@ -25,8 +26,64 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BaseResponseHandlerTests extends ESTestCase {
+
+    private static final String INFERENCE_ID = "id";
+
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs500() {
         assertThat(toRestStatus(500), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testConstructNonStreamingException_AppendsErrorMessage_WhenErrorStructureFound() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.BAD_REQUEST,
+            mockRequest(),
+            httpResult(400),
+            new ErrorResponse("some error")
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Received a bad request status code for request from inference entity id [id] status [400]. Error message: [some error]")
+        );
+    }
+
+    public void testConstructNonStreamingException_OmitsErrorMessage_WhenErrorStructureNotFound() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.BAD_REQUEST,
+            mockRequest(),
+            httpResult(400),
+            ErrorResponse.UNDEFINED_ERROR
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("Received a bad request status code for request from inference entity id [id] status [400]"));
+    }
+
+    public void testConstructNonStreamingException_OmitsErrorMessage_WhenErrorResponseIsNull() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.SERVER_ERROR,
+            mockRequest(),
+            httpResult(500),
+            null
+        );
+
+        // toRestStatus maps anything >= 500 onto BAD_REQUEST
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Received a server error status code for request from inference entity id [id] status [500]")
+        );
+    }
+
+    private static OutboundRequest mockRequest() {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        return outboundRequest;
+    }
+
+    private static HttpResult httpResult(int statusCode) {
+        return new HttpResult(new BasicHttpResponse(statusCode), new byte[0]);
     }
 
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs501() {
@@ -41,6 +98,61 @@ public class BaseResponseHandlerTests extends ESTestCase {
         assertThat(toRestStatus(1000), is(RestStatus.BAD_REQUEST));
     }
 
+    public void testValidateResponse_SkipsBuildFailureStatusCodeException_WhenResponseIsSuccessful() {
+        var handler = new BaseResponseHandler(
+            "test",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("should not be called"));
+            }
+        };
+
+        var response = mock200Response();
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("test-id");
+
+        // 200 → buildFailureStatusCodeException must not be called
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, "{}".getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    public void testValidateResponse_CallsBuildFailureStatusCodeException_WhenResponseIsNotSuccessful() {
+        var handlerCalled = new AtomicBoolean(false);
+        var handler = new BaseResponseHandler(
+            "test",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                handlerCalled.set(true);
+                return new RetryException(false, new RuntimeException("failure"));
+            }
+        };
+
+        var response = new BasicHttpResponse(500);
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("test-id");
+
+        expectThrows(
+            RetryException.class,
+            () -> handler.validateResponse(
+                mock(ThrottlerManager.class),
+                mock(Logger.class),
+                request,
+                new HttpResult(response, "{}".getBytes(StandardCharsets.UTF_8))
+            )
+        );
+        assertTrue(handlerCalled.get());
+    }
+
     public void testValidateResponse_DoesNotThrowAnExceptionWhenStatus200_AndNoErrorObject() {
         var handler = getBaseResponseHandler();
 
@@ -52,7 +164,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
         handler.validateResponse(
@@ -63,7 +175,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenMalformedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrowError_WhenStatus200_AndMalformedErrorObject() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -76,27 +188,18 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
-            )
-        );
-
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]")
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenWellFormedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrow_WhenStatus200_AndWellFormedErrorObjectExists() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -110,41 +213,80 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
-            )
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
+    }
 
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]. Error message: [a message]")
+    public void testValidateResponse_DoesNot_ThrowErrorWhenWellFormedErrorObjectExists_WhenCheckForErrorIsFalse() {
+        var handler = getBaseResponseHandler();
+
+        String responseJson = """
+            {
+              "error": {
+                "type": "not_found_error",
+                "message": "a message"
+              }
+            }
+            """;
+
+        var response = mock200Response();
+
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("abc");
+
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
+    }
+
+    public void testValidateResponse_UsesBuildFailureStatusCodeException_WhenResponseIsNotSuccessful_AndBodyIsEmpty() {
+        var handler = new BaseResponseHandler(
+            "test",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
+            @Override
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure exception"));
+            }
+        };
+
+        var response = new BasicHttpResponse(500);
+        var request = mock(OutboundRequest.class);
+        when(request.getInferenceEntityId()).thenReturn("test-id");
+
+        // An empty body must not suppress the failure-status exception; buildFailureStatusCodeException wins.
+        var thrownException = expectThrows(
+            RetryException.class,
+            () -> handler.validateResponse(mock(ThrottlerManager.class), mock(Logger.class), request, new HttpResult(response, new byte[0]))
+        );
+        assertThat(thrownException.getCause().getMessage(), is("failure exception"));
     }
 
     private static HttpResponse mock200Response() {
-        int statusCode = 200;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-
-        return response;
+        return new BasicHttpResponse(200);
     }
 
     private static BaseResponseHandler getBaseResponseHandler() {
-        return new BaseResponseHandler("abc", (Request request, HttpResult result) -> null, ErrorMessageResponseEntity::fromResponse) {
+        return new BaseResponseHandler(
+            "abc",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
             @Override
-            protected void checkForFailureStatusCode(Request request, HttpResult result) {}
+            public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+                return new RetryException(false, new RuntimeException("failure"));
+            }
         };
     }
 }

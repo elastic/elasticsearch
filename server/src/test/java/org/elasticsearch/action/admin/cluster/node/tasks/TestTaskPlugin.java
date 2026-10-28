@@ -11,8 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,6 +40,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -58,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,10 +75,10 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>("cluster:admin/tasks/testunblock");
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(TEST_TASK_ACTION, TransportTestTaskAction.class),
-            new ActionHandler<>(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
+            new ActionHandler(TEST_TASK_ACTION, TransportTestTaskAction.class),
+            new ActionHandler(UNBLOCK_TASK_ACTION, TransportUnblockTestTasksAction.class)
         );
     }
 
@@ -163,7 +161,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         protected final String requestName;
         protected final boolean shouldBlock;
 
@@ -251,7 +249,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 TEST_TASK_ACTION.name(),
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 NodeRequest::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
@@ -368,7 +366,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 UNBLOCK_TASK_ACTION.name(),
                 clusterService,
                 transportService,
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 UnblockTestTasksRequest::new,
                 UnblockTestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)

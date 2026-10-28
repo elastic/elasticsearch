@@ -1,0 +1,231 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.action.admin.cluster.node.usage;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.AbstractTransportRequest;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Defines the request/response types for {@link TransportNodeUsageStatsForThreadPoolsAction}.
+ */
+public class NodeUsageStatsForThreadPoolsAction {
+    /**
+     * The sender request type that will be resolved to send individual {@link NodeRequest} requests to every node in the cluster.
+     */
+    public static class Request extends BaseNodesRequest {
+        private final boolean fetchShardWriteLoads;
+
+        /**
+         * @param nodeIds The list of nodes to which to send individual requests and collect responses from. If the list is null, all nodes
+         *                in the cluster will be sent a request.
+         * @param fetchShardWriteLoads Whether each node should also report its per-shard write loads, which is comparatively expensive
+         *                             as it iterates every shard on the node.
+         */
+        public Request(String[] nodeIds, boolean fetchShardWriteLoads) {
+            super(nodeIds);
+            this.fetchShardWriteLoads = fetchShardWriteLoads;
+        }
+
+        public boolean fetchShardWriteLoads() {
+            return fetchShardWriteLoads;
+        }
+    }
+
+    /**
+     * Request sent to and received by a cluster node.
+     */
+    public static class NodeRequest extends AbstractTransportRequest {
+        private final boolean fetchShardWriteLoads;
+
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            if (in.getTransportVersion().supports(NodeResponse.ADD_SHARD_WRITE_LOADS)) {
+                this.fetchShardWriteLoads = in.readBoolean();
+            } else {
+                this.fetchShardWriteLoads = false;
+            }
+        }
+
+        public NodeRequest(boolean fetchShardWriteLoads) {
+            this.fetchShardWriteLoads = fetchShardWriteLoads;
+        }
+
+        public boolean fetchShardWriteLoads() {
+            return fetchShardWriteLoads;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getTransportVersion().supports(NodeResponse.ADD_SHARD_WRITE_LOADS)) {
+                out.writeBoolean(fetchShardWriteLoads);
+            }
+        }
+    }
+
+    /**
+     * A collection of {@link NodeUsageStatsForThreadPools} responses from all the cluster nodes.
+     */
+    public static class Response extends BaseNodesResponse<NodeUsageStatsForThreadPoolsAction.NodeResponse> {
+
+        protected Response(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Response(
+            ClusterName clusterName,
+            List<NodeUsageStatsForThreadPoolsAction.NodeResponse> nodeResponses,
+            List<FailedNodeException> nodeFailures
+        ) {
+            super(clusterName, nodeResponses, nodeFailures);
+        }
+
+        /**
+         * Combines the responses from each node that was called into a single map (by node ID) for the final {@link Response}.
+         */
+        public Map<String, NodeUsageStatsForThreadPools> getAllNodeUsageStatsForThreadPools() {
+            Map<String, NodeUsageStatsForThreadPools> allNodeUsageStatsForThreadPools = new HashMap<>();
+            for (NodeUsageStatsForThreadPoolsAction.NodeResponse nodeResponse : getNodes()) {
+                allNodeUsageStatsForThreadPools.put(
+                    nodeResponse.getNodeUsageStatsForThreadPools().nodeId(),
+                    nodeResponse.getNodeUsageStatsForThreadPools()
+                );
+            }
+            return allNodeUsageStatsForThreadPools;
+        }
+
+        /**
+         * Returns the shard write loads (by node ID) from each node that responded, for use in aggregation by callers.
+         */
+        public Map<String, Map<ShardId, Double>> getAllShardWriteLoadsPerNode() {
+            Map<String, Map<ShardId, Double>> result = new HashMap<>();
+            for (NodeUsageStatsForThreadPoolsAction.NodeResponse nodeResponse : getNodes()) {
+                result.put(nodeResponse.getNode().getId(), nodeResponse.getShardWriteLoads());
+            }
+            return result;
+        }
+
+        @Override
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodeResponses) throws IOException {
+            out.writeCollection(nodeResponses);
+        }
+
+        @Override
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readCollectionAsList(NodeUsageStatsForThreadPoolsAction.NodeResponse::new);
+        }
+
+        @Override
+        public String toString() {
+            return "NodeUsageStatsForThreadPoolsAction.Response{" + getNodes() + "}";
+        }
+    }
+
+    /**
+     * A {@link NodeUsageStatsForThreadPools} response from a single cluster node.
+     */
+    public static class NodeResponse extends BaseNodeResponse {
+        public static final TransportVersion ADD_SHARD_WRITE_LOADS = TransportVersion.fromName("add_shard_write_loads");
+
+        private final NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools;
+        private final Map<ShardId, Double> shardWriteLoads;
+
+        protected NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+            super(in, node);
+            this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
+            if (in.getTransportVersion().supports(ADD_SHARD_WRITE_LOADS)) {
+                this.shardWriteLoads = in.readMap(ShardId::new, StreamInput::readDouble);
+            } else {
+                this.shardWriteLoads = Map.of();
+            }
+        }
+
+        public NodeResponse(
+            DiscoveryNode node,
+            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools,
+            Map<ShardId, Double> shardWriteLoads
+        ) {
+            super(node);
+            this.nodeUsageStatsForThreadPools = nodeUsageStatsForThreadPools;
+            this.shardWriteLoads = shardWriteLoads;
+        }
+
+        public NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
+            if (in.getTransportVersion().supports(ADD_SHARD_WRITE_LOADS)) {
+                this.shardWriteLoads = in.readMap(ShardId::new, StreamInput::readDouble);
+            } else {
+                this.shardWriteLoads = Map.of();
+            }
+        }
+
+        public NodeUsageStatsForThreadPools getNodeUsageStatsForThreadPools() {
+            return nodeUsageStatsForThreadPools;
+        }
+
+        public Map<ShardId, Double> getShardWriteLoads() {
+            return shardWriteLoads;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            nodeUsageStatsForThreadPools.writeTo(out);
+            if (out.getTransportVersion().supports(ADD_SHARD_WRITE_LOADS)) {
+                out.writeMap(shardWriteLoads, (o, v) -> v.writeTo(o), StreamOutput::writeDouble);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "NodeUsageStatsForThreadPoolsAction.NodeResponse{"
+                + "nodeId="
+                + getNode().getId()
+                + ", nodeUsageStatsForThreadPools="
+                + nodeUsageStatsForThreadPools
+                + ", shardWriteLoads="
+                + shardWriteLoads
+                + "}";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o instanceof NodeResponse == false) return false;
+            NodeResponse other = (NodeResponse) o;
+            return Objects.equals(getNode(), other.getNode())
+                && Objects.equals(nodeUsageStatsForThreadPools, other.nodeUsageStatsForThreadPools)
+                && Objects.equals(shardWriteLoads, other.shardWriteLoads);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getNode(), nodeUsageStatsForThreadPools, shardWriteLoads);
+        }
+    }
+
+}

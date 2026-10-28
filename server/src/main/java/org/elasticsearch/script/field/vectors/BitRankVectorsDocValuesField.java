@@ -20,6 +20,6 @@ public class BitRankVectorsDocValuesField extends ByteRankVectorsDocValuesField 
 
     @Override
     protected RankVectors getVector() {
-        return new BitRankVectors(vectorValue, magnitudesValue, numVecs, dims);
+        return new BitRankVectors(vectorValue, magnitudesValue, numVecs, dims, value);
     }
 }

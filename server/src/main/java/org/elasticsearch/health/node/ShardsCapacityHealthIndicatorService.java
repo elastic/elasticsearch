@@ -10,7 +10,10 @@
 package org.elasticsearch.health.node;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.TriFunction;
@@ -24,19 +27,30 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  *  This indicator reports health data about the shard capacity across the cluster.
  *
- * <p>
  * The indicator will report:
- * * RED when there's room for less than 5 shards (either data or frozen nodes)
- * * YELLOW when there's room for less than 10 shards (either data or frozen nodes)
- * * GREEN otherwise
- * </p>
+ * <ul>
+ * <li> {@code RED} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.red} (default 5) shards
+ * on any applicable node type</li>
+ * <li> {@code YELLOW} when there's room for less than the configured {@code health.shard_capacity.unhealthy_threshold.yellow} (default 10)
+ * shards on any applicable node type</li>
+ * <li> {@code GREEN} otherwise</li>
+ * </ul>
+ *
+ * Applicable node types are data (non-frozen) and frozen nodes in stateful clusters, or index and search nodes in stateless clusters.
  *
  *  Although the `max_shard_per_node(.frozen)?` information is scoped by Node, we use the information from master because there is where
  *  the available room for new shards is checked before creating new indices.
@@ -45,8 +59,6 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
     static final String NAME = "shards_capacity";
 
-    static final String DATA_NODE_NAME = "data";
-    static final String FROZEN_NODE_NAME = "frozen";
     private static final String UPGRADE_BLOCKED = "The cluster has too many used shards to be able to upgrade.";
     private static final String UPGRADE_AT_RISK =
         "The cluster is running low on room to add new shard. Upgrading to a new version is at risk.";
@@ -89,10 +101,84 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         "frozen"
     );
 
-    private final ClusterService clusterService;
+    public static final Setting<Integer> SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW = Setting.intSetting(
+        "health.shard_capacity.unhealthy_threshold.yellow",
+        10,
+        1,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Integer value) {}
 
-    public ShardsCapacityHealthIndicatorService(ClusterService clusterService) {
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings) {
+                Integer redThreshold = (Integer) settings.get(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
+                if (value <= redThreshold) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "Setting [%s] (%d) must be greater than [%s] (%d)",
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
+                            value,
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
+                            redThreshold
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED);
+                return settings.iterator();
+            }
+        },
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED = Setting.intSetting(
+        "health.shard_capacity.unhealthy_threshold.red",
+        5,
+        1,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Integer value) {}
+
+            @Override
+            public void validate(Integer value, Map<Setting<?>, Object> settings) {
+                Integer yellowThreshold = (Integer) settings.get(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
+                if (value >= yellowThreshold) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "Setting [%s] (%d) must be less than [%s] (%d)",
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(),
+                            value,
+                            SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(),
+                            yellowThreshold
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW);
+                return settings.iterator();
+            }
+        },
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
+    private final List<ShardLimitValidator.LimitGroup> shardLimitGroups;
+
+    public ShardsCapacityHealthIndicatorService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
+        this.shardLimitGroups = ShardLimitValidator.applicableLimitGroups(DiscoveryNode.isStateless(clusterService.getSettings()));
     }
 
     @Override
@@ -104,54 +190,61 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(state);
-        if (healthMetadata == null || healthMetadata.getShardLimitsMetadata() == null) {
+        var shardLimitsMetadata = healthMetadata == null ? null : healthMetadata.getShardLimitsMetadata();
+        if (shardLimitsMetadata == null) {
             return unknownIndicator();
         }
 
-        var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
-        return mergeIndicators(
-            verbose,
-            calculateFrom(
-                shardLimitsMetadata.maxShardsPerNode(),
-                state.nodes(),
-                state.metadata(),
-                ShardLimitValidator::checkShardLimitForNormalNodes
-            ),
-            calculateFrom(
-                shardLimitsMetadata.maxShardsPerNodeFrozen(),
-                state.nodes(),
-                state.metadata(),
-                ShardLimitValidator::checkShardLimitForFrozenNodes
+        final List<StatusResult> statusResults = shardLimitGroups.stream()
+            .map(
+                limitGroup -> calculateFrom(
+                    ShardLimitValidator.getShardLimitPerNode(limitGroup, shardLimitsMetadata),
+                    state.nodes(),
+                    state.metadata(),
+                    limitGroup::checkShardLimit,
+                    shardLimitsMetadata.shardCapacityUnhealthyThresholdYellow(),
+                    shardLimitsMetadata.shardCapacityUnhealthyThresholdRed()
+                )
             )
-        );
+            .toList();
+
+        return mergeIndicators(verbose, statusResults, state.metadata(), maxAffectedResourcesCount);
     }
 
-    private HealthIndicatorResult mergeIndicators(boolean verbose, StatusResult dataNodes, StatusResult frozenNodes) {
-        var finalStatus = HealthStatus.merge(Stream.of(dataNodes.status, frozenNodes.status));
-        var diagnoses = List.<Diagnosis>of();
+    private HealthIndicatorResult mergeIndicators(
+        boolean verbose,
+        List<StatusResult> statusResults,
+        Metadata metadata,
+        int maxAffectedResourcesCount
+    ) {
+        var finalStatus = HealthStatus.merge(statusResults.stream().map(StatusResult::status));
+        var diagnoses = new LinkedHashSet<Diagnosis>();
         var symptomBuilder = new StringBuilder();
 
         if (finalStatus == HealthStatus.GREEN) {
             symptomBuilder.append("The cluster has enough room to add new shards.");
         }
 
-        // RED and YELLOW status indicates that the cluster might have issues. finalStatus has the worst between *data (non-frozen) and
-        // frozen* nodes, so we have to check each of the groups in order of provide the right message.
+        // RED and YELLOW status indicates that the cluster might have issues. finalStatus is the worst across groups (data/frozen or
+        // index/search), so we inspect each group to build the symptom and diagnoses.
         if (finalStatus.indicatesHealthProblem()) {
             symptomBuilder.append("Cluster is close to reaching the configured maximum number of shards for ");
-            if (dataNodes.status == frozenNodes.status) {
-                symptomBuilder.append(DATA_NODE_NAME).append(" and ").append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES, SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
-
-            } else if (dataNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(DATA_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_DATA_NODES);
-
-            } else if (frozenNodes.status.indicatesHealthProblem()) {
-                symptomBuilder.append(FROZEN_NODE_NAME);
-                diagnoses = List.of(SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES);
+            final var nodeTypeNames = new ArrayList<String>();
+            for (var statusResult : statusResults) {
+                if (statusResult.status.indicatesHealthProblem()) {
+                    nodeTypeNames.add(nodeTypeForLimitGroup(statusResult.result.group()));
+                    diagnoses.add(diagnosisForLimitGroup(statusResult.result.group()));
+                }
             }
 
+            assert nodeTypeNames.isEmpty() == false;
+            symptomBuilder.append(nodeTypeNames.getFirst());
+            for (int i = 1; i < nodeTypeNames.size() - 1; i++) {
+                symptomBuilder.append(", ").append(nodeTypeNames.get(i));
+            }
+            if (nodeTypeNames.size() > 1) {
+                symptomBuilder.append(" and ").append(nodeTypeNames.getLast());
+            }
             symptomBuilder.append(" nodes.");
         }
 
@@ -164,9 +257,16 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            verbose ? buildDetails(dataNodes.result, frozenNodes.result) : HealthIndicatorDetails.EMPTY,
+            verbose
+                ? buildDetails(
+                    statusResults.stream().map(StatusResult::result).toList(),
+                    metadata,
+                    maxAffectedResourcesCount,
+                    projectResolver.supportsMultipleProjects()
+                )
+                : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
-            verbose ? diagnoses : List.of()
+            verbose ? List.copyOf(diagnoses) : List.of()
         );
     }
 
@@ -174,14 +274,16 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         int maxShardsPerNodeSetting,
         DiscoveryNodes discoveryNodes,
         Metadata metadata,
-        ShardsCapacityChecker checker
+        ShardsCapacityChecker checker,
+        int shardThresholdYellow,
+        int shardThresholdRed
     ) {
-        var result = checker.check(maxShardsPerNodeSetting, 5, 1, discoveryNodes, metadata);
+        var result = checker.check(maxShardsPerNodeSetting, shardThresholdRed, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.RED, result);
         }
 
-        result = checker.check(maxShardsPerNodeSetting, 10, 1, discoveryNodes, metadata);
+        result = checker.check(maxShardsPerNodeSetting, shardThresholdYellow, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.YELLOW, result);
         }
@@ -189,28 +291,64 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return new StatusResult(HealthStatus.GREEN, result);
     }
 
-    static HealthIndicatorDetails buildDetails(ShardLimitValidator.Result dataNodes, ShardLimitValidator.Result frozenNodes) {
+    static HealthIndicatorDetails buildDetails(
+        List<ShardLimitValidator.Result> results,
+        Metadata metadata,
+        int maxAffectedResourcesCount,
+        boolean supportsMultipleProjects
+    ) {
         return (builder, params) -> {
             builder.startObject();
-            {
-                builder.startObject(DATA_NODE_NAME);
-                builder.field("max_shards_in_cluster", dataNodes.maxShardsInCluster());
-                if (dataNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", dataNodes.currentUsedShards().get());
-                }
-                builder.endObject();
-            }
-            {
-                builder.startObject("frozen");
-                builder.field("max_shards_in_cluster", frozenNodes.maxShardsInCluster());
-                if (frozenNodes.currentUsedShards().isPresent()) {
-                    builder.field("current_used_shards", frozenNodes.currentUsedShards().get());
+            for (var result : results) {
+                builder.startObject(nodeTypeForLimitGroup(result.group()));
+                builder.field("max_shards_in_cluster", result.maxShardsInCluster());
+                if (result.currentUsedShards().isPresent()) {
+                    // Sum open shards in this group across all projects.
+                    builder.field("current_used_shards", result.group().countShards(metadata));
+                    if (supportsMultipleProjects
+                        && (result.group() == ShardLimitValidator.LimitGroup.INDEX
+                            || result.group() == ShardLimitValidator.LimitGroup.SEARCH)) {
+                        writeProjects(builder, metadata, result.group(), maxAffectedResourcesCount);
+                    }
                 }
                 builder.endObject();
             }
             builder.endObject();
             return builder;
         };
+    }
+
+    /**
+     * Writes the multi-project breakdown under {@code projects}, ordered by used shards for this group (descending)
+     * and capped to {@code maxAffectedResourcesCount}. Omits the field when the cap is 0.
+     */
+    private static void writeProjects(
+        XContentBuilder builder,
+        Metadata metadata,
+        ShardLimitValidator.LimitGroup group,
+        int maxAffectedResourcesCount
+    ) throws IOException {
+        if (maxAffectedResourcesCount <= 0) {
+            return;
+        }
+        var topProjects = metadata.projects()
+            .entrySet()
+            .stream()
+            .map(entry -> Map.entry(entry.getKey(), group.countShards(entry.getValue())))
+            .sorted(
+                Comparator.<Map.Entry<ProjectId, Integer>>comparingInt(Map.Entry::getValue)
+                    .reversed()
+                    .thenComparing(entry -> entry.getKey().id())
+            )
+            .limit(maxAffectedResourcesCount)
+            .toList();
+        builder.startObject("projects");
+        for (var entry : topProjects) {
+            builder.startObject(entry.getKey().id());
+            builder.field("current_used_shards", entry.getValue());
+            builder.endObject();
+        }
+        builder.endObject();
     }
 
     private HealthIndicatorResult unknownIndicator() {
@@ -221,6 +359,22 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
             List.of(),
             List.of()
         );
+    }
+
+    private static String nodeTypeForLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
+            case NORMAL -> "data";
+            case FROZEN -> "frozen";
+            case INDEX -> "index";
+            case SEARCH -> "search";
+        };
+    }
+
+    private static Diagnosis diagnosisForLimitGroup(ShardLimitValidator.LimitGroup limitGroup) {
+        return switch (limitGroup) {
+            case NORMAL, INDEX, SEARCH -> SHARDS_MAX_CAPACITY_REACHED_DATA_NODES;
+            case FROZEN -> SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES;
+        };
     }
 
     record StatusResult(HealthStatus status, ShardLimitValidator.Result result) {}

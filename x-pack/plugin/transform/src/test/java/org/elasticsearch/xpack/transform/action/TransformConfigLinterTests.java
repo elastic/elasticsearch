@@ -61,7 +61,8 @@ public class TransformConfigLinterTests extends ESTestCase {
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            randomStringOrNull()
         );
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig), is(empty()));
 
@@ -70,6 +71,10 @@ public class TransformConfigLinterTests extends ESTestCase {
             TransformConfigLinter.getWarnings(function, sourceConfig, syncConfig),
             contains("sync time field is a script-based runtime field, this transform might run slowly, please check your configuration.")
         );
+    }
+
+    private static String randomStringOrNull() {
+        return randomBoolean() ? randomAlphanumericOfLength(5) : null;
     }
 
     public void testGetWarnings_Latest_WithScriptBasedRuntimeFields() {
@@ -91,7 +96,8 @@ public class TransformConfigLinterTests extends ESTestCase {
         sourceConfig = new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+            runtimeMappings,
+            randomStringOrNull()
         );
 
         assertThat(

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -17,6 +16,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
@@ -78,10 +77,11 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 .query(randomAlphaOfLength(10))
                 .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
                 .waitForCompletionTimeout(randomTimeValue())
-                .keepAlive(randomTimeValue())
+                .keepAlive(randomBoolean() ? randomTimeValue() : null)
                 .keepOnCompletion(randomBoolean())
                 .allowPartialSearchResults(randomBoolean())
                 .allowPartialSequenceResults(randomBoolean())
+                .projectRouting(randomAlphaOfLength(10))
                 .fetchFields(randomFetchFields)
                 .runtimeMappings(randomRuntimeMappings())
                 .resultPosition(randomFrom("tail", "head"))
@@ -130,20 +130,22 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
-        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(TransportVersions.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
+        mutatedInstance.ccsMinimizeRoundtrips(instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
-        mutatedInstance.keepAlive(instance.keepAlive());
+        if (version.supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING) == false) {
+            // old wire format cannot represent null; a null keepAlive is written as DEFAULT_KEEP_ALIVE
+            mutatedInstance.keepAlive(instance.keepAlive() != null ? instance.keepAlive() : EqlSearchRequest.LEGACY_DEFAULT_KEEP_ALIVE);
+        } else {
+            mutatedInstance.keepAlive(instance.keepAlive());
+        }
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
-        mutatedInstance.fetchFields(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.fetchFields() : null);
-        mutatedInstance.runtimeMappings(version.onOrAfter(TransportVersions.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
-        mutatedInstance.resultPosition(version.onOrAfter(TransportVersions.V_7_17_8) ? instance.resultPosition() : "tail");
-        mutatedInstance.maxSamplesPerKey(version.onOrAfter(TransportVersions.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
-        mutatedInstance.allowPartialSearchResults(
-            version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSearchResults() : false
-        );
-        mutatedInstance.allowPartialSequenceResults(
-            version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSequenceResults() : false
-        );
+        mutatedInstance.fetchFields(instance.fetchFields());
+        mutatedInstance.runtimeMappings(instance.runtimeMappings());
+        mutatedInstance.resultPosition(instance.resultPosition());
+        mutatedInstance.maxSamplesPerKey(instance.maxSamplesPerKey());
+        mutatedInstance.allowPartialSearchResults(instance.allowPartialSearchResults());
+        mutatedInstance.allowPartialSequenceResults(instance.allowPartialSequenceResults());
+        mutatedInstance.projectRouting(instance.getProjectRouting());
 
         return mutatedInstance;
     }

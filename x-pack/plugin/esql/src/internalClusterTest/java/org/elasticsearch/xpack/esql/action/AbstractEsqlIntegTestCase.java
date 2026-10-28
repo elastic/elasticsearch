@@ -11,23 +11,32 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -37,15 +46,19 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+
+    protected static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(30L);
+
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
@@ -60,6 +73,22 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     public void ensureBlocksReleased() {
+        for (String node : internalCluster().getNodeNames()) {
+            BlockFactoryProvider blockFactoryProvider = internalCluster().getInstance(BlockFactoryProvider.class, node);
+            try {
+                if (blockFactoryProvider.blockFactory() instanceof MockBlockFactory mockBlockFactory) {
+                    assertBusy(() -> {
+                        try {
+                            mockBlockFactory.ensureAllBlocksAreReleased();
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("failed to check mock factory", e);
+            }
+        }
         for (String node : internalCluster().getNodeNames()) {
             CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
@@ -118,7 +147,24 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        // TestEncryptionServicePlugin binds an EncryptionService so the (always-registered) data-source
+        // CRUD actions can be constructed — esql couples the datasources feature to the encryption
+        // feature, so a bound service is required wherever esql runs.
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(), TestEncryptionServicePlugin.class),
+            EsqlPluginWithEnterpriseOrTrialLicense.class
+        );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            // Federation is only on by default in snapshot builds; set it here so the external data source and dataset
+            // suites run in a release build too. The unavailable surface is covered by the federation REST ITs.
+            .put(Federation.FEDERATION_ENABLED.getKey(), true)
+            .build();
     }
 
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
@@ -140,31 +186,42 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(esqlCommands, randomPragmas());
+        return run(esqlCommands, DEFAULT_REQUEST_TIMEOUT);
     }
 
-    protected final EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
-        return run(esqlCommands, pragmas, null);
+    protected final EsqlQueryResponse run(String esqlCommands, TimeValue timeout) {
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()), timeout);
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(esqlCommands);
-        if (pragmas != null) {
-            request.pragmas(pragmas);
-        }
-        if (filter != null) {
-            request.filter(filter);
-        }
-        return run(request);
+    /** A hook for overriding. */
+    protected QueryPragmas getPragmas() {
+        return randomPragmas();
     }
 
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
+        return run(request, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(EsqlQueryAction.INSTANCE, maybeWrapAsPrepared(request)).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
+    }
+
+    /**
+     * Randomly wraps the given request in a {@link PreparedEsqlQueryRequest} to exercise the
+     * pre-built-plan code path.
+     */
+    private EsqlQueryRequest maybeWrapAsPrepared(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest || randomBoolean()) {
+            return request;
+        }
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+        var statement = parser.parse(request.query(), request.params(), inferenceSettings);
+        return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 
     protected static QueryPragmas randomPragmas() {
@@ -247,5 +304,54 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             case 3 -> new Tuple<>(null, Boolean.FALSE);
             default -> throw new AssertionError("should not get here");
         };
+    }
+
+    /**
+     * Asserts local-cluster shard accounting. Callers that need these counts should set {@code include_execution_metadata} on the request
+     * so the local cluster is present.
+     */
+    protected static void assertLocalShardCounts(EsqlQueryResponse resp, int total, int successful, int failed) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("total shards", local.getTotalShards(), equalTo(total));
+        assertThat("successful shards", local.getSuccessfulShards(), equalTo(successful));
+        assertThat("failed shards", local.getFailedShards(), equalTo(failed));
+    }
+
+    protected static void assertLocalClusterStatus(EsqlQueryResponse resp, EsqlExecutionInfo.Cluster.Status expected) {
+        EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+        assertNotNull(local);
+        assertThat("local cluster status", local.getStatus(), equalTo(expected));
+    }
+
+    public static void assertOk(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(false));
+    }
+
+    public static void assertPartial(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(true));
+    }
+
+    public static void assertEmpty(EsqlQueryResponse response) {
+        assertThat(response.rows().iterator().hasNext(), equalTo(false));
+    }
+
+    public static void assertColumnContainsInAnyOrder(EsqlQueryResponse response, String column, Object... indices) {
+        var indexColumn = findColumnIndex(response, column);
+        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
+    }
+
+    public static int findColumnIndex(EsqlQueryResponse response, String column) {
+        for (int c = 0; c < response.columns().size(); c++) {
+            if (Objects.equals(response.columns().get(c).name(), column)) {
+                return c;
+            }
+        }
+        throw new AssertionError("no [" + column + "] column found");
+    }
+
+    /** The values of the column called {@code name}, in row order. */
+    public static List<Object> column(EsqlQueryResponse response, String name) {
+        return Iterators.toList(response.column(findColumnIndex(response, name)));
     }
 }

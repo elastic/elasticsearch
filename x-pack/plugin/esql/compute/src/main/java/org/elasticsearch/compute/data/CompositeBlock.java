@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implements Block {
+public final class CompositeBlock extends AbstractBlockRefCounted implements Block {
     private final Block[] blocks;
     private final int positionCount;
 
@@ -41,8 +40,6 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
             }
         }
     }
-
-    static NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "CompositeBlock", CompositeBlock::readFrom);
 
     @Override
     public Vector asVector() {
@@ -86,17 +83,21 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getTotalValueCount() {
-        throw new UnsupportedOperationException("Composite block");
+        int totalValueCount = 0;
+        for (Block b : blocks) {
+            totalValueCount += b.getTotalValueCount();
+        }
+        return totalValueCount;
     }
 
     @Override
     public int getFirstValueIndex(int position) {
-        return blocks[0].getFirstValueIndex(position);
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
     public int getValueCount(int position) {
-        return blocks[0].getValueCount(position);
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
@@ -115,12 +116,18 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public int valueMaxByteSize() {
+        throw new UnsupportedOperationException("composite blocks do not have a single value byte size");
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return blocks[0].blockFactory();
     }
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         for (Block block : blocks) {
             block.allowPassingToDifferentDriver();
         }
@@ -150,18 +157,61 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public CompositeBlock filter(int... positions) {
+    public Block slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        CompositeBlock result = null;
+        final Block[] slicedBlocks = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                slicedBlocks[i] = blocks[i].slice(beginInclusive, endExclusive);
+            }
+            result = new CompositeBlock(slicedBlocks);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(slicedBlocks);
+            }
+        }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = blocks[i].filter(positions);
+                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions, offset, length);
             }
             result = new CompositeBlock(filteredBlocks);
             return result;
         } finally {
             if (result == null) {
                 Releasables.close(filteredBlocks);
+            }
+        }
+    }
+
+    @Override
+    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
+
+    @Override
+    public CompositeBlock deepCopy(BlockFactory blockFactory) {
+        CompositeBlock result = null;
+        final Block[] copied = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                copied[i] = blocks[i].deepCopy(blockFactory);
+            }
+            result = new CompositeBlock(copied);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(copied);
             }
         }
     }
@@ -204,18 +254,14 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
     }
 
-    @Override
-    public String getWriteableName() {
-        return "CompositeBlock";
-    }
-
     static Block readFrom(StreamInput in) throws IOException {
         final int numBlocks = in.readVInt();
         boolean success = false;
         final Block[] blocks = new Block[numBlocks];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
             for (int b = 0; b < numBlocks; b++) {
-                blocks[b] = in.readNamedWriteable(Block.class);
+                blocks[b] = Block.readTypedBlock(blockStreamInput);
             }
             CompositeBlock result = new CompositeBlock(blocks);
             success = true;
@@ -231,7 +277,7 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(blocks.length);
         for (Block block : blocks) {
-            out.writeNamedWriteable(block);
+            Block.writeTypedBlock(block, out);
         }
     }
 

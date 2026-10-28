@@ -43,6 +43,7 @@ public class ImpersonateOfficialClientTestClient extends ClientYamlTestClient {
     @Override
     public ClientYamlTestResponse callApi(
         String apiName,
+        String method,
         Map<String, String> params,
         HttpEntity entity,
         Map<String, String> headers,
@@ -50,6 +51,6 @@ public class ImpersonateOfficialClientTestClient extends ClientYamlTestClient {
         BiPredicate<ClientYamlSuiteRestApi, ClientYamlSuiteRestApi.Path> pathPredicate
     ) throws IOException {
         headers.put("x-elastic-client-meta", meta);
-        return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+        return super.callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
     }
 }

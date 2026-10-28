@@ -22,14 +22,16 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -75,13 +77,17 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new AnalyticsTemplateRegistry(clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new AnalyticsTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -286,7 +292,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override
@@ -451,16 +457,15 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(composableTemplates)
+            .componentTemplates(componentTemplates)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(composableTemplates)
-                    .componentTemplates(componentTemplates)
-                    .transientSettings(Settings.EMPTY)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

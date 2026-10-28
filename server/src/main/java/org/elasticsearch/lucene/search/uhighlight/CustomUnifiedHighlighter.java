@@ -26,6 +26,7 @@ import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.Passage;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
+import org.apache.lucene.search.uhighlight.UHComponents;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
@@ -35,7 +36,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -56,10 +63,25 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
 public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
+    private static boolean isKnnQuery(Query q) {
+        // TODO: bug https://github.com/elastic/elasticsearch/issues/136427
+        // AbstractKnnVectorQuery is not public, so we need to list concrete classes
+        // currently there is a bug in Lucene that causes things that use
+        // AbstractKnnVectorQuery to throw NPEs in weight matches highlighting
+        return q instanceof KnnScoreDocQuery
+            || q instanceof RescoreKnnVectorQuery
+            || q instanceof VectorSimilarityQuery
+            || q instanceof ESKnnFloatVectorQuery
+            || q instanceof ESKnnByteVectorQuery
+            || q instanceof ESDiversifyingChildrenByteKnnVectorQuery
+            || q instanceof ESDiversifyingChildrenFloatKnnVectorQuery;
+    }
+
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
     private final OffsetSource offsetSource;
+    private final boolean singleDocumentReader;
     private final String index;
     private final String field;
     private final Locale breakIteratorLocale;
@@ -73,6 +95,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *
      * @param builder the {@link UnifiedHighlighter.Builder} for the underlying highlighter.
      * @param offsetSource the {@link OffsetSource} to used for offsets retrieval.
+     * @param singleDocumentReader whether the reader passed to {@link #highlightField} holds one in-memory document. If
+     *                             true, {@link OffsetSource#POSTINGS} is kept when Lucene would otherwise switch to
+     *                             {@link OffsetSource#ANALYSIS}.
      * @param breakIteratorLocale the {@link Locale} to use for dividing text into passages.
      *                    If null {@link Locale#ROOT} is used.
      * @param index the index we're highlighting, mostly used for error messages
@@ -87,6 +112,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public CustomUnifiedHighlighter(
         Builder builder,
         OffsetSource offsetSource,
+        boolean singleDocumentReader,
         @Nullable Locale breakIteratorLocale,
         String index,
         String field,
@@ -100,6 +126,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     ) {
         super(builder);
         this.offsetSource = offsetSource;
+        this.singleDocumentReader = singleDocumentReader;
         this.breakIteratorLocale = breakIteratorLocale == null ? Locale.ROOT : breakIteratorLocale;
         this.index = index;
         this.field = field;
@@ -116,6 +143,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * Highlights the field value.
      */
     public Snippet[] highlightField(LeafReader reader, int docId, CheckedSupplier<String, IOException> loadFieldValue) throws IOException {
+        assert singleDocumentReader == false || reader.maxDoc() == 1
+            : "singleDocumentReader set for a reader holding [" + reader.maxDoc() + "] documents";
         if (fieldHighlighter.getFieldOffsetStrategy() == NoOpOffsetStrategy.INSTANCE && noMatchSize == 0) {
             // If the query is such that there can't possibly be any matches then skip doing *everything*
             return EMPTY_SNIPPET;
@@ -155,6 +184,11 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
 
     public PassageFormatter getFormatter() {
         return super.getFormatter(field);
+    }
+
+    /** Returns the offset source selected by Lucene. */
+    OffsetSource resolvedOffsetSource() {
+        return fieldHighlighter.getFieldOffsetStrategy().getOffsetSource();
     }
 
     @Override
@@ -226,6 +260,19 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     }
 
     /**
+     * Keeps {@code POSTINGS} for a one-document in-memory reader. Lucene normally switches to {@code ANALYSIS} to avoid
+     * scanning a segment's term dictionary, but scanning a one-document term dictionary is cheaper than re-analyzing it.
+     */
+    @Override
+    protected OffsetSource getOptimizedOffsetSource(UHComponents components) {
+        OffsetSource optimized = super.getOptimizedOffsetSource(components);
+        if (singleDocumentReader && offsetSource == OffsetSource.POSTINGS && optimized == OffsetSource.ANALYSIS) {
+            return OffsetSource.POSTINGS;
+        }
+        return optimized;
+    }
+
+    /**
      * Forces the offset source for this highlighter
      */
     @Override
@@ -259,8 +306,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 /**
                  * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
+                 * Additionally, kNN queries don't really work against MemoryIndex which is used in the matches API
                  */
-                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery.TopQuery) {
+                if (leafQuery instanceof RankDocsQuery.TopQuery || isKnnQuery(leafQuery)) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

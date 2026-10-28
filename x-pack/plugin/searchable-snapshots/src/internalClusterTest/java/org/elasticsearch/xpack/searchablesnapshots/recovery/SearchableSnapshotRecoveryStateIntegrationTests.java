@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +30,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -89,6 +91,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -151,6 +154,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -206,11 +210,11 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
     private RecoveryState getRecoveryState(String indexName) {
         final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(indexName).get();
-        Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
+        Map<String, List<ShardRecoveryInfo>> shardRecoveries = recoveryResponse.shardRecoveryInfos();
         assertThat(shardRecoveries.containsKey(indexName), equalTo(true));
-        List<RecoveryState> recoveryStates = shardRecoveries.get(indexName);
-        assertThat(recoveryStates.size(), equalTo(1));
-        return recoveryStates.get(0);
+        List<ShardRecoveryInfo> recoveryInfos = shardRecoveries.get(indexName);
+        assertThat(recoveryInfos.size(), equalTo(1));
+        return recoveryInfos.get(0).recoveryState();
     }
 
     @SuppressForbidden(reason = "Uses FileSystem APIs")
@@ -242,11 +246,20 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Collections.singletonMap(
                 "test-fs",
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+                (projectId, metadata) -> new FsRepository(
+                    projectId,
+                    metadata,
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings
+                )
             );
         }
     }

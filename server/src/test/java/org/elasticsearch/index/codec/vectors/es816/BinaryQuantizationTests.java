@@ -22,10 +22,11 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.util.Random;
+
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 
 public class BinaryQuantizationTests extends LuceneTestCase {
 
@@ -93,7 +94,7 @@ public class BinaryQuantizationTests extends LuceneTestCase {
             VectorUtil.l2normalize(centroid);
         }
         float cDotC = VectorUtil.dotProduct(centroid, centroid);
-        byte[] destination = new byte[discretizedDimensions / 8 * BQSpaceUtils.B_QUERY];
+        byte[] destination = new byte[discretizedDimensions / 8 * BinaryQuantizer.B_QUERY];
         BinaryQuantizer.QueryFactors corrections = quantizer.quantizeForQuery(vector, destination, centroid);
 
         if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
@@ -531,7 +532,7 @@ public class BinaryQuantizationTests extends LuceneTestCase {
             6.0f,
             32.0f,
             49.0f };
-        byte[] destination = new byte[dimensions / 8 * BQSpaceUtils.B_QUERY];
+        byte[] destination = new byte[dimensions / 8 * BinaryQuantizer.B_QUERY];
         float[] centroid = new float[] {
             26.7f,
             16.2f,
@@ -740,14 +741,6 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         );
     }
 
-    private float[] generateRandomFloatArray(Random random, int dimensions, float lowerBoundInclusive, float upperBoundExclusive) {
-        float[] data = new float[dimensions];
-        for (int i = 0; i < dimensions; i++) {
-            data[i] = random.nextFloat(lowerBoundInclusive, upperBoundExclusive);
-        }
-        return data;
-    }
-
     public void testQuantizeForIndexMIP() {
         int dimensions = 768;
 
@@ -755,8 +748,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToIndex = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToIndex = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         VectorSimilarityFunction[] similarityFunctionsActingLikeEucllidean = new VectorSimilarityFunction[] {
             VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
@@ -887,8 +880,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToQuery = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToQuery = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         VectorSimilarityFunction[] similarityFunctionsActingLikeEucllidean = new VectorSimilarityFunction[] {
             VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
@@ -898,7 +891,7 @@ public class BinaryQuantizationTests extends LuceneTestCase {
 
         BinaryQuantizer quantizer = new BinaryQuantizer(dimensions, similarityFunction);
         float[] vector = mipVectorToQuery;
-        byte[] destination = new byte[dimensions / 8 * BQSpaceUtils.B_QUERY];
+        byte[] destination = new byte[dimensions / 8 * BinaryQuantizer.B_QUERY];
         float[] centroid = mipCentroid;
         float cDotC = VectorUtil.dotProduct(centroid, centroid);
         BinaryQuantizer.QueryFactors corrections = quantizer.quantizeForQuery(vector, destination, centroid);
@@ -1312,8 +1305,8 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToIndex = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToIndex = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         mipVectorToIndex = VectorUtil.l2normalize(mipVectorToIndex);
         mipCentroid = VectorUtil.l2normalize(mipCentroid);
@@ -1441,15 +1434,15 @@ public class BinaryQuantizationTests extends LuceneTestCase {
         // quantization changes
         Random random = new Random(42);
 
-        float[] mipVectorToQuery = generateRandomFloatArray(random, dimensions, -1f, 1f);
-        float[] mipCentroid = generateRandomFloatArray(random, dimensions, -1f, 1f);
+        float[] mipVectorToQuery = randomFloatVector(random, dimensions);
+        float[] mipCentroid = randomFloatVector(random, dimensions);
 
         mipVectorToQuery = VectorUtil.l2normalize(mipVectorToQuery);
         mipCentroid = VectorUtil.l2normalize(mipCentroid);
 
         BinaryQuantizer quantizer = new BinaryQuantizer(dimensions, VectorSimilarityFunction.COSINE);
         float[] vector = mipVectorToQuery;
-        byte[] destination = new byte[dimensions / 8 * BQSpaceUtils.B_QUERY];
+        byte[] destination = new byte[dimensions / 8 * BinaryQuantizer.B_QUERY];
         float[] centroid = mipCentroid;
         float cDotC = VectorUtil.dotProduct(centroid, centroid);
         BinaryQuantizer.QueryFactors corrections = quantizer.quantizeForQuery(vector, destination, centroid);

@@ -1,0 +1,13 @@
+simpleExplicitDefaultUsage
+required_capability: unmapped_fields_default_setting_rename
+
+SET unmapped_fields="default"\;
+FROM employees
+| SORT emp_no DESC
+| LIMIT 1
+| KEEP emp_no
+;
+
+emp_no:i
+10100
+;

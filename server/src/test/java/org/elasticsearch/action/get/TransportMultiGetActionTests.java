@@ -14,13 +14,19 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,6 +72,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     private static ThreadPool threadPool;
     private static TransportService transportService;
+    private static ProjectResolver projectResolver;
     private static ClusterService clusterService;
     private static TransportMultiGetAction transportAction;
 
@@ -86,53 +93,56 @@ public class TransportMultiGetActionTests extends ESTestCase {
             emptySet()
         );
 
+        ProjectId projectId = randomProjectIdOrDefault();
+        projectResolver = TestProjectResolvers.singleProject(projectId);
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());
-        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
-            .metadata(
-                new Metadata.Builder().put(
-                    new IndexMetadata.Builder(index1.getName()).settings(
-                        indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
-                    )
-                        .putMapping(
-                            XContentHelper.convertToJson(
-                                BytesReference.bytes(
-                                    XContentFactory.jsonBuilder()
-                                        .startObject()
-                                        .startObject("_doc")
-                                        .startObject("_routing")
-                                        .field("required", false)
-                                        .endObject()
-                                        .endObject()
-                                        .endObject()
-                                ),
-                                true,
-                                XContentType.JSON
-                            )
-                        )
+        final ProjectMetadata project = ProjectMetadata.builder(projectId)
+            .put(
+                new IndexMetadata.Builder(index1.getName()).settings(
+                    indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
                 )
-                    .put(
-                        new IndexMetadata.Builder(index2.getName()).settings(
-                            indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                    .putMapping(
+                        XContentHelper.convertToJson(
+                            BytesReference.bytes(
+                                XContentFactory.jsonBuilder()
+                                    .startObject()
+                                    .startObject("_doc")
+                                    .startObject("_routing")
+                                    .field("required", false)
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                            ),
+                            true,
+                            XContentType.JSON
                         )
-                            .putMapping(
-                                XContentHelper.convertToJson(
-                                    BytesReference.bytes(
-                                        XContentFactory.jsonBuilder()
-                                            .startObject()
-                                            .startObject("_doc")
-                                            .startObject("_routing")
-                                            .field("required", true)
-                                            .endObject()
-                                            .endObject()
-                                            .endObject()
-                                    ),
-                                    true,
-                                    XContentType.JSON
-                                )
-                            )
                     )
             )
+            .put(
+                new IndexMetadata.Builder(index2.getName()).settings(
+                    indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, index1.getUUID())
+                )
+                    .putMapping(
+                        XContentHelper.convertToJson(
+                            BytesReference.bytes(
+                                XContentFactory.jsonBuilder()
+                                    .startObject()
+                                    .startObject("_doc")
+                                    .startObject("_routing")
+                                    .field("required", true)
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                            ),
+                            true,
+                            XContentType.JSON
+                        )
+                    )
+            )
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
+            .metadata(new Metadata.Builder().put(project))
             .build();
 
         final ShardIterator index1ShardIterator = new ShardIterator(new ShardId(index1, randomInt()), Collections.emptyList());
@@ -140,11 +150,24 @@ public class TransportMultiGetActionTests extends ESTestCase {
         final ShardIterator index2ShardIterator = new ShardIterator(new ShardId(index2, randomInt()), Collections.emptyList());
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
+
         when(
-            operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), nullable(String.class), nullable(String.class))
+            operationRouting.getShards(
+                eq(clusterState.projectState(projectId)),
+                eq(index1.getName()),
+                anyString(),
+                nullable(String.class),
+                nullable(String.class)
+            )
         ).thenReturn(index1ShardIterator);
         when(
-            operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), nullable(String.class), nullable(String.class))
+            operationRouting.getShards(
+                eq(clusterState.projectState(projectId)),
+                eq(index2.getName()),
+                anyString(),
+                nullable(String.class),
+                nullable(String.class)
+            )
         ).thenReturn(index2ShardIterator);
 
         clusterService = mock(ClusterService.class);
@@ -164,7 +187,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index1", "1"));
         request.add(new MultiGetRequest.Item("index1", "2"));
@@ -174,9 +197,11 @@ public class TransportMultiGetActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
+            projectResolver,
             new Resolver(),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -197,7 +222,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client);
         request.add(new MultiGetRequest.Item("index2", "1").routing("1"));
         request.add(new MultiGetRequest.Item("index2", "2"));
@@ -207,9 +232,11 @@ public class TransportMultiGetActionTests extends ESTestCase {
             transportService,
             clusterService,
             client,
-            new ActionFilters(emptySet()),
+            ActionFilters.EMPTY,
+            projectResolver,
             new Resolver(),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -221,11 +248,12 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
                 assertThat(responses.get(1).getFailure().getFailure(), instanceOf(RoutingMissingException.class));
-                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[_doc]/[2]"));
+                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[2]"));
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
+        final var result = new PlainActionFuture<MultiGetResponse>();
+        ActionTestUtils.execute(transportAction, task, request.request(), result);
         assertTrue(shardActionInvoked.get());
 
     }
@@ -244,11 +272,11 @@ public class TransportMultiGetActionTests extends ESTestCase {
     static class Resolver extends IndexNameExpressionResolver {
 
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, projectResolver);
         }
 
         @Override
-        public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
+        public Index concreteSingleIndex(ProjectMetadata project, IndicesRequest request) {
             return new Index("index1", randomBase64UUID());
         }
     }

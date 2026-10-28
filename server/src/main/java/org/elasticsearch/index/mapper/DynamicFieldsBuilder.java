@@ -15,6 +15,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -32,6 +33,7 @@ final class DynamicFieldsBuilder {
     private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
     static final DynamicFieldsBuilder DYNAMIC_TRUE = new DynamicFieldsBuilder(CONCRETE);
     static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(new Runtime());
+    static final DynamicFieldsBuilder DYNAMIC_FLATTENED = new DynamicFieldsBuilder(new FlattenedSink());
 
     private final Strategy strategy;
 
@@ -143,12 +145,11 @@ final class DynamicFieldsBuilder {
                 () -> strategy.newDynamicBooleanField(context, name)
             );
         } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            // runtime binary fields are not supported, hence binary objects always get created as concrete fields
             return createDynamicField(
                 context,
                 name,
                 DynamicTemplate.XContentFieldType.BINARY,
-                () -> CONCRETE.newDynamicBinaryField(context, name)
+                () -> strategy.newDynamicBinaryField(context, name)
             );
         } else {
             return createDynamicStringFieldFromTemplate(context, name);
@@ -156,22 +157,20 @@ final class DynamicFieldsBuilder {
     }
 
     /**
-     * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
+     * Returns a builder for a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
-        Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null
-            ? mapper
-            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED)
-                .build(context.createDynamicMapperBuilderContext());
+    static Mapper.Builder createDynamicObjectMapperBuilder(DocumentParserContext context, String name) {
+        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
+        return templateBuilder != null
+            ? templateBuilder
+            : new ObjectMapper.Builder(name, context.parent().subobjects).enabled(ObjectMapper.Defaults.ENABLED);
     }
 
     /**
-     * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
+     * Returns a builder for a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
-        Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
+    static Mapper.Builder createObjectMapperBuilderFromTemplate(DocumentParserContext context, String name) {
+        return findTemplateBuilderForObject(context, name);
     }
 
     /**
@@ -209,7 +208,8 @@ final class DynamicFieldsBuilder {
         CheckedSupplier<Boolean, IOException> dynamicFieldStrategy
     ) throws IOException {
         if (applyMatchingTemplate(context, name, matchType, dateFormatter)) {
-            context.markFieldAsAppliedFromTemplate(name);
+            String fullFieldName = context.path().pathAsText(name);
+            context.markFieldAsAppliedFromTemplate(fullFieldName);
             return true;
         } else {
             return dynamicFieldStrategy.get();
@@ -237,7 +237,7 @@ final class DynamicFieldsBuilder {
         String dynamicType = dynamicTemplate.isRuntimeMapping() ? matchType.defaultRuntimeMappingType() : matchType.defaultMappingType();
 
         String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType, context.getDynamicTemplateParams(name));
         if (dynamicTemplate.isRuntimeMapping()) {
             MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
             RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
@@ -262,7 +262,7 @@ final class DynamicFieldsBuilder {
         }
         String dynamicType = matchType.defaultMappingType();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType, context.getDynamicTemplateParams(name));
         return parseDynamicTemplateMapping(name, mappingType, mapping, null, context);
     }
 
@@ -294,6 +294,8 @@ final class DynamicFieldsBuilder {
         boolean newDynamicBooleanField(DocumentParserContext context, String name) throws IOException;
 
         boolean newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) throws IOException;
+
+        boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException;
     }
 
     /**
@@ -310,8 +312,8 @@ final class DynamicFieldsBuilder {
 
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
             throws IOException {
-            Mapper mapper = builder.build(mapperBuilderContext);
-            if (context.addDynamicMapper(mapper)) {
+            Mapper mapper = context.getDynamicMapper(builder, mapperBuilderContext);
+            if (mapper != null) {
                 parseField.accept(context, mapper);
                 return true;
             } else {
@@ -327,33 +329,25 @@ final class DynamicFieldsBuilder {
         public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             MapperBuilderContext mapperBuilderContext = context.createDynamicMapperBuilderContext();
             if (mapperBuilderContext.parentObjectContainsDimensions()) {
-                return createDynamicField(
-                    new KeywordFieldMapper.Builder(name, context.indexSettings().getIndexVersionCreated()),
-                    context,
-                    mapperBuilderContext
-                );
+                return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
-                return createDynamicField(
-                    new TextFieldMapper.Builder(name, context.indexAnalyzers(), SourceFieldMapper.isSynthetic(context.indexSettings()))
-                        .addMultiField(
-                            new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
-                        ),
-                    context
-                );
+                var indexSettings = context.indexSettings();
+                if (indexSettings.getDynamicStringsAutoText()) {
+                    var textBuilder = new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false);
+                    if (indexSettings.getDynamicStringsAutoKeywordSubfield()) {
+                        textBuilder.addMultiField(new KeywordFieldMapper.Builder("keyword", indexSettings, true).ignoreAbove(256));
+                    }
+                    return createDynamicField(textBuilder, context);
+                } else {
+                    return createDynamicField(new KeywordFieldMapper.Builder(name, indexSettings, false), context);
+                }
             }
         }
 
         @Override
         public boolean newDynamicLongField(DocumentParserContext context, String name) throws IOException {
             return createDynamicField(
-                new NumberFieldMapper.Builder(
-                    name,
-                    NumberFieldMapper.NumberType.LONG,
-                    ScriptCompiler.NONE,
-                    context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode()
-                ),
+                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, ScriptCompiler.NONE, context.indexSettings()),
                 context
             );
         }
@@ -364,31 +358,14 @@ final class DynamicFieldsBuilder {
             // since this is much more space-efficient and should be enough most of
             // the time
             return createDynamicField(
-                new NumberFieldMapper.Builder(
-                    name,
-                    NumberFieldMapper.NumberType.FLOAT,
-                    ScriptCompiler.NONE,
-                    context.indexSettings().getSettings(),
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode()
-                ),
+                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT, ScriptCompiler.NONE, context.indexSettings()),
                 context
             );
         }
 
         @Override
         public boolean newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            Settings settings = context.indexSettings().getSettings();
-            boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
-            return createDynamicField(
-                new BooleanFieldMapper.Builder(
-                    name,
-                    ScriptCompiler.NONE,
-                    ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated()
-                ),
-                context
-            );
+            return createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, context.indexSettings()), context);
         }
 
         @Override
@@ -401,15 +378,15 @@ final class DynamicFieldsBuilder {
                     DateFieldMapper.Resolution.MILLISECONDS,
                     dateTimeFormatter,
                     ScriptCompiler.NONE,
-                    ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated()
+                    context.indexSettings()
                 ),
                 context
             );
         }
 
-        boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(new BinaryFieldMapper.Builder(name, SourceFieldMapper.isSynthetic(context.indexSettings())), context);
+        @Override
+        public boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
+            return createDynamicField(new BinaryFieldMapper.Builder(name, context.indexSettings()), context);
         }
     }
 
@@ -456,6 +433,56 @@ final class DynamicFieldsBuilder {
                 DateScriptFieldType.sourceOnly(fullName, dateFormatter, parserContext.indexVersionCreated()),
                 context
             );
+        }
+
+        @Override
+        public boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
+            // Runtime binary fields are unsupported, so fall back to the concrete binary field (previous behavior).
+            return CONCRETE.newDynamicBinaryField(context, name);
+        }
+    }
+
+    /**
+     * Sinks unmapped leaf values into the implicit flattened {@code _unmapped} sink. Used when the resolved dynamic mode is
+     * {@link ObjectMapper.Dynamic#FLATTENED}. Dynamic templates still win, since {@link #createDynamicFieldFromValue} tries a matching
+     * template before falling back to the strategy.
+     */
+    private static final class FlattenedSink implements Strategy {
+
+        private static boolean sink(DocumentParserContext context, String name) throws IOException {
+            UnmappedSinkFieldMapper.absorb(context, name);
+            return true;
+        }
+
+        @Override
+        public boolean newDynamicStringField(DocumentParserContext context, String name) throws IOException {
+            return sink(context, name);
+        }
+
+        @Override
+        public boolean newDynamicLongField(DocumentParserContext context, String name) throws IOException {
+            return sink(context, name);
+        }
+
+        @Override
+        public boolean newDynamicDoubleField(DocumentParserContext context, String name) throws IOException {
+            return sink(context, name);
+        }
+
+        @Override
+        public boolean newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
+            return sink(context, name);
+        }
+
+        @Override
+        public boolean newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) throws IOException {
+            return sink(context, name);
+        }
+
+        @Override
+        public boolean newDynamicBinaryField(DocumentParserContext context, String name) {
+            // Binary (embedded object) values cannot be stringified into flattened; dropped in this phase (feature-flagged, columnar-only).
+            return true;
         }
     }
 }

@@ -13,9 +13,11 @@ import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,10 +32,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
 
     private RestNodesStatsAction action;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        action = new RestNodesStatsAction();
+    @Before
+    public void initAction() throws Exception {
+        action = new RestNodesStatsAction(() -> ProjectId.DEFAULT);
     }
 
     public void testUnrecognizedMetric() {

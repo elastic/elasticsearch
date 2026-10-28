@@ -11,12 +11,14 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -116,4 +118,20 @@ public abstract class PipelineAggregator {
     }
 
     public abstract InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext);
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    protected <T extends InternalMultiBucketAggregation> T asMultiBucketAggregation(InternalAggregation aggregation) {
+        if (aggregation instanceof InternalMultiBucketAggregation multiBucketAggregation) {
+            return (T) multiBucketAggregation;
+        }
+
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "Expected a multi bucket aggregation but got [%s] for aggregation [%s]",
+                aggregation.getClass().getSimpleName(),
+                name()
+            )
+        );
+    }
 }

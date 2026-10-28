@@ -7,17 +7,25 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.apache.commons.io.input.ReaderInputStream;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.datageneration.matchers.MatchResult;
+import org.elasticsearch.datageneration.matchers.Matcher;
+import org.elasticsearch.datageneration.matchers.source.SourceTransforms;
+import org.elasticsearch.datageneration.queries.QueryGenerator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
-import org.elasticsearch.logsdb.datageneration.matchers.Matcher;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -29,6 +37,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.StringReader;
+import java.nio.charset.Charset;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -37,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -53,9 +64,11 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     private final int numShards = randomBoolean() ? randomIntBetween(2, 4) : 0;
     private final int numReplicas = randomBoolean() ? randomIntBetween(1, 3) : 0;
     protected final DataGenerationHelper dataGenerationHelper;
+    private int baselineBulkBatches = 0;
+    private int contenderBulkBatches = 0;
 
     public StandardVersusLogsIndexModeChallengeRestIT() {
-        this(new DataGenerationHelper());
+        this(new DataGenerationHelper(builder -> builder.withMaxFieldCountPerLevel(30)));
     }
 
     protected StandardVersusLogsIndexModeChallengeRestIT(DataGenerationHelper dataGenerationHelper) {
@@ -65,12 +78,12 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
+        dataGenerationHelper.writeStandardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 
     @Override
@@ -82,6 +95,13 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             builder.put("index.number_of_replicas", numReplicas);
         }
         builder.put("index.mapping.total_fields.limit", 5000);
+        // These tests time out in CI on bulk and search requests. The slowlog names the exact shard, document and query that were
+        // slow, which the client-side request timing in AbstractChallengeRestTest cannot see. It is written to the cluster's
+        // <cluster>_index_indexing_slowlog.json and <cluster>_index_search_slowlog.json files, not to the main cluster log.
+        builder.put("index.indexing.slowlog.threshold.index.warn", "5s");
+        builder.put("index.indexing.slowlog.source", 2000);
+        builder.put("index.search.slowlog.threshold.query.warn", "5s");
+        builder.put("index.search.slowlog.threshold.fetch.warn", "5s");
     }
 
     @Override
@@ -103,6 +123,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     @Override
     public void beforeStart() throws Exception {
         waitForLogs(client());
+    }
+
+    /**
+     * Logs the randomized shape of this test run. Shard and replica counts, sort configuration and the generated field types
+     * are all decided by the seed, but none of them are visible in CI output otherwise. When a request times out this is what
+     * tells us whether the run was unusually heavy.
+     */
+    @Override
+    public void beforeEnd() {
+        logger.info("--> Test configuration:");
+        logger.info("---> baseline settings: {}", getBaselineSettings().build());
+        logger.info("---> contender settings: {}", getContenderSettings().build());
+        logger.info("---> data generation: {}", dataGenerationHelper.describe());
     }
 
     protected boolean autoGenerateId() {
@@ -130,12 +163,53 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRandomQueries() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+        var mappingLookup = dataGenerationHelper.mapping().lookup();
+        final List<Map<String, List<Object>>> docsNormalized = documents.stream().map(d -> {
+            var document = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(d), true);
+            return SourceTransforms.normalize(document, mappingLookup);
+        }).toList();
+
+        indexDocuments(documents);
+
+        QueryGenerator queryGenerator = new QueryGenerator(dataGenerationHelper.mapping());
+        Map<String, String> fieldsTypes = dataGenerationHelper.getTemplateFieldTypes();
+        for (var e : fieldsTypes.entrySet()) {
+            var path = e.getKey();
+            var type = e.getValue();
+            var docsWithFields = docsNormalized.stream().filter(d -> d.containsKey(path)).toList();
+            if (docsWithFields.isEmpty() == false) {
+                var doc = randomFrom(docsWithFields);
+                List<Object> values = doc.get(path).stream().filter(Objects::nonNull).toList();
+                if (values.isEmpty() == false) {
+                    Object value = randomFrom(values);
+                    List<QueryBuilder> queries = queryGenerator.generateQueries(type, path, value);
+                    for (var query : queries) {
+                        logger.info("Querying for field [{}] with value [{}]", path, value);
+
+                        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query).size(numberOfDocuments);
+                        final MatchResult matchResult = Matcher.matchSource()
+                            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
+                            .settings(getContenderSettings(), getBaselineSettings())
+                            .expected(getQueryHits(queryBaseline(searchSourceBuilder), false))
+                            .ignoringSort(true)
+                            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), false));
+                        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+                    }
+                }
+            }
+        }
     }
 
     public void testTermsQuery() throws IOException {
@@ -144,15 +218,19 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
+        // "method" is drawn randomly per document, so query for a value that is actually present to guarantee at least one hit.
+        final XContentBuilder document = randomFrom(documents);
+        final Object method = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(document), true).get("method");
+
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", method))
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
@@ -218,7 +296,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         final String query = "FROM $index METADATA _source, _id | KEEP _source, _id | LIMIT " + numberOfDocuments;
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getEsqlSourceResults(esqlBaseline(query)))
             .ignoringSort(true)
@@ -291,12 +369,15 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
+    private static List<Map<String, Object>> getQueryHits(final Response response, final boolean requireResults) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
 
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
-        assertThat(hitsList.size(), greaterThan(0));
+
+        if (requireResults) {
+            assertThat(hitsList.size(), greaterThan(0));
+        }
 
         return hitsList.stream()
             .sorted(Comparator.comparing((Map<String, Object> hit) -> ((String) hit.get("_id"))))
@@ -356,9 +437,21 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     protected final Map<String, Object> performBulkRequest(String json, boolean isBaseline) throws IOException {
         var request = new Request("POST", "/" + (isBaseline ? getBaselineDataStreamName() : getContenderDataStreamName()) + "/_bulk");
-        request.setJsonEntity(json);
+        request.setEntity(getHttpEntity(json));
         request.addParameter("refresh", "true");
-        var response = client.performRequest(request);
+        final int batch = isBaseline ? ++baselineBulkBatches : ++contenderBulkBatches;
+        // Each document takes two lines: the action line and the source line.
+        final long documentCount = json.chars().filter(c -> c == '\n').count() / 2;
+        var response = performRequestLogged(
+            request,
+            Strings.format(
+                "bulk %s batch [%d] with [%d] documents, [%d] chars",
+                isBaseline ? "baseline" : "contender",
+                batch,
+                documentCount,
+                json.length()
+            )
+        );
         assertOK(response);
         var responseBody = entityAsMap(response);
         assertThat(
@@ -367,5 +460,18 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             equalTo(false)
         );
         return responseBody;
+    }
+
+    /**
+     * When our JSON string is extremely large, calling request.setJsonEntity() may result in an OutOfMemory exception. This happens because
+     * the entire JSON string is converted into a single contiguous bytes array. This is especially problematic when the JSON string
+     * contains non-ascii characters as they require additional space to be encoded.
+     *
+     * The code below overcomes that by streaming the bytes on demand as opposed to all at once.
+     */
+    private HttpEntity getHttpEntity(String json) {
+        if (json == null) return null;
+        Charset charset = ContentType.APPLICATION_JSON.getCharset();
+        return new InputStreamEntity(new ReaderInputStream(new StringReader(json), charset), -1, ContentType.APPLICATION_JSON);
     }
 }

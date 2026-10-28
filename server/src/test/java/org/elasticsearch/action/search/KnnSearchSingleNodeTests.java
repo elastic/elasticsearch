@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +64,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50, null, null).boost(5.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 20, 50, 10f, null, null).boost(5.0f);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
@@ -100,14 +101,14 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
+            prepareIndex("index").setSource("vector", randomVector(0f, 1f), "text", "hello world").get();
             prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null, null).boost(5.0f).queryName("knn");
+        float[] queryVector = randomVector(0f, 1f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).boost(5.0f).queryName("knn");
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
@@ -156,7 +157,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null, null).addFilterQuery(
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).addFilterQuery(
             QueryBuilders.termsQuery("field", "second")
         );
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10), response -> {
@@ -199,7 +200,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null, null).addFilterQuery(
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).addFilterQuery(
             QueryBuilders.termsLookupQuery("field", new TermsLookup("index", "lookup-doc", "other-field"))
         );
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).setSize(10), response -> {
@@ -246,8 +247,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector(20f, 21f);
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null, null).boost(5.0f);
-        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, null, null).boost(10.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null).boost(5.0f);
+        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, 10f, null, null).boost(10.0f);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch, knnSearch2))
@@ -308,8 +309,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         float[] queryVector = randomVector();
         // Having the same query vector and same docs should mean our KNN scores are linearly combined if the same doc is matched
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null, null);
-        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, 10f, null, null);
+        KnnSearchBuilder knnSearch2 = new KnnSearchBuilder("vector_2", queryVector, 5, 50, 10f, null, null);
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
@@ -367,7 +368,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
-        indicesAdmin().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit"))
+            .get();
 
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {
@@ -381,7 +384,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50, null, null);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50, 10f, null, null);
         final int expectedHitCount = expectedHits;
         assertResponse(client().prepareSearch("test-alias").setKnnSearch(List.of(knnSearch)).setSize(10), response -> {
             assertHitCount(response, expectedHitCount);
@@ -418,7 +421,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         float[] queryVector = randomVector();
         assertResponse(
             client().prepareSearch("index1", "index2")
-                .setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, 5, null, null))
+                .setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, 5, 10f, null, null))
                 .setSize(2),
             response -> {
                 // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard
@@ -446,13 +449,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            prepareIndex("index").setSource("vector", randomVector(4096)).get();
+            prepareIndex("index").setSource("vector", randomFloatVector(4096)).get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector(4096);
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, null, null).boost(5.0f);
+        float[] queryVector = randomFloatVector(4096);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, 10f, null, null).boost(5.0f);
         assertResponse(client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10), response -> {
             assertHitCount(response, 3);
             assertEquals(3, response.getHits().getHits().length);
@@ -461,25 +464,13 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private float[] randomVector() {
-        float[] vector = new float[VECTOR_DIMENSION];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
-    }
-
-    private float[] randomVector(int dims) {
-        float[] vector = new float[dims];
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = randomFloat();
-        }
-        return vector;
+        return randomFloatVector(VECTOR_DIMENSION);
     }
 
     private float[] randomVector(float dimLower, float dimUpper) {
         float[] vector = new float[VECTOR_DIMENSION];
         for (int i = 0; i < vector.length; i++) {
-            vector[i] = (float) randomDoubleBetween(dimLower, dimUpper, true);
+            vector[i] = randomFloatBetween(dimLower, dimUpper, true);
         }
         return vector;
     }

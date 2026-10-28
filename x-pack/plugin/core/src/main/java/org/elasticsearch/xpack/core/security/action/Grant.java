@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,11 +24,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class Grant implements Writeable {
     public static final String PASSWORD_GRANT_TYPE = "password";
     public static final String ACCESS_TOKEN_GRANT_TYPE = "access_token";
+    /**
+     * Grants on behalf of a user-managed service account by presenting one of its service account tokens. The credential
+     * travels in its own {@code service_account_token} field rather than {@code access_token}: that field is reserved for
+     * OAuth2 tokens and JWTs, and a dedicated grant type keeps the contract explicit, matching the grant of the same name
+     * on the create token API. Tokens of built-in {@code elastic/*} accounts are refused by this grant.
+     */
+    public static final String USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE = "_user_managed_service_account";
 
     private String type;
     private String username;
     private SecureString password;
     private SecureString accessToken;
+    private SecureString serviceAccountToken;
     private String runAsUsername;
     private ClientAuthentication clientAuthentication;
 
@@ -57,16 +64,9 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            this.runAsUsername = in.readOptionalString();
-        } else {
-            this.runAsUsername = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
-        } else {
-            this.clientAuthentication = null;
-        }
+        this.runAsUsername = in.readOptionalString();
+        this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
+        this.serviceAccountToken = in.readOptionalSecureString();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -74,12 +74,9 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalString(runAsUsername);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(clientAuthentication);
-        }
+        out.writeOptionalString(runAsUsername);
+        out.writeOptionalWriteable(clientAuthentication);
+        out.writeOptionalSecureString(serviceAccountToken);
     }
 
     public String getType() {
@@ -96,6 +93,10 @@ public class Grant implements Writeable {
 
     public SecureString getAccessToken() {
         return accessToken;
+    }
+
+    public SecureString getServiceAccountToken() {
+        return serviceAccountToken;
     }
 
     public String getRunAsUsername() {
@@ -122,6 +123,10 @@ public class Grant implements Writeable {
         this.accessToken = accessToken;
     }
 
+    public void setServiceAccountToken(SecureString serviceAccountToken) {
+        this.serviceAccountToken = serviceAccountToken;
+    }
+
     public void setRunAsUsername(String runAsUsername) {
         this.runAsUsername = runAsUsername;
     }
@@ -137,6 +142,7 @@ public class Grant implements Writeable {
             validationException = validateRequiredField("username", username, validationException);
             validationException = validateRequiredField("password", password, validationException);
             validationException = validateUnsupportedField("access_token", accessToken, validationException);
+            validationException = validateUnsupportedField("service_account_token", serviceAccountToken, validationException);
             if (clientAuthentication != null) {
                 return addValidationError("[client_authentication] is not supported for grant_type [" + type + "]", validationException);
             }
@@ -144,12 +150,23 @@ public class Grant implements Writeable {
             validationException = validateRequiredField("access_token", accessToken, validationException);
             validationException = validateUnsupportedField("username", username, validationException);
             validationException = validateUnsupportedField("password", password, validationException);
+            validationException = validateUnsupportedField("service_account_token", serviceAccountToken, validationException);
             if (clientAuthentication != null
                 && JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME.equals(clientAuthentication.scheme.trim()) == false) {
                 return addValidationError(
                     "[client_authentication.scheme] must be set to [" + JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + "]",
                     validationException
                 );
+            }
+        } else if (type.equals(USER_MANAGED_SERVICE_ACCOUNT_GRANT_TYPE)) {
+            validationException = validateRequiredField("service_account_token", serviceAccountToken, validationException);
+            validationException = validateUnsupportedField("username", username, validationException);
+            validationException = validateUnsupportedField("password", password, validationException);
+            validationException = validateUnsupportedField("access_token", accessToken, validationException);
+            // Service accounts cannot run-as, so rather than authenticating and then failing, refuse the request outright
+            validationException = validateUnsupportedField("run_as", runAsUsername, validationException);
+            if (clientAuthentication != null) {
+                return addValidationError("[client_authentication] is not supported for grant_type [" + type + "]", validationException);
             }
         } else {
             validationException = addValidationError("grant_type [" + type + "] is not supported", validationException);

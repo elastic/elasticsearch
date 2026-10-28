@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sample;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,16 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.eql.execution.sample.SampleIterator.matchSamples;
 
 public class SampleIteratorTests extends ESTestCase {
+
+    private final List<SearchHit> pooledHitsToRelease = new ArrayList<>();
+
+    @After
+    public void releasePooledSearchHits() {
+        for (SearchHit h : pooledHitsToRelease) {
+            h.decRef();
+        }
+        pooledHitsToRelease.clear();
+    }
 
     public void testMatchSamples() {
         assertEquals(
@@ -73,7 +84,9 @@ public class SampleIteratorTests extends ESTestCase {
         }
         List<SearchHit> searchHits = new ArrayList<>(docIds.length);
         for (Integer docId : docIds) {
-            searchHits.add(SearchHit.unpooled(docId, docId.toString()));
+            SearchHit h = new SearchHit(docId, docId.toString());
+            pooledHitsToRelease.add(h);
+            searchHits.add(h);
         }
 
         return searchHits;

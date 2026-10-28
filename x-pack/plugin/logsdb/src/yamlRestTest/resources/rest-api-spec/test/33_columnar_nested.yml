@@ -1,0 +1,396 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+
+---
+"columnar: nested field round-trips _source and is queryable":
+  - do:
+      indices.create:
+        index: test_columnar_nested
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              id:
+                type: keyword
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+                  votes:
+                    type: long
+
+  # The nested field survives subobjects:false (forced by columnar) as a real nested mapper
+  - do:
+      indices.get_mapping:
+        index: test_columnar_nested
+  - match: { test_columnar_nested.mappings.properties.comments.type: nested }
+
+  - do:
+      index:
+        index: test_columnar_nested
+        id: "1"
+        refresh: true
+        body:
+          id: "post-1"
+          comments:
+            - author: "alice"
+              votes: 3
+            - author: "bob"
+              votes: 1
+
+  # _source is reconstructed from doc values, preserving the nested array order
+  - do:
+      get:
+        index: test_columnar_nested
+        id: "1"
+  - match: { _source.id: "post-1" }
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.0.votes: 3 }
+  - match: { _source.comments.1.author: "bob" }
+  - match: { _source.comments.1.votes: 1 }
+
+  # The child documents are real (block-join): a nested query matches within a single child
+  - do:
+      search:
+        index: test_columnar_nested
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 3 }
+  - match: { hits.total.value: 1 }
+
+  # ...but does not match a combination that spans two different children
+  - do:
+      search:
+        index: test_columnar_nested
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 1 }
+  - match: { hits.total.value: 0 }
+
+  # inner_hits returns the matching child document, with its _source reconstructed from doc values
+  - do:
+      search:
+        index: test_columnar_nested
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                term: { comments.author: "bob" }
+              inner_hits: {}
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.comments.hits.total.value: 1 }
+  - match: { hits.hits.0.inner_hits.comments.hits.hits.0._source.author: "bob" }
+  - match: { hits.hits.0.inner_hits.comments.hits.hits.0._source.votes: 1 }
+
+  # nested aggregation walks the child documents and reads their doc values
+  - do:
+      search:
+        index: test_columnar_nested
+        size: 0
+        body:
+          aggs:
+            comments_nested:
+              nested:
+                path: comments
+              aggs:
+                total_votes:
+                  sum:
+                    field: comments.votes
+  - match: { aggregations.comments_nested.doc_count: 2 }
+  - match: { aggregations.comments_nested.total_votes.value: 4.0 }
+
+---
+"logsdb_columnar: nested field round-trips _source":
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_nested
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+                  votes:
+                    type: long
+
+  - do:
+      index:
+        index: test_logsdb_columnar_nested
+        id: "1"
+        refresh: true
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          comments:
+            - author: "alice"
+              votes: 3
+            - author: "bob"
+              votes: 1
+
+  - do:
+      get:
+        index: test_logsdb_columnar_nested
+        id: "1"
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.0.votes: 3 }
+  - match: { _source.comments.1.author: "bob" }
+  - match: { _source.comments.1.votes: 1 }
+
+---
+"columnar: nested within nested is rejected (single level only)":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_columnar_nested_in_nested
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  replies:
+                    type: nested
+                    properties:
+                      text:
+                        type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/.*columnar.index.modes.support.only.a.single.level.of.nesting.*/" }
+
+---
+"columnar_stored: nested round-trips _source (blob materialized at ingest)":
+  # columnar_stored materializes the rebuilt _source blob at index time from the in-memory document tree (root + nested
+  # children) rather than per query, so it exercises the nested loader on the columnar source writer's single-document reader.
+  - do:
+      indices.create:
+        index: test_columnar_stored_nested
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              id:
+                type: keyword
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+                  votes:
+                    type: long
+                  tags:
+                    type: keyword
+
+  # Two children, one with a multi-valued leaf: the leaf array order is recorded on the nested child document and rebuilt.
+  - do:
+      index:
+        index: test_columnar_stored_nested
+        id: "multi"
+        refresh: true
+        body:
+          id: "post-1"
+          comments:
+            - author: "alice"
+              votes: 3
+              tags: [ "red", "blue" ]
+            - author: "bob"
+              votes: 1
+  - do:
+      get:
+        index: test_columnar_stored_nested
+        id: "multi"
+  - match: { _source.id: "post-1" }
+  - length: { _source.comments: 2 }
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.0.votes: 3 }
+  - match: { _source.comments.0.tags: [ "red", "blue" ] }
+  - match: { _source.comments.1.author: "bob" }
+  - match: { _source.comments.1.votes: 1 }
+
+  # A single nested child rebuilds as an object (not a one-element array), like synthetic source.
+  - do:
+      index:
+        index: test_columnar_stored_nested
+        id: "single"
+        refresh: true
+        body:
+          id: "post-2"
+          comments:
+            - author: "carol"
+              votes: 5
+  - do:
+      get:
+        index: test_columnar_stored_nested
+        id: "single"
+  - match: { _source.comments.author: "carol" }
+  - match: { _source.comments.votes: 5 }
+
+  # A document without the nested field rebuilds _source without it.
+  - do:
+      index:
+        index: test_columnar_stored_nested
+        id: "absent"
+        refresh: true
+        body:
+          id: "post-3"
+  - do:
+      get:
+        index: test_columnar_stored_nested
+        id: "absent"
+  - match: { _source.id: "post-3" }
+  - is_false: _source.comments
+
+  # Block-join child documents still exist in columnar_stored: a nested query matches within a single child.
+  - do:
+      search:
+        index: test_columnar_stored_nested
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 3 }
+  - match: { hits.total.value: 1 }
+
+---
+"columnar: a dynamic field inside a nested object is mapped inside it, round-trips and is queryable":
+  - do:
+      indices.create:
+        index: test_columnar_nested_dynamic
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+
+  # 'votes' is not declared in the mapping. Because a nested object is a real document boundary (it is not flattened away like a
+  # plain object under the columnar subobjects:false default), the dynamic field must be mapped inside the nested 'comments' object
+  # as 'comments.votes' rather than as a root field. If it were placed at the root, indexing would never converge the dynamic
+  # mapping and the request would fail.
+  - do:
+      index:
+        index: test_columnar_nested_dynamic
+        id: "1"
+        refresh: true
+        body:
+          comments:
+            - author: "alice"
+              votes: 3
+            - author: "bob"
+              votes: 7
+
+  # The dynamically mapped field landed inside the nested object.
+  - do:
+      indices.get_mapping:
+        index: test_columnar_nested_dynamic
+  - match: { test_columnar_nested_dynamic.mappings.properties.comments.properties.votes.type: long }
+
+  # _source round-trips the dynamically mapped value, preserving nested array order.
+  - do:
+      get:
+        index: test_columnar_nested_dynamic
+        id: "1"
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.0.votes: 3 }
+  - match: { _source.comments.1.author: "bob" }
+  - match: { _source.comments.1.votes: 7 }
+
+  # The dynamic field is a genuine per-child field: combined with a sibling it matches within one child, and not across children.
+  - do:
+      search:
+        index: test_columnar_nested_dynamic
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 3 }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_nested_dynamic
+        body:
+          query:
+            nested:
+              path: comments
+              query:
+                bool:
+                  must:
+                    - term: { comments.author: "alice" }
+                    - term: { comments.votes: 7 }
+  - match: { hits.total.value: 0 }
+
+  # The same document indexes and round-trips under columnar_stored, where the blob is materialized at ingest after the dynamic
+  # mapping update has been applied.
+  - do:
+      indices.create:
+        index: test_columnar_stored_nested_dynamic
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              comments:
+                type: nested
+                properties:
+                  author:
+                    type: keyword
+  - do:
+      index:
+        index: test_columnar_stored_nested_dynamic
+        id: "1"
+        refresh: true
+        body:
+          comments:
+            - author: "alice"
+              votes: 3
+            - author: "bob"
+              votes: 7
+  - do:
+      get:
+        index: test_columnar_stored_nested_dynamic
+        id: "1"
+  - match: { _source.comments.0.author: "alice" }
+  - match: { _source.comments.0.votes: 3 }
+  - match: { _source.comments.1.author: "bob" }
+  - match: { _source.comments.1.votes: 7 }

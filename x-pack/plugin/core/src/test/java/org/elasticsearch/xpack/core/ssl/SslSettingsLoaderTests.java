@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManager;
@@ -80,7 +81,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         if (randomBoolean()) {
             builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
         }
-        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build());
+        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build(), Set.of());
         // Server (SSL is not built when port is not enabled)
         assertThat(settingsMap, not(hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)));
         // Client (SSL is always built)
@@ -98,7 +99,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
         Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
-        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings, Set.of());
         // Server
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
         SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
@@ -131,7 +132,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
             .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX + SslConfigurationKeys.VERIFICATION_MODE, "certificate")
             .setSecureSettings(secureSettings)
             .build();
-        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings, Set.of());
 
         // Server
         assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));

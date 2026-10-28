@@ -99,7 +99,7 @@ public class TextClassificationProcessor extends NlpTask.Processor {
             if (result.length != labels.size()) {
                 throw new ElasticsearchStatusException(
                     "Expected exactly [{}] values in text classification result; got [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
+                    RestStatus.CONFLICT,
                     labels.size(),
                     result.length
                 );
@@ -108,7 +108,7 @@ public class TextClassificationProcessor extends NlpTask.Processor {
         Map<Integer, List<TokenizationResult.Tokens>> windowedSeq = tokenization.getTokensBySequenceId();
         // TODO adjust logic when batch is allowed
         if (windowedSeq.size() > 1) {
-            throw new ElasticsearchStatusException("Unexpected batch input for text classification", RestStatus.INTERNAL_SERVER_ERROR);
+            throw new ElasticsearchStatusException("Unexpected batch input for text classification", RestStatus.CONFLICT);
         }
         double[] normalizedScores = new double[labels.size()];
         for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {

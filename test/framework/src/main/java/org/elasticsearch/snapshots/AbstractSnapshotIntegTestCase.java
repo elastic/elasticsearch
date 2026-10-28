@@ -14,16 +14,25 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -33,16 +42,20 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ResolvedRepositories;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
@@ -50,6 +63,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,9 +89,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -89,10 +106,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
-
-    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
 
     public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
@@ -165,7 +181,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesUUIDs(version) == false) {
+        if (SnapshotsServiceUtils.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
@@ -371,7 +387,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }
@@ -423,7 +439,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     .replace(IndexVersion.current().toString(), version.toString())
             )
         ) {
-            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(repoName, parser);
+            downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(new ProjectRepo(ProjectId.DEFAULT, repoName), parser);
         }
         final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
         BlobStoreRepository.SNAPSHOT_FORMAT.write(
@@ -513,7 +529,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
         final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().getProject().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
         final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
         assertNotNull(initialRepoMetadata);
@@ -545,19 +561,20 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
-                    ShardGenerations.EMPTY,
+                    false,
+                    UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
                     listener,
-                    info -> {}
+                    () -> {}
                 )
             )
         );
     }
 
-    protected void awaitNDeletionsInProgress(int count) throws Exception {
+    protected void awaitNDeletionsInProgress(int count) {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
@@ -569,7 +586,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(
-            logger,
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
@@ -604,13 +620,254 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .execute();
     }
 
-    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) {
         awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
-    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
+        awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
+    }
+
+    /**
+     * Waits until the primary shard of the given index is {@link ShardRoutingState#INITIALIZING}
+     * with a {@link RecoverySource.Type#SNAPSHOT} recovery source, confirming that a restore is
+     * actively in progress. At this point {@code RestoreInProgress} is guaranteed to be present in
+     * the cluster state (both are set in the same cluster state update by {@code RestoreService}).
+     */
+    public static void awaitPrimaryInSnapshotRestore(String indexName) {
+        awaitClusterState(state -> {
+            final IndexRoutingTable indexRouting = state.routingTable().index(indexName);
+            if (indexRouting == null) {
+                return false;
+            }
+            final ShardRouting primary = indexRouting.shard(0).primaryShard();
+            return primary != null
+                && primary.state() == ShardRoutingState.INITIALIZING
+                && primary.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
+        });
+    }
+
+    /**
+     * Blocks all data nodes for the given repository, kicks off a non-blocking restore of
+     * {@code snapshotName} to reconstruct {@code indexName}, and waits until the primary shard is
+     * INITIALIZING with a snapshot recovery source and a data node has actually
+     * hit the block.
+     *
+     * <p>Pair with {@link #unblockAndDeleteRestoringIndex(String, String)} in a {@code finally}
+     * block to clean up after each test.
+     */
+    protected void blockAndStartRestore(String repoName, String snapshotName, String indexName) throws Exception {
+        blockAllDataNodes(repoName);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .get();
+        awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
+    }
+
+    /**
+     * As {@link #blockAndStartRestore(String, String, String)}, but the restore asks for its shards to be reported as
+     * {@link ShardRestoringException}.
+     *
+     * @return the restore UUID, which the exception carries as its recovery ID
+     */
+    protected String blockAndStartRestoreReportingShardRestoring(String repoName, String snapshotName, String indexName) {
+        return blockAndStartRestore(repoName, snapshotName, indexName, true);
+    }
+
+    /**
+     * Blocks all data nodes for the given repository, starts a non-blocking restore of {@code snapshotName} to reconstruct
+     * {@code indexName} that does or does not ask for its shards to be reported as {@link ShardRestoringException}, and waits until the
+     * primary shard is INITIALIZING with a snapshot recovery source and a data node has actually hit the block. Static so that test cases
+     * that cannot extend this class, such as the stateless ones, can use it too.
+     *
+     * @return the restore UUID, which the exception carries as its recovery ID
+     */
+    public static String blockAndStartRestore(String repoName, String snapshotName, String indexName, boolean reportShardRestoring) {
+        blockAllDataNodes(repoName);
+        final String restoreUuid = UUIDs.randomBase64UUID();
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> started = new PlainActionFuture<>();
+        internalCluster().getCurrentMasterNodeInstance(RestoreService.class)
+            .restoreSnapshot(
+                ProjectId.DEFAULT,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName).waitForCompletion(false),
+                restoreUuid,
+                reportShardRestoring,
+                started,
+                (state, builder) -> {}
+            );
+        awaitPrimaryInSnapshotRestore(indexName);
+        waitForBlockOnAnyDataNode(repoName);
+        safeGet(started);
+        return restoreUuid;
+    }
+
+    /**
+     * Unblocks all data nodes for the given repository and deletes {@code indexName}, cancelling
+     * any in-progress restore.
+     *
+     * <p>Designed to be called from a {@code finally} block after
+     * {@link #blockAndStartRestore(String, String, String)}.
+     */
+    protected void unblockAndDeleteRestoringIndex(String repoName, String indexName) throws Exception {
+        unblockAllDataNodes(repoName);
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+    }
+
+    /**
+     * Starts a restore, passing it the future that completes once the restore has started.
+     */
+    protected interface RestoreStarter {
+        void start(PlainActionFuture<RestoreService.RestoreCompletionResponse> future);
+    }
+
+    /**
+     * Starts the given restores with the repository on {@code dataNode} blocked, so that their {@link RestoreInProgress} entries and
+     * restoring shards persist, waits until the master has applied that state, runs {@code whileInFlight} against it, and then lets the
+     * restores finish and waits for them to complete. Returns {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore
+     * entry the master applied meanwhile. The flag is set when a restore starts and carried by its entry through every cluster state the
+     * master builds, so recording it there is deterministic.
+     */
+    protected List<Boolean> whileRestoresInFlight(
+        String repository,
+        String dataNode,
+        CheckedRunnable<Exception> whileInFlight,
+        RestoreStarter... startRestores
+    ) throws Exception {
+        final List<Boolean> seen = new CopyOnWriteArrayList<>();
+        final ClusterService masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final ClusterStateListener listener = event -> {
+            for (RestoreInProgress.Entry entry : RestoreInProgress.get(event.state())) {
+                seen.add(entry.reportShardRestoring());
+            }
+        };
+        masterClusterService.addListener(listener);
+        try {
+            blockNodeOnAnyFiles(repository, dataNode);
+            final List<PlainActionFuture<RestoreService.RestoreCompletionResponse>> started = new ArrayList<>();
+            try {
+                for (RestoreStarter startRestore : startRestores) {
+                    final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+                    startRestore.start(future);
+                    started.add(future);
+                }
+                waitForBlock(dataNode, repository);
+                // the block shows that the data node applied the state with the restores, which does not mean the master has applied it
+                awaitClusterState(
+                    state -> StreamSupport.stream(RestoreInProgress.get(state).spliterator(), false).count() >= startRestores.length
+                );
+                whileInFlight.run();
+            } finally {
+                unblockAllDataNodes(repository);
+            }
+            for (PlainActionFuture<RestoreService.RestoreCompletionResponse> future : started) {
+                safeGet(future);
+            }
+            assertBusy(() -> assertTrue(RestoreInProgress.get(masterClusterState()).isEmpty()));
+            ensureGreen();
+        } finally {
+            masterClusterService.removeListener(listener);
+        }
+        return seen;
+    }
+
+    /**
+     * Holds the restore started by {@code startRestore} in flight on the repository of {@code dataNode}, and returns what {@code lookup}
+     * says while it is, together with the {@link RestoreInProgress.Entry#reportShardRestoring()} flag of every restore entry the master
+     * applied. The restore is then let finish.
+     */
+    protected InFlightLookup lookupWhileInFlight(
+        String repository,
+        String dataNode,
+        Supplier<ShardRestoringException> lookup,
+        RestoreStarter startRestore
+    ) throws Exception {
+        final ShardRestoringException[] inFlight = new ShardRestoringException[1];
+        final List<Boolean> reportShardRestoring = whileRestoresInFlight(
+            repository,
+            dataNode,
+            () -> inFlight[0] = lookup.get(),
+            startRestore
+        );
+        return new InFlightLookup(inFlight[0], reportShardRestoring);
+    }
+
+    /**
+     * What the lookup returned while a restore was held in flight, together with
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} of every restore entry the master applied during the restore.
+     */
+    public record InFlightLookup(@Nullable ShardRestoringException exception, List<Boolean> reportShardRestoring) {}
+
+    /**
+     * Asserts that the master applied at least one restore entry and that every one had
+     * {@link RestoreInProgress.Entry#reportShardRestoring()} equal to {@code expected}.
+     */
+    protected static void assertEveryRestoreEntryReports(List<Boolean> reportShardRestoring, boolean expected) {
+        assertFalse("a restore entry should have been applied", reportShardRestoring.isEmpty());
+        for (Boolean reported : reportShardRestoring) {
+            assertEquals("reportShardRestoring of every restore entry", expected, reported);
+        }
+    }
+
+    protected static ClusterState masterClusterState() {
+        return internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+    }
+
+    /**
+     * Resolves an index with {@code indexIn} and looks it up with both {@link RestoreService#reportableRestoreException} overloads, all on
+     * one snapshot of the master's cluster state. All of an index's shards are restored by the same restore, so the two overloads must
+     * agree.
+     */
+    protected static ShardRestoringException reportableRestoreExceptionOnMaster(Function<ClusterState, Index> indexIn) {
+        final ClusterState state = masterClusterState();
+        final Index index = indexIn.apply(state);
+        final ShardRestoringException byIndex = RestoreService.reportableRestoreException(ProjectId.DEFAULT, index, state);
+        final ShardRestoringException byShard = RestoreService.reportableRestoreException(ProjectId.DEFAULT, new ShardId(index, 0), state);
+        assertEquals("the index and shard lookups must agree", byIndex == null, byShard == null);
+        if (byIndex != null) {
+            assertEquals(byIndex.recoveryId(), byShard.recoveryId());
+        }
+        return byIndex;
+    }
+
+    protected static void assertReportsShardRestoring(ShardRestoringException e, String indexName, String restoreUuid) {
+        assertNotNull("the restore should be reported", e);
+        assertEquals(restoreUuid, e.recoveryId());
+        assertEquals(List.of(indexName), e.getMetadata("es.index"));
+    }
+
+    /**
+     * Waits until the named snapshot has at least one shard in {@link SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED},
+     * confirming the shard is queued behind another in-progress operation.
+     */
+    public static void awaitSnapshotShardQueued(String repoName, String snapshotName) {
+        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> {
+            if (entry.snapshot().getSnapshotId().getName().equals(snapshotName) == false) {
+                return false;
+            }
+            return entry.shardSnapshotStatusByRepoShardId()
+                .values()
+                .stream()
+                .anyMatch(s -> s == SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
+        }));
+    }
+
+    /**
+     * Waits until the named snapshot has at least one shard in {@link SnapshotsInProgress.ShardState#MISSING},
+     * confirming the master has already recorded the restoring shard as failed.
+     */
+    public static void awaitSnapshotShardMissing(String repoName, String snapshotName) {
+        awaitClusterState(
+            state -> SnapshotsInProgress.get(state)
+                .forRepo(repoName)
+                .stream()
+                .anyMatch(
+                    e -> e.snapshot().getSnapshotId().getName().equals(snapshotName)
+                        && e.shards().values().stream().anyMatch(s -> s.state() == SnapshotsInProgress.ShardState.MISSING)
+                )
+        );
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
@@ -698,11 +955,59 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return createNSnapshots(logger, repoName, count);
     }
 
+    protected static SubscribableListener<Void> createSnapshotInStateListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards,
+        SnapshotsInProgress.ShardState shardState
+    ) {
+        return ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
+            if (entriesForRepo.isEmpty()) {
+                // it's (just about) possible for the data node to apply the initial snapshot state, start on the first shard snapshot, and
+                // hit the IO block, before the master even applies this cluster state, in which case we simply retry:
+                return false;
+            }
+            assertThat(entriesForRepo, hasSize(1));
+            final var shardSnapshotStatuses = entriesForRepo.iterator()
+                .next()
+                .shards()
+                .entrySet()
+                .stream()
+                .flatMap(e -> e.getKey().getIndexName().equals(indexName) ? Stream.of(e.getValue()) : Stream.of())
+                .toList();
+            assertThat(shardSnapshotStatuses, hasSize(numShards));
+            for (var shardStatus : shardSnapshotStatuses) {
+                assertThat(shardStatus.state(), oneOf(SnapshotsInProgress.ShardState.INIT, shardState));
+                if (shardStatus.state() == SnapshotsInProgress.ShardState.INIT) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    protected static SubscribableListener<Void> createSnapshotPausedListener(
+        ClusterService clusterService,
+        String repoName,
+        String indexName,
+        int numShards
+    ) {
+        return createSnapshotInStateListener(
+            clusterService,
+            repoName,
+            indexName,
+            numShards,
+            SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL
+        );
+    }
+
     public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = new PlainActionFuture<>();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(count, allSnapshotsDone);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + randomIdentifier() + "-";
+        final String prefix = randomSnapshotName() + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);

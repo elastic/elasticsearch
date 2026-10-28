@@ -46,6 +46,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -98,7 +99,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        Map<String, IndexMetadata> indices = metadata.getIndices();
+        Map<String, IndexMetadata> indices = metadata.getProject().indices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");
@@ -199,7 +200,7 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testCreateIndexWithMetadataBlocks() {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
-        assertBlocked(indicesAdmin().prepareGetSettings("test"), IndexMetadata.INDEX_METADATA_BLOCK);
+        assertBlocked(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test"), IndexMetadata.INDEX_METADATA_BLOCK);
         disableIndexBlock("test", IndexMetadata.SETTING_BLOCKS_METADATA);
     }
 
@@ -432,6 +433,29 @@ public class CreateIndexIT extends ESIntegTestCase {
         final var response = FutureUtils.get(responseFuture, 10, TimeUnit.SECONDS);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertTrue((boolean) extractValue("acknowledged", entityAsMap(response)));
+    }
+
+    public void testCreateIndexWithMappingAndTemplate() {
+        assertAcked(
+            indicesAdmin().preparePutTemplate("my_template")
+                .setPatterns(Collections.singletonList("*"))
+                .setMapping("field1", "type=keyword")
+                .setOrder(0)
+                .get()
+        );
+        assertAcked(prepareCreate("my-index").setMapping("""
+            {
+              "properties": {
+                 "field2": {
+                    "type": "text"
+                 }
+              }
+            }
+            """).get());
+        var response = admin().indices().prepareGetMappings(TimeValue.THIRTY_SECONDS, "my-index").get();
+        Map<?, ?> properties = (Map<?, ?>) response.getMappings().get("my-index").getSourceAsMap().get("properties");
+        assertThat(properties.get("field1"), equalTo(Map.of("type", "keyword")));
+        assertThat(properties.get("field2"), equalTo(Map.of("type", "text")));
     }
 
 }

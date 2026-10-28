@@ -7,6 +7,9 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -15,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
@@ -66,9 +71,12 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -158,6 +166,13 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
+
+        ClusterPrivilege cloneApiKeyClusterPrivilege = ClusterPrivilegeResolver.resolve("clone_api_key");
+        assertThat(cloneApiKeyClusterPrivilege, is(ClusterPrivilegeResolver.CLONE_API_KEY));
+        verifyClusterActionAllowed(cloneApiKeyClusterPrivilege, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_SECURITY, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(allClusterPrivilege, CloneApiKeyAction.NAME);
+
     }
 
     public void testClusterTemplateActions() throws Exception {
@@ -203,29 +218,47 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("indices:admin/mapping/delete");
-        IndexPrivilege index = IndexPrivilege.get(actionName);
+        IndexPrivilege index = IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
-        assertThat(IndexPrivilege.READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"), is(true));
+        assertThat(
+            IndexPrivilege.DEPRECATED_READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"),
+            is(true)
+        );
     }
 
-    public void testIndexCollapse() throws Exception {
-        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[IndexPrivilege.values().size()]);
+    public void testIndexCollapse() {
+        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[0]);
         IndexPrivilege first = values[randomIntBetween(0, values.length - 1)];
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
 
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
-        IndexPrivilege index = IndexPrivilege.get(name);
+        Set<IndexPrivilege> indices = IndexPrivilege.resolveBySelectorAccess(name);
+
+        Automaton automaton = null;
+        if (indices.size() == 1) {
+            IndexPrivilege index = indices.iterator().next();
+            automaton = index.getAutomaton();
+        } else if (indices.size() == 2) {
+            Iterator<IndexPrivilege> it = indices.iterator();
+            IndexPrivilege index1 = it.next();
+            IndexPrivilege index2 = it.next();
+            automaton = Automatons.unionAndMinimize(Set.of(index1.getAutomaton(), index2.getAutomaton()));
+        } else {
+            fail("indices.size() must be 1 or 2");
+            assert false;
+        }
 
         if (Automatons.subsetOf(second.getAutomaton(), first.getAutomaton())) {
-            assertTrue(AutomatonTestUtil.sameLanguage(index.getAutomaton(), first.getAutomaton()));
+            assertTrue(AutomatonTestUtil.sameLanguage(automaton, first.getAutomaton()));
         } else if (Automatons.subsetOf(first.getAutomaton(), second.getAutomaton())) {
-            assertTrue(AutomatonTestUtil.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            assertTrue(AutomatonTestUtil.sameLanguage(automaton, second.getAutomaton()));
         } else {
-            assertFalse(AutomatonTestUtil.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-            assertFalse(AutomatonTestUtil.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            assertFalse(AutomatonTestUtil.sameLanguage(automaton, first.getAutomaton()));
+            assertFalse(AutomatonTestUtil.sameLanguage(automaton, second.getAutomaton()));
         }
+
     }
 
     public void testSystem() throws Exception {
@@ -261,6 +294,10 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/seq_no/renew_retention_lease[s]"), is(true));
         assertThat(predicate.test("indices:admin/settings/update"), is(true));
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
+        assertThat(predicate.test("indices:admin/flush"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][p]"), is(true));
+        assertThat(predicate.test("indices:admin/flush[s][r]"), is(true));
     }
 
     public void testManageAutoscalingPrivilege() {
@@ -542,5 +579,38 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME + "[n]");
         verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
+    }
+
+    public void testMonitorReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testManageReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testRamBytesUsed() {
+        final long fixedBytes = RamUsageEstimator.shallowSizeOfInstance(Privilege.class) + RamUsageEstimator.shallowSizeOfInstance(
+            CachedSupplier.class
+        ) + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+
+        final Set<String> names = Set.of("read", "indices:data/read/search");
+        final Privilege privilege = new Privilege(names, "indices:data/read/*", "indices:admin/get*");
+        final long runAutomatonBytes = new CharacterRunAutomaton(privilege.getAutomaton()).ramBytesUsed();
+        assertThat(runAutomatonBytes, greaterThan(privilege.getAutomaton().ramBytesUsed()));
+        assertThat(privilege.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(names) + runAutomatonBytes));
+
+        assertThat(Privilege.ALL.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(Privilege.ALL.name())));
+        assertThat(Privilege.NONE.ramBytesUsed(), equalTo(fixedBytes + RamUsageEstimator.sizeOfCollection(Privilege.NONE.name())));
     }
 }

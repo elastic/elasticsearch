@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.14.0"]
       reason: "Mixed cluster tests don't work with the changed error message from sort"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
 
   - do:
       indices.create:
@@ -148,20 +148,25 @@ geo_point unsortable with limit from row:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
 
 ---
-values unsupported for geo_point:
+values supported for geo_point:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ agg_values_spatial ]
+      reason: "Spatial types added to values aggregation in 8.19.0"
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be .+/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM geo_points | STATS VALUES(location)'
-
----
-values unsupported for geo_point status code:
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'FROM geo_points | STATS VALUES(location)'
+          query: 'FROM geo_points | STATS locations = VALUES(location) | EVAL locations = MV_SORT(TO_STRING(locations))'
+  - length: { columns: 1 }
+  - match: { columns.0.name: locations }
+  - match: { columns.0.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: ["POINT (-1.0 1.0)", "POINT (1.0 -1.0)"] }
 
 ---
 cartesian_point:
@@ -336,3 +341,48 @@ cartesian_shape unsortable with limit from row:
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape'
+
+---
+geohash unsortable:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ spatial_grid_types ]
+      reason: "geohash type requires spatial_grid_types capability"
+  - do:
+      catch: /cannot sort on geohash/
+      esql.query:
+        body:
+          query: 'ROW v = ["9q8yy9", "u4pruydqqvj"] | MV_EXPAND v | EVAL cell = TO_GEOHASH(v) | limit 5 | sort cell'
+
+---
+geotile unsortable:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ spatial_grid_types ]
+      reason: "geotile type requires spatial_grid_types capability"
+  - do:
+      catch: /cannot sort on geotile/
+      esql.query:
+        body:
+          query: 'ROW v = ["4/2/5", "5/4/11"] | MV_EXPAND v | EVAL cell = TO_GEOTILE(v) | limit 5 | sort cell'
+
+---
+geohex unsortable:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ spatial_grid_types ]
+      reason: "geohex type requires spatial_grid_types capability"
+  - do:
+      catch: /cannot sort on geohex/
+      esql.query:
+        body:
+          query: 'ROW v = ["811fbffffffffff", "811f3ffffffffff"] | MV_EXPAND v | EVAL cell = TO_GEOHEX(v) | limit 5 | sort cell'

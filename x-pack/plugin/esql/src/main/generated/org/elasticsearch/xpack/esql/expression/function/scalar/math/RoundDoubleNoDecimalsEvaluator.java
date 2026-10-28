@@ -7,33 +7,39 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
+ * {@link ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundDoubleNoDecimalsEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundDoubleNoDecimalsEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator val;
+  private final ExpressionEvaluator val;
+
+  private final boolean allowNonFinite;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundDoubleNoDecimalsEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
+  public RoundDoubleNoDecimalsEvaluator(Source source, ExpressionEvaluator val,
+      boolean allowNonFinite, DriverContext driverContext) {
     this.source = source;
     this.val = val;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -48,6 +54,13 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -55,14 +68,16 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
           result.appendNull();
           continue position;
         }
-        if (valBlock.getValueCount(p) != 1) {
-          if (valBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (valBlock.getValueCount(p)) {
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Round.process(val, this.allowNonFinite));
       }
       return result.build();
     }
@@ -71,7 +86,8 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Round.process(valVector.getDouble(p)));
+        double val = valVector.getDouble(p);
+        result.appendDouble(p, Round.process(val, this.allowNonFinite));
       }
       return result.build();
     }
@@ -89,29 +105,27 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory val;
+    private final ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory val, boolean allowNonFinite) {
       this.source = source;
       this.val = val;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public RoundDoubleNoDecimalsEvaluator get(DriverContext context) {
-      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context);
+      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), allowNonFinite, context);
     }
 
     @Override

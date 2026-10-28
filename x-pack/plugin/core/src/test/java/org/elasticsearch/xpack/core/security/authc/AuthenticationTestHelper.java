@@ -12,6 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,7 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -89,6 +91,27 @@ public class AuthenticationTestHelper {
         return new User(
             ESTestCase.randomAlphaOfLengthBetween(3, 8),
             ESTestCase.randomArray(1, 3, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))
+        );
+    }
+
+    public static User randomCloudApiKeyUser() {
+        return randomCloudApiKeyUser(null);
+    }
+
+    public static User randomCloudApiKeyUser(String principal) {
+        final Map<String, Object> metadata = ESTestCase.randomBoolean()
+            ? null
+            : Map.ofEntries(
+                Map.entry(AuthenticationField.API_KEY_NAME_KEY, ESTestCase.randomAlphanumericOfLength(64)),
+                Map.entry(AuthenticationField.API_KEY_INTERNAL_KEY, ESTestCase.randomBoolean())
+            );
+        return new User(
+            principal == null ? ESTestCase.randomAlphanumericOfLength(64) : principal,
+            ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            null,
+            null,
+            metadata,
+            true
         );
     }
 
@@ -193,7 +216,7 @@ public class AuthenticationTestHelper {
             LdapRealmSettings.LDAP_TYPE,
             JwtRealmSettings.TYPE,
             OpenIdConnectRealmSettings.TYPE,
-            SamlRealmSettings.TYPE,
+            SingleSpSamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
             PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)
@@ -242,6 +265,101 @@ public class AuthenticationTestHelper {
             UsernamesField.SECURITY_PROFILE_ROLE,
             UsernamesField.DATA_STREAM_LIFECYCLE_ROLE
         );
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication() {
+        return randomCloudApiKeyAuthentication(null, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(String apiKeyId) {
+        return randomCloudApiKeyAuthentication(null, apiKeyId);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user) {
+        return randomCloudApiKeyAuthentication(user, null);
+    }
+
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId) {
+        return randomCloudApiKeyAuthentication(user, apiKeyId, null);
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the key's assigned roles, or {@code null} for an uncapped key
+     */
+    public static Authentication randomCloudApiKeyAuthentication(User user, String apiKeyId, @Nullable List<String> limitedByRoleNames) {
+        if (apiKeyId == null) {
+            apiKeyId = user != null ? user.principal() : ESTestCase.randomAlphanumericOfLength(64);
+        }
+        if (user == null) {
+            user = randomCloudApiKeyUser(apiKeyId);
+        }
+
+        assert user.principal().equals(apiKeyId) : "user principal must match cloud API key ID";
+
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
+            AuthenticationResult.success(user, withCloudLimitedByRoles(user.metadata(), limitedByRoleNames)),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
+        );
+
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the user's assigned roles, or {@code null} for an uncapped user
+     */
+    public static Authentication randomCloudUserAuthentication(@Nullable List<String> limitedByRoleNames) {
+        final String realmName = "cloud_realm_" + ESTestCase.randomAlphaOfLengthBetween(3, 8);
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.TOKEN,
+            Subject.Type.USER,
+            AuthenticationResult.success(randomUser(), withCloudLimitedByRoles(Map.of(), limitedByRoleNames)),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            new RealmConfig.RealmIdentifier("cloud", realmName)
+        );
+    }
+
+    public static Authentication randomCloudServiceAccountAuthentication() {
+        return randomCloudServiceAccountAuthentication(ESTestCase.randomAlphanumericOfLength(20));
+    }
+
+    public static Authentication randomCloudServiceAccountAuthentication(String serviceAccountId) {
+        return randomCloudServiceAccountAuthentication(
+            serviceAccountId,
+            ESTestCase.randomBoolean() ? null : randomCloudLimitedByRoleNames()
+        );
+    }
+
+    /**
+     * @param limitedByRoleNames the cloud-reported cap on the account's assigned roles, or {@code null} for an uncapped account
+     */
+    public static Authentication randomCloudServiceAccountAuthentication(
+        String serviceAccountId,
+        @Nullable List<String> limitedByRoleNames
+    ) {
+        final User user = new User(
+            serviceAccountId,
+            ESTestCase.randomArray(1, 3, String[]::new, () -> "role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8))
+        );
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.TOKEN,
+            Subject.Type.CLOUD_SERVICE_ACCOUNT,
+            AuthenticationResult.success(user, withCloudLimitedByRoles(Map.of(), limitedByRoleNames)),
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
+        );
+    }
+
+    public static List<String> randomCloudLimitedByRoleNames() {
+        return ESTestCase.randomList(1, 3, () -> "limited_by_role_" + ESTestCase.randomAlphaOfLengthBetween(3, 8));
+    }
+
+    private static Map<String, Object> withCloudLimitedByRoles(Map<String, Object> metadata, @Nullable List<String> limitedByRoleNames) {
+        if (limitedByRoleNames == null) {
+            return metadata;
+        }
+        return Maps.copyMapWithAddedEntry(metadata, AuthenticationField.CLOUD_LIMITED_BY_ROLES_KEY, limitedByRoleNames);
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(
@@ -375,6 +493,24 @@ public class AuthenticationTestHelper {
             realmRef = null;
             candidateAuthenticationTypes = EnumSet.of(AuthenticationType.TOKEN);
             return this;
+        }
+
+        /**
+         * Unlike {@link #serviceAccount()}, this includes named roles and
+         * {@link ServiceAccountSettings#USER_MANAGED_SERVICE_ACCOUNT_FIELD}.
+         * Built-in accounts must have neither.
+         */
+        public AuthenticationTestBuilder userManagedServiceAccount(String principal, String... roles) {
+            return serviceAccount(
+                new User(
+                    principal,
+                    roles,
+                    "Service account - " + principal,
+                    null,
+                    Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true),
+                    true
+                )
+            );
         }
 
         public AuthenticationTestBuilder apiKey() {
@@ -667,7 +803,7 @@ public class AuthenticationTestHelper {
                 if (transportVersion == null) {
                     transportVersion = TransportVersion.current();
                 }
-                if (transportVersion.before(authentication.getEffectiveSubject().getTransportVersion())) {
+                if (transportVersion.supports(authentication.getEffectiveSubject().getTransportVersion()) == false) {
                     return authentication.maybeRewriteForOlderVersion(transportVersion);
                 } else {
                     return authentication;

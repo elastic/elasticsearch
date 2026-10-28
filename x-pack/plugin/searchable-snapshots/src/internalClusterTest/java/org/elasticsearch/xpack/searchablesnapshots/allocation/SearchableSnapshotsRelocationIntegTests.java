@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -79,6 +80,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndex)
             .getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
@@ -118,9 +120,10 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
             .setDetailed(true)
             .setActiveOnly(true)
             .get()
-            .shardRecoveryStates()
+            .shardRecoveryInfos()
             .get(restoredIndex)
             .stream()
+            .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getSourceNode() != null);
     }
 }

@@ -90,14 +90,20 @@ public class JobDataCountsPersister {
                 true,
                 () -> true,
                 retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage),
-                ActionListener.wrap(r -> ongoingPersists.remove(jobId).countDown(), e -> {
-                    ongoingPersists.remove(jobId).countDown();
+                ActionListener.wrap(r -> {
+                    latch.countDown();
+                    ongoingPersists.remove(jobId);
+                }, e -> {
+                    latch.countDown();
+                    ongoingPersists.remove(jobId);
                     logger.error(() -> "[" + jobId + "] Failed persisting data_counts stats", e);
                     auditor.error(jobId, "Failed persisting data_counts stats: " + e.getMessage());
                 })
             );
         } catch (IOException e) {
             // An exception caught here basically means toXContent() failed, which should never happen
+            latch.countDown();
+            ongoingPersists.remove(jobId);
             logger.error(() -> "[" + jobId + "] Failed writing data_counts stats", e);
             return false;
         }

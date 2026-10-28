@@ -19,6 +19,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -73,7 +74,8 @@ public class AsyncTaskManagementService<
             TaskId parentTaskId,
             Map<String, String> headers,
             Map<String, String> originHeaders,
-            AsyncExecutionId asyncExecutionId
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
         );
 
         void execute(Request request, T task, ActionListener<Response> listener);
@@ -90,11 +92,13 @@ public class AsyncTaskManagementService<
         private final Request request;
         private final String doc;
         private final String node;
+        private final TimeValue keepAlive;
 
-        AsyncRequestWrapper(Request request, String node) {
+        AsyncRequestWrapper(Request request, String node, TimeValue keepAlive) {
             this.request = request;
             this.doc = UUIDs.randomBase64UUID();
             this.node = node;
+            this.keepAlive = keepAlive;
         }
 
         @Override
@@ -131,7 +135,8 @@ public class AsyncTaskManagementService<
                 parentTaskId,
                 headers,
                 originHeaders,
-                new AsyncExecutionId(doc, new TaskId(node, id))
+                new AsyncExecutionId(doc, new TaskId(node, id)),
+                keepAlive
             );
         }
 
@@ -175,20 +180,31 @@ public class AsyncTaskManagementService<
     public void asyncExecute(
         Request request,
         TimeValue waitForCompletionTimeout,
-        TimeValue keepAlive,
+        @org.elasticsearch.core.Nullable TimeValue keepAlive,
         boolean keepOnCompletion,
         ActionListener<Response> listener
     ) {
+        final TimeValue resolvedKeepAlive;
+        try {
+            resolvedKeepAlive = asyncTaskIndexService.resolveKeepAlive(keepAlive);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         String nodeId = clusterService.localNode().getId();
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
             @SuppressWarnings("unchecked")
-            T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
+            T searchTask = (T) taskManager.register(
+                "transport",
+                action + "[a]",
+                new AsyncRequestWrapper(request, nodeId, resolvedKeepAlive)
+            );
             boolean operationStarted = false;
             try {
                 operation.execute(
                     request,
                     searchTask,
-                    wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener)
+                    wrapStoringListener(searchTask, waitForCompletionTimeout, resolvedKeepAlive, keepOnCompletion, listener)
                 );
                 operationStarted = true;
             } finally {
@@ -197,6 +213,21 @@ public class AsyncTaskManagementService<
                     taskManager.unregister(searchTask);
                 }
             }
+        }
+    }
+
+    /**
+     * Same behavior as {@link ActionListener#respondAndRelease(ActionListener, RefCounted)} but without relying on that method's generic
+     * signature (javac cannot infer {@code R extends RefCounted} from {@code Response extends ActionResponse} here). All
+     * {@link ActionResponse} types implement {@link RefCounted} via {@link org.elasticsearch.transport.TransportMessage}; default
+     * {@code decRef} is a no-op unless overridden.
+     */
+    private static <Response extends ActionResponse> void respondWithRelease(ActionListener<Response> listener, Response response) {
+        RefCounted r = (RefCounted) response;
+        try {
+            listener.onResponse(response);
+        } finally {
+            r.decRef();
         }
     }
 
@@ -212,7 +243,7 @@ public class AsyncTaskManagementService<
         Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
             ActionListener<Response> acquiredListener = exclusiveListener.getAndSet(null);
             if (acquiredListener != null) {
-                acquiredListener.onResponse(operation.initialResponse(searchTask));
+                respondWithRelease(acquiredListener, operation.initialResponse(searchTask));
             }
         }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH));
 
@@ -226,12 +257,12 @@ public class AsyncTaskManagementService<
                     storeResults(
                         searchTask,
                         new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.running(() -> acquiredListener.onResponse(response))
+                        ActionListener.running(() -> respondWithRelease(acquiredListener, response))
                     );
                 } else {
                     taskManager.unregister(searchTask);
                     searchTask.onResponse(response);
-                    acquiredListener.onResponse(response);
+                    respondWithRelease(acquiredListener, response);
                 }
             } else {
                 // We finished after timeout - saving results
@@ -324,7 +355,8 @@ public class AsyncTaskManagementService<
         ThreadPool threadPool,
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener,
-        TimeValue timeout
+        TimeValue timeout,
+        boolean returnIntermediateResults
     ) {
         if (timeout.getMillis() <= 0) {
             getCurrentResult(task, listener);
@@ -353,10 +385,15 @@ public class AsyncTaskManagementService<
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener
     ) {
+        Response r = task.getCurrentResult();
         try {
-            listener.onResponse(new StoredAsyncResponse<>(task.getCurrentResult(), task.getExpirationTimeMillis()));
+            listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis()));
         } catch (Exception ex) {
             listener.onFailure(ex);
+        } finally {
+            if (r instanceof RefCounted rc) {
+                rc.decRef();
+            }
         }
     }
 }

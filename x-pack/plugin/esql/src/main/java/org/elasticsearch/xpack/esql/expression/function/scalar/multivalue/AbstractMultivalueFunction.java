@@ -11,9 +11,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,8 +39,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
         out.writeNamedWriteable(field);
     }
 
@@ -69,14 +68,14 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
      * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
      */
     public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
-        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+        protected AbstractEvaluator(DriverContext driverContext, ExpressionEvaluator field) {
             super(driverContext, field);
         }
 
         /**
          * Called when evaluating a {@link Block} that does not contain null values.
-         * It's useful to specialize this from {@link #evalNullable} because it knows
-         * that it's producing an "array vector" because it only ever emits single
+         * It’s useful to specialize this from {@link #evalNullable} because it knows
+         * that it’s producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
          *
@@ -116,11 +115,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     /**
      * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
      */
-    public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+    public abstract static class AbstractNullableEvaluator implements ExpressionEvaluator {
         protected final DriverContext driverContext;
-        protected final EvalOperator.ExpressionEvaluator field;
+        protected final ExpressionEvaluator field;
 
-        protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+        protected AbstractNullableEvaluator(DriverContext driverContext, ExpressionEvaluator field) {
             this.driverContext = driverContext;
             this.field = field;
         }

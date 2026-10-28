@@ -13,16 +13,20 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collection;
@@ -30,11 +34,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Queries {
+public final class Queries {
 
-    public static Query newMatchAllQuery() {
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchNoDocsQuery noDocs() {
+        return new MatchNoDocsQuery();
+    }
+
+    @SuppressForbidden(reason = "Providing instance")
+    private static MatchAllDocsQuery allDocs() {
         return new MatchAllDocsQuery();
     }
+
+    public static final MatchNoDocsQuery NO_DOCS_INSTANCE = noDocs();
+    public static final MatchNoDocsQuery NO_MAPPINGS = new MatchNoDocsQuery("No mappings yet");
+    public static final MatchAllDocsQuery ALL_DOCS_INSTANCE = allDocs();
+
+    private Queries() {}
 
     /** Return a query that matches no document. */
     public static Query newMatchNoDocsQuery(String reason) {
@@ -93,7 +109,7 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
+        return new BooleanQuery.Builder().add(ALL_DOCS_INSTANCE, Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
@@ -104,14 +120,15 @@ public class Queries {
         return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
-    public static Query fixNegativeQueryIfNeeded(Query q) {
+    public static Query fixNegativeQueryIfNeeded(Query q, QueryVisitor queryVisitor) {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (BooleanClause clause : bq) {
                 builder.add(clause);
             }
-            builder.add(newMatchAllQuery(), BooleanClause.Occur.FILTER);
+            builder.add(ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER);
+            ALL_DOCS_INSTANCE.visit(queryVisitor);
             return builder.build();
         }
         return q;
@@ -144,10 +161,22 @@ public class Queries {
     /**
      * Potentially apply minimum should match value if we have a query that it can be applied to,
      * otherwise return the original query.
+     * <p>
+     * Also applies it to a boolean query inside a {@link ReanalyzingTextQuery}, optionally wrapped in a
+     * {@link ConstantScoreQuery}. That is how fields matching against their values (e.g. {@code index: false}) return
+     * their query.
      */
     public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        }
+        if (query instanceof ConstantScoreQuery constantScore && constantScore.getQuery() instanceof ReanalyzingTextQuery reanalyzing) {
+            final Query applied = maybeApplyMinimumShouldMatch(reanalyzing, minimumShouldMatch);
+            return applied == reanalyzing ? query : new ConstantScoreQuery(applied);
+        }
+        if (query instanceof ReanalyzingTextQuery reanalyzing && reanalyzing.getQuery() instanceof BooleanQuery inner) {
+            final Query applied = applyMinimumShouldMatch(inner, minimumShouldMatch);
+            return applied == inner ? query : reanalyzing.withQuery(applied);
         }
         return query;
     }

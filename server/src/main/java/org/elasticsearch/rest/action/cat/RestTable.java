@@ -14,7 +14,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
@@ -370,24 +369,6 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof SizeValue v) {
-            String resolution = request.param("size");
-            if ("".equals(resolution)) {
-                return Long.toString(v.singles());
-            } else if ("k".equals(resolution)) {
-                return Long.toString(v.kilo());
-            } else if ("m".equals(resolution)) {
-                return Long.toString(v.mega());
-            } else if ("g".equals(resolution)) {
-                return Long.toString(v.giga());
-            } else if ("t".equals(resolution)) {
-                return Long.toString(v.tera());
-            } else if ("p".equals(resolution)) {
-                return Long.toString(v.peta());
-            } else {
-                return v.toString();
-            }
-        }
         if (value instanceof TimeValue v) {
             String resolution = request.param("time");
             if ("nanos".equals(resolution)) {
@@ -503,6 +484,10 @@ public class RestTable {
 
         static FormattedDouble format2DecimalPlaces(double numericValue) {
             return new FormattedDouble(Strings.format("%.2f", numericValue), numericValue);
+        }
+
+        static FormattedDouble formatPercent1Decimal(double numericValue) {
+            return new FormattedDouble(Strings.format("%1.1f%%", numericValue), numericValue);
         }
 
         @Override

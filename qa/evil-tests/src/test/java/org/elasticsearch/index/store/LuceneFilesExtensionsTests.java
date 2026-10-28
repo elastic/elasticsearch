@@ -9,9 +9,13 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -21,6 +25,7 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         if (Assertions.ENABLED) {
             AssertionError e = expectThrows(AssertionError.class, () -> LuceneFilesExtensions.fromExtension("abc"));
             assertThat(e.getMessage(), containsString("unknown Lucene file extension [abc]"));
+            assertFalse(LuceneFilesExtensions.isLuceneExtension("abc"));
 
             setEsAllowUnknownLuceneFileExtensions("true");
             try {
@@ -40,5 +45,37 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         } else {
             System.setProperty("es.allow_unknown_lucene_file_extensions", value);
         }
+    }
+
+    public void testIsLuceneExtension() {
+        assertFalse(LuceneFilesExtensions.isLuceneExtension(null));
+        assertFalse(LuceneFilesExtensions.isLuceneExtension("bcde"));
+        String randomStringWithLuceneExtension = randomAlphanumericOfLength(10)
+            + "."
+            + LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length - 1)].getExtension();
+        String extension = IndexFileNames.getExtension(randomStringWithLuceneExtension);
+        assertTrue(extension + " should be considered a Lucene extension", LuceneFilesExtensions.isLuceneExtension(extension));
+        String upperCaseExtension = extension.toUpperCase(Locale.ROOT);
+        assertFalse(
+            upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
+            LuceneFilesExtensions.isLuceneExtension(upperCaseExtension)
+        );
+    }
+
+    public void testColumnarExtensionsAreRegistered() {
+        for (final String extension : List.of("cnd", "cna", "cnl", "cnn", "cnm", "cns")) {
+            assertNotNull(extension, LuceneFilesExtensions.fromExtension(extension));
+        }
+    }
+
+    public void testColumnarMetadataFiles() {
+        assertTrue(LuceneFilesExtensions.CNM.isMetadata());
+        assertTrue(LuceneFilesExtensions.CNS.isMetadata());
+        assertFalse(LuceneFilesExtensions.CND.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNA.isMetadata());
+        assertFalse(LuceneFilesExtensions.CNL.isMetadata());
+        // Read up front and by every read of a column, so it is fetched whole and memory-mapped.
+        assertTrue(LuceneFilesExtensions.CNN.isMetadata());
+        assertTrue(LuceneFilesExtensions.CNN.shouldMmap());
     }
 }

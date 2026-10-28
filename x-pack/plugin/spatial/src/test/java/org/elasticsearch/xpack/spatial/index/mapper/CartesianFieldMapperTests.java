@@ -109,6 +109,15 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         return true;
     }
 
+    @Override
+    protected boolean supportsColumnarIgnoreMalformed() {
+        // ShapeParser and CartesianPointParser call MalformedValueHandler#notify(Exception) without an XContentBuilder,
+        // so AbstractGeometryFieldMapper#onMalformedValue only records the field name in _ignored and nothing reaches
+        // the ._on_failure column. Capturing the raw value requires CopyingXContentParser plumbing analogous to
+        // GeoPointFieldMapper, which is out of scope for this PR.
+        return false;
+    }
+
     public void testZValueWKT() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", getFieldName());
@@ -156,5 +165,10 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
         assertThat(e.getCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

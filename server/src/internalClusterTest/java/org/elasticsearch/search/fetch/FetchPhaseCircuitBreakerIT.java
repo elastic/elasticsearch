@@ -1,0 +1,1108 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.fetch;
+
+import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rank.FieldBasedRerankerIT;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+
+/**
+ * Integration tests to verify that circuit breaker bytes are properly tracked and released
+ * in the fetch phase across different search scenarios.
+ */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+public class FetchPhaseCircuitBreakerIT extends ESIntegTestCase {
+
+    private static final String INDEX = "test_idx";
+    private static final String SORT_FIELD = "sort_field";
+    private static final String LARGE_LIST_SCRIPT = "build_large_list";
+    // Must exceed search.memory_accounting_buffer_size (1 MB minimum) per hit so that a
+    // single-hit search exercises the circuit-breaker check path in FetchPhase#nextDoc.
+    private static final int LARGE_LIST_ENTRIES = 30_000;
+
+    private static final String FAIL_AFTER_FIRST_CALL_SCRIPT = "fail_after_first_call";
+    private static final AtomicInteger FAIL_AFTER_FIRST_CALL_COUNT = new AtomicInteger(0);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(ScriptFieldsTestPlugin.class, FieldBasedRerankerIT.FieldBasedRerankerPlugin.class, FetchPhaseBlockingPlugin.class);
+    }
+
+    public static class ScriptFieldsTestPlugin extends MockScriptPlugin {
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put(LARGE_LIST_SCRIPT, vars -> {
+                List<Object> values = new ArrayList<>(LARGE_LIST_ENTRIES);
+                for (int i = 0; i < LARGE_LIST_ENTRIES; i++) {
+                    // strings dominate the retained heap; the exact contents are irrelevant
+                    values.add("entry-" + i);
+                }
+                return values;
+            });
+            // Succeeds on the first invocation (returns a large list, charging CB bytes) then throws
+            // on every subsequent invocation. Used to verify that CB bytes charged before an exception
+            // are properly released. Reset FAIL_AFTER_FIRST_CALL_COUNT to 0 before each use.
+            scripts.put(FAIL_AFTER_FIRST_CALL_SCRIPT, vars -> {
+                if (FAIL_AFTER_FIRST_CALL_COUNT.incrementAndGet() > 1) {
+                    throw new RuntimeException("script_field fetch failure");
+                }
+                List<Object> values = new ArrayList<>(LARGE_LIST_ENTRIES);
+                for (int i = 0; i < LARGE_LIST_ENTRIES; i++) {
+                    values.add("entry-" + i);
+                }
+                return values;
+            });
+            return scripts;
+        }
+    }
+
+    /**
+     * Pauses the shard after the fetch phase has charged the request breaker but before the result is released,
+     * so a test can read the breaker mid-flight. Registered on every node for the whole class, so it is a no-op
+     * until {@link #setArmed} enables it: otherwise every fetch phase in every other test in this class would
+     * block for the full await timeout with nothing to release it.
+     */
+    public static class FetchPhaseBlockingPlugin extends Plugin {
+        private final AtomicBoolean armed = new AtomicBoolean(false);
+        private final CountDownLatch fetchPhaseReached = new CountDownLatch(1);
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+                @Override
+                public void onFetchPhase(SearchContext context, long tookInNanos) {
+                    if (armed.get() == false) {
+                        return;
+                    }
+                    fetchPhaseReached.countDown();
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+        }
+
+        void setArmed(boolean value) {
+            armed.set(value);
+        }
+
+        boolean awaitFetchPhase() throws InterruptedException {
+            return fetchPhaseReached.await(10, TimeUnit.SECONDS);
+        }
+
+        void release() {
+            release.countDown();
+        }
+    }
+
+    public void testSimpleFetchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(10),
+            response -> assertThat(response.getHits().getHits().length, equalTo(10))
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testMultiShardSearchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 100, 10_000);  // More docs to spread across shards
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(50), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(50));
+        });
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after multi-shard search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testMultipleSearchesNoMemoryLeak() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Execute multiple searches
+        for (int i = 0; i < 100; i++) {
+            assertNoFailuresAndResponse(
+                client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(10),
+                response -> assertThat(response.getHits().getHits().length, equalTo(10))
+            );
+        }
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should not grow after multiple searches (no leaks)",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testScrollSearchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Initial scroll request - use coordinator node
+        SearchResponse searchResponse = client(coordinatorNode).prepareSearch(INDEX)
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .get();
+
+        String scrollId = searchResponse.getScrollId();
+        assertNotNull(scrollId);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(10));
+        searchResponse.decRef();
+
+        try {
+            // Scroll through results - use coordinator node
+            for (int i = 0; i < 3; i++) {
+                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
+                scrollRequest.scroll(TimeValue.timeValueMinutes(1));
+                searchResponse = client(coordinatorNode).searchScroll(scrollRequest).actionGet();
+                scrollId = searchResponse.getScrollId();
+                searchResponse.decRef();
+            }
+        } finally {
+            if (scrollId != null) {
+                // Clear scroll - use coordinator node
+                client(coordinatorNode).prepareClearScroll().addScrollId(scrollId).get();
+            }
+        }
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after scroll completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testPointInTimeSearchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        var pitResponse = client(coordinatorNode).execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest(INDEX).keepAlive(TimeValue.timeValueMinutes(1))
+        ).actionGet();
+
+        try {
+            // Execute searches with PIT - use coordinator node
+            for (int i = 0; i < 5; i++) {
+                assertNoFailuresAndResponse(
+                    client(coordinatorNode).prepareSearch()
+                        .setPointInTime(new PointInTimeBuilder(pitResponse.getPointInTimeId()))
+                        .setSize(10),
+                    response -> {
+                        assertThat(response.getHits().getHits().length, equalTo(10));
+                    }
+                );
+            }
+        } finally {
+            // Close PIT - use coordinator node
+            client(coordinatorNode).execute(
+                TransportClosePointInTimeAction.TYPE,
+                new ClosePointInTimeRequest(pitResponse.getPointInTimeId())
+            ).actionGet();
+        }
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after PIT searches complete",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testCircuitBreakerReleasedOnException() throws Exception {
+        FAIL_AFTER_FIRST_CALL_COUNT.set(0);
+
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 10, 100);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script failAfterFirstScript = new Script(
+            ScriptType.INLINE,
+            MockScriptPlugin.NAME,
+            FAIL_AFTER_FIRST_CALL_SCRIPT,
+            Collections.emptyMap()
+        );
+
+        expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .addScriptField("failing_script", failAfterFirstScript)
+                .setSize(2)
+                .get()
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released even after exception, including bytes charged before the failure",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testSearchAfterReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // First page
+        SearchResponse response1 = client(coordinatorNode).prepareSearch(INDEX)
+            .setQuery(matchAllQuery())
+            .setSize(10)
+            .addSort(SORT_FIELD, SortOrder.ASC)
+            .get();
+
+        try {
+            assertThat(response1.getHits().getHits().length, equalTo(10));
+            Object[] sortValues = response1.getHits().getHits()[9].getSortValues();
+
+            // Second page using search_after
+            assertNoFailuresAndResponse(
+                client(coordinatorNode).prepareSearch(INDEX)
+                    .setQuery(matchAllQuery())
+                    .setSize(10)
+                    .addSort(SORT_FIELD, SortOrder.ASC)
+                    .searchAfter(sortValues),
+                response2 -> {
+                    assertThat(response2.getHits().getHits().length, greaterThan(0));
+                }
+            );
+        } finally {
+            response1.decRef();
+        }
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after search_after completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testCircuitBreakerTripsOnLargeFetch() throws Exception {
+        // Use a very small circuit breaker limit to trigger trip
+        String dataNode = startDataNode("50kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Search should trip the circuit breaker
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).setSize(50).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after tripped search",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testScriptFieldsBytesReleasedAfterSearch() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(INDEX).setQuery(matchAllQuery()).addScriptField("expanded", largeScript).setSize(20),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(20));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
+            }
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after script_fields search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testCircuitBreakerTripsOnSingleHitScriptField() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 10, 5);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .addScriptField("expanded", largeScript)
+                .setSize(1)
+                .get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after single-hit script_field tripped",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    public void testCircuitBreakerTripsOnScrollFetch() throws Exception {
+        String dataNode = startDataNode("50kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        createIndexForTest(
+            INDEX,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        populateIndex(INDEX, 50, 10_000);
+        ensureSearchable(INDEX);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        var exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(INDEX)
+                .setQuery(matchAllQuery())
+                .setSize(50)
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            assertThat(
+                "Circuit breaker should be released after tripped scroll",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            );
+        });
+    }
+
+    /**
+     * Verifies that the request circuit breaker is properly released when a
+     * {@code top_hits} aggregation fetches document {@code fields}. This exercises the
+     * {@code memoryChecker != null} branch, which routes field bytes through the
+     * aggregator's memory checker rather than the global accumulator used by normal searches.
+     */
+    public void testTopHitsWithFieldsReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String topHitsIndex = "top_hits_fields_idx";
+        assertAcked(
+            prepareCreate(topHitsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(topHitsIndex, 20, 500);
+        ensureSearchable(topHitsIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(topHitsIndex)
+                .setQuery(matchAllQuery())
+                .setSize(0)
+                .addAggregation(global("all").subAggregation(topHits("top").size(5).fetchField("tag"))),
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(20L))
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after top_hits + fields search completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    public void testRankFeaturePhaseReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String rankIndex = "rank_feature_test_idx";
+        String rankFeatureField = "rank_feature_field";
+        assertAcked(
+            prepareCreate(rankIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping(rankFeatureField, "type=text,store=false")
+        );
+
+        int numDocs = 5;
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(prepareIndex(rankIndex).setId(Integer.toString(i)).setSource(rankFeatureField, "0." + (i + 1)));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(rankIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // The rank feature phase reuses the fetch phase but never requests _source, so a script_field is
+        // the only way to charge the request breaker on this path.
+        Script largeScript = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, LARGE_LIST_SCRIPT, Collections.emptyMap());
+
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(rankIndex)
+                .setQuery(matchAllQuery())
+                .setRankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(numDocs, rankFeatureField))
+                .addScriptField("expanded", largeScript)
+                .setSize(numDocs),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(numDocs));
+                assertThat(response.getHits().getHits()[0].getFields().get("expanded"), notNullValue());
+            }
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after the rank feature phase completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large {@code fields}
+     * arrays exceeds the configured limit, and that the breaker is released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeFieldsFetch() throws Exception {
+        // 100 KB is enough for a single small fetch but not for 20 docs each carrying
+        // 500 keyword values (~7–10 KB of estimated heap per doc after estimator overhead).
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String fieldsIndex = "fields_trip_idx";
+        assertAcked(
+            prepareCreate(fieldsIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(fieldsIndex, 20, 500);
+        ensureSearchable(fieldsIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .fetchField(new FieldAndFormat("tag", null));
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(fieldsIndex).setSource(source).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large
+     * {@code stored_fields} arrays exceeds the configured limit, and that the breaker is
+     * released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeStoredFieldsFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String storedIndex = "stored_fields_trip_idx";
+        assertAcked(
+            prepareCreate(storedIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword,store=true")
+        );
+        populateIndexWithKeywordArray(storedIndex, 20, 500);
+        ensureSearchable(storedIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery()).size(20).fetchSource(false).storedField("tag");
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(storedIndex).setSource(source).get()
+        );
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped stored_fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when fetching large
+     * {@code docvalue_fields} arrays exceeds the configured limit, and that the breaker is
+     * released after the trip.
+     */
+    public void testCircuitBreakerTripsOnLargeDocValueFieldsFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String dvIndex = "docvalue_fields_trip_idx";
+        assertAcked(
+            prepareCreate(dvIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("tag", "type=keyword")
+        );
+        populateIndexWithKeywordArray(dvIndex, 20, 500);
+        ensureSearchable(dvIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery()).size(20).fetchSource(false).docValueField("tag");
+        Exception exception = expectThrows(Exception.class, () -> client(coordinatorNode).prepareSearch(dvIndex).setSource(source).get());
+
+        assertThat(
+            "Should contain CircuitBreakingException",
+            ExceptionsHelper.unwrap(exception, CircuitBreakingException.class),
+            notNullValue()
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped docvalue_fields fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Regression test for double-counting: when the same stored field is requested via both
+     * {@code stored_fields} (StoredFieldsPhase) and {@code fields} (FetchFieldsPhase), the
+     * central charge in FetchPhase#nextDoc covers only the final state of the hit's field maps
+     * (FetchFieldsPhase's {@code putAll} replaces the earlier StoredFieldsPhase entry). The
+     * search must succeed and the breaker must return to baseline — neither a spurious trip
+     * nor a leak.
+     */
+    public void testFieldsAndStoredFieldsOverlapDoesNotDoubleCharge() throws Exception {
+        // 900 KB sits between one and two copies of the per-hit charge: a single charge passes, a double
+        // charge trips. 20 hits × 500 tags is ~680 KB estimated heap, so a double would be ~1.37 MB.
+        String dataNode = startDataNode("900kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        // 'tag' is keyword + store=true so it can be read by both stored_fields and fields.
+        String overlapIndex = "overlap_test_idx";
+        assertAcked(
+            prepareCreate(overlapIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("""
+                {
+                  "properties": {
+                    "tag": { "type": "keyword", "store": true }
+                  }
+                }
+                """)
+        );
+        populateIndexWithKeywordArray(overlapIndex, 50, 500);
+        ensureSearchable(overlapIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        // Request the same field via both mechanisms: StoredFieldsPhase adds it, FetchFieldsPhase
+        // replaces it via putAll. The final map has one copy; the charge is for that one copy only.
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchAllQuery())
+            .size(20)
+            .fetchSource(false)
+            .storedField("tag")
+            .fetchField(new FieldAndFormat("tag", null));
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(overlapIndex).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getFields().get("tag"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released with no double-charge after overlapping fields+stored_fields",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the request circuit breaker trips (HTTP 429) when whole-field highlighting retains more heap than
+     * the configured limit, and that the breaker is released after the trip.
+     * <p>
+     * {@code number_of_fragments: 0} is the case that matters: it bypasses
+     * {@code index.highlight.max_number_of_fragments} and highlights the whole field, so retained bytes scale with
+     * field size rather than {@code fragment_size}. {@code _source} is disabled so the hit retains only the highlight.
+     */
+    public void testCircuitBreakerTripsOnLargeHighlightFetch() throws Exception {
+        String dataNode = startDataNode("100kb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_trip_idx";
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        // 20 docs x ~21 KB of text; whole-field highlighting retains a fragment per doc, so ~420 KB over a 100 KB limit.
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> client(coordinatorNode).prepareSearch(highlightIndex).setSource(source).get()
+        );
+
+        Throwable cbe = ExceptionsHelper.unwrap(exception, CircuitBreakingException.class);
+        assertThat("Should contain CircuitBreakingException", cbe, notNullValue());
+        // Assert the label, not just that something tripped: uncharged, the fetch stays under the limit and the
+        // request instead trips later while serializing the response, under [RecyclerBytesStreamOutput].
+        assertThat("The highlight bytes should be what trips the breaker", cbe.getMessage(), containsString("fetch[hit_fields]"));
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after tripped highlight fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * A highlighted search that fits under the limit must still succeed and return the breaker to baseline, so the
+     * charge neither trips spuriously nor leaks.
+     */
+    public void testHighlightFetchReleasesCircuitBreaker() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_release_idx";
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+        assertNoFailuresAndResponse(client(coordinatorNode).prepareSearch(highlightIndex).setSource(source), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().get("large_text_1"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after a successful highlight fetch",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    /**
+     * Verifies that the highlight charge is actually held on the request breaker while the shard's hits are still
+     * alive, not just that it eventually trips or returns to baseline. {@link FetchPhaseBlockingPlugin} pauses the
+     * shard after the fetch phase has charged the bytes but before the {@code FetchSearchResult} is released, so the
+     * test can read the breaker mid-flight.
+     */
+    public void testHighlightBytesHeldWhileHitsAlive() throws Exception {
+        String dataNode = startDataNode("100mb");
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        assertThat(internalCluster().size(), equalTo(2));
+
+        String highlightIndex = "highlight_held_idx";
+        // Single shard: the ordering this test relies on (fully charged before release) only holds for the
+        // combined query-and-fetch path; multiple shards would switch to chunked fetch, which can release early.
+        assertAcked(
+            prepareCreate(highlightIndex).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).setMapping("large_text_1", "type=text,store=false")
+        );
+        populateIndex(highlightIndex, 20, 1000);
+        ensureSearchable(highlightIndex);
+
+        long breakerBeforeSearch = getRequestBreakerUsed(dataNode);
+
+        PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, dataNode);
+        // Owned by the node; do not close.
+        FetchPhaseBlockingPlugin blockingPlugin = pluginsService.filterPlugins(FetchPhaseBlockingPlugin.class).findFirst().orElseThrow();
+        blockingPlugin.setArmed(true);
+
+        SearchSourceBuilder source = new SearchSourceBuilder().query(matchQuery("large_text_1", "content"))
+            .size(20)
+            .fetchSource(false)
+            .highlighter(new HighlightBuilder().field("large_text_1", 0, 0));
+
+        ActionFuture<SearchResponse> future = client(coordinatorNode).prepareSearch(highlightIndex).setSource(source).execute();
+        try {
+            assertTrue("Fetch phase should have been reached before the shard result is released", blockingPlugin.awaitFetchPhase());
+
+            // 100 KB floor rules out a trivial, unrelated residual; 20 docs of highlighted text clears it easily.
+            assertThat(
+                "Highlight bytes should still be charged while the shard result is held, before it is released",
+                getRequestBreakerUsed(dataNode),
+                greaterThan(breakerBeforeSearch + 100_000)
+            );
+        } finally {
+            blockingPlugin.release();
+            blockingPlugin.setArmed(false);
+        }
+
+        assertNoFailuresAndResponse(future, response -> {
+            assertThat(response.getHits().getHits().length, equalTo(20));
+            assertThat(response.getHits().getHits()[0].getHighlightFields().get("large_text_1"), notNullValue());
+        });
+
+        assertBusy(
+            () -> assertThat(
+                "Circuit breaker should be released after the held highlight fetch completes",
+                getRequestBreakerUsed(dataNode),
+                lessThanOrEqualTo(breakerBeforeSearch)
+            )
+        );
+    }
+
+    private String startDataNode(String cbRequestLimit) {
+        return internalCluster().startNode(
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", cbRequestLimit).build()
+        );
+    }
+
+    private long getRequestBreakerUsed(String node) {
+        CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        return breaker.getUsed();
+    }
+
+    private void createIndexForTest(String indexName, Settings indexSettings) {
+        assertAcked(
+            prepareCreate(indexName).setSettings(indexSettings)
+                .setMapping(
+                    SORT_FIELD,
+                    "type=long",
+                    "text",
+                    "type=text,store=true",
+                    "large_text_1",
+                    "type=text,store=false",
+                    "large_text_2",
+                    "type=text,store=false",
+                    "keyword",
+                    "type=keyword"
+                )
+        );
+    }
+
+    /**
+     * Indexes {@code nDocs} documents each carrying a {@code tag} keyword array of {@code tagsPerDoc}
+     * entries. Used by the fields-API tests to produce measurable per-hit heap.
+     */
+    private void populateIndexWithKeywordArray(String indexName, int nDocs, int tagsPerDoc) throws IOException {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < nDocs; i++) {
+            List<String> tags = new ArrayList<>(tagsPerDoc);
+            for (int j = 0; j < tagsPerDoc; j++) {
+                tags.add("tag-" + i + "-" + j);
+            }
+            builders.add(
+                prepareIndex(indexName).setId(Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().array("tag", tags.toArray(new String[0])).endObject())
+            );
+        }
+        indexRandom(true, builders);
+    }
+
+    private void populateIndex(String indexName, int nDocs, int textSize) throws IOException {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < nDocs; i++) {
+            builders.add(
+                prepareIndex(indexName).setId(Integer.toString(i))
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field(SORT_FIELD, i)
+                            .field("text", "document " + i)
+                            .field("large_text_1", Strings.repeat("large content field 1 ", textSize))
+                            .field("large_text_2", Strings.repeat("large content field 2 ", textSize))
+                            .field("keyword", "value" + (i % 10))
+                            .endObject()
+                    )
+            );
+        }
+        indexRandom(true, builders);
+    }
+}

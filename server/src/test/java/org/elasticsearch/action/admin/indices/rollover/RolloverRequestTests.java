@@ -40,10 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class RolloverRequestTests extends ESTestCase {
     private NamedWriteableRegistry writeableRegistry;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initWriteableRegistry() throws Exception {
         writeableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
@@ -253,7 +251,7 @@ public class RolloverRequestTests extends ESTestCase {
             assertNotNull(validationException);
             assertEquals(1, validationException.validationErrors().size());
             assertEquals(
-                "rollover cannot be applied to both regular and failure indices at the same time",
+                "Invalid index name [alias-index::*], invalid usage of :: separator, [*] is not a recognized selector",
                 validationException.validationErrors().get(0)
             );
         }

@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.inference.InputType;
+
 import java.util.Locale;
+
+import static org.elasticsearch.inference.InputType.INTERNAL_INGEST;
 
 /**
  * Specifies the usage context for a request to the Elastic Inference Service.
@@ -24,4 +28,25 @@ public enum ElasticInferenceServiceUsageContext {
         return name().toLowerCase(Locale.ROOT);
     }
 
+    public static ElasticInferenceServiceUsageContext fromInputType(InputType inputType) {
+        switch (inputType) {
+            case SEARCH, INTERNAL_SEARCH -> {
+                return ElasticInferenceServiceUsageContext.SEARCH;
+            }
+            case INGEST, INTERNAL_INGEST -> {
+                return ElasticInferenceServiceUsageContext.INGEST;
+            }
+            default -> {
+                return ElasticInferenceServiceUsageContext.UNSPECIFIED;
+            }
+        }
+    }
+
+    public String productUseCaseHeaderValue() {
+        return switch (this) {
+            case SEARCH -> "internal_search";
+            case INGEST -> "internal_ingest";
+            case UNSPECIFIED -> "unspecified";
+        };
+    }
 }

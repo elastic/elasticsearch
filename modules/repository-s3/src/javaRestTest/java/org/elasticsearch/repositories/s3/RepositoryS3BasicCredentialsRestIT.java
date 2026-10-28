@@ -9,10 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.DynamicRegionSupplier;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -20,26 +21,40 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.function.Supplier;
+
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "basic_credentials_client";
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, fixedAccessKey(ACCESS_KEY));
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
+
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        null,
+        bucketSupplier,
+        basePathSupplier,
+        S3ConsistencyModel::randomConsistencyModel,
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
+        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
+        .setting("s3.client." + CLIENT + ".legacy_content_md5", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .build();
 
     @ClassRule
@@ -52,12 +67,12 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
 
     @Override
     protected String getBucketName() {
-        return BUCKET;
+        return bucketSupplier.get();
     }
 
     @Override
     protected String getBasePath() {
-        return BASE_PATH;
+        return basePathSupplier.get();
     }
 
     @Override

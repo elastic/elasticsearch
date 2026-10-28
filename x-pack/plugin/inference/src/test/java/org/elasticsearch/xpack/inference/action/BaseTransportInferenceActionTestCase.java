@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -18,35 +20,45 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.InferenceContextTests;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Flow;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SERVICE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.STATUS_CODE_ATTRIBUTE;
+import static org.elasticsearch.inference.telemetry.InferenceStats.TASK_TYPE_ATTRIBUTE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ERROR_TYPE;
+import static org.elasticsearch.telemetry.metric.MetricAttributes.ES_PRODUCT_ORIGIN;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -55,47 +67,47 @@ import static org.mockito.Mockito.when;
 
 public abstract class BaseTransportInferenceActionTestCase<Request extends BaseInferenceActionRequest> extends ESTestCase {
     private MockLicenseState licenseState;
-    private ModelRegistry modelRegistry;
+    private InferenceEndpointRegistry inferenceEndpointRegistry;
     private StreamingTaskManager streamingTaskManager;
     private BaseTransportInferenceAction<Request> action;
+    private ThreadPool threadPool;
 
     protected static final String serviceId = "serviceId";
     protected final TaskType taskType;
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
-    protected InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
+    protected LongCounter mockRequestCountCounter;
+    protected LongHistogram mockInferenceDurationHistogram;
     protected TransportService transportService;
-    protected NodeClient nodeClient;
 
     public BaseTransportInferenceActionTestCase(TaskType taskType) {
         this.taskType = taskType;
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMocks() throws Exception {
         ActionFilters actionFilters = mock();
-        ThreadPool threadPool = mock();
-        nodeClient = mock();
+        threadPool = mock();
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         transportService = mock();
-        inferenceServiceRateLimitCalculator = mock();
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("local_node"));
         licenseState = mock();
-        modelRegistry = mock();
+        inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
-        inferenceStats = new InferenceStats(mock(), mock());
+        mockRequestCountCounter = mock(LongCounter.class);
+        mockInferenceDurationHistogram = mock(LongHistogram.class);
+        inferenceStats = new InferenceStats(mockRequestCountCounter, mockInferenceDurationHistogram, mock(LongHistogram.class), Map.of());
         streamingTaskManager = mock();
 
         action = createAction(
             transportService,
             actionFilters,
             licenseState,
-            modelRegistry,
+            inferenceEndpointRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceRateLimitCalculator,
-            nodeClient,
             threadPool
         );
 
@@ -106,12 +118,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         TransportService transportService,
         ActionFilters actionFilters,
         MockLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
-        NodeClient nodeClient,
         ThreadPool threadPool
     );
 
@@ -125,17 +135,11 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             ActionListener<?> listener = ans.getArgument(1);
             listener.onFailure(expectedException);
             return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
+        }).when(inferenceEndpointRegistry).getEndpoint(any(), any());
 
         doExecute(taskType);
 
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), nullValue());
-            assertThat(attributes.get("task_type"), nullValue());
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(anyLong(), eq(Map.of(ERROR_TYPE, expectedError)));
     }
 
     protected ActionListener<InferenceAction.Response> doExecute(TaskType taskType) {
@@ -147,6 +151,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getInferenceEntityId()).thenReturn(inferenceId);
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(stream);
+        when(request.getContext()).thenReturn(InferenceContext.EMPTY_INSTANCE);
         ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
             @Override
             public void onResponse(InferenceAction.Response o) {}
@@ -159,7 +164,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     public void testMetricsAfterMissingService() {
-        mockModelRegistry(taskType);
+        mockInferenceEndpointRegistry(taskType);
 
         when(serviceRegistry.getService(any())).thenReturn(Optional.empty());
 
@@ -167,31 +172,38 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         verify(listener).onFailure(assertArg(e -> {
             assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]. "));
+            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]"));
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    RestStatus.BAD_REQUEST.getStatus(),
+                    ERROR_TYPE,
+                    String.valueOf(RestStatus.BAD_REQUEST.getStatus())
+                )
+            )
+        );
     }
 
-    protected void mockModelRegistry(TaskType expectedTaskType) {
-        var unparsedModel = new UnparsedModel(inferenceId, expectedTaskType, serviceId, Map.of(), Map.of());
+    protected void mockInferenceEndpointRegistry(TaskType expectedTaskType) {
         doAnswer(ans -> {
-            ActionListener<UnparsedModel> listener = ans.getArgument(1);
-            listener.onResponse(unparsedModel);
+            ActionListener<Model> listener = ans.getArgument(1);
+            listener.onResponse(mockModel(expectedTaskType));
             return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
+        }).when(inferenceEndpointRegistry).getEndpoint(any(), any());
     }
 
     public void testMetricsAfterUnknownTaskType() {
         var modelTaskType = TaskType.RERANK;
         var requestTaskType = TaskType.SPARSE_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -210,13 +222,21 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             );
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    modelTaskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    RestStatus.BAD_REQUEST.getStatus(),
+                    ERROR_TYPE,
+                    String.valueOf(RestStatus.BAD_REQUEST.getStatus())
+                )
+            )
+        );
     }
 
     public void testMetricsAfterInferError() {
@@ -226,13 +246,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         var listener = doExecute(taskType);
 
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), ERROR_TYPE, expectedError))
+        );
     }
 
     public void testMetricsAfterStreamUnsupported() {
@@ -248,13 +265,21 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(ese.getMessage(), is("Streaming is not allowed for service [" + serviceId + "]."));
             assertThat(ese.status(), is(expectedStatus));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(expectedStatus.getStatus()));
-            assertThat(attributes.get("error.type"), is(expectedError));
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    STATUS_CODE_ATTRIBUTE,
+                    expectedStatus.getStatus(),
+                    ERROR_TYPE,
+                    expectedError
+                )
+            )
+        );
     }
 
     public void testMetricsAfterInferSuccess() {
@@ -263,40 +288,39 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         var listener = doExecute(taskType);
 
         verify(listener).onResponse(any());
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
+    }
+
+    public void testRequestCountMetricsHaveNoStatusCode() {
+        mockService(listener -> listener.onResponse(mock()));
+
+        doExecute(taskType);
+
+        verify(mockRequestCountCounter).incrementBy(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString()))
+        );
     }
 
     public void testMetricsAfterStreamInferSuccess() {
-        mockStreamResponse(Flow.Subscriber::onComplete);
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
-        }));
+        mockStreamResponse(Flow.Subscriber::onComplete).subscribe(mock());
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
     public void testMetricsAfterStreamInferFailure() {
         var expectedException = new IllegalStateException("hello");
         var expectedError = expectedException.getClass().getSimpleName();
-        mockStreamResponse(subscriber -> {
-            subscriber.subscribe(mock());
-            subscriber.onError(expectedException);
-        });
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), nullValue());
-            assertThat(attributes.get("error.type"), is(expectedError));
-        }));
+        mockStreamResponse(subscriber -> subscriber.onError(expectedException)).subscribe(mock());
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), ERROR_TYPE, expectedError))
+        );
     }
 
     public void testMetricsAfterStreamCancel() {
@@ -308,7 +332,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             }
 
             @Override
-            public void onNext(ChunkedToXContent item) {
+            public void onNext(InferenceServiceResults.Result item) {
 
             }
 
@@ -323,16 +347,167 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             }
         });
 
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
-            assertThat(attributes.get("service"), is(serviceId));
-            assertThat(attributes.get("task_type"), is(taskType.toString()));
-            assertThat(attributes.get("model_id"), nullValue());
-            assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
-        }));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString(), STATUS_CODE_ATTRIBUTE, 200))
+        );
     }
 
-    protected Flow.Publisher<ChunkedToXContent> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
+    public void testAttributionHeadersPresentInThreadContextIfPresent() {
+        String productUseCase = "product-use-case";
+        String interactionId = "interaction-id";
+        String productSolution = "security";
+        String productFeature = "attack_discovery";
+        String traceId = "trace-id";
+        String userId = "user-id";
+        String spaceId = "space-id";
+
+        InferenceContext context = InferenceContextTests.context(
+            productUseCase,
+            productSolution,
+            productFeature,
+            interactionId,
+            traceId,
+            userId,
+            spaceId
+        );
+        ThreadContext threadContext = executeWithInferenceContext(context, new ThreadContext(Settings.EMPTY));
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(productUseCase));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is(interactionId));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(productSolution));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is(productFeature));
+        assertThat(threadContext.getHeader("X-Elastic-Trace-Id"), is(traceId));
+        assertThat(threadContext.getHeader("X-Elastic-User-Id"), is(userId));
+        assertThat(threadContext.getHeader("X-Elastic-Space-Id"), is(spaceId));
+    }
+
+    public void testExistingThreadContextHeadersTakePrecedenceOverInferenceContext() {
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
+        );
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", "existing-use-case");
+        threadContext.putHeader("X-Elastic-Inference-Interaction-Id", "existing-interaction");
+        threadContext.putHeader("X-elastic-product-solution", "existing-solution");
+        threadContext.putHeader("X-elastic-product-feature", "existing-feature");
+
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is("existing-use-case"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("existing-interaction"));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is("existing-solution"));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("existing-feature"));
+    }
+
+    public void testExistingEmptyThreadContextHeaderIsNotReplaced() {
+        InferenceContext context = InferenceContextTests.context(
+            "context-use-case",
+            "context-solution",
+            "context-feature",
+            "context-interaction"
+        );
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader("X-elastic-product-use-case", "");
+        threadContext.putHeader("X-elastic-product-solution", "");
+
+        executeWithInferenceContext(context, threadContext);
+
+        assertThat(threadContext.getHeader("X-elastic-product-use-case"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-solution"), is(""));
+        assertThat(threadContext.getHeader("X-elastic-product-feature"), is("context-feature"));
+        assertThat(threadContext.getHeader("X-Elastic-Inference-Interaction-Id"), is("context-interaction"));
+        verify(mockRequestCountCounter).incrementBy(
+            anyLong(),
+            eq(Map.of(SERVICE_ATTRIBUTE, serviceId, TASK_TYPE_ATTRIBUTE, taskType.toString()))
+        );
+    }
+
+    public void testMetricsUseOnlyUseCaseAndOriginFromRestoredAttribution() {
+        var context = InferenceContextTests.context(
+            "Security_AI_Assistant",
+            "security",
+            "attack_discovery",
+            "interaction",
+            "trace",
+            "user",
+            ""
+        );
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "Kibana");
+
+        executeWithInferenceContext(context, threadContext);
+
+        var expected = Map.<String, Object>of(
+            SERVICE_ATTRIBUTE,
+            serviceId,
+            TASK_TYPE_ATTRIBUTE,
+            taskType.toString(),
+            INFERENCE_SOURCE_ATTRIBUTE,
+            "security_ai_assistant",
+            ES_PRODUCT_ORIGIN,
+            "kibana"
+        );
+        verify(mockRequestCountCounter).incrementBy(anyLong(), eq(expected));
+        var withStatus = new HashMap<>(expected);
+        withStatus.put(STATUS_CODE_ATTRIBUTE, 200);
+        verify(mockInferenceDurationHistogram).record(anyLong(), eq(withStatus));
+    }
+
+    public void testMetricsUseTheAttributionSnapshotTakenBeforeInference() {
+        var threadContext = new ThreadContext(Settings.EMPTY);
+
+        executeWithInferenceContext(new InferenceContext("security_ai_assistant"), threadContext, listener -> {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+            listener.onResponse(mock());
+        });
+
+        assertThat(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER), is("kibana"));
+        verify(mockInferenceDurationHistogram).record(
+            anyLong(),
+            eq(
+                Map.of(
+                    SERVICE_ATTRIBUTE,
+                    serviceId,
+                    TASK_TYPE_ATTRIBUTE,
+                    taskType.toString(),
+                    INFERENCE_SOURCE_ATTRIBUTE,
+                    "security_ai_assistant",
+                    STATUS_CODE_ATTRIBUTE,
+                    200
+                )
+            )
+        );
+    }
+
+    private ThreadContext executeWithInferenceContext(InferenceContext context, ThreadContext threadContext) {
+        return executeWithInferenceContext(context, threadContext, listener -> listener.onResponse(mock()));
+    }
+
+    private ThreadContext executeWithInferenceContext(
+        InferenceContext context,
+        ThreadContext threadContext,
+        Consumer<ActionListener<InferenceServiceResults>> serviceAction
+    ) {
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        mockInferenceEndpointRegistry(taskType);
+        mockService(serviceAction);
+
+        Request request = createRequest();
+        when(request.getContext()).thenReturn(context);
+        when(request.getInferenceEntityId()).thenReturn(inferenceId);
+        when(request.getTaskType()).thenReturn(taskType);
+        when(request.isStreaming()).thenReturn(false);
+
+        action.doExecute(mock(), request, ActionListener.noop());
+        return threadContext;
+    }
+
+    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Subscriber<?>> action) {
         mockService(true, Set.of(), listener -> {
             Flow.Processor<ChunkedToXContent, ChunkedToXContent> taskProcessor = mock();
             doAnswer(innerAns -> {
@@ -364,41 +539,53 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     ) {
         InferenceService service = mock();
         Model model = mockModel();
-        when(service.parsePersistedConfigWithSecrets(any(), any(), any(), any())).thenReturn(model);
+        when(service.parsePersistedConfig(any())).thenReturn(model);
         when(service.name()).thenReturn(serviceId);
 
         when(service.canStream(any())).thenReturn(stream);
         when(service.supportedStreamingTasks()).thenReturn(supportedStreamingTasks);
+        when(service.supportsNonStreamingChatCompletion()).thenReturn(true);
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(7));
             return null;
-        }).when(service).infer(any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).unifiedCompletionInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).embeddingInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).rerankInfer(any(), any(), any(), any(), any());
+        doAnswer(ans -> {
+            listenerAction.accept(ans.getArgument(4));
+            return null;
+        }).when(service).decisionInfer(any(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
-        }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
-        mockModelAndServiceRegistry(service);
+        }).when(service).documentExtractionInfer(any(), any(), any(), any());
+        mockInferenceEndpointRegistry(taskType);
+        when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }
 
     protected Model mockModel() {
+        return mockModel(taskType);
+    }
+
+    protected Model mockModel(TaskType expectedTaskType) {
         Model model = mock();
         ModelConfigurations modelConfigurations = mock();
         when(modelConfigurations.getService()).thenReturn(serviceId);
         when(model.getConfigurations()).thenReturn(modelConfigurations);
-        when(model.getTaskType()).thenReturn(taskType);
+        when(model.getTaskType()).thenReturn(expectedTaskType);
         when(model.getServiceSettings()).thenReturn(mock());
+        when(model.getInferenceEntityId()).thenReturn(inferenceId);
         return model;
-    }
-
-    protected void mockModelAndServiceRegistry(InferenceService service) {
-        var unparsedModel = new UnparsedModel(inferenceId, taskType, serviceId, Map.of(), Map.of());
-        doAnswer(ans -> {
-            ActionListener<UnparsedModel> listener = ans.getArgument(1);
-            listener.onResponse(unparsedModel);
-            return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }
 
     protected void mockValidLicenseState() {

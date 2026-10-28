@@ -58,6 +58,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         Files.write(path, List.of("{\"keys\":[]}"), StandardCharsets.UTF_8);
         final RealmConfig realmConfig = mock(RealmConfig.class);
         when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_PATH)).thenReturn("jwkset.json");
+        when(realmConfig.getSetting(JwtRealmSettings.PKC_JWKSET_RELOAD_ENABLED)).thenReturn(false);
         final Environment env = mock(Environment.class);
         when(env.configDir()).thenReturn(tempDir);
         when(realmConfig.env()).thenReturn(env);
@@ -67,10 +68,9 @@ public class JwtSignatureValidatorTests extends ESTestCase {
         finalSuccessCounter = new AtomicInteger();
         finalFailureCounter = new AtomicInteger();
 
-        jwkSetLoader = spy(new JwkSetLoader(realmConfig, List.of(), null));
+        jwkSetLoader = spy(new JwkSetLoader(realmConfig, List.of(), null, null, () -> {}));
 
-        final JwtSignatureValidator.PkcJwkSetReloadNotifier reloadNotifier = () -> {};
-        signatureValidator = spy(new JwtSignatureValidator.PkcJwtSignatureValidator(jwkSetLoader, reloadNotifier));
+        signatureValidator = spy(new JwtSignatureValidator.PkcJwtSignatureValidator(jwkSetLoader));
 
         // emulates the primary listener that is passed to the authenticate method, success here is a successful authentication
         primaryListener = new ActionListener<>() {

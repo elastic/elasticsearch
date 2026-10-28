@@ -163,6 +163,9 @@
     "description" : {
       "type" : "text"
     },
+    "datafeed_id" : {
+      "type" : "keyword"
+    },
     "detector_index" : {
       "type" : "integer"
     },
@@ -171,6 +174,14 @@
     },
     "empty_bucket_count" : {
       "type" : "long"
+    },
+    "event" : {
+      "properties" : {
+        "ingested" : {
+          "type" : "date",
+          "format" : "strict_date_optional_time||epoch_millis"
+        }
+      }
     },
     "event_count" : {
       "type" : "long"
@@ -232,6 +243,9 @@
     },
     "forecast_upper" : {
       "type" : "double"
+    },
+    "fingerprint" : {
+      "type" : "keyword"
     },
     "function" : {
       "type" : "keyword"
@@ -517,6 +531,9 @@
     },
     "snapshot_id" : {
       "type" : "keyword"
+    },
+    "source_end_ms" : {
+      "type" : "long"
     },
     "sparse_bucket_count" : {
       "type" : "long"

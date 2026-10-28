@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -76,14 +77,19 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new ProfilingIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new ProfilingIndexTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
         registry.setTemplatesEnabled(true);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -101,6 +107,9 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
+        // ECS templates include standalone index templates (sq-executables, sq-leafframes, returnpads-private) that
+        // have no required component templates. The second assertBusy relies on being able to install at least two
+        // composable templates from an empty cluster state.
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -342,7 +351,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     public void testAllResourcesPresentAndCurrent() {
@@ -362,7 +371,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertTrue(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertTrue(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     public void testSomeResourcesMissing() {
@@ -388,7 +397,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 
-        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+        assertFalse(registry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

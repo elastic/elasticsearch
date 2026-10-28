@@ -8,9 +8,10 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -19,12 +20,12 @@ import java.io.IOException;
  */
 public abstract class MultiPointValues<T extends SpatialPoint> {
 
-    protected final SortedNumericDocValues numericValues;
+    protected final SortedNumericLongValues numericValues;
 
     /**
      * Creates a new {@link MultiPointValues} instance
      */
-    protected MultiPointValues(SortedNumericDocValues numericValues) {
+    protected MultiPointValues(SortedNumericLongValues numericValues) {
         this.numericValues = numericValues;
     }
 
@@ -34,6 +35,17 @@ public abstract class MultiPointValues<T extends SpatialPoint> {
      */
     public boolean advanceExact(int doc) throws IOException {
         return numericValues.advanceExact(doc);
+    }
+
+    /**
+     * Returns the {@link DocIdSetIterator} that works together with {@link #advanceExact(int)}
+     * and {@link #nextValue()}.
+     *
+     * @return the iterator, or null if the underlying values do not expose one.
+     */
+    @Nullable
+    public DocIdSetIterator docIdIterator() {
+        return numericValues.docIdIterator();
     }
 
     /**

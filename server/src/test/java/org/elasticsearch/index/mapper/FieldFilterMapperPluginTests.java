@@ -17,12 +17,12 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -35,8 +35,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertLeafs;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertMultiField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
@@ -50,7 +50,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public void putMappings() {
         assertAcked(indicesAdmin().prepareCreate("index1"));
         assertAcked(indicesAdmin().prepareCreate("filtered"));
-        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM, XContentType.JSON));
+        assertAcked(indicesAdmin().preparePutMapping("index1", "filtered").setSource(TEST_ITEM));
     }
 
     public void testGetMappings() {
@@ -127,6 +127,10 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
         builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
+        // Nor is it slice-enabled, so it will not contain _slice_key.
+        builtInMetadataFields.remove(SliceKeyFieldMapper.NAME);
+        // The index does not enable the flattened unmapped-fields sink, so it has no _unmapped field.
+        builtInMetadataFields.remove(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         return builtInMetadataFields;
     }
 

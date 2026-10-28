@@ -9,15 +9,11 @@
 
 package org.elasticsearch.plugin.discovery.gce;
 
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.util.ClassInfo;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
-import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,18 +48,6 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     private static final Logger logger = LogManager.getLogger(GceDiscoveryPlugin.class);
     // stashed when created in order to properly close
     private final SetOnce<GceInstancesService> gceInstancesService = new SetOnce<>();
-
-    static {
-        /*
-         * GCE's http client changes access levels because its silly and we
-         * can't allow that on any old stack so we pull it here, up front,
-         * so we can cleanly check the permissions for it. Without this changing
-         * the permission can fail if any part of core is on the stack because
-         * our plugin permissions don't allow core to "reach through" plugins to
-         * change the permission. Because that'd be silly.
-         */
-        Access.doPrivilegedVoid(() -> ClassInfo.of(HttpHeaders.class, true));
-    }
 
     public GceDiscoveryPlugin(Settings settings) {
         this.settings = settings;

@@ -22,7 +22,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -127,6 +127,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexMetadata = clusterState.metadata()
+                    .getProject()
                     .indices()
                     .values()
                     .stream()
@@ -144,7 +145,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
             // otherwise resolve shardPath based on the index name and shard id
             String indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-            indexMetadata = clusterState.metadata().index(indexName);
+            indexMetadata = clusterState.metadata().getProject().index(indexName);
         }
 
         if (indexMetadata == null) {

@@ -9,18 +9,43 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.elasticsearch.xpack.esql.qa.rest.FieldExtractorTestCase;
+import org.hamcrest.Matcher;
 import org.junit.ClassRule;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 
+    public FieldExtractorIT(MappedFieldType.FieldExtractPreference preference) {
+        super(preference);
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Matcher<Integer> pidMatcher() {
+        // Older nodes can still load nested pid from _source in STORED mode.
+        return preference == MappedFieldType.FieldExtractPreference.STORED ? anyOf(equalTo(111), nullValue()) : nullValue(Integer.class);
+    }
+
+    @Override
+    protected void canUsePragmasOk() {
+        assumeTrue(
+            "pragma ok not supported",
+            EsqlDataSourceMixedClusterTestSupport.bwcVersion().onOrAfter(org.elasticsearch.Version.V_8_16_0)
+        );
     }
 }

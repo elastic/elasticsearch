@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -27,9 +28,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -37,32 +41,48 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -74,15 +94,18 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
+import static org.elasticsearch.action.bulk.TransportBulkAction.requireSliceRoutingWhenEnabled;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -97,7 +120,26 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    // the bytes most recently reserved for a coordinating operation, see RecordingIndexingPressure
+    private final AtomicLong lastCoordinatingOperationBytes = new AtomicLong(-1);
     private FeatureService mockFeatureService;
+    private AtomicReference<ProjectId> activeProjectId = new AtomicReference<>();
+
+    /**
+     * A real {@link IndexingPressure} that additionally records the bytes most recently reserved for a coordinating operation, so
+     * tests can assert what the bulk action accounts for without altering the accounting itself.
+     */
+    private class RecordingIndexingPressure extends IndexingPressure {
+        RecordingIndexingPressure() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
+            lastCoordinatingOperationBytes.set(bytes);
+            return super.markCoordinatingOperationStarted(operations, bytes, forceExecution);
+        }
+    }
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -107,19 +149,48 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
         Runnable beforeIndexCreation = null;
 
-        TestTransportBulkAction() {
+        TestTransportBulkAction(IndexingPressure indexingPressure) {
             super(
                 TransportBulkActionTests.this.threadPool,
                 transportService,
                 TransportBulkActionTests.this.clusterService,
                 null,
-                new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
-                new ActionFilters(Collections.emptySet()),
+                new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
+                ActionFilters.EMPTY,
                 new Resolver(),
-                new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE,
+                indexingPressure,
+                new SystemIndices(
+                    List.of(
+                        new SystemIndices.Feature(
+                            "plugin",
+                            "test feature",
+                            List.of(SystemIndexDescriptorUtils.createUnmanaged(".transport_bulk_tests_system*", ""))
+                        )
+                    )
+                ),
+                new ProjectResolver() {
+                    @Override
+                    public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                        throw new UnsupportedOperationException("");
+                    }
+
+                    @Override
+                    public ProjectId getProjectId() {
+                        return activeProjectId.get();
+                    }
+                },
+                TransportBulkActionTests.this.threadPool::relativeTimeInNanos,
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(clusterSettings)
+                DataStreamFailureStoreSettings.create(clusterSettings),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                },
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
 
@@ -153,14 +224,13 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         clusterService = createClusterService(threadPool, discoveryNode);
@@ -177,15 +247,15 @@ public class TransportBulkActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
-        bulkAction = new TestTransportBulkAction();
+        activeProjectId.set(Metadata.DEFAULT_PROJECT_ID);
+        bulkAction = new TestTransportBulkAction(new RecordingIndexingPressure());
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
@@ -225,18 +295,17 @@ public class TransportBulkActionTests extends ESTestCase {
 
     public void testProhibitAppendWritesInBackingIndices() throws Exception {
         String dataStreamName = "logs-foobar";
-        ClusterState clusterState = createDataStream(dataStreamName);
-        Metadata metadata = clusterState.metadata();
+        final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, DataStreamTestHelper.randomNonEmptyIndexInstances());
+        final String backingIndexName = dataStream.getWriteIndex().getName();
+        final var backingIndexMetadata = indexMetadata(backingIndexName).build();
+        final var backingIndex = new ConcreteIndex(backingIndexMetadata, dataStream);
+        Function<Index, IndexMetadata> metadataProvider = idx -> backingIndexMetadata;
 
         // Testing create op against backing index fails:
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
-                invalidRequest1,
-                metadata.getIndicesLookup().get(invalidRequest1.index())
-            )
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, backingIndex, metadataProvider)
         );
         assertThat(
             e.getMessage(),
@@ -250,10 +319,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
-                invalidRequest2,
-                metadata.getIndicesLookup().get(invalidRequest2.index())
-            )
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, backingIndex, metadataProvider)
         );
         assertThat(
             e.getMessage(),
@@ -267,44 +333,223 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata.getIndicesLookup().get(validRequest.index()));
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+    }
+
+    public void testRequireSliceRoutingWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1");
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testRequireSliceRoutingWhenSliceEnabledAndRoutingProvided() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1");
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
+    }
+
+    public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testSliceProvenanceRejectedWhenSliceSettingDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testDeleteSliceProvenanceRejectedWhenSliceSettingDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testDeleteRoutingAllowedWhenSliceSettingDisabledAndNoSliceProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new DeleteRequest("idx").id("1").routing("s1").setRoutingFromSlice(false);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), false))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
+    }
+
+    public void testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled() throws Exception {
+        String dataStreamName = "logs-foobar";
+        Index seqNoDisabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), IndexMetadata.INDEX_UUID_NA_VALUE);
+        Index seqNoEnabledIdx = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), IndexMetadata.INDEX_UUID_NA_VALUE);
+        final var seqNoDisabledMetadata = indexMetadata(seqNoDisabledIdx.getName()).settings(
+            settings(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+        ).numberOfShards(1).numberOfReplicas(1).build();
+        final var seqNoEnabledMetadata = indexMetadata(seqNoEnabledIdx.getName()).build();
+        Function<Index, IndexMetadata> metadataProvider = Map.of(
+            seqNoDisabledIdx,
+            seqNoDisabledMetadata,
+            seqNoEnabledIdx,
+            seqNoEnabledMetadata
+        )::get;
+
+        boolean targetHasSeqNoDisabled = randomBoolean();
+        final Index targetIdx;
+        final List<Index> backingIndices;
+        if (targetHasSeqNoDisabled) {
+            targetIdx = seqNoDisabledIdx;
+            backingIndices = randomBoolean() ? List.of(seqNoDisabledIdx) : List.of(seqNoDisabledIdx, seqNoEnabledIdx);
+        } else {
+            targetIdx = seqNoEnabledIdx;
+            backingIndices = List.of(seqNoDisabledIdx, seqNoEnabledIdx);
+        }
+
+        final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, backingIndices);
+        final var targetBackingIndex = new ConcreteIndex(metadataProvider.apply(targetIdx), dataStream);
+        final var targetBackingIndexName = targetIdx.getName();
+
+        IndexRequest request = new IndexRequest(targetBackingIndexName).id("doc-1").opType(DocWriteRequest.OpType.INDEX);
+        if (targetHasSeqNoDisabled) {
+            // INDEX with an id is allowed for indices with seq_no_disabled=true:
+            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider);
+        } else {
+            // INDEX with an id is not allowed for indices with seq_no_disabled=false:
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed"
+                )
+            );
+        }
+
+        // CREATE is still rejected:
+        IndexRequest noIdCreate = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.CREATE);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdCreate, targetBackingIndex, metadataProvider)
+        );
+        assertThat(e.getMessage(), containsString("op_type=create targeting backing indices is disallowed"));
+
+        // INDEX without an id is still rejected:
+        IndexRequest noIdIndex = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.INDEX);
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdIndex, targetBackingIndex, metadataProvider)
+        );
+        assertThat(e.getMessage(), containsString("op_type=index and no if_primary_term and if_seq_no set targeting backing indices"));
     }
 
     public void testProhibitCustomRoutingOnDataStream() throws Exception {
         String dataStreamName = "logs-foobar";
-        ClusterState clusterState = createDataStream(dataStreamName);
-        Metadata metadata = clusterState.metadata();
+        final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, DataStreamTestHelper.randomNonEmptyIndexInstances());
+        final var backingIndexName = dataStream.getWriteIndex().getName();
+        final var backingIndex = new ConcreteIndex(indexMetadata(backingIndexName).build(), dataStream);
 
         // custom routing requests against the data stream are prohibited
         DocWriteRequest<?> writeRequestAgainstDataStream = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX)
             .routing("custom");
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> prohibitCustomRoutingOnDataStream(
-                writeRequestAgainstDataStream,
-                metadata.getIndicesLookup().get(writeRequestAgainstDataStream.index())
-            )
+            () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, dataStream)
         );
         assertThat(
             exception.getMessage(),
@@ -315,10 +560,9 @@ public class TransportBulkActionTests extends ESTestCase {
         );
 
         // test custom routing is allowed when the index request targets the backing index
-        DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(
-            DocWriteRequest.OpType.INDEX
-        ).routing("custom");
-        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata.getIndicesLookup().get(writeRequestAgainstIndex.index()));
+        DocWriteRequest<?> writeRequestAgainstIndex = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
+            .routing("custom");
+        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, backingIndex);
     }
 
     public void testOnlySystem() throws IOException {
@@ -356,9 +600,9 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkStreamRequest(mixed), indicesLookup, systemIndices));
     }
 
-    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+    private void blockWriteCoordinationThreadPool(CountDownLatch blockingLatch) {
         assertThat(blockingLatch.getCount(), greaterThan(0L));
-        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE_COORDINATION);
         // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
         expectThrows(EsRejectedExecutionException.class, () -> {
             // noinspection InfiniteLoopStatement
@@ -368,12 +612,72 @@ public class TransportBulkActionTests extends ESTestCase {
         });
     }
 
+    public void testDispatchesToWriteCoordinationThreadPool() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+            .findAny()
+            .get();
+        assertThat(stats.completed(), equalTo(0L));
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.actionGet();
+
+        assertBusy(() -> {
+            // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
+            // index is created.
+            assertThat(
+                threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter(s -> s.name().equals(ThreadPool.Names.WRITE_COORDINATION))
+                    .findAny()
+                    .get()
+                    .completed(),
+                equalTo(2L)
+            );
+        });
+    }
+
+    public void testSystemWriteDispatchesToSystemWriteCoordinationThreadPool() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(".transport_bulk_tests_system_1").id("id").source(Collections.emptyMap())
+        );
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ThreadPoolStats.Stats stats = threadPool.stats()
+            .stats()
+            .stream()
+            .filter(s -> s.name().equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))
+            .findAny()
+            .get();
+        assertThat(stats.completed(), equalTo(0L));
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.actionGet();
+
+        assertBusy(() -> {
+            // Will increment twice because it will dispatch on the first coordination attempt. And then dispatch a second time after the
+            // index is created.
+            assertThat(
+                threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter(s -> s.name().equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))
+                    .findAny()
+                    .get()
+                    .completed(),
+                equalTo(2L)
+            );
+        });
+    }
+
     public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         final var blockingLatch = new CountDownLatch(1);
         try {
-            blockWriteThreadPool(blockingLatch);
+            blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
@@ -382,13 +686,103 @@ public class TransportBulkActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * The request context (headers and accountable transient values such as the security authentication) is retained for as long
+     * as the bulk request is in flight, so the coordinating operation must reserve it in addition to the request payload.
+     */
+    public void testRequestContextBytesAreAccountedInCoordinatingOperation() throws Exception {
+        final BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
+        // captured up front because the bulk action releases the items of a processed request
+        final long payloadBytes = bulkRequest.ramBytesUsed();
+        final String headerValue = randomAlphaOfLengthBetween(1024, 8192);
+        final long accountableBytes = randomLongBetween(1024, 1 << 20);
+
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", headerValue);
+            threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+            final long contextBytes = threadContext.estimatedRequestContextBytes();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            future.actionGet();
+            assertThat(lastCoordinatingOperationBytes.get(), equalTo(payloadBytes + contextBytes));
+        }
+    }
+
+    public void testPreBuiltBatchReleasedOnCoordinationRejection() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        final var blockingLatch = new CountDownLatch(1);
+        try {
+            blockWriteCoordinationThreadPool(blockingLatch);
+            safeAwaitFailure(
+                EsRejectedExecutionException.class,
+                BulkResponse.class,
+                l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+            );
+        } finally {
+            blockingLatch.countDown();
+        }
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedOnClusterBlock() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+        );
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        safeAwaitFailure(ClusterBlockException.class, BulkResponse.class, l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedWhenRouterRejects() {
+        // the kill switch defaults to the feature flag state, so turn it off to make batch indexing unsupported
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build());
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        var e = safeAwaitFailure(
+            IllegalStateException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("batch indexing is not supported"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchRejectedWithPipelines() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, "pipeline");
+
+        var e = safeAwaitFailure(
+            IllegalArgumentException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("cannot run ingest pipelines"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    private static BulkRequest preBuiltBatchBulkRequest(BulkRequestTests.CloseCountingBatch batch, String pipeline) {
+        IndexRequest indexRequest = new IndexRequest("index").id("id").setPipeline(pipeline);
+        indexRequest.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+        bulkRequest.setPreBuiltBatches(Map.of("index", batch));
+        return bulkRequest;
+    }
+
     public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         bulkAction.failIndexCreationException = randomBoolean() ? new ResourceAlreadyExistsException("index already exists") : null;
         final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
+            bulkAction.beforeIndexCreation = () -> blockWriteCoordinationThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
@@ -399,8 +793,6 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromMetadata() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
-
         String dataStreamWithFailureStoreEnabled = "test-data-stream-failure-enabled";
         String dataStreamWithFailureStoreDefault = "test-data-stream-failure-default";
         String dataStreamWithFailureStoreDisabled = "test-data-stream-failure-disabled";
@@ -412,7 +804,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexMetadata failureStoreIndex1 = DataStreamTestHelper.createFirstFailureStore(dataStreamWithFailureStoreEnabled, testTime)
             .build();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .dataStreams(
                 Map.of(
                     dataStreamWithFailureStoreEnabled,
@@ -466,39 +858,37 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreEnabled, metadata, testTime), is(true));
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreEnabled, projectMetadata, testTime), is(true));
         // Data stream with the default failure store options should not...
-        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, projectMetadata, testTime), is(false));
         // ...unless we change the cluster setting to enable it that way.
         clusterSettings.applySettings(
             Settings.builder()
                 .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), dataStreamWithFailureStoreDefault)
                 .build()
         );
-        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, metadata, testTime), is(true));
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDefault, projectMetadata, testTime), is(true));
         // Data stream with failure store explicitly disabled should not store failures even if it matches the cluster setting
         clusterSettings.applySettings(
             Settings.builder()
                 .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), dataStreamWithFailureStoreDisabled)
                 .build()
         );
-        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDisabled, metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal(dataStreamWithFailureStoreDisabled, projectMetadata, testTime), is(false));
         // An index should not be considered for failure storage
-        assertThat(bulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
+        assertThat(bulkAction.resolveFailureInternal(backingIndex1.getIndex().getName(), projectMetadata, testTime), is(nullValue()));
         // even if that index is itself a failure store
-        assertThat(bulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), metadata, testTime), is(nullValue()));
+        assertThat(bulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), projectMetadata, testTime), is(nullValue()));
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
-
         String dsTemplateWithFailureStoreEnabled = "test-data-stream-failure-enabled";
         String dsTemplateWithFailureStoreDefault = "test-data-stream-failure-default";
         String dsTemplateWithFailureStoreDisabled = "test-data-stream-failure-disabled";
         String indexTemplate = "test-index";
         long testTime = randomMillisUpToYear9999();
 
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .indexTemplates(
                 Map.of(
                     dsTemplateWithFailureStoreEnabled,
@@ -526,12 +916,18 @@ public class TransportBulkActionTests extends ESTestCase {
             .build();
 
         // Data stream with failure store should store failures
-        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreEnabled + "-1", metadata, testTime), is(true));
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreEnabled + "-1", projectMetadata, testTime), is(true));
         // Same if date math is used
-        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreEnabled + "-{now}>", metadata, testTime), is(true));
+        assertThat(
+            bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreEnabled + "-{now}>", projectMetadata, testTime),
+            is(true)
+        );
         // Data stream with the default failure store options should not...
-        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", metadata, testTime), is(false));
-        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", projectMetadata, testTime), is(false));
+        assertThat(
+            bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", projectMetadata, testTime),
+            is(false)
+        );
         // ...unless we change the cluster setting to enable it that way.
         clusterSettings.applySettings(
             Settings.builder()
@@ -541,8 +937,11 @@ public class TransportBulkActionTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", metadata, testTime), is(true));
-        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", metadata, testTime), is(true));
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDefault + "-1", projectMetadata, testTime), is(true));
+        assertThat(
+            bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDefault + "-{now}>", projectMetadata, testTime),
+            is(true)
+        );
         // Data stream with failure store explicitly disabled should not store failures even if it matches the cluster setting
         clusterSettings.applySettings(
             Settings.builder()
@@ -552,10 +951,13 @@ public class TransportBulkActionTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDisabled + "-1", metadata, testTime), is(false));
-        assertThat(bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDisabled + "-{now}>", metadata, testTime), is(false));
+        assertThat(bulkAction.resolveFailureInternal(dsTemplateWithFailureStoreDisabled + "-1", projectMetadata, testTime), is(false));
+        assertThat(
+            bulkAction.resolveFailureInternal("<" + dsTemplateWithFailureStoreDisabled + "-{now}>", projectMetadata, testTime),
+            is(false)
+        );
         // An index template should not be considered for failure storage
-        assertThat(bulkAction.resolveFailureInternal(indexTemplate + "-1", metadata, testTime), is(nullValue()));
+        assertThat(bulkAction.resolveFailureInternal(indexTemplate + "-1", projectMetadata, testTime), is(nullValue()));
     }
 
     /**
@@ -571,9 +973,14 @@ public class TransportBulkActionTests extends ESTestCase {
             .add(new IndexRequest("failure-store").source(Map.of()).setWriteToFailureStore(true));
 
         // Construct a cluster state that contains the required data streams.
-        var state = clusterService.state()
-            .copyAndUpdateMetadata(
-                builder -> builder.put(indexMetadata(".ds-data-stream-01"))
+        // using a single, non-default project
+        final ClusterState oldState = clusterService.state();
+        final ProjectId projectId = randomUniqueProjectId();
+        final Metadata metadata = Metadata.builder(oldState.metadata())
+            .removeProject(Metadata.DEFAULT_PROJECT_ID)
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(indexMetadata(".ds-data-stream-01"))
                     .put(indexMetadata(".ds-failure-store-01"))
                     .put(indexMetadata(".fs-failure-store-01"))
                     .put(
@@ -593,14 +1000,21 @@ public class TransportBulkActionTests extends ESTestCase {
                             )
                             .build()
                     )
-            );
+            )
+            .build();
+        final ClusterState clusterState = ClusterState.builder(oldState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
 
         // Apply the cluster state.
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.getClusterApplierService().onNewClusterState("set-state", () -> state, ActionListener.running(latch::countDown));
+        clusterService.getClusterApplierService()
+            .onNewClusterState("set-state", () -> clusterState, ActionListener.running(latch::countDown));
         // And wait for it to be applied.
         latch.await(10L, TimeUnit.SECONDS);
 
+        activeProjectId.set(projectId);
         // Set the exceptions that the transport action should encounter.
         bulkAction.failIndexCreationException = new IndexNotFoundException("index");
         bulkAction.failDataStreamRolloverException = new RuntimeException("data-stream-rollover-exception");

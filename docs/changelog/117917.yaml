@@ -1,5 +1,0 @@
-pr: 117917
-summary: Add option to store `sparse_vector` outside `_source`
-area: Mapping
-type: feature
-issues: []

@@ -11,9 +11,10 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -22,24 +23,31 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -62,6 +70,10 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -73,6 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -121,7 +134,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(TestPlugin.class);
+        return List.of(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testLocalClusterAlias() throws ExecutionException, InterruptedException {
@@ -139,6 +152,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "local",
                 nowInMillis,
                 randomBoolean()
@@ -158,6 +172,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 nowInMillis,
                 randomBoolean()
@@ -205,6 +220,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -216,6 +232,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -231,6 +248,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 parentTaskId,
                 new SearchRequest(),
                 Strings.EMPTY_ARRAY,
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 "",
                 0,
                 randomBoolean()
@@ -279,7 +297,15 @@ public class TransportSearchIT extends ESIntegTestCase {
         {
             SearchRequest searchRequest = randomBoolean()
                 ? originalRequest
-                : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
+                : SearchRequest.subSearchRequest(
+                    taskId,
+                    originalRequest,
+                    Strings.EMPTY_ARRAY,
+                    originalRequest.indicesOptions(),
+                    "remote",
+                    nowInMillis,
+                    true
+                );
             assertResponse(client().search(searchRequest), searchResponse -> {
                 assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
@@ -292,6 +318,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 taskId,
                 originalRequest,
                 Strings.EMPTY_ARRAY,
+                originalRequest.indicesOptions(),
                 "remote",
                 nowInMillis,
                 false
@@ -313,8 +340,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             prepareCreate("test3").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards))
         );
         assertAcked(
-            indicesAdmin().prepareAliases().addAlias("test1", "testAlias"),
-            indicesAdmin().prepareAliases().addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "testAlias"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(new String[] { "test2", "test3" }, "testFailedAlias")
         );
 
         long[] validCheckpoints = new long[numberOfShards];
@@ -445,6 +473,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     public void testCircuitBreakerReduceFail() throws Exception {
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);
 
@@ -487,7 +516,10 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -514,9 +546,29 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertNotNull(
+                    "root cause must be a CircuitBreakingException",
+                    ExceptionsHelper.unwrap(exc, CircuitBreakingException.class)
+                );
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+            assertBusy(MockSearchService::assertNoInFlightContext);
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull("indices.breaker.request.limit").putNull(SearchService.BATCHED_QUERY_PHASE.getKey())
+            );
+        }
+    }
+
+    public void testReaderContextFreedOnSerializationFailure() throws Exception {
+        String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        indexSomeDocs("test", 1, 3);
+        ensureGreen("test");
+
+        updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
+        try {
+            expectThrows(Exception.class, client(coordinatingNode).prepareSearch("test")::get);
+            assertBusy(MockSearchService::assertNoInFlightContext);
         } finally {
             updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
@@ -553,6 +605,68 @@ public class TransportSearchIT extends ESIntegTestCase {
         for (Exception exc : exceptions.asList()) {
             assertThat(exc.getCause().getMessage(), containsString("boom"));
         }
+        assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
+    }
+
+    public void testResponseOverNetworkPassesRequestBreaker() throws Exception {
+        indexSomeDocs("test", randomIntBetween(1, 3), 5);
+        String sender = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String receiver = internalCluster().getRandomDataNodeName();
+        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, receiver)
+            .getBreaker(CircuitBreaker.REQUEST);
+
+        AtomicReference<CircuitBreaker> responseBreaker = new AtomicReference<>();
+        MockTransportService receiverTransport = MockTransportService.getInstance(receiver);
+        receiverTransport.addRequestHandlingBehavior(
+            TransportSearchAction.TYPE.name(),
+            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                @Override
+                public String getProfileName() {
+                    return channel.getProfileName();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    channel.sendResponse(response);
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response, CircuitBreaker circuitBreaker) {
+                    responseBreaker.set(circuitBreaker);
+                    channel.sendResponse(response, circuitBreaker);
+                }
+
+                @Override
+                public void sendResponse(Exception exception) {
+                    channel.sendResponse(exception);
+                }
+
+                @Override
+                public TransportVersion getVersion() {
+                    return channel.getVersion();
+                }
+            }, task)
+        );
+        try {
+            TransportService senderTransport = internalCluster().getInstance(TransportService.class, sender);
+            DiscoveryNode receiverNode = internalCluster().getInstance(ClusterService.class, receiver).localNode();
+            long totalHits = safeAwait(
+                l -> senderTransport.sendRequest(
+                    receiverNode,
+                    TransportSearchAction.TYPE.name(),
+                    new SearchRequest("test"),
+                    new ActionListenerResponseHandler<SearchResponse>(
+                        l.map(r -> r.getHits().getTotalHits().value()),
+                        SearchResponse::new,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    )
+                )
+            );
+            assertThat(totalHits, equalTo(5L));
+        } finally {
+            receiverTransport.clearAllRules();
+        }
+        assertSame(requestBreaker, responseBreaker.get());
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }
 
@@ -643,7 +757,7 @@ public class TransportSearchIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
     }
 

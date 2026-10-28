@@ -1,0 +1,76 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.googleaistudio.request.completion;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequest;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
+public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
+
+    public void testCreateRequest() throws IOException, URISyntaxException {
+        var apiKey = "api_key";
+        var input = "input";
+
+        var request = new GoogleAiStudioCompletionRequest(listOf(input), GoogleAiStudioCompletionModelTests.createModel("model", apiKey));
+
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+        var httpPost = httpRequest.httpRequest();
+
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
+
+        var requestMap = entityAsMap(httpPost.getBodyText());
+        assertThat(
+            requestMap,
+            is(
+                Map.of(
+                    "contents",
+                    List.of(Map.of("role", "user", "parts", List.of(Map.of("text", input)))),
+                    "generationConfig",
+                    Map.of("candidateCount", 1)
+                )
+            )
+        );
+    }
+
+    public void testTruncate_ReturnsSameInstance() {
+        var request = new GoogleAiStudioCompletionRequest(
+            listOf("input"),
+            GoogleAiStudioCompletionModelTests.createModel("model", "api key")
+        );
+        var truncatedRequest = request.truncate();
+
+        assertThat(truncatedRequest, sameInstance(request));
+    }
+
+    public void testTruncationInfo_ReturnsNull() {
+        var request = new GoogleAiStudioCompletionRequest(
+            listOf("input"),
+            GoogleAiStudioCompletionModelTests.createModel("model", "api key")
+        );
+
+        assertNull(request.getTruncationInfo());
+    }
+
+    private static CompletionInput listOf(String... input) {
+        return new CompletionInput(List.of(input));
+    }
+}

@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -58,6 +59,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -181,7 +183,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -266,7 +268,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         prepareIndex("test").setId("1")
             .setSource(
@@ -368,7 +370,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
         String date = "2019-01-31T10:00:00.123456789Z";
         indexRandom(
             true,
@@ -407,6 +409,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").setMapping("num1", "type=long").get();
+        assumeNoColumnarId("test relies on reading _id from stored fields", "test");
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -598,7 +601,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")
@@ -612,7 +615,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .field("double_field", 6.0d)
                     .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
                     .field("boolean_field", true)
-                    .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
+                    .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes(StandardCharsets.UTF_8)))
                     .endObject()
             )
             .get();
@@ -661,7 +664,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 String dateTime = DateFormatter.forPattern("date_optional_time").format(date);
                 assertThat(searchHit.getFields().get("date_field").getValue(), equalTo((Object) dateTime));
                 assertThat(searchHit.getFields().get("boolean_field").getValue(), equalTo((Object) Boolean.TRUE));
-                assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text".getBytes("UTF8"))));
+                assertThat(
+                    searchHit.getFields().get("binary_field").getValue(),
+                    equalBytes(new BytesArray("testing text".getBytes(StandardCharsets.UTF_8)))
+                );
             }
         );
     }
@@ -818,7 +824,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        indicesAdmin().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+        indicesAdmin().preparePutMapping().setSource(mapping).get();
 
         ZonedDateTime date = ZonedDateTime.of(2012, 3, 22, 0, 0, 0, 0, ZoneOffset.UTC);
         prepareIndex("test").setId("1")

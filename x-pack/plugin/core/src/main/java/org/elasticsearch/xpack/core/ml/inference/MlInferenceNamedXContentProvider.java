@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokeni
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ByteLevelBpeTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ByteLevelBpeTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
@@ -531,6 +533,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Tokenization.class,
+                new ParseField(ByteLevelBpeTokenization.NAME),
+                (p, c) -> ByteLevelBpeTokenization.fromXContent(p, (boolean) c)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
                 MPNetTokenization.NAME,
                 (p, c) -> MPNetTokenization.fromXContent(p, (boolean) c)
             )
@@ -569,6 +578,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TokenizationUpdate.class,
                 BertTokenizationUpdate.NAME,
                 (p, c) -> BertTokenizationUpdate.fromXContent(p)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                ByteLevelBpeTokenizationUpdate.NAME,
+                (p, c) -> ByteLevelBpeTokenizationUpdate.fromXContent(p)
             )
         );
         namedXContent.add(
@@ -669,7 +685,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResults.class, MlTextEmbeddingResults.NAME, MlTextEmbeddingResults::new)
+            new NamedWriteableRegistry.Entry(InferenceResults.class, MlDenseEmbeddingResults.NAME, MlDenseEmbeddingResults::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -803,6 +819,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             new NamedWriteableRegistry.Entry(Tokenization.class, BertTokenization.NAME.getPreferredName(), BertTokenization::new)
         );
         namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Tokenization.class, ByteLevelBpeTokenization.NAME, ByteLevelBpeTokenization::new)
+        );
+        namedWriteables.add(
             new NamedWriteableRegistry.Entry(Tokenization.class, MPNetTokenization.NAME.getPreferredName(), MPNetTokenization::new)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, RobertaTokenization.NAME, RobertaTokenization::new));
@@ -821,6 +840,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TokenizationUpdate.class,
                 BertTokenizationUpdate.NAME.getPreferredName(),
                 BertTokenizationUpdate::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationUpdate.class,
+                ByteLevelBpeTokenizationUpdate.NAME.getPreferredName(),
+                ByteLevelBpeTokenizationUpdate::new
             )
         );
         namedWriteables.add(

@@ -7,29 +7,21 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -40,21 +32,18 @@ public class QueryTranslatorTests extends ESTestCase {
 
     private static TestPlannerOptimizer plannerOptimizerIPs;
 
-    private static Analyzer makeAnalyzer(String mappingFileName) {
-        var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-
-        return new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, new EnrichResolution()),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
-        );
-    }
+    private static TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
 
     @BeforeClass
     public static void init() {
-        plannerOptimizer = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("mapping-all-types.json"));
-        plannerOptimizerIPs = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("mapping-hosts.json"));
+        plannerOptimizer = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex("test", "mapping-all-types.json").buildAnalyzer()
+        );
+        plannerOptimizerIPs = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex("hosts", "mapping-hosts.json").buildAnalyzer()
+        );
     }
 
     @Override
@@ -71,6 +60,13 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void assertQueryTranslationIPs(String query, Matcher<String> translationMatcher) {
         PhysicalPlan optimized = plannerOptimizerIPs.plan(query);
+        EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
+        final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
+        assertThat(translatedQuery, translationMatcher);
+    }
+
+    private void assertQueryTranslationDateDateNanosUnionTypes(String query, SearchStats stats, Matcher<String> translationMatcher) {
+        PhysicalPlan optimized = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
         EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
         assertThat(translatedQuery, translationMatcher);
@@ -99,11 +95,11 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE "1.2.3" == version""", containsString("""
-            "esql_single_value":{"field":"version","next":{"term":{"version":{"value":"1.2.3"}"""));
+            "esql_single_value":{"field":"version","next":{"term":{"version":{"value":"1.2.3","boost":0.0}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "foo" == keyword""", containsString("""
-            "esql_single_value":{"field":"keyword","next":{"term":{"keyword":{"value":"foo"}"""));
+            "esql_single_value":{"field":"keyword","next":{"term":{"keyword":{"value":"foo","boost":0.0}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" == date""", containsString("""
@@ -111,7 +107,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertQueryTranslation("""
             FROM test | WHERE ip != "127.0.0.1\"""", containsString("""
-            "esql_single_value":{"field":"ip","next":{"bool":{"must_not":[{"term":{"ip":{"value":"127.0.0.1"}"""));
+            "esql_single_value":{"field":"ip","next":{"bool":{"must_not":[{"term":{"ip":{"value":"127.0.0.1","boost":0.0}}"""));
     }
 
     public void testRanges() {
@@ -177,12 +173,18 @@ public class QueryTranslatorTests extends ESTestCase {
             FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
             \\{"esql_single_value":\\{"field":"unsigned_long".*\\{"range":\\{"unsigned_long":\\{"gte":2147483648,"lte":2147483650.*"""));
 
-        // mixed ANDs and NotEquals
         assertQueryTranslation("""
-            FROM test | WHERE 10 < integer AND integer < 12 AND integer > 0 AND integer != 5""", matchesRegex("""
+            FROM test | WHERE integer != 0""", matchesRegex("""
+            \\{"esql_single_value":\\{"field":"integer","next":\\{"bool":\\{"should":\\[""" + """
+            \\{"range":\\{"integer":\\{"lt":0,.*""" + """
+            \\{"range":\\{"integer":\\{"gt":0,.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10 < integer AND integer < 12 AND integer > 0 AND integer != 11""", matchesRegex("""
             .*bool.*must.*""" + """
-            esql_single_value":\\{"field":"integer","next":\\{"bool":""" + """
-            .*must_not.*\\[\\{"term":\\{"integer":\\{"value":5.*""" + """
+            esql_single_value":\\{"field":"integer","next":\\{"bool":\\{"should":\\[""" + """
+            \\{"range":\\{"integer":\\{"lt":11,.*""" + """
+            \\{"range":\\{"integer":\\{"gt":11,.*""" + """
             esql_single_value":\\{"field":"integer","next":\\{"range":\\{"integer":\\{"gt":10,"lt":12.*"""));
 
         // multiple Ranges
@@ -195,28 +197,28 @@ public class QueryTranslatorTests extends ESTestCase {
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30Z" <= date AND date <= "2024-01-01T10:15:30\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30Z\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T10:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         // various timezones
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gt":"2007-12-03T09:15:30.000Z","lt":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30-01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T11:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", containsString("""
             "esql_single_value":{"field":"date","next":{"range":{"date":{"gte":"2007-12-03T10:15:30.000Z","lte":"2024-01-01T09:15:30.000Z",\
-            "time_zone":"Z","format":"strict_date_optional_time","boost":1.0}}}"""));
+            "time_zone":"Z","format":"strict_date_optional_time","boost":0.0}}}"""));
     }
 
     public void testIPs() {
@@ -291,5 +293,129 @@ public class QueryTranslatorTests extends ESTestCase {
             esql_single_value":\\{"field":"card".*"terms":\\{"card":\\["eth0","eth1","lo0".*""" + """
             esql_single_value":\\{"field":"ip1".*"terms":\\{"ip1":\\["127.0.0.3/32","127.0.0.2".*""" + """
             esql_single_value":\\{"field":"ip0".*"terms":\\{"ip0":\\["127.0.0.1","128.0.0.1","fe80::cae2:65ff:fece:feb9".*"""));
+    }
+
+    public void testToDateNanos() {
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            analyzer().addIndex(indexWithUnionTypedFields).buildAnalyzer()
+        );
+        var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
+
+        // == term
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos == "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"term":{"date_and_date_nanos":{"value":"2025-01-01T00:00:00.000Z","boost":0.0}}}"""));
+
+        // != term
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos != "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"bool":{"must_not":[{"term":{"date_and_date_nanos":{"value":"2025-01-01T00:00:00.000Z","boost":0.0}}}],\
+            "boost":0.0}}"""));
+
+        // > range
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos > "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"range":{"date_and_date_nanos":{"gt":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+            "format":"strict_date_optional_time_nanos","boost":0.0}}}"""));
+
+        // >= range
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos >= "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"range":{"date_and_date_nanos":{"gte":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+            "format":"strict_date_optional_time_nanos","boost":0.0}}}"""));
+
+        // < range
+        assertQueryTranslationDateDateNanosUnionTypes(
+            """
+                FROM index* | WHERE date_and_date_nanos < "2025-01-01" and date_and_date_nanos_and_long::date_nanos > "2025-01-01\"""",
+            stats,
+            containsString("""
+                "esql_single_value":{"field":"date_and_date_nanos",\
+                "next":{"range":{"date_and_date_nanos":{"lt":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+                "format":"strict_date_optional_time_nanos","boost":0.0}}}""")
+        );
+
+        // <= range
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos <= "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"range":{"date_and_date_nanos":{"lte":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+            "format":"strict_date_optional_time_nanos","boost":0.0}}}"""));
+
+        // <= and >=
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos <= "2025-01-01" and date_and_date_nanos > "2020-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"range":{"date_and_date_nanos":{"gt":"2020-01-01T00:00:00.000Z","lte":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+            "format":"strict_date_optional_time_nanos","boost":0.0}}}"""));
+
+        // >= or <
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos >= "2025-01-01" or date_and_date_nanos < "2020-01-01\"""", stats, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"range":\\{"date_and_date_nanos":\\{"gte":"2025-01-01T00:00:00.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time_nanos","boost":0.0.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"range":\\{"date_and_date_nanos":\\{"lt":"2020-01-01T00:00:00.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time_nanos","boost":0.0.*"""));
+
+        // > or =
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos > "2025-01-01" or date_and_date_nanos == "2020-01-01\"""", stats, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"range":\\{"date_and_date_nanos":\\{"gt":"2025-01-01T00:00:00.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time_nanos","boost":0.0.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":"2020-01-01T00:00:00.000Z",\
+            "boost":0.0.*"""));
+
+        // < or !=
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos < "2020-01-01" or date_and_date_nanos != "2025-01-01\"""", stats, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"range":\\{"date_and_date_nanos":\\{"lt":"2020-01-01T00:00:00.000Z",\
+            "time_zone":"Z","format":"strict_date_optional_time_nanos","boost":0.0.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
+            "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
+
+        // == or == --> combined into a single IN, which pushes down as one terms query under one
+        // esql_single_value wrapper, rather than a bool/should of two individually-wrapped term queries.
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos == "2025-01-01\"""", stats, containsString("""
+            "esql_single_value":{"field":"date_and_date_nanos",\
+            "next":{"terms":{"date_and_date_nanos":["2020-01-01T00:00:00.000Z","2025-01-01T00:00:00.000Z"],"boost":0.0}}"""));
+
+        // != or !=
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos != "2020-01-01" or date_and_date_nanos != "2025-01-01\"""", stats, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
+            "2020-01-01T00:00:00.000Z","boost":0.0.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
+            "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
+
+        // = or !=
+        assertQueryTranslationDateDateNanosUnionTypes("""
+            FROM index* | WHERE date_and_date_nanos == "2020-01-01" or date_and_date_nanos != "2025-01-01\"""", stats, matchesRegex("""
+            .*bool.*should.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"term":\\{"date_and_date_nanos":\\{"value":\
+            "2020-01-01T00:00:00.000Z","boost":0.0.*""" + """
+            esql_single_value":\\{"field":"date_and_date_nanos".*"must_not".*"term":\\{"date_and_date_nanos":\\{"value":\
+            "2025-01-01T00:00:00.000Z","boost":0.0.*"""));
+
+        // explicit casting
+        assertQueryTranslationDateDateNanosUnionTypes(
+            """
+                FROM index* | WHERE date_and_date_nanos::datetime < "2025-12-31" and date_and_date_nanos > "2025-01-01\"""",
+            stats,
+            containsString("""
+                "esql_single_value":{"field":"date_and_date_nanos",\
+                "next":{"range":{"date_and_date_nanos":{"gt":"2025-01-01T00:00:00.000Z","time_zone":"Z",\
+                "format":"strict_date_optional_time_nanos","boost":0.0}}}""")
+        );
     }
 }

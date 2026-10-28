@@ -19,13 +19,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -38,7 +37,15 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysisVerificationAware, TelemetryAware {
+public class Eval extends UnaryPlan
+    implements
+        GeneratingPlan<Eval>,
+        PostAnalysisVerificationAware,
+        TelemetryAware,
+        Streaming,
+        SortAgnostic,
+        SortPreserving,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -84,7 +91,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet generated = new AttributeSet(asAttributes(fields));
+        AttributeSet generated = AttributeSet.of(asAttributes(fields));
         return Expressions.references(fields).subtract(generated);
     }
 
@@ -169,7 +176,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentable(dataType) == false && isNullSourceLiteral(field) == false) {
                 failures.add(
                     fail(
                         field,
@@ -179,14 +186,19 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
                     )
                 );
             }
-            // check no aggregate functions are used
-            field.forEachDown(AggregateFunction.class, af -> {
-                if (af instanceof Rate) {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
-                } else {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
-                }
-            });
         });
+    }
+
+    /**
+     * True for a {@code _source} column bound to a constant {@code null}. When a {@link MergePlan} branch is missing a column
+     * present in a sibling branch, {@code Analyzer.resolveMergePlan} null-fills it with {@code new Literal(source, null, attrType)}
+     * where {@code attrType} is the missing attribute's own {@code dataType}, and wraps the fill in a synthesized {@link Eval}.
+     * The null-fill only rewrites {@code UNSUPPORTED} to {@code KEYWORD}, so a missing {@code _source} column (requested via
+     * {@code METADATA _source}) yields a null literal of {@link DataType#SOURCE}. {@code DataType.SOURCE} is excluded from
+     * {@link DataType#isRepresentable} because no scalar function computes a {@code _source} value; a constant null is the one
+     * legitimate exception, so it is carved out here rather than widening {@code isRepresentable} itself.
+     */
+    private static boolean isNullSourceLiteral(Alias field) {
+        return field.dataType() == DataType.SOURCE && Alias.unwrap(field) instanceof Literal literal && literal.value() == null;
     }
 }

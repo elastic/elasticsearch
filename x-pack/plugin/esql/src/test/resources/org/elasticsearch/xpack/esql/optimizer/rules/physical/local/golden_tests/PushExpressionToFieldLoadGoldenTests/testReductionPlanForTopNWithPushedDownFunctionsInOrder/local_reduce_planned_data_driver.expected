@@ -1,0 +1,6 @@
+ExchangeSinkExec[[_doc{f}#0, text{f}#1, fieldLength{r}#2],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#0, text{f}#1, fieldLength{r}#2]]
+\_TopN[[Order[fieldLength{r}#2,DESC,FIRST]],10[INTEGER],false]
+  \_Eval[[LENGTH(text{f}#1) AS fieldLength#2]]
+    \_EsRelation[all_types][_doc{f}#0, !alias_integer, boolean{f}#3, byte{f}#4, constant_keyword-foo{f}#5, date{f}#6, date_nanos{f}#7, dense_vector{f}#8, double{f}#9, float{f}#10, half_float{f}#11, integer{f}#12, ip{f}#13, keyword{f}#14, long{f}#15, scaled_float{f}#16, semantic_text{f}#17, short{f}#18, text{f}#1, unsigned_long{f}#19, version{f}#20, wildcard{f}#21]<>]]

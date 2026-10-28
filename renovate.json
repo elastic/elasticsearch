@@ -1,8 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "github>elastic/renovate-config:only-chainguard",
-    ":disableDependencyDashboard"
+    "github>elastic/renovate-config:base",
+    "github>elastic/renovate-config:ci-agent-images"
   ],
   "schedule": [
     "after 1pm on tuesday"
@@ -10,44 +10,105 @@
   "labels": [
     ">non-issue",
     ":Delivery/Packaging",
-    "Team:Delivery",
+    ":Delivery/Build",
+    "Team:Core/Infra",
     "auto-merge-without-approval"
   ],
-  "baseBranches": [
-    "main",
-    "8.16",
-    "9.0",
-    "8.18",
-    "8.17",
-    "8.x",
-    "7.17"
+  "ignorePaths": [
+    "x-pack/qa/repository-old-versions-compatibility/src/javaRestTest/resources/README.md",
+    "docs/**",
+    "build-tools-internal/gradle/wrapper/**",
+    "plugins/examples/gradle/wrapper/**"
   ],
   "packageRules": [
     {
-      "groupName": "wolfi (versioned)",
-      "groupSlug": "wolfi-versioned",
-      "description": "Override the `groupSlug` to create a non-special-character branch name",
-      "matchDatasources": [
-        "docker"
+      "description": "Don't manage dependencies by default",
+      "matchPackageNames": [
+        "*"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Explicitly enable Elastic Docker updates",
+      "matchPackageNames": [
+        "/docker.elastic.co/.*/"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "Explicitly enable selected Gradle plugin updates managed by the built-in Gradle manager on main only, with automatic backports to all active release branches.",
+      "matchManagers": [
+        "gradle"
+      ],
+      "matchBaseBranches": [
+        "main"
       ],
       "matchPackageNames": [
-        "/^docker.elastic.co/wolfi/chainguard-base$/"
+        "/^com\\.google\\.protobuf:(com\\.google\\.protobuf\\.gradle\\.plugin|protobuf-gradle-plugin)$/",
+        "/^com\\.diffplug\\.spotless:(com\\.diffplug\\.spotless\\.gradle\\.plugin|spotless-plugin-gradle)$/"
+      ],
+      "enabled": true,
+      "automerge": false,
+      "labels": [
+        ":Delivery/Build",
+        ">non-issue"
+      ]
+    },
+    {
+      "description": "Gradle wrapper: one rolling PR per release train (e.g. 9.5.x patch lane and 9.6.x minor/RC lane). Only the root gradle/wrapper/gradle-wrapper.properties is managed via managerFilePatterns; build-tools-internal and plugins/examples wrappers are kept in sync manually via ./gradlew wrapper. respectLatest: false lets the same PR keep rolling forward through Gradle RCs/milestones until GA.",
+      "matchManagers": [
+        "gradle-wrapper"
+      ],
+      "matchBaseBranches": [
+        "main"
+      ],
+      "enabled": true,
+      "ignoreUnstable": false,
+      "respectLatest": false,
+      "separateMinorPatch": true,
+      "automerge": false,
+      "rebaseWhen": "behind-base-branch",
+      "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.{{{newPatch}}}",
+      "schedule": [
+        "at any time"
+      ],
+      "labels": [
+        ":Delivery/Build",
+        ">non-issue",
+        "auto-backport"
+      ]
+    },
+    {
+      "description": "pnpm version pinned via packageManager in .buildkite/package.json (Buildkite pipeline scripts, also pre-warmed in the elasticsearch-* CI agent images). Checked on main only and backported to all active branches. minimumReleaseAge matches .buildkite/pnpm-workspace.yaml (7200 minutes).",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        ".buildkite/package.json"
+      ],
+      "matchDepTypes": [
+        "packageManager"
+      ],
+      "matchPackageNames": [
+        "pnpm"
+      ],
+      "matchBaseBranches": [
+        "main"
+      ],
+      "enabled": true,
+      "minimumReleaseAge": "5 days",
+      "addLabels": [
+        "branches:all-active",
+        "auto-merge-without-approval"
       ]
     }
   ],
-  "customManagers": [
-    {
-      "description": "Extract Wolfi images from elasticsearch DockerBase configuration",
-      "customType": "regex",
-      "fileMatch": [
-        "build\\-tools\\-internal\\/src\\/main\\/java\\/org\\/elasticsearch\\/gradle\\/internal\\/DockerBase\\.java$"
-      ],
-      "matchStrings": [
-        "\\s*\"?(?<depName>[^\\s:@\"]+)(?::(?<currentValue>[-a-zA-Z0-9.]+))?(?:@(?<currentDigest>sha256:[a-zA-Z0-9]+))?\"?"
-      ],
-      "currentValueTemplate": "{{#if currentValue}}{{{currentValue}}}{{else}}latest{{/if}}",
-      "autoReplaceStringTemplate": "{{{depName}}}{{#if newValue}}:{{{newValue}}}{{/if}}{{#if newDigest}}@{{{newDigest}}}{{/if}}\"",
-      "datasourceTemplate": "docker"
-    }
+  "baseBranchPatterns": [
+    "main",
+    "9.6",
+    "9.5",
+    "9.4",
+    "8.19"
   ]
 }

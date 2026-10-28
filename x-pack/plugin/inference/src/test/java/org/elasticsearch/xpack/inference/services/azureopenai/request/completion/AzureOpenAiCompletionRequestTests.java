@@ -1,0 +1,114 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.azureopenai.request.completion;
+
+import org.apache.hc.core5.http.HttpHeaders;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiCompletionRequest;
+import org.junit.After;
+import org.junit.Before;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.List;
+
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreatorTests.getContentOfMessageInRequestMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.hamcrest.Matchers.is;
+
+public class AzureOpenAiCompletionRequestTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        terminate(threadPool);
+    }
+
+    public void testCreateRequest_WithApiKeyDefined() throws IOException, URISyntaxException {
+        var input = "input";
+        var user = "user";
+        var apiKey = randomAlphaOfLength(10);
+
+        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = httpRequest.httpRequest();
+
+        assertThat(
+            httpPost.getUri().toString(),
+            is("https://resource.openai.azure.com/openai/deployments/deployment/chat/completions?api-version=2024")
+        );
+
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
+
+        var requestMap = entityAsMap(httpPost.getBodyText());
+        assertThat(getContentOfMessageInRequestMap(requestMap), is(input));
+        assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("n"), is(1));
+    }
+
+    public void testCreateRequest_WithEntraIdDefined() throws IOException, URISyntaxException {
+        var input = "input";
+        var user = "user";
+        var entraId = randomAlphaOfLength(10);
+
+        var request = createRequest("resource", "deployment", "2024", null, entraId, input, user);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = httpRequest.httpRequest();
+
+        assertThat(
+            httpPost.getUri().toString(),
+            is("https://resource.openai.azure.com/openai/deployments/deployment/chat/completions?api-version=2024")
+        );
+
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + entraId));
+
+        var requestMap = entityAsMap(httpPost.getBodyText());
+        assertThat(getContentOfMessageInRequestMap(requestMap), is(input));
+        assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("n"), is(1));
+    }
+
+    protected AzureOpenAiCompletionRequest createRequest(
+        String resource,
+        String deployment,
+        String apiVersion,
+        String apiKey,
+        String entraId,
+        String input,
+        String user
+    ) {
+        var completionModel = AzureOpenAiCompletionModelTests.createCompletionModel(
+            resource,
+            deployment,
+            apiVersion,
+            user,
+            apiKey,
+            entraId,
+            "id",
+            threadPool
+        );
+
+        return new AzureOpenAiCompletionRequest(List.of(input), completionModel, false);
+    }
+
+}

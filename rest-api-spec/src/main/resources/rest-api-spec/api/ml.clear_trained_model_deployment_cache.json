@@ -1,27 +1,30 @@
 {
-  "ml.clear_trained_model_deployment_cache":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/clear-trained-model-deployment-cache.html",
-      "description":"Clear the cached results from a trained model deployment"
+  "ml.clear_trained_model_deployment_cache": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-clear-trained-model-deployment-cache",
+      "description": "Clear trained model deployment cache"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/trained_models/{model_id}/deployment/cache/_clear",
-          "methods":[
+          "path": "/_ml/trained_models/{model_id}/deployment/cache/_clear",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "model_id":{
-              "type":"string",
-              "description":"The unique identifier of the trained model.",
-              "required":true
+          "parts": {
+            "model_id": {
+              "type": "string",
+              "description": "The unique identifier of the trained model."
             }
           }
         }

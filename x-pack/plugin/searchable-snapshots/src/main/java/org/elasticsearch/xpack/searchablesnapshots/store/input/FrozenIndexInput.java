@@ -17,6 +17,8 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -24,10 +26,14 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.io.EOFException;
+import java.io.IOException;
 import java.io.InputStream;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
+import java.util.function.IntFunction;
 
-public final class FrozenIndexInput extends MetadataCachingIndexInput {
+public final class FrozenIndexInput extends MetadataCachingIndexInput implements DirectAccessInput {
 
     private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
 
@@ -105,8 +111,53 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    protected void readWithoutBlobCache(ByteBuffer b) throws Exception {
-        final long position = getAbsolutePosition();
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        final int len = Math.toIntExact(length);
+        if (cacheFile.withMemorySegmentSlice(offset + this.offset, len, action)) {
+            return true;
+        }
+        if (len < getBufferSize()) {
+            // cheaper through readBytes, which refills the buffer once and serves the following reads from it
+            return false;
+        }
+        if (offset + len > length()) {
+            throw new EOFException("read past EOF: " + this);
+        }
+        final MemorySegment copy = scratch.apply(len);
+        assert copy.byteSize() == len : "scratch segment of " + copy.byteSize() + " bytes, expected " + len;
+        readAt(copy.asByteBuffer(), offset + this.offset);
+        action.accept(copy);
+        return true;
+    }
+
+    @Override
+    public boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addressesScratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        if (DirectAccessInput.checkSlicesArgs(offsets, count, addressesScratch)) {
+            return false;
+        }
+        long[] adjusted = offsets;
+        if (this.offset != 0) {
+            adjusted = new long[count];
+            for (int i = 0; i < count; i++) {
+                adjusted[i] = offsets[i] + this.offset;
+            }
+        }
+        return cacheFile.withSliceAddresses(adjusted, length, count, addressesScratch, action);
+    }
+
+    @Override
+    protected void readWithoutBlobCache(ByteBuffer b, long position) throws Exception {
         final int length = b.remaining();
         if (cacheFile.tryRead(b, position)) {
             // fast-path succeeded, increment stats and return
@@ -177,7 +228,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                             return null;
                         }
                     }
-                )
+                ),
+                fileInfo.physicalName()
             );
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
@@ -211,6 +263,11 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceHeaderByteRange,
             sliceFooterByteRange
         );
+    }
+
+    @Override
+    public void prefetch(long offset, long length) throws IOException {
+        cacheFile.tryPrefetch(offset + this.offset, length);
     }
 
     @Override

@@ -14,14 +14,18 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -37,18 +41,23 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSu
 /**
  * Reduce a multivalued field to a single valued field containing the median absolute deviation of the values.
  */
-public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
+public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvMedianAbsoluteDeviation",
         MvMedianAbsoluteDeviation::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMedianAbsoluteDeviation.class)
+        .unary(MvMedianAbsoluteDeviation::new)
+        .name("mv_median_absolute_deviation");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Calculates the median absolute deviation of a multi-value field.",
         description = "Converts a multivalued field into a single valued field containing the median absolute deviation."
             + "\n\n"
-            + "It is calculated as the median of each data point's deviation from the median of "
+            + "It is calculated as the median of each data point’s deviation from the median of "
             + "the entire sample. That is, for a random variable `X`, the median absolute "
             + "deviation is `median(|median(X) - X|)`.",
         note = "If the field has an even number of values, "
@@ -61,7 +70,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
         @Param(
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -138,7 +147,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - As values are sorted, we don’t need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static int ascending(Longs longs, IntBlock values, int firstValue, int count) {
@@ -187,7 +196,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - As values are sorted, we don’t need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static long ascending(Longs longs, LongBlock values, int firstValue, int count) {
@@ -250,7 +259,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - As values are sorted, we don’t need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static double ascending(Doubles doubles, DoubleBlock values, int firstValue, int count) {
@@ -310,7 +319,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don't need to sort them for the first median calculation.
+     * - As values are sorted, we don’t need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static long ascendingUnsignedLong(Longs longs, LongBlock values, int firstValue, int count) {

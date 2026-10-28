@@ -16,12 +16,16 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.escf.LuceneBinaryColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -56,7 +60,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class LegacyIgnoredFieldType extends StringFieldType {
 
         private LegacyIgnoredFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -87,7 +91,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final class IgnoredFieldType extends StringFieldType {
 
         private IgnoredFieldType() {
-            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -97,7 +101,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(NAME);
+            return new BytesRefsFromOrdsBlockLoader(NAME, blContext.ordinalsByteSize());
         }
 
         @Override
@@ -140,5 +144,32 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        // Field mappers that support columnar parsing call BatchMappingContext#addIgnoredFieldColumnar
+        // (the columnar equivalent of DocumentParserContext#addIgnoredField) when a value is dropped
+        // (e.g. ignore_above on keyword). postColumnarParse drains that accumulator and writes the
+        // resulting _ignored doc-values column.
+        return true;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        final DeduplicatingStringColumnAccumulator acc = context.ignoredFieldsAccumulator();
+        if (acc == null || acc.isEmpty()) {
+            return;
+        }
+
+        final EscfColumnData data = acc.finish(context.recycler());
+        // One serialization, up to two field-type wrappers, so ownership is registered once.
+        context.addResource(data);
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, SortedSetDocValuesField.TYPE));
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_NOT_STORED));
+        } else {
+            context.addColumn(LuceneBinaryColumn.of(data, NAME, StringField.TYPE_STORED));
+        }
     }
 }

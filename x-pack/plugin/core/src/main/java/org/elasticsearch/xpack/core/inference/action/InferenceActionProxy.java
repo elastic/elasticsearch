@@ -7,19 +7,26 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 /**
  * This action is used when making a REST request to the inference API. The transport handler
@@ -36,7 +43,9 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends UntypedActionRequest {
+
+        private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
 
         private final TaskType taskType;
         private final String inferenceEntityId;
@@ -44,21 +53,24 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         private final XContentType contentType;
         private final TimeValue timeout;
         private final boolean stream;
+        private final InferenceContext context;
 
         public Request(
             TaskType taskType,
             String inferenceEntityId,
             BytesReference content,
             XContentType contentType,
-            TimeValue timeout,
-            boolean stream
+            @Nullable TimeValue timeout,
+            boolean stream,
+            InferenceContext context
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
-            this.timeout = timeout;
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
             this.stream = stream;
+            this.context = context;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -71,6 +83,12 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
 
             // streaming is not supported yet for transport traffic
             this.stream = false;
+
+            if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
+                this.context = new InferenceContext(in);
+            } else {
+                this.context = InferenceContext.EMPTY_INSTANCE;
+            }
         }
 
         public TaskType getTaskType() {
@@ -97,6 +115,10 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             return stream;
         }
 
+        public InferenceContext getContext() {
+            return context;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -105,11 +127,20 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(inferenceEntityId);
             taskType.writeTo(out);
+            out.writeString(inferenceEntityId);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
-            out.writeTimeValue(timeout);
+            if (timeout.equals(TIMEOUT_NOT_DETERMINED)
+                && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+            } else {
+                out.writeTimeValue(timeout);
+            }
+
+            if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
+                context.writeTo(out);
+            }
         }
 
         @Override
@@ -121,13 +152,14 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
                 && contentType == request.contentType
-                && timeout == request.timeout
-                && stream == request.stream;
+                && Objects.equals(timeout, request.timeout)
+                && stream == request.stream
+                && Objects.equals(context, request.context);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout, stream);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout, stream, context);
         }
     }
 }

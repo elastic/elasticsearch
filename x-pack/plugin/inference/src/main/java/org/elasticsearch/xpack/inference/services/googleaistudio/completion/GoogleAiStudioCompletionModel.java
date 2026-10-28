@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.completion;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -24,6 +24,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
 
@@ -42,11 +43,11 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
             service,
             GoogleAiStudioCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleAiStudioCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -55,20 +56,25 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleAiStudioCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleAiStudioCompletionServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     public URI uri(boolean streaming) {
         try {
             var api = streaming ? GoogleAiStudioUtils.STREAM_GENERATE_CONTENT_ACTION : GoogleAiStudioUtils.GENERATE_CONTENT_ACTION;
-            return new URIBuilder().setScheme("https")
-                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-                .setPathSegments(GoogleAiStudioUtils.V1, GoogleAiStudioUtils.MODELS, format("%s:%s", getServiceSettings().modelId(), api))
-                .build();
+            return buildUriPreservingColons(
+                new URIBuilder().setScheme("https")
+                    .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                    .setPathSegments(
+                        GoogleAiStudioUtils.V1,
+                        GoogleAiStudioUtils.MODELS,
+                        format("%s:%s", getServiceSettings().modelId(), api)
+                    )
+            );
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -86,13 +92,14 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
 
     // visible for testing
     static URI buildUri(String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-            .setPathSegments(
-                GoogleAiStudioUtils.V1,
-                GoogleAiStudioUtils.MODELS,
-                format("%s:%s", model, GoogleAiStudioUtils.GENERATE_CONTENT_ACTION)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                .setPathSegments(
+                    GoogleAiStudioUtils.V1,
+                    GoogleAiStudioUtils.MODELS,
+                    format("%s:%s", model, GoogleAiStudioUtils.GENERATE_CONTENT_ACTION)
+                )
+        );
     }
 }

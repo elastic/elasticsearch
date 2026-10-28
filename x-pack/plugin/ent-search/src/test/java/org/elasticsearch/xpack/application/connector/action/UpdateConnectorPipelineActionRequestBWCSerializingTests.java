@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorIngestPipeline;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 
 import java.io.IOException;
@@ -33,7 +34,14 @@ public class UpdateConnectorPipelineActionRequestBWCSerializingTests extends Abs
 
     @Override
     protected UpdateConnectorPipelineAction.Request mutateInstance(UpdateConnectorPipelineAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        ConnectorIngestPipeline pipeline = instance.getPipeline();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> pipeline = randomValueOtherThan(pipeline, ConnectorTestUtils::getRandomConnectorIngestPipeline);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorPipelineAction.Request(originalConnectorId, pipeline);
     }
 
     @Override

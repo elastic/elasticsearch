@@ -1,0 +1,98 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.grpc;
+
+import io.grpc.Status;
+
+import org.apache.arrow.flight.CallStatus;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+
+public class FlightStorageProviderTests extends ESTestCase {
+
+    public void testFlightTargetFromPath() {
+        StoragePath path = StoragePath.of("flight://localhost:47470/employees");
+        assertEquals("employees", FlightStorageProvider.flightTarget(path));
+    }
+
+    public void testFlightTargetNestedPath() {
+        StoragePath path = StoragePath.of("flight://localhost:47470/foo/bar");
+        assertEquals("foo/bar", FlightStorageProvider.flightTarget(path));
+    }
+
+    public void testExistsTrueForKnownFlightDescriptor() throws IOException {
+        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider()) {
+            StoragePath path = StoragePath.of("flight://localhost:" + server.port() + "/employees");
+            assertTrue(provider.exists(path));
+            assertTrue(provider.newObject(path).exists());
+        }
+    }
+
+    public void testExistsThrowsWhenPortNotListening() throws IOException {
+        final int freePort;
+        try (ServerSocket ss = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            freePort = ss.getLocalPort();
+        }
+        try (StorageProvider provider = new FlightStorageProvider()) {
+            StoragePath path = StoragePath.of("flight://127.0.0.1:" + freePort + "/employees");
+            IOException e = expectThrows(IOException.class, () -> provider.exists(path));
+            assertTrue(e.getMessage(), e.getMessage().contains("[employees]"));
+            assertFalse("the endpoint is the location and must not be quoted back", e.getMessage().contains(Integer.toString(freePort)));
+        }
+    }
+
+    public void testSchemesAreRejectedBySafeForUserMessage() throws IOException {
+        try (StorageProvider provider = new FlightStorageProvider()) {
+            for (String scheme : provider.supportedSchemes()) {
+                assertFalse(scheme, ExternalFailures.safeForUserMessage(scheme + "://flight-host:8815/employees"));
+            }
+        }
+    }
+
+    public void testGrpcSchemeUsesSameProvider() throws IOException {
+        try (EmployeeFlightServer server = new EmployeeFlightServer(0); StorageProvider provider = new FlightStorageProvider()) {
+            StoragePath path = StoragePath.of("grpc://localhost:" + server.port() + "/employees");
+            assertTrue(provider.exists(path));
+        }
+    }
+
+    public void testListObjectsUnsupported() throws IOException {
+        try (StorageProvider provider = new FlightStorageProvider()) {
+            StoragePath path = StoragePath.of("flight://localhost:47470/employees");
+            assertThrows(UnsupportedOperationException.class, () -> provider.listObjects(path, false));
+        }
+    }
+
+    public void testNewStreamUnsupported() throws IOException {
+        try (StorageProvider provider = new FlightStorageProvider()) {
+            StoragePath path = StoragePath.of("flight://localhost:47470/employees");
+            assertThrows(IOException.class, () -> provider.newObject(path).newStream());
+        }
+    }
+
+    public void testRejectsNonFlightScheme() {
+        StoragePath path = StoragePath.of("http://localhost:47470/employees");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FlightStorageProvider().newObject(path));
+        assertTrue(e.getMessage().contains("flight://"));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote server's message in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(CallStatus.UNAUTHORIZED.withDescription("denied").toRuntimeException()));
+        assertTrue(ExternalFailures.composedByStorageClient(Status.PERMISSION_DENIED.withDescription("denied").asRuntimeException()));
+    }
+}

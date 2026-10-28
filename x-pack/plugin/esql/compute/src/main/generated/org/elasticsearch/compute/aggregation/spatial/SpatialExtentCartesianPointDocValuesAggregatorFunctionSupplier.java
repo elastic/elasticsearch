@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -16,22 +17,29 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
+  public SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier() {
+  }
 
-  public SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialExtentCartesianPointDocValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public SpatialExtentCartesianPointDocValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
-    return SpatialExtentCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialExtentCartesianPointDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
-    return SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+      DriverContext driverContext, List<Integer> channels) {
+    return new SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

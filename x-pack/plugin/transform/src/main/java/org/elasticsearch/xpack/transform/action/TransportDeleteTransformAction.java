@@ -10,16 +10,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -27,6 +31,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +47,8 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
@@ -52,7 +59,9 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
+    private final TransformCloudCredentialManager cloudCredentialManager;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteTransformAction(
@@ -60,9 +69,9 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteTransformAction.NAME,
@@ -75,12 +84,14 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         );
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(state))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete any Transform while the Transform feature is upgrading.",
@@ -90,7 +101,10 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        final boolean transformIsRunning = TransformTask.getTransformTask(
+            request.getId(),
+            projectResolver.getProjectMetadata(state)
+        ) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -101,14 +115,37 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
 
-        // <3> Delete transform config
-        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
+        // <4> Delete transform config
+        ActionListener<AcknowledgedResponse> deleteTransformListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),
             listener::onFailure
+        );
+
+        // <3> Revoke ALL persisted cloud credentials for this transform at UIAM before removing the
+        // storage docs. The big DBQ in step <4> (deleteTransform) catches every credential doc by
+        // transform_id, so we only need to invoke UIAM revocation here. Querying by transform_id
+        // (rather than loading the config) ensures dangling tokens left by interrupted rotations are
+        // also revoked. Best-effort: list or per-token revoke failures are logged but delete still
+        // proceeds.
+        ActionListener<AcknowledgedResponse> deleteDestIndexListener = listener.delegateFailureIgnoreResponseAndWrap(
+            l -> transformConfigManager.forEachTransformCloudCredential(
+                request.getId(),
+                credential -> cloudCredentialManager.revokeAndClose(request.getId(), credential),
+                ActionListener.runAfter(
+                    ActionListener.wrap(
+                        ignored -> {},
+                        listFailure -> logger.warn(
+                            () -> "[" + request.getId() + "] failed to list credentials before delete, proceeding",
+                            listFailure
+                        )
+                    ),
+                    () -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE)
+                )
+            )
         );
 
         // <2> Delete destination index if requested
@@ -146,20 +183,31 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         TimeValue timeout,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // <3> Check if the error is "index not found" error. If so, just move on. The index is already deleted.
-        ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(listener::onResponse, e -> {
-            if (e instanceof IndexNotFoundException) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        getTransformConfig(transformId).<AcknowledgedResponse>andThen((l, r) -> deleteDestinationIndex(r.v1(), parentTaskId, timeout, l))
+            .addListener(listener.delegateResponse((l, e) -> {
+                if (e instanceof IndexNotFoundException) {
+                    l.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    l.onFailure(e);
+                }
+            }));
+    }
 
-        // <2> Delete destination index
-        ActionListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfigurationListener = ActionListener.wrap(
-            transformConfigAndVersion -> {
-                TransformConfig config = transformConfigAndVersion.v1();
-                String destIndex = config.getDestination().getIndex();
+    private SubscribableListener<Tuple<TransformConfig, SeqNoPrimaryTermAndIndex>> getTransformConfig(String transformId) {
+        return SubscribableListener.newForked(l -> transformConfigManager.getTransformConfigurationForUpdate(transformId, l));
+    }
+
+    /**
+     * Delete the destination index.  If the Transform is configured to write to an alias, then follow that alias to the concrete index.
+     */
+    private void deleteDestinationIndex(
+        TransformConfig config,
+        TaskId parentTaskId,
+        TimeValue timeout,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        SubscribableListener.<String>newForked(l -> resolveDestinationIndex(config, parentTaskId, timeout, l))
+            .<AcknowledgedResponse>andThen((l, destIndex) -> {
                 DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
                 deleteDestIndexRequest.ackTimeout(timeout);
                 deleteDestIndexRequest.setParentTask(parentTaskId);
@@ -169,18 +217,61 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                     client,
                     TransportDeleteIndexAction.TYPE,
                     deleteDestIndexRequest,
-                    deleteDestIndexListener
+                    l
                 );
-            },
-            listener::onFailure
-        );
+            })
+            .addListener(listener);
+    }
 
-        // <1> Fetch transform configuration
-        transformConfigManager.getTransformConfigurationForUpdate(transformId, getTransformConfigurationListener);
+    private void resolveDestinationIndex(TransformConfig config, TaskId parentTaskId, TimeValue timeout, ActionListener<String> listener) {
+        var destIndex = config.getDestination().getIndex();
+        var responseListener = ActionListener.<GetAliasesResponse>wrap(r -> findDestinationIndexInAliases(r, destIndex, listener), e -> {
+            if (e instanceof AliasesNotFoundException) {
+                // no alias == the destIndex is our concrete index
+                listener.onResponse(destIndex);
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
+        GetAliasesRequest request = new GetAliasesRequest(timeout, destIndex);
+        request.setParentTask(parentTaskId);
+        executeWithHeadersAsync(config.getHeaders(), TRANSFORM_ORIGIN, client, GetAliasesAction.INSTANCE, request, responseListener);
+    }
+
+    private static void findDestinationIndexInAliases(GetAliasesResponse aliases, String destIndex, ActionListener<String> listener) {
+        var indexToAliases = aliases.getAliases();
+        if (indexToAliases.isEmpty()) {
+            // if the alias list is empty, that means the index is a concrete index
+            listener.onResponse(destIndex);
+        } else if (indexToAliases.size() == 1) {
+            // if there is one value, the alias will treat it as the write index, so it's our destination index
+            listener.onResponse(indexToAliases.keySet().iterator().next());
+        } else {
+            // if there is more than one index, there may be more than one alias for each index
+            // we have to search for the alias that matches our destination index name AND is declared the write index for that alias
+            indexToAliases.entrySet().stream().map(entry -> {
+                if (entry.getValue().stream().anyMatch(md -> destIndex.equals(md.getAlias()) && Boolean.TRUE.equals(md.writeIndex()))) {
+                    return entry.getKey();
+                } else {
+                    return null;
+                }
+            }).filter(Objects::nonNull).findFirst().ifPresentOrElse(listener::onResponse, () -> {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot disambiguate destination index alias ["
+                            + destIndex
+                            + "]. Alias points to many indices with no clear write alias. Retry with delete_dest_index=false and manually"
+                            + " clean up destination index.",
+                        RestStatus.CONFLICT
+                    )
+                );
+            });
+        }
     }
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

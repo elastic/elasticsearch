@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -89,14 +88,8 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         );
         reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
-        new TransportClearVotingConfigExclusionsAction(
-            transportService,
-            clusterService,
-            threadPool,
-            new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            reconfigurator
-        ); // registers action
+        // calling the constructor registers the action with transportService
+        new TransportClearVotingConfigExclusionsAction(transportService, clusterService, threadPool, ActionFilters.EMPTY, reconfigurator);
 
         transportService.start();
         transportService.acceptIncomingRequests();

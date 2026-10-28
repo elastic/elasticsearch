@@ -9,126 +9,125 @@
 
 package org.elasticsearch.gradle.testclusters;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.collector.trace.v1.TraceServiceGrpc;
 
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * This is a server which just accepts lines of JSON code and if the JSON
- * is valid and the root node is "transaction", then adds that JSON object
- * to a transaction list which is accessible externally to the class.
+ * A mock OTLP/gRPC collector that logs the metrics and spans it receives, so that
+ * {@code gradlew run --with-apm-server} can show telemetry without a real APM server.
  * <p>
- * The Elastic agent sends lines of JSON code, and so this mock server
- * can be used as a basic APM server for testing.
- * <p>
- * The HTTP server used is the JDK embedded com.sun.net.httpserver
+ * Note: automated integration tests use {@code RecordingApmServer} (in {@code test/external-modules/apm-integration}),
+ * not this class.
  */
+@NotThreadSafe
 public class MockApmServer {
     private static final Logger logger = Logging.getLogger(MockApmServer.class);
-    private int port;
 
-    public MockApmServer(int port) {
-        this.port = port;
+    private final Pattern metricFilter;
+
+    private Server grpcInstance;
+
+    public MockApmServer(String metricFilter) {
+        this.metricFilter = createWildcardPattern(metricFilter);
+    }
+
+    private Pattern createWildcardPattern(String filter) {
+        if (filter == null || filter.isEmpty()) {
+            return null;
+        }
+        var pattern = Arrays.stream(filter.split(",\\s*"))
+            .map(Pattern::quote)
+            .map(s -> s.replace("*", "\\E.*\\Q"))
+            .collect(Collectors.joining(")|(", "(", ")"));
+        return Pattern.compile(pattern);
     }
 
     /**
-     * Simple main that starts a mock APM server and prints the port it is
-     * running on. This is not needed
-     * for testing, it is just a convenient template for trying things out
-     * if you want play around.
-     */
-    public static void main(String[] args) throws IOException, InterruptedException {
-        MockApmServer server = new MockApmServer(9999);
-        server.start();
-    }
-
-    private static volatile HttpServer instance;
-
-    /**
-     * Start the Mock APM server. Just returns empty JSON structures for every incoming message
+     * Start the Mock APM server. Just returns empty responses for every incoming export
      *
-     * @return - the port the Mock APM server started on
      * @throws IOException
      */
-    public synchronized int start() throws IOException {
-        if (instance != null) {
-            String hostname = instance.getAddress().getHostName();
-            int port = instance.getAddress().getPort();
-            logger.lifecycle("MockApmServer is already running. Reusing on address:port " + hostname + ":" + port);
-            return port;
+    public void start() throws IOException {
+        if (grpcInstance != null) {
+            throw new IllegalStateException("MockApmServer already started");
         }
-        InetSocketAddress addr = new InetSocketAddress("0.0.0.0", port);
-        HttpServer server = HttpServer.create(addr, 10);
-        server.createContext("/exit", new ExitHandler());
-        server.createContext("/", new RootHandler());
-
-        server.start();
-        instance = server;
-        logger.lifecycle("MockApmServer started on port " + server.getAddress().getPort());
-        return server.getAddress().getPort();
+        grpcInstance = ServerBuilder.forPort(0).addService(new GrpcMetricsService()).addService(new GrpcTraceService()).build().start();
+        logger.lifecycle("MockApmServer gRPC (OTLP metrics + traces) started on port " + grpcInstance.getPort());
     }
 
-    public int getPort() {
-        return port;
+    public int getGrpcPort() {
+        if (grpcInstance == null) {
+            throw new IllegalStateException("MockApmServer not started");
+        }
+        return grpcInstance.getPort();
     }
 
     /**
      * Stop the server gracefully if possible
      */
-    public synchronized void stop() {
-        logger.lifecycle("stopping apm server");
-        instance.stop(1);
-        instance = null;
+    public void stop() {
+        if (grpcInstance != null) {
+            logger.lifecycle("stopping apm server");
+            grpcInstance.shutdownNow();
+            grpcInstance = null;
+        }
     }
 
-    class RootHandler implements HttpHandler {
-        public void handle(HttpExchange t) {
+    class GrpcMetricsService extends MetricsServiceGrpc.MetricsServiceImplBase {
+        @Override
+        public void export(ExportMetricsServiceRequest request, StreamObserver<ExportMetricsServiceResponse> responseObserver) {
             try {
-                InputStream body = t.getRequestBody();
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                byte[] buffer = new byte[8 * 1024];
-                int lengthRead;
-                while ((lengthRead = body.read(buffer)) > 0) {
-                    bytes.write(buffer, 0, lengthRead);
-                }
-                logger.lifecycle(("MockApmServer reading JSON objects: " + bytes.toString()));
-
-                String response = "{}";
-                t.sendResponseHeaders(200, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes());
-                os.close();
+                logOtlpMetrics(request);
             } catch (Exception e) {
                 e.printStackTrace();
+            }
+            responseObserver.onNext(ExportMetricsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+    }
+
+    private void logOtlpMetrics(ExportMetricsServiceRequest metrics) {
+        for (var resourceMetrics : metrics.getResourceMetricsList()) {
+            var samples = new ArrayList<String>();
+            for (var scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                for (var metric : scopeMetrics.getMetricsList()) {
+                    String name = metric.getName();
+                    if (metricFilter != null && metricFilter.matcher(name).matches() == false) {
+                        continue;
+                    }
+                    samples.add(metric.toString());
+                }
+            }
+            if (samples.isEmpty() == false) {
+                logger.lifecycle("OTLP Metricset:\n{}", String.join("\n", samples));
             }
         }
     }
 
-    static class ExitHandler implements HttpHandler {
-        private static final int STOP_TIME = 3;
-
-        public void handle(HttpExchange t) {
-            try {
-                InputStream body = t.getRequestBody();
-                String response = "{}";
-                t.sendResponseHeaders(200, response.length());
-                OutputStream os = t.getResponseBody();
-                os.write(response.getBytes());
-                os.close();
-                instance.stop(STOP_TIME);
-                instance = null;
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+    class GrpcTraceService extends TraceServiceGrpc.TraceServiceImplBase {
+        @Override
+        public void export(ExportTraceServiceRequest request, StreamObserver<ExportTraceServiceResponse> responseObserver) {
+            logger.lifecycle("OTLP Spans:\n{}", request);
+            responseObserver.onNext(ExportTraceServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 }

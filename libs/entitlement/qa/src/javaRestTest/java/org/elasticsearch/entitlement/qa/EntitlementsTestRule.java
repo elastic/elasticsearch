@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -29,16 +30,19 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+@SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File; System.out used for test setup debug logging")
 class EntitlementsTestRule implements TestRule {
 
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
-        builder.value(Map.of("write_system_properties", Map.of("properties", List.of("org.elasticsearch.entitlement.qa.selfTest"))));
+        builder.value("manage_threads");
+        builder.value("outbound_network");
         builder.value(
             Map.of(
                 "files",
                 List.of(
-                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_dir").resolve("k8s").resolve("..data"), "mode", "read", "exclusive", true),
                     Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
                     Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
                     Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
@@ -46,20 +50,46 @@ class EntitlementsTestRule implements TestRule {
             )
         );
     };
+    public static final String ENTITLEMENT_QA_TEST_MODULE_NAME = "org.elasticsearch.entitlement.qa.test";
+    public static final String ENTITLEMENT_TEST_PLUGIN_NAME = "entitlement-test-plugin";
 
     interface PolicyBuilder {
         void build(XContentBuilder builder, Path tempDir) throws IOException;
     }
 
+    interface TempDirSystemPropertyProvider {
+        Map<String, String> get(Path tempDir);
+    }
+
     final TemporaryFolder testDir;
     final ElasticsearchCluster cluster;
     final TestRule ruleChain;
+    private final String overrideDescriptorName;
 
-    @SuppressWarnings("this-escape")
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
+        this(modular, policyBuilder, tempDir -> Map.of(), null);
+    }
+
+    EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, TempDirSystemPropertyProvider tempDirSystemPropertyProvider) {
+        this(modular, policyBuilder, tempDirSystemPropertyProvider, null);
+    }
+
+    /**
+     * @param overrideDescriptorName if non-null, rewrites the test plugin's descriptor {@code name=}
+     *                               to this value (the install directory stays {@link #ENTITLEMENT_TEST_PLUGIN_NAME}).
+     */
+    @SuppressWarnings("this-escape")
+    EntitlementsTestRule(
+        boolean modular,
+        PolicyBuilder policyBuilder,
+        TempDirSystemPropertyProvider tempDirSystemPropertyProvider,
+        String overrideDescriptorName
+    ) {
+        this.overrideDescriptorName = overrideDescriptorName;
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
+            @SuppressForbidden(reason = "TemporaryFolder.getRoot() returns java.io.File")
             protected void before() throws Throwable {
                 Path testPath = testDir.getRoot().toPath();
                 Files.createDirectory(testPath.resolve("read_dir"));
@@ -70,10 +100,13 @@ class EntitlementsTestRule implements TestRule {
         };
         cluster = ElasticsearchCluster.local()
             .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
-            .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
-            .systemProperty("es.entitlements.enabled", "true")
+            .module(ENTITLEMENT_TEST_PLUGIN_NAME, spec -> setupEntitlements(spec, modular, policyBuilder))
+            .systemProperty("es.entitlements.verify_bytecode", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
+            .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
             .setting("xpack.security.enabled", "false")
+            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
             .build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
@@ -104,14 +137,22 @@ class EntitlementsTestRule implements TestRule {
     }
 
     private void setupEntitlements(PluginInstallSpec spec, boolean modular, PolicyBuilder policyBuilder) {
-        String moduleName = modular ? "org.elasticsearch.entitlement.qa.test" : "ALL-UNNAMED";
+        String moduleName = modular ? ENTITLEMENT_QA_TEST_MODULE_NAME : "ALL-UNNAMED";
         if (policyBuilder != null) {
             buildEntitlements(spec, moduleName, policyBuilder);
         }
 
-        if (modular == false) {
+        boolean rewriteModulename = (modular == false);
+        boolean rewriteName = overrideDescriptorName != null;
+        if (rewriteModulename || rewriteName) {
             spec.withPropertiesOverride(old -> {
-                String props = old.replace("modulename=org.elasticsearch.entitlement.qa.test", "");
+                String props = old;
+                if (rewriteModulename) {
+                    props = props.replace("modulename=" + ENTITLEMENT_QA_TEST_MODULE_NAME, "");
+                }
+                if (rewriteName) {
+                    props = props.replaceAll("(?m)^name=.*$", "name=" + overrideDescriptorName);
+                }
                 System.out.println("Using plugin properties:\n" + props);
                 return Resource.fromString(props);
             });

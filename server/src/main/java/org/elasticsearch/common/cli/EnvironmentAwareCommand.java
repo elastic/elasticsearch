@@ -17,8 +17,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -84,13 +84,7 @@ public abstract class EnvironmentAwareCommand extends Command {
                 throw new UserException(ExitCodes.USAGE, "setting [" + kvp.key + "] must not be empty");
             }
             if (settings.containsKey(kvp.key)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "setting [%s] already set, saw [%s] and [%s]",
-                    kvp.key,
-                    settings.get(kvp.key),
-                    kvp.value
-                );
+                final String message = String.format(Locale.ROOT, "setting [%s] set twice via command line -E", kvp.key);
                 throw new UserException(ExitCodes.USAGE, message);
             }
             settings.put(kvp.key, kvp.value);
@@ -133,18 +127,17 @@ public abstract class EnvironmentAwareCommand extends Command {
         final Map<String, String> settings,
         final String setting,
         final String key
-    ) {
+    ) throws UserException {
         final String value = sysprops.get(key);
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message = String.format(
                     Locale.ROOT,
-                    "duplicate setting [%s] found via command-line [%s] and system property [%s]",
+                    "setting [%s] found via command-line -E and system property [%s]",
                     setting,
-                    settings.get(setting),
-                    value
+                    key
                 );
-                throw new IllegalArgumentException(message);
+                throw new UserException(ExitCodes.USAGE, message);
             } else {
                 settings.put(setting, value);
             }

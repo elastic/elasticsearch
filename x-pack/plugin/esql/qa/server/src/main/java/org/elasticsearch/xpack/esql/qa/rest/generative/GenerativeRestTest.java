@@ -7,46 +7,281 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.datasources.BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
+import org.elasticsearch.xpack.esql.generator.LookupIdx;
+import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
+import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
 
-public abstract class GenerativeRestTest extends ESRestTestCase {
+public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
-    public static final int ITERATIONS = 50;
-    public static final int MAX_DEPTH = 10;
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
+    public static final int ITERATIONS = 100;
+    public static final int MAX_DEPTH = 20;
+
+    /**
+     * Allowed error regex patterns that are tolerated only when the corresponding {@link GenerativeFeature} is in
+     * {@link #enabledFeatures()}. Strings follow the same regex conventions as {@link #ALLOWED_ERRORS}: they are
+     * wrapped to {@code .*<pattern>.*} with {@link Pattern#DOTALL} before matching. Subclasses that add literal
+     * (non-regex) strings via {@link #additionalAllowedErrors()} must escape them with {@link Pattern#quote} first.
+     * Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
+     * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
+     */
+    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of();
+
+    private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
+        GenerativeFeature.SUBQUERIES,
+        Set.of(
+            // Known generator limitation: when a multi-source FROM mixes a subquery branch with
+            // plain index patterns, the subquery-aware union-types resolution
+            // (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) treats cross-branch
+            // type differences as a hard error instead of merging them via union types like plain "FROM a, b" would.
+            // This message is "expected" here, as predicting type conflicts has to be implemented first
+            "has conflicting data types in subqueries"
+        ),
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD,
+        UNMAPPED_FIELDS_LOAD_ERRORS,
+        // Permanent design constraint: keep this pattern matching the message of Verifier.checkLoadAllModeSupportedCommands.
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
+        Sets.union(
+            UNMAPPED_FIELDS_LOAD_ERRORS,
+            Set.of("only supports the FROM, .* and subquery commands; \\[[^\\]]+\\] is not supported yet")
+        ),
+        GenerativeFeature.PARQUET_DATASET,
+        Set.of(
+            // Mixed FROM patterns (e.g. "FROM parquet_employees, employees") may produce type conflicts
+            // when the same field has different types across an ES index and a parquet dataset.
+            "has conflicting data types in subqueries",
+            // Full-text and QSTR functions are not supported on federated (external) data sources.
+            "function is not supported on federated data sources \\[.*\\]",
+            // A wildcard FROM pattern that expands to include an external dataset creates a
+            // federated/subquery-like structure internally; FORK cannot follow such a source.
+            "FORK after subquery is not supported",
+            // A wildcard FROM pattern such as "parquet*" expands to several external datasets, each one a union branch,
+            // so with FORK the query can exceed the branch cap (esql.query.max_branch_count); the generator cannot predict
+            // how many datasets a pattern matches.
+            "query resolved to \\d+ branches in total, exceeding the limit of \\d+",
+            // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
+            // to include external (parquet) datasets — the verifier rejects them with a message of the
+            // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
+            // "cannot be used after FROM" (uppercase, when FROM * expands to include parquet indices).
+            "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after (?:FROM|from .+)",
+            // https://github.com/elastic/elasticsearch/issues/159358
+            // CHANGE_POINT + STATS + INLINE STATS causes the physical plan optimizer to lose the
+            // $$field$converted_to$type reference that ExternalSourceResolver introduces when merging
+            // schemas across heterogeneous sources (external parquet dataset + ES index).
+            ".*Plan \\[AggregateExec\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*"
+        )
+    );
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
         "Cannot use field \\[.*\\] due to ambiguities",
         "cannot sort on .*",
-        "argument of \\[count_distinct\\(.*\\)\\] must",
-        "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
-        // warnings
-        "Field '.*' shadowed by field at line .*",
-        "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
-        // Awaiting fixes
-        "estimated row size \\[0\\] wasn't set", // https://github.com/elastic/elasticsearch/issues/121739
-        "unknown physical plan node \\[OrderExec\\]", // https://github.com/elastic/elasticsearch/issues/120817
-        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741
-        //
-        "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
+        "argument of \\[count.*\\] must",
+        "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
+        "Unbounded SORT not supported yet",
+        "MV_EXPAND .* cannot yet have an unbounded SORT .* before it",
+        "The field names are too complex to process", // field_caps problem
+        "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        // The generator can wrap to_counter() inside other functions (e.g. count(to_gauge(to_counter(x)))),
+        // producing an expression whose return type is a counter type, which EVAL rejects.
+        "EVAL does not support type \\[(?:counter_long|counter_double|counter_integer)\\] as the return data type.*",
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        // Full-text functions and `:` operator are not allowed after FORK
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after FORK",
+        // A FORK output column filled from a mapped text field cannot be searched: the merge drops the field's
+        // mapping analyzer, so the search would silently use the standard analyzer instead
+        "(?:(?:\\[(?:MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot search column \\[.*\\] after FORK",
+        // Full-text functions and `:` operator are not allowed after HIGHLIGHT
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after HIGHLIGHT",
+        // Full-text functions and `:` operator are not allowed after LIMIT (can arise when a FORK
+        // branch contains a LIMIT and a full-text function appears in the command after the FORK)
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after LIMIT",
+        // Optimized SORT + LIMIT is TopN; the verifier reports that as "SORT and LIMIT"
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after SORT and LIMIT",
+        // Full-text functions are not allowed after DEDUP (can arise when a FORK branch contains)
+        // a DEDUP and a full-text function appears in the WHERE after the FORK)
+        "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE|KNN)] function)|(?:\\[:\\] operator)) cannot be used after DEDUP",
+        // Full-text functions mixed with lookup-side fields via OR cannot be pushed before LOOKUP JOIN _coordinator:
+        "cannot be used in a WHERE clause that references both data-side and lookup-side fields after LOOKUP JOIN _coordinator:",
+        "sub-plan execution results too large",  // INLINE STATS limitations
+        // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
+        "Inference endpoint not found \\[foo_inference_id\\]",
+        // full-text functions are not allowed to match on fields that come from lookup indices
+        "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
+        "Can only use fuzzy queries on keyword and text fields - not on \\[.*\\] which is of type \\[.*\\]",
+        // full-text function receiving a non-boolean value for a boolean type field
+        "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
+        // full-text function trying to parse text as date field and failing
+        "failed to parse date field \\[.*\\] with format",
+        // full-text function trying to parse a non-IP string
+        "is not an IP string literal",
+        // a values(<that field>) agg could more than 100,000 values into a single multi-valued field, and a subsequent
+        // inline stats … by <that field> hits the hard limit Block.MAX_LOOKUP = 100_000 in the compute layer
+        // throwing IllegalArgumentException via PackedValuesBlockHash
+        // see https://github.com/elastic/elasticsearch/issues/145694
+        "Found a single entry with .* entries",
+        "All SPARKLINE functions in a single STATS command must share the same timestamp, buckets, from, and to value",
+
+        // Awaiting fixes for query failure
+        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
+        // https://github.com/elastic/elasticsearch/issues/125866
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
+        "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
+        "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
+        // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
+        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
+        "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
+
+        // https://github.com/elastic/elasticsearch/issues/153622
+        "ImmutableCollections\\$ListN cannot be cast to class .*",
+
+        // repeat() returns validation error when the Number parameter is a negative foldable
+        "Number parameter cannot be negative, found \\[",
+
+        // need to refine the MATCH function generation: MATCH on a non-index-mapped, non-TEXT field with a string
+        // query value (MATCH_PHRASE only accepts keyword/text, so it has no equivalent query-value type check)
+        "query value .* does not match the type .* of non-index-mapped field",
+        // need to refine the MATCH / MATCH_PHRASE function generation: options on a non-index-mapped, non-TEXT field
+        "Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field \\[.*\\]",
+        // need to refine the MATCH generation: options other than lenient on a non-index-mapped, non-TEXT field
+        "\\[.*\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field \\[.*\\]",
+
+        // Awaiting fixes for correctness
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests (acceptable errors)
+        "time-series.*the first aggregation.*is not allowed",
+        "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
+        "implicit time-series aggregation function",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation",
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+        "expected named expression for grouping; got ",
+        "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
+
+        // _doc field unexpectedly appearing in output after FORK
+        "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
+
+        // TopNOperator type mismatch in ValueExtractor
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
+
+        // https://github.com/elastic/elasticsearch/issues/154068
+        "failed to create query: class java\\.lang\\.String cannot be cast to class org\\.apache\\.lucene\\.util\\.BytesRef.*",
+
+        // https://github.com/elastic/elasticsearch/pull/153514
+        "can't lookup values from LongRangeBlock",
+        "can't lookup values from DoubleRangeBlock",
+
+        // https://github.com/elastic/elasticsearch/issues/154079
+        "class java\\.util\\.ArrayList cannot be cast to class java\\.lang\\.Boolean.*",
+
+        // https://github.com/elastic/elasticsearch/issues/154080
+        "unexpected data type \\[NULL\\]",
+
+        // https://github.com/elastic/elasticsearch/issues/159298
+        "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
+
+        // https://github.com/elastic/elasticsearch/issues/162181
+        "Unsupported field type \\[NULL\\]\\. If you're seeing this, there.s a bug in DateExtract\\.resolveType",
+
+        // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
+        // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
+        // infrastructure limit; the query was valid ES|QL.
+        // https://github.com/elastic/elasticsearch/issues/158881
+        "\\d[\\d ,]*milliseconds timeout on connection.*"
+    );
+
+    /**
+     * FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
+     * Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
+     * instead of the proper "Cannot use field [X] with unsupported type [Y]" message.
+     * <a href="https://github.com/elastic/elasticsearch/issues/147603">github issue</a>
+     */
+    private static final Pattern UNSUPPORTED_TYPE_AFTER_FORK_PATTERN = Pattern.compile(
+        ".*argument of \\[.*] must be \\[.*], found value \\[.*] type \\[unsupported].*",
+        Pattern.DOTALL
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -54,11 +289,73 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
+    /**
+     * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
+     * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
+     * that included a different unmapped field but not this one, making the second one legitimately unknown.
+     * We allow this error when the unknown column is one of the names {@code KeepGenerator} injects on purpose;
+     * the suggestion is deliberately NOT checked, since it names whichever loaded column happens to be closest.
+     */
+    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
+
+    /**
+     * Matches "... argument of [X] must be [Y], found value [Z] type [T]" errors.
+     * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
+     * The unmapped field name may appear either in the function expression(group 1) or in the found-value position (group 2).
+     */
+    private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*argument of \\[([^]]+)] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
+     * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
+     */
+    private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range|double_range)].*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * Matches "argument of [X] is [keyword] so ... argument must also be [keyword] but was [Y]" errors.
+     * This happens when an unmapped field that is force-loaded as keyword is used in a binary operation
+     * with a non-keyword typed value (e.g. {@code unmapped_field > 31}).
+     */
+    private static final Pattern KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN = Pattern.compile(
+        ".*argument of \\[([^]]+)] is \\[keyword] so .* argument must also be \\[keyword] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
+
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true);
+        if (indexExists(CSV_DATASET.keySet().iterator().next()) == false) {
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
+    }
+
+    /**
+     * Disable {@link org.elasticsearch.test.rest.ESRestTestCase#cleanUpCluster()} between test methods so the
+     * indices loaded by {@link #setup()} survive across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases. Otherwise the framework wipes indices (but not enrich policies) after every test,
+     * and the next case's {@link #setup()} hits {@code resource_already_exists_exception} when re-PUTing policies.
+     * Final cleanup happens in {@link #wipeTestData()}.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
+    }
+
+    protected abstract boolean supportsSourceFieldMapping();
+
+    protected boolean requiresTimeSeries() {
+        return isFeatureEnabled(GenerativeFeature.METRICS) || isFeatureEnabled(GenerativeFeature.PROMQL);
     }
 
     @AfterClass
@@ -71,86 +368,1681 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 throw e;
             }
         }
+        // Enrich policies aren't covered by DELETE /*, and Clusters.testCluster() uses .shared(true), so the
+        // next class on this cluster would re-PUT them and hit resource_already_exists_exception.
+        for (var policy : ENRICH_POLICIES.values()) {
+            try {
+                adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + policy.policyName()));
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
+            }
+        }
     }
 
-    public void test() {
+    /**
+     * The cluster is preserved across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases, so external datasets registered by {@link #availableIndices()} would otherwise stay visible
+     * to every case that runs after {@link GenerativeFeature#PARQUET_DATASET}. Wildcard sources such as {@code FROM *} would
+     * then pick them up and fail on commands that are unsupported on federated sources. Remove them after each such case.
+     */
+    @After
+    public void cleanupExternalDatasetsAfterCase() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET) == false) {
+            return;
+        }
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
+    @AfterClass
+    public static void cleanupExternalDatasets() throws IOException {
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
+        }
+    }
+
+    /**
+     * Pipeline executor that runs each generated command against the cluster and feeds the result
+     * back into the generator. Subclasses of {@link GenerativeRestTest} may override
+     * {@link GenerativeRestTest#runCommand} to intercept command execution (e.g. to also run the
+     * command against a second index and compare the results) without having to duplicate this class.
+     *
+     * <p>{@code previousResult} is intentionally package-private so that
+     * {@link GenerativeRestTest#test()} can read it in the catch block to build a reproduction message.
+     */
+    protected class PipelineExecutor implements EsqlQueryGenerator.Executor {
+        boolean continueExecuting;
+        List<Column> currentSchema;
+        List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+        QueryExecuted previousResult;
+
+        @Override
+        public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
+            QueryExecuted result = runCommand(previousResult, current);
+
+            final boolean hasException = result.exception() != null;
+            if (hasException
+                || checkPipelineResults(previousCommands, generator, current, previousResult, result, currentSchema).success() == false) {
+                if (hasException) {
+                    List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
+                    commands.addAll(previousCommands);
+                    commands.add(current);
+                    checkPipelineException(result, commands, currentSchema);
+                }
+                continueExecuting = false;
+                currentSchema = List.of();
+            } else {
+                continueExecuting = true;
+                currentSchema = updateIndexMapped(result.outputSchema(), currentSchema, current);
+            }
+
+            previousCommands.add(current);
+            previousResult = result;
+        }
+
+        @Override
+        public List<CommandGenerator.CommandDescription> previousCommands() {
+            return previousCommands;
+        }
+
+        @Override
+        public boolean continueExecuting() {
+            return continueExecuting;
+        }
+
+        @Override
+        public List<Column> currentSchema() {
+            return currentSchema;
+        }
+
+        @Override
+        public void clearCommandHistory() {
+            previousCommands = new ArrayList<>();
+            previousResult = null;
+        }
+    }
+
+    /**
+     * Creates a new {@link PipelineExecutor} for one test iteration.
+     * Subclasses may override to return a specialised executor that carries additional per-iteration
+     * state (e.g. a candidate result for cross-index-mode comparison).
+     */
+    protected PipelineExecutor executor() {
+        return new PipelineExecutor();
+    }
+
+    /**
+     * Executes one pipeline step and returns the result. Called from {@link PipelineExecutor#run}.
+     *
+     * <p>Subclasses may override to also execute the command against a second index set and compare
+     * the results before returning the primary result to the executor.
+     *
+     * @param previousResult the result of the previous pipeline step, or {@code null} for the first
+     *                       (source) command
+     * @param current        the command description produced by the generator
+     * @return the {@link QueryExecuted} that should drive the next generator step
+     */
+    protected QueryExecuted runCommand(QueryExecuted previousResult, CommandGenerator.CommandDescription current) {
+        String command = current.commandString();
+        return previousResult == null ? execute(command, 0) : execute(previousResult.query() + command, previousResult.depth());
+    }
+
+    public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
-        List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();
+        Set<String> viewNames = CsvTestsDataLoader.VIEW_CONFIGS.keySet();
+        CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies, viewNames);
+
         for (int i = 0; i < ITERATIONS; i++) {
-            String command = EsqlQueryGenerator.sourceCommand(indices);
-            EsqlQueryGenerator.QueryExecuted result = execute(command, 0);
-            if (result.exception() != null) {
-                checkException(result);
-                continue;
-            }
-            for (int j = 0; j < MAX_DEPTH; j++) {
-                if (result.outputSchema().isEmpty()) {
-                    break;
+            var exec = executor();
+            try {
+                EsqlQueryGenerator.generatePipeline(
+                    MAX_DEPTH,
+                    sourceCommand(),
+                    mappingInfo,
+                    exec,
+                    requiresTimeSeries(),
+                    this,
+                    rootGenerationContext()
+                );
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                if (e instanceof AllowedGeneratorFailureException == false && isAllowedError(e.getMessage()) == false) {
+                    String previousQuery = exec.previousResult == null ? null : exec.previousResult.query();
+                    // fail(e, report) would run the report through Strings.format, which reinterprets any '%' in the
+                    // generated query as a format specifier.
+                    throw new AssertionError(
+                        "Generative tests, error generating new command\n" + failureReport(previousQuery, e.getMessage()),
+                        e
+                    );
                 }
-                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies, lookupIndices);
-                result = execute(result.query() + command, result.depth() + 1);
-                if (result.exception() != null) {
-                    checkException(result);
-                    break;
-                }
             }
         }
     }
 
-    private void checkException(EsqlQueryGenerator.QueryExecuted query) {
-        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
-                return;
+    /**
+     * Strips {@code _approximation_} metadata columns from a {@link QueryExecuted}.
+     */
+    private static QueryExecuted stripApproximationColumns(QueryExecuted qe) {
+        if (qe == null || qe.outputSchema() == null) {
+            return qe;
+        }
+        List<Integer> keepIndices = new ArrayList<>();
+        for (int i = 0; i < qe.outputSchema().size(); i++) {
+            if (ApproximationPlan.isApproximationColumn(qe.outputSchema().get(i).name()) == false) {
+                keepIndices.add(i);
             }
         }
-        fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
-    }
-
-    private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
-        try {
-            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
-        } catch (Exception e) {
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, e);
-        } catch (AssertionError ae) {
-            // this is for ensureNoWarnings()
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, new RuntimeException(ae.getMessage()));
+        if (keepIndices.size() == qe.outputSchema().size()) {
+            return qe;
         }
-
+        List<Column> schema = keepIndices.stream().map(qe.outputSchema()::get).toList();
+        List<List<Object>> rows = qe.result() == null
+            ? null
+            : qe.result().stream().map(row -> keepIndices.stream().map(row::get).toList()).toList();
+        return new QueryExecuted(qe.query(), qe.depth(), schema, rows, qe.exception());
     }
 
-    @SuppressWarnings("unchecked")
-    private List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
-        List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
-        if (cols == null) {
-            return null;
+    protected CommandGenerator sourceCommand() {
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD)) {
+            return FromLoadGenerator.INSTANCE;
         }
-        return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL)) {
+            return FromLoadGenerator.LOAD_ALL_INSTANCE;
+        }
+        if (isFeatureEnabled(GenerativeFeature.METRICS)) {
+            return EsqlQueryGenerator.timeSeriesSourceCommand();
+        }
+        if (isFeatureEnabled(GenerativeFeature.PROMQL)) {
+            return PromQLGenerator.INSTANCE;
+        }
+        return EsqlQueryGenerator.sourceCommand();
     }
 
-    private List<String> availableIndices() {
-        return new ArrayList<>(
-            CSV_DATASET_MAP.entrySet()
-                .stream()
-                .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
-                .map(Map.Entry::getKey)
-                .toList()
-        );
+    /**
+     * Opt-in {@link GenerativeFeature features} active for this run. Subclasses may override to enable specific
+     * features; the default is none. {@link PerFeatureGenerativeRestTest} returns the per-parameter feature here.
+     */
+    protected Set<GenerativeFeature> enabledFeatures() {
+        return Set.of();
     }
 
-    record LookupIdx(String idxName, String key, String keyType) {}
+    protected boolean isFeatureEnabled(GenerativeFeature feature) {
+        return enabledFeatures().contains(feature);
+    }
 
-    private List<LookupIdx> lookupIndices() {
-        List<LookupIdx> result = new ArrayList<>();
-        // we don't have key info from the dataset loader, let's hardcode it for now
-        result.add(new LookupIdx("languages_lookup", "language_code", "integer"));
-        result.add(new LookupIdx("message_types_lookup", "message", "keyword"));
+    /**
+     * Returns the root {@link GenerationContext} for a single iteration of the test loop, populated with
+     * {@link #enabledFeatures()}.
+     */
+    protected GenerationContext rootGenerationContext() {
+        return GenerationContext.root(enabledFeatures());
+    }
+
+    protected CommandGenerator.ValidationResult checkPipelineResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        return checkResults(previousCommands, commandGenerator, commandDescription, previousResult, result, currentSchema);
+    }
+
+    protected void checkPipelineException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousCommands, currentSchema);
+    }
+
+    private record FailureContext(
+        String errorMessage,
+        String normalizedErrorMessage,
+        String query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        FailureContext(
+            String errorMessage,
+            String query,
+            List<CommandGenerator.CommandDescription> previousCommands,
+            List<Column> currentSchema
+        ) {
+            this(
+                errorMessage,
+                errorMessage == null ? null : normalizeErrorMessage(errorMessage),
+                query,
+                previousCommands == null ? List.of() : previousCommands,
+                currentSchema == null ? List.of() : currentSchema
+            );
+        }
+    }
+
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
+        ctx -> matchesAllowedErrorPatterns(ctx.normalizedErrorMessage),
+        ctx -> isUnmappedFieldError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isScalarTypeMismatchError(ctx.normalizedErrorMessage),
+        ctx -> isFieldFullTextError(ctx.normalizedErrorMessage, ctx.currentSchema),
+        ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
+        ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFullTextNullQueryBuilderUnmappedLoadBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFillNullUnmappedFieldsPatternBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRangeWithinNullRangeBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query), };
+
+    /**
+     * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
+     * from {@link #FEATURE_ALLOWED_ERRORS}; subclasses may override to add more (e.g. tests with a different
+     * source command). Returned strings are treated as regex patterns, wrapped to {@code .*<pattern>.*} with
+     * {@link Pattern#DOTALL}, and OR-ed with the base {@link #ALLOWED_ERRORS}.
+     */
+    protected Set<String> additionalAllowedErrors() {
+        Set<GenerativeFeature> features = enabledFeatures();
+        if (features.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> result = new HashSet<>();
+        for (GenerativeFeature feature : features) {
+            result.addAll(FEATURE_ALLOWED_ERRORS.getOrDefault(feature, Set.of()));
+        }
         return result;
     }
 
-    List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {
-        return ENRICH_POLICIES;
+    private boolean isAllowedFailure(FailureContext ctx) {
+        if (ctx == null || ctx.errorMessage == null) {
+            return false;
+        }
+        for (AllowedFailureRule rule : allowedFailureRules()) {
+            if (rule.matches(ctx)) {
+                return true;
+            }
+        }
+        if ((isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) || isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL))
+            && isUnmappedFieldsLoadAllowedFailure(ctx)) {
+            return true;
+        }
+        return false;
+    }
+
+    private List<AllowedFailureRule> allowedFailureRules;
+
+    /**
+     * Lazily merges {@link #ALLOWED_FAILURE_RULES} with the patterns supplied by {@link #additionalAllowedErrors()},
+     * each wrapped as a rule that matches against the normalized error message.
+     */
+    private List<AllowedFailureRule> allowedFailureRules() {
+        if (allowedFailureRules == null) {
+            allowedFailureRules = Stream.concat(
+                Arrays.stream(ALLOWED_FAILURE_RULES),
+                additionalAllowedErrors().stream()
+                    .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
+                    .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
+            ).toList();
+        }
+        return allowedFailureRules;
+    }
+
+    protected CommandGenerator.ValidationResult checkResults(
+        List<CommandGenerator.CommandDescription> previousCommands,
+        CommandGenerator commandGenerator,
+        CommandGenerator.CommandDescription commandDescription,
+        QueryExecuted previousResult,
+        QueryExecuted result,
+        List<Column> currentSchema
+    ) {
+        CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
+            previousCommands,
+            commandDescription,
+            previousResult == null ? null : previousResult.outputSchema(),
+            previousResult == null ? null : previousResult.result(),
+            result.outputSchema(),
+            result.result()
+        );
+        failOnUnexpectedValidationError(outputValidation, result, previousCommands, currentSchema);
+        return outputValidation;
+    }
+
+    protected void failOnUnexpectedValidationError(
+        CommandGenerator.ValidationResult outputValidation,
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (outputValidation.success() == false) {
+            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
+                return;
+            }
+            fail(failureReport(result.query(), outputValidation.errorMessage()));
+        }
+    }
+
+    protected void checkException(
+        QueryExecuted query,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
+            return;
+        }
+        fail(failureReport(query.query(), query.exception().getMessage()));
+    }
+
+    /** The {@code Warnings: [...]} block {@link ResponseException} inserts before the response body. */
+    private static final Pattern RESPONSE_WARNINGS = Pattern.compile("\nWarnings: \\[.*?]\n", Pattern.DOTALL);
+
+    /**
+     * Composes the message for a failing generated query. These run to tens of kilobytes and are truncated before
+     * they reach a filed issue, so the error goes near the top and the response warnings go last. A subclass that
+     * overrides this to add context should append it to {@code super}'s report rather than prepend it, to keep the
+     * bulky part in the tail that truncation eats.
+     *
+     * @param query the query the failure relates to: the one that failed, or the last one that ran when the
+     *              generator could not produce the next command; {@code null} when none was generated at all
+     * @param error the error message, or {@code null} when the failure carries no message
+     */
+    protected String failureReport(@Nullable String query, @Nullable String error) {
+        String warnings = "";
+        if (error == null) {
+            error = "<no error message>";
+        } else {
+            Matcher matcher = RESPONSE_WARNINGS.matcher(error);
+            if (matcher.find()) {
+                warnings = matcher.group().strip();
+                error = matcher.replaceFirst("\n");
+            }
+        }
+
+        StringBuilder report = new StringBuilder("query: ").append(query == null ? "<no query generated>" : query);
+        report.append("\nfeatures: ").append(enabledFeatures());
+        report.append("\nreproduce with -Dtests.seed=")
+            .append(RandomizedContext.current().getRunnerSeedAsString())
+            .append(" on build ")
+            .append(Build.current().hash())
+            .append(" (a seed only reproduces on the build that generated it)");
+        report.append("\nerror: ").append(error);
+        if (warnings.isEmpty() == false) {
+            report.append("\n").append(warnings);
+        }
+        return report.toString();
+    }
+
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\r?\n\\s*\\\\");
+
+    private static String normalizeErrorMessage(String errorMessage) {
+        return ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+    }
+
+    protected static boolean isAllowedError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        return matchesAllowedErrorPatterns(normalizeErrorMessage(errorMessage));
+    }
+
+    private static boolean matchesAllowedErrorPatterns(String normalizedErrorMessage) {
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (allowedError.matcher(normalizedErrorMessage).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        return allowedPattern.matcher(normalizeErrorMessage(errorMessage)).matches();
+    }
+
+    /**
+     * Checks if the error is a known unmapped field error. This covers:
+     * <ul>
+     *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
+     *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
+     *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
+     *
+     * </ul>
+     */
+    private static boolean isUnmappedFieldError(String errorMessage, String query) {
+        return isUnmappedFieldPrefixError(errorMessage, query, SET_UNMAPPED_FIELDS_PREFIX);
+    }
+
+    protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
+        if (query == null || query.startsWith(prefix) == false) {
+            return false;
+        }
+        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
+
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            // Only the unknown column is checked. The suggestion is whichever in-scope name is closest, so it depends on
+            // which datasets happen to be loaded - a field named `unmapped.*` in any index makes it a real column rather
+            // than one of ours. What makes the error expected is that the MISSING column is a name KeepGenerator injects
+            // on purpose; those four names exist in no index, so a genuine missing-column bug still names a real column
+            // and still fails here.
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+
+        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+
+        matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String functionExpression = matcher.group(1);
+            String foundValue = matcher.group(2);
+            return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
+        }
+
+        if (isKeywordTypeMismatchForLoadedField(errorWithoutLineBreaks)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isUnmappedFieldsLoadAllowedFailure(FailureContext ctx) {
+        for (String prefix : FromLoadGenerator.LOAD_PREFIXES) {
+            if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, prefix)) {
+                return true;
+            }
+        }
+        return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage)
+            || isUnknownNamedUnmappedFieldsColumn(ctx.normalizedErrorMessage, ctx.query, ctx.currentSchema);
+    }
+
+    private static boolean isKeywordTypeMismatchForLoadedField(String errorMessage) {
+        Matcher matcher = KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN.matcher(errorMessage);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+        return false;
+    }
+
+    private static final Pattern UNKNOWN_COLUMN_PROBLEM_PATTERN = Pattern.compile("Unknown column \\[([^\\]]*)\\]");
+
+    private static final Pattern KEEP_DROP_OR_RENAME_COMMAND_PATTERN = Pattern.compile("(?i)\\s*(keep|drop|rename)\\s+");
+
+    // Permanent design constraint: a named _unmapped_fields is an ordinary unmapped field, which an earlier KEEP, DROP or RENAME can remove
+    static boolean isUnknownNamedUnmappedFieldsColumn(String errorMessage, String query, List<Column> currentSchema) {
+        if (errorMessage == null || query == null || isLoadAllQuery(query) == false) {
+            return false;
+        }
+        if (currentSchema.stream().noneMatch(EsqlQueryGenerator::isUnmappedFieldsColumn)) {
+            return false;
+        }
+        Matcher problems = PROBLEM_LINE.matcher(errorMessage);
+        Matcher unknown = UNKNOWN_COLUMN_PROBLEM_PATTERN.matcher(errorMessage);
+        boolean namesColumn = false;
+        while (problems.find()) {
+            if (unknown.region(problems.end(), errorMessage.length()).lookingAt() == false) {
+                return false;
+            }
+            String column = unknown.group(1);
+            if (column.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                int line = Integer.parseInt(problems.group(1));
+                int offset = offsetInQuery(query, line, Integer.parseInt(problems.group(2)));
+                if (namesUnmappedFieldsAt(query, offset) == false || unmappedFieldsRemovedBefore(query, offset) == false) {
+                    return false;
+                }
+                namesColumn = true;
+            } else if (UNMAPPED_NAMES.contains(column) == false) {
+                return false;
+            }
+        }
+        return namesColumn;
+    }
+
+    private static boolean unmappedFieldsRemovedBefore(String query, int offset) {
+        List<Integer> commandStarts = new ArrayList<>();
+        Deque<Integer> openGroups = new ArrayDeque<>();
+        boolean inBacktick = false;
+        boolean inQuote = false;
+        for (int i = 0; i < offset; i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if (inBacktick || inQuote) {
+                continue;
+            } else if (c == '(') {
+                openGroups.push(commandStarts.size());
+                commandStarts.add(i + 1);
+            } else if (c == ')' && openGroups.isEmpty() == false) {
+                commandStarts.subList(openGroups.pop(), commandStarts.size()).clear();
+            } else if (c == '|') {
+                commandStarts.add(i + 1);
+            }
+        }
+        Matcher command = KEEP_DROP_OR_RENAME_COMMAND_PATTERN.matcher(query);
+        if (commandStarts.isEmpty() == false
+            && command.region(commandStarts.getLast(), offset).lookingAt()
+            && command.group(1).equalsIgnoreCase("rename")
+            && projectionsFrom(query.substring(0, offset), command.end()).stream().anyMatch(GenerativeRestTest::renamesToUnmappedFields)) {
+            return false;
+        }
+        for (int s = 0; s < commandStarts.size() - 1; s++) {
+            if (command.region(commandStarts.get(s), offset).lookingAt()) {
+                List<String> projections = projectionsFrom(query, command.end());
+                boolean removes = switch (command.group(1).toLowerCase(Locale.ROOT)) {
+                    case "keep" -> projections.stream().noneMatch(GenerativeRestTest::patternCoversUnmappedFields);
+                    case "drop" -> projections.stream().anyMatch(GenerativeRestTest::patternCoversUnmappedFields);
+                    case "rename" -> projections.stream().anyMatch(GenerativeRestTest::renamesUnmappedFieldsAway);
+                    default -> throw new IllegalStateException("unexpected command [" + command.group(1) + "]");
+                };
+                if (removes) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean renamesUnmappedFieldsAway(String renaming) {
+        Matcher pair = RENAME_PAIR_PATTERN.matcher(renaming);
+        return pair.matches() && isUnmappedFieldsName(pair.group(1)) && isUnmappedFieldsName(pair.group(2)) == false;
+    }
+
+    private static boolean renamesToUnmappedFields(String renaming) {
+        Matcher pair = RENAME_PAIR_PATTERN.matcher(renaming);
+        return pair.matches() && isUnmappedFieldsName(pair.group(1)) == false && isUnmappedFieldsName(pair.group(2));
+    }
+
+    private static boolean isUnmappedFieldsName(String name) {
+        return unquote(name).equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME);
+    }
+
+    private static List<String> projectionsFrom(String query, int from) {
+        List<String> projections = new ArrayList<>();
+        boolean inBacktick = false;
+        int start = from;
+        for (int i = from; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`') {
+                inBacktick = inBacktick == false;
+            } else if (inBacktick == false && (c == ',' || c == '|' || c == ')')) {
+                projections.add(query.substring(start, i).strip());
+                if (c != ',') {
+                    return projections;
+                }
+                start = i + 1;
+            }
+        }
+        projections.add(query.substring(start).strip());
+        return projections;
+    }
+
+    private static boolean namesUnmappedFieldsAt(String query, int offset) {
+        String name = UnmappedFieldsAttribute.ATTRIBUTE_NAME;
+        String quoted = EsqlQueryGenerator.quote(name);
+        int end;
+        if (query.startsWith(quoted, offset)) {
+            end = offset + quoted.length();
+        } else if (query.startsWith(name, offset)) {
+            end = offset + name.length();
+        } else {
+            return false;
+        }
+        return end == query.length() || continuesName(query.charAt(end)) == false;
+    }
+
+    private static boolean continuesName(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '.' || c == '*' || c == '`';
+    }
+
+    /**
+     * Checks if the error is a type mismatch where a function received a field of a special type that most scalar
+     * functions don't support (counter types, aggregate_metric_double, dense_vector, tdigest, histogram, etc.).
+     * These errors are acceptable since the generative tests may compose function calls with fields of these types.
+     */
+    private static boolean isScalarTypeMismatchError(String errorMessage) {
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorMessage).matches();
+    }
+
+    private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
+        ".*cannot operate on \\[([^]]+)\\], which is not a field from an index mapping.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * Captures field X from MATCH/MATCH_PHRASE option errors on a renamed or computed field.
+     */
+    private static final Pattern MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN = Pattern.compile(
+        ".*(?:Options are not supported for \\[(?:MATCH|MATCH_PHRASE)\\] function call on non-index-mapped(?:, non-TEXT)? field"
+            + "|\\[.+\\] option is not supported for \\[MATCH\\] on non-index-mapped, non-TEXT field"
+            + ") \\[([^]]+)\\].*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * Captures fields created by GROK patterns, e.g. {@code %{WORD:foo}} or {@code %{NUMBER:bar:int}}.
+     */
+    private static final Pattern GROK_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{[^:}]+:([^}:]+)(?::[^}]+)?}");
+    /**
+     * Captures fields created by DISSECT patterns, e.g. {@code %{foo}}. Ignores skip fields like {@code %{?}} or {@code %{?skip}}.
+     */
+    private static final Pattern DISSECT_GENERATED_FIELD_PATTERN = Pattern.compile("%\\{([^}]+)}");
+
+    /**
+     * Captures both the source and target of a RENAME clause, e.g. {@code old_field AS new_field}.
+     * Group 1 is the source (possibly back-tick quoted), group 2 is the target.
+     */
+    private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile("\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*");
+
+    /**
+     * Matches {@code | rename X as Y} segments embedded in a LOOKUP JOIN command string.
+     * {@link LookupJoinGenerator} prepends rename commands to align the left-side key columns
+     * with the lookup index key names; these renames are part of a single {@link CommandGenerator.CommandDescription}
+     * and must be accounted for when propagating {@link Column#indexMapped()} flags.
+     */
+    private static final Pattern EMBEDDED_RENAME_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*rename\\s+(`[^`]+`|[^\\s|]+)\\s+as\\s+(`[^`]+`|[^\\s|]+)"
+    );
+
+    /**
+     * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
+     * <p>
+     * The REST API does not expose attribute-type information, so this method infers it from:
+     * <ul>
+     *   <li>The previous schema (columns carry their {@code indexMapped} status from earlier commands)</li>
+     *   <li>The command description (command name and context — e.g. EVAL stores {@code NEW_COLUMNS})</li>
+     * </ul>
+     * Columns that are explicitly created by the command are marked {@code indexMapped=false};
+     * columns that survive unchanged from the previous schema inherit their previous status.
+     * <p>
+     * Implements {@link QueryExecutor#updateIndexMapped} so that both the top-level generation loop and
+     * {@code SubqueryGenerator} (which only holds a {@link QueryExecutor} reference) track the flags identically.
+     */
+    @Override
+    public List<Column> updateIndexMapped(
+        List<Column> newSchema,
+        List<Column> previousSchema,
+        CommandGenerator.CommandDescription command
+    ) {
+        if (newSchema == null || newSchema.isEmpty()) {
+            return newSchema;
+        }
+
+        // FROM is always the first command so previousSchema is empty. Handle it here, before the guard below short-circuits,
+        // so that subquery-derived indexMapped flags are not silently dropped.
+        if (FromGenerator.isFromSource(command)) {
+            if (command.context().get(FromGenerator.SUBQUERY_COLUMNS) instanceof Map<?, ?> subqueryMapped) {
+                return newSchema.stream().map(col -> {
+                    // Column only from a real index source: indexMapped=true (unchanged). Column from a subquery (possibly also present
+                    // in a real index): use the subquery flag directly — logicalAnd(subqueryFlag, true) == subqueryFlag.
+                    boolean mapped = subqueryMapped.get(col.name()) instanceof Boolean fromSubquery ? fromSubquery : true;
+                    return new Column(col.name(), col.type(), col.originalTypes(), mapped);
+                }).toList();
+            }
+            return newSchema;
+        }
+
+        if (previousSchema == null || previousSchema.isEmpty()) {
+            return newSchema;
+        }
+
+        String commandName = command.commandName();
+        if (commandName == null) {
+            return newSchema;
+        }
+        commandName = commandName.toLowerCase(Locale.ROOT);
+
+        Map<String, Boolean> prevMapped = new HashMap<>();
+        for (Column col : previousSchema) {
+            prevMapped.put(col.name(), col.indexMapped());
+        }
+
+        Set<String> createdColumns = new HashSet<>();
+
+        switch (commandName) {
+            case EvalGenerator.EVAL -> {
+                Object newCols = command.context().get(EvalGenerator.NEW_COLUMNS);
+                if (newCols instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case GrokGenerator.GROK -> {
+                Matcher gm = GROK_GENERATED_FIELD_PATTERN.matcher(command.commandString());
+                while (gm.find()) {
+                    createdColumns.add(unquote(gm.group(1)));
+                }
+            }
+            case DissectGenerator.DISSECT -> {
+                Matcher dm = DISSECT_GENERATED_FIELD_PATTERN.matcher(command.commandString());
+                while (dm.find()) {
+                    String generated = dm.group(1);
+                    if (generated.startsWith("?") == false) {
+                        createdColumns.add(unquote(generated));
+                    }
+                }
+            }
+            case MvExpandGenerator.MV_EXPAND -> {
+                String expanded = command.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
+                // Not truly a newly created column, but we need to override the indexMapped flag so that full-text functions don't use it.
+                // https://github.com/elastic/elasticsearch/issues/142713
+                createdColumns.add(unquote(expanded));
+            }
+            case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
+                return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+            }
+            case FillNullGenerator.FILL_NULL -> {
+                // FILLNULL turns each filled column into a reference attribute. The all-fields form may fill any
+                // column, so conservatively clear the flag for all of them; the targeted form only touches its targets.
+                if (Boolean.TRUE.equals(command.context().get(FillNullGenerator.ALL_FIELDS))) {
+                    return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+                }
+                Object filled = command.context().get(FillNullGenerator.FILLED_FIELDS);
+                if (filled instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case RenameGenerator.RENAME -> {
+                return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
+            }
+            case RegisteredDomainGenerator.REGISTERED_DOMAIN -> {
+                String prefix = (String) command.context().get("prefix");
+                if (prefix != null) {
+                    for (String subField : List.of("domain", "registered_domain", "top_level_domain", "subdomain")) {
+                        createdColumns.add(prefix + "." + subField);
+                    }
+                }
+            }
+            case UriPartsGenerator.URI_PARTS -> {
+                String prefix = (String) command.context().get("prefix");
+                if (prefix != null) {
+                    for (Column col : newSchema) {
+                        if (col.name().startsWith(prefix + ".")) {
+                            createdColumns.add(col.name());
+                        }
+                    }
+                }
+            }
+            case EnrichGenerator.ENRICH -> {
+                // Enrich fields can shadow existing index columns, so we use the policy's declared enrich_fields
+                // from the context to ensure they are marked as non-index-mapped even when names collide.
+                Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
+                if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
+                    enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case HighlightGenerator.HIGHLIGHT -> {
+                // An empty prefix overwrites an ON column. Mark generated columns as non-index-mapped even when names collide.
+                Object highlightColumns = command.context().get(HighlightGenerator.HIGHLIGHT_COLUMNS);
+                if (highlightColumns instanceof List<?> highlightColumnList) {
+                    highlightColumnList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case LookupJoinGenerator.LOOKUP_JOIN -> {
+                // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
+                // left-side key columns with lookup index key names. Process these renames so that
+                // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
+                // instead of picking up the old indexMapped status of a same-named existing field.
+                Matcher rm = EMBEDDED_RENAME_PATTERN.matcher(command.commandString());
+                while (rm.find()) {
+                    String oldName = unquote(rm.group(1).trim());
+                    String newName = unquote(rm.group(2).trim());
+                    boolean wasMapped = prevMapped.getOrDefault(oldName, false);
+                    prevMapped.remove(oldName);
+                    prevMapped.put(newName, wasMapped);
+                }
+            }
+            default -> {
+                // For commands that don't create named columns (KEEP, DROP, SORT, LIMIT, WHERE, etc.),
+                // any column not in previous is from the command (e.g. LOOKUP_JOIN, CHANGE_POINT)
+            }
+        }
+
+        return applyIndexMapped(newSchema, createdColumns, prevMapped);
+    }
+
+    private static List<Column> applyIndexMapped(List<Column> schema, Set<String> createdColumns, Map<String, Boolean> prevMapped) {
+        return schema.stream().map(col -> {
+            if (createdColumns.contains(col.name())) {
+                return new Column(col.name(), col.type(), col.originalTypes(), false);
+            }
+            Boolean prev = prevMapped.get(col.name());
+            if (prev != null) {
+                return new Column(col.name(), col.type(), col.originalTypes(), prev);
+            }
+            return new Column(col.name(), col.type(), col.originalTypes(), false);
+        }).toList();
+    }
+
+    private static List<Column> handleRenameIndexMapped(List<Column> newSchema, Map<String, Boolean> prevMapped, String commandString) {
+        Map<String, Boolean> mapped = new HashMap<>(prevMapped);
+        Set<String> renamed = new HashSet<>();
+        String body = commandString.replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
+        for (String pair : body.split(",")) {
+            Matcher m = RENAME_PAIR_PATTERN.matcher(pair);
+            if (m.matches()) {
+                String oldName = unquote(m.group(1).trim());
+                String newName = unquote(m.group(2).trim());
+                boolean wasMapped = mapped.getOrDefault(oldName, false);
+                mapped.remove(oldName);
+                mapped.put(newName, wasMapped);
+                renamed.add(newName);
+            }
+        }
+        // After RENAME, the new name is a ReferenceAttribute, not a FieldAttribute.
+        // ES|QL's Match.isRuntimeSearch() uses fieldAsFieldAttribute() which cannot resolve renamed
+        // fields → options are not allowed on them. Mark renamed targets as non-index-mapped so the
+        // generator won't try to use them in match() with options.
+        return newSchema.stream().map(col -> {
+            boolean isMapped = mapped.getOrDefault(col.name(), false) && renamed.contains(col.name()) == false;
+            return new Column(col.name(), col.type(), col.originalTypes(), isMapped);
+        }).toList();
+    }
+
+    /**
+     * Checks if the error is a full-text function/operator rejecting a field that is not from an index mapping.
+     * Uses the {@link Column#indexMapped()} flag from the current schema.
+     */
+    static boolean isFieldFullTextError(String errorMessage, List<Column> currentSchema) {
+        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
+        if (m.matches() == false) {
+            m = MATCH_OPTIONS_NON_INDEX_MAPPED_PATTERN.matcher(errorMessage);
+            if (m.matches() == false) {
+                return false;
+            }
+        }
+        String fieldName = unquote(m.group(1));
+
+        if (currentSchema != null && currentSchema.isEmpty() == false) {
+            for (Column col : currentSchema) {
+                if (col.name().equals(fieldName)) {
+                    return col.indexMapped() == false;
+                }
+            }
+            // Field not found in schema — likely a pipeline artifact; allow the error
+            return true;
+        }
+        return false;
+    }
+
+    private static final Pattern FULL_TEXT_AFTER_SAMPLE_PATTERN = Pattern.compile(
+        ".*\\[(KQL|QSTR)] function cannot be used after SAMPLE.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after \\(?(?i:WHERE).*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/142705
+     * See https://github.com/elastic/elasticsearch/issues/142710
+     */
+    static boolean isFullTextAfterWhereBugs(String errorMessage) {
+        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorMessage).matches();
+    }
+
+    private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
+        ".*(?:"
+            // Any full-text function/operator after a pipeline-breaking command, LOOKUP JOIN, or a multi-source FROM union.
+            // "FROM" is included because UnionAll/Project often keep the FROM source text, so the first-token
+            // message is "after FROM" even though KQL/QSTR after a plain FROM is legal.
+            + "(?:(?:\\[(?:KQL|QSTR|MATCH|MATCH_PHRASE)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|SORT|FROM|CHANGE_POINT|DEDUP|LIMIT BY|TOP|"
+            + "[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b)"
+            + "|"
+            // QSTR/KQL are only valid directly after FROM/WHERE/SORT: tolerate them being rejected after any other command.
+            + "\\[(?:KQL|QSTR)] function cannot be used after (?!(?:FROM|WHERE|SORT)\\b)\\w+"
+            + ").*",
+        Pattern.DOTALL | Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * Full-text rejected after a command or {@code UnionAll} that lives inside a {@code FROM} subquery.
+     * The generator only inspects the outer command list, so it cannot avoid these. Gated on a parenthesised
+     * inner {@code FROM}. See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
+     */
+    static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return SUBQUERY_IN_FROM_PATTERN.matcher(query).find() && FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN.matcher(errorMessage).matches();
+    }
+
+    private static final Pattern MATCH_LENIENT_FALSE_PATTERN = Pattern.compile(
+        "(?i)\\bmatch\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
+    );
+    private static final Pattern QSTR_LENIENT_FALSE_PATTERN = Pattern.compile(
+        "(?i)\\bqstr\\s*\\([^)]*\\{[^}]*[\"']lenient[\"']\\s*:\\s*false[^}]*}[^)]*\\)"
+    );
+
+    /**
+     * Work around a query-building failure in full-text functions when options include {@code {"lenient": false}}.
+     */
+    static boolean isLenientFalseFailedToCreateFullTextQueryError(String errorMessage, String query) {
+        if (errorMessage.contains("failed to create query: For input string") == false) {
+            return false;
+        }
+        return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern FULL_TEXT_FUNCTION_CALL_PATTERN = Pattern.compile(
+        "(?i)\\b(?:match_phrase|match|multi_match|kql|qstr)\\s*\\("
+    );
+
+    /**
+     * A full-text function whose target field is unmapped on some shards of a multi-index {@code FROM} under
+     * {@code unmapped_fields="load"} pushes a null {@link org.elasticsearch.index.query.QueryBuilder} to those shards,
+     * which then NPE while building the Lucene query.
+     * See https://github.com/elastic/elasticsearch/issues/155827
+     */
+    static boolean isFullTextNullQueryBuilderUnmappedLoadBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (errorMessage.contains("failed to create query:") == false
+            || errorMessage.contains("Rewriteable.rewrite") == false
+            || errorMessage.contains("because \"builder\" is null") == false) {
+            return false;
+        }
+        return FromLoadGenerator.LOAD_PREFIXES.stream().anyMatch(query::contains) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * Matches the FORK pipeline command (a {@code |} followed by the FORK keyword)
+     */
+    private static final Pattern FORK_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*FORK\\b");
+
+    // https://github.com/elastic/elasticsearch/issues/147603
+    static boolean isUnsupportedTypeAfterForkError(String errorMessage, String query) {
+        if (query == null || UNSUPPORTED_TYPE_AFTER_FORK_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN = Pattern.compile(
+        ".*Plan \\[OrderBy\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern COMPUTE_BLOCK_CLASS_CAST_PATTERN = Pattern.compile(
+        ".*class org\\.elasticsearch\\.compute\\.data\\.\\w+Block cannot be cast"
+            + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern RANGE_WITHIN_FUNCTION_PATTERN = Pattern.compile("(?i)\\bRANGE_WITHIN\\s*\\(");
+
+    /**
+     * {@code RANGE_WITHIN} picks the datetime point evaluator when its range argument is {@code NULL}-typed (e.g.
+     * {@code COALESCE} over an unmapped field), which then fails to read a {@code double} point block as a {@code LongBlock}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162183">#162183</a>.
+     */
+    static boolean isRangeWithinNullRangeBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() && RANGE_WITHIN_FUNCTION_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern UNRESOLVED_OBJECT_PATTERN = Pattern.compile(
+        ".*Invalid call to attribute on an unresolved object \\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern KEEP_WILDCARD_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*KEEP\\b[^|]*\\*");
+
+    /**
+     * {@code ResolveUnionTypesInUnionAll.replaceConvertFunctions} asks an unresolved wildcard {@code KEEP} for its output when a
+     * {@code UnionAll} (subquery or multi-dataset {@code FROM}) pushed a conversion down.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162184">#162184</a>.
+     */
+    static boolean isUnionAllUnresolvedKeepWildcardBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
+        "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="
+    );
+
+    /**
+     * FORK with an in-branch SORT on a field that becomes unused after the FORK currently
+     * triggers two distinct bugs depending on the surrounding pipeline:
+     * <ul>
+     *   <li>{@code Plan [OrderBy[...]] optimized incorrectly due to missing references [...]}
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148382">#148382</a></li>
+     *   <li>{@code ClassCastException} between compute {@code Block} subclasses (e.g.
+     *       {@code BytesRefArrayBlock} cast to {@code IntBlock}) downstream of the FORK
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148386">#148386</a></li>
+     * </ul>
+     */
+    static boolean isForkWithSortBranchBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false
+            && COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_WITH_SORT_BRANCH_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN = Pattern.compile(
+        ".*array_index_out_of_bounds_exception.*Index \\d+ out of bounds for length \\d+.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148475
+     */
+    static boolean isForkTopNIndexOutOfBoundsBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/138231
+     */
+    static boolean isForkOptimizedIncorrectlyBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern RENAME_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*RENAME\\b");
+    private static final Pattern MV_EXPAND_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*MV_EXPAND\\b");
+    private static final Pattern FUNCTION_GENERATING_COMMAND_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*(?:REGISTERED_DOMAIN|URI_PARTS|USER_AGENT)\\b"
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148500
+     */
+    static boolean isRenameMvExpandOrderByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && FUNCTION_GENERATING_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN = Pattern.compile(
+        ".*Plan \\[(?:LimitBy|TopNBy)\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");
+    private static final Pattern DROP_RENAME_KEEP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(?:DROP|RENAME|KEEP)\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148612
+     */
+    static boolean isInlineStatsMvExpandOrderByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && DROP_RENAME_KEEP_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern CHANGE_POINT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*CHANGE_POINT\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148617
+     */
+    static boolean isChangePointLimitByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern EVAL_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*EVAL\\b");
+
+    private static final Pattern PROBLEM_LINE = Pattern.compile("line (-?\\d+):(-?\\d+)(?: \\(in view \\[[^\\]]*\\]\\))?: ");
+
+    private static final Pattern NO_MATCHES_FOR_PATTERN = Pattern.compile(
+        "No matches found for pattern \\[([^\\]]*)\\](?:, did you mean to match .*)?"
+    );
+
+    private static final Pattern FILLNULL_COMMAND_PATTERN = Pattern.compile("(?i)^\\s*\\(?\\s*\\|?\\s*fillnull\\b");
+
+    private static final Pattern LATER_UNMAPPED_FIELDS_SETTING = Pattern.compile("(?i)set\\s+`?unmapped_fields`?\\s*=");
+
+    private static final Object ANY_STRING = new Object();
+
+    // FILLNULL pattern that covers _unmapped_fields matches no resolvable field.
+    // https://github.com/elastic/elasticsearch/issues/162182
+    static boolean isFillNullUnmappedFieldsPatternBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null || isLoadAllQuery(query) == false) {
+            return false;
+        }
+        Matcher problems = PROBLEM_LINE.matcher(errorMessage);
+        boolean any = false;
+        while (problems.find()) {
+            Matcher reported = NO_MATCHES_FOR_PATTERN.matcher(errorMessage.substring(problems.end()));
+            if (reported.lookingAt() == false) {
+                return false;
+            }
+            String pattern = reported.group(1);
+            int line = Integer.parseInt(problems.group(1));
+            int column = Integer.parseInt(problems.group(2));
+            if (patternCoversUnmappedFields(pattern) == false || fillNullPatternAt(query, line, column, pattern) == false) {
+                return false;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    private static boolean isLoadAllQuery(String query) {
+        if (query.startsWith(FromLoadGenerator.SET_LOAD_ALL_PREFIX) == false) {
+            return false;
+        }
+        String rest = query.substring(FromLoadGenerator.SET_LOAD_ALL_PREFIX.length());
+        return LATER_UNMAPPED_FIELDS_SETTING.matcher(rest).find() == false;
+    }
+
+    private static boolean fillNullPatternAt(String query, int line, int column, String pattern) {
+        int offset = offsetInQuery(query, line, column);
+        if (offset < 0 || offset + pattern.length() > query.length() || query.startsWith(pattern, offset) == false) {
+            return false;
+        }
+        return isFillNullCommand(query, offset);
+    }
+
+    private static int offsetInQuery(String query, int line, int column) {
+        if (line < 1 || column < 1) {
+            return -1;
+        }
+        int lineNumber = 1;
+        int index = 0;
+        while (index < query.length() && lineNumber < line) {
+            if (query.charAt(index) == '\n') {
+                lineNumber++;
+            }
+            index++;
+        }
+        if (lineNumber != line) {
+            return -1;
+        }
+        return index + column - 1;
+    }
+
+    private static boolean isFillNullCommand(String query, int offset) {
+        int start = 0;
+        boolean inBacktick = false;
+        boolean inQuote = false;
+        for (int i = 0; i < offset && i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if ((c == '|' || c == '(') && inBacktick == false && inQuote == false) {
+                start = i;
+            }
+        }
+        int end = query.length();
+        inBacktick = false;
+        inQuote = false;
+        for (int i = start; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if ((c == '|' || c == ')') && i > start && inBacktick == false && inQuote == false) {
+                end = i;
+                break;
+            }
+        }
+        if (offset >= end) {
+            return false;
+        }
+        return FILLNULL_COMMAND_PATTERN.matcher(query.substring(start, end)).find();
+    }
+
+    private static boolean patternCoversUnmappedFields(String pattern) {
+        return matchesPattern(patternAtoms(pattern), 0, UnmappedFieldsAttribute.ATTRIBUTE_NAME, 0);
+    }
+
+    private static List<Object> patternAtoms(String pattern) {
+        List<Object> atoms = new ArrayList<>();
+        for (String fragment : patternFragments(pattern)) {
+            if (fragment.isEmpty()) {
+                continue;
+            }
+            if (fragment.charAt(0) == '`' && fragment.charAt(fragment.length() - 1) == '`' && fragment.length() >= 2) {
+                appendLiteral(atoms, fragment.substring(1, fragment.length() - 1).replace("``", "`"));
+            } else {
+                int start = 0;
+                for (int i = 0; i < fragment.length(); i++) {
+                    if (fragment.charAt(i) == '*') {
+                        appendLiteral(atoms, fragment.substring(start, i));
+                        atoms.add(ANY_STRING);
+                        start = i + 1;
+                    }
+                }
+                appendLiteral(atoms, fragment.substring(start));
+            }
+        }
+        return atoms;
+    }
+
+    private static void appendLiteral(List<Object> atoms, String literal) {
+        if (literal.isEmpty()) {
+            return;
+        }
+        if (atoms.isEmpty() == false && atoms.get(atoms.size() - 1) instanceof String previous) {
+            atoms.set(atoms.size() - 1, previous + literal);
+        } else {
+            atoms.add(literal);
+        }
+    }
+
+    private static List<String> patternFragments(String pattern) {
+        List<String> fragments = new ArrayList<>();
+        boolean inQuotes = false;
+        int from = 0;
+        for (int offset = 0; offset < pattern.length(); offset++) {
+            if (pattern.charAt(offset) != '`') {
+                continue;
+            }
+            if (inQuotes == false) {
+                if (offset > from) {
+                    fragments.add(pattern.substring(from, offset));
+                }
+                from = offset;
+                inQuotes = true;
+            } else if (offset + 1 < pattern.length() && pattern.charAt(offset + 1) == '`') {
+                offset++;
+            } else {
+                fragments.add(pattern.substring(from, offset + 1));
+                from = offset + 1;
+                inQuotes = false;
+            }
+        }
+        if (from < pattern.length()) {
+            fragments.add(pattern.substring(from));
+        }
+        return fragments;
+    }
+
+    private static boolean matchesPattern(List<Object> atoms, int atomIndex, String name, int nameIndex) {
+        if (atomIndex == atoms.size()) {
+            return nameIndex == name.length();
+        }
+        Object atom = atoms.get(atomIndex);
+        if (atom == ANY_STRING) {
+            for (int next = nameIndex; next <= name.length(); next++) {
+                if (matchesPattern(atoms, atomIndex + 1, name, next)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        String literal = (String) atom;
+        if (name.startsWith(literal, nameIndex) == false) {
+            return false;
+        }
+        return matchesPattern(atoms, atomIndex + 1, name, nameIndex + literal.length());
+    }
+
+    private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
+
+    private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
+    private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
+        ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern LOOKUP_JOIN_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LOOKUP\\s+JOIN\\b");
+    private static final Pattern ABSENT_TO_STRING_PATTERN = Pattern.compile("(?i)absent\\(\\s*to_string\\s*\\(");
+
+    /**
+     * {@code Aggregate[...]} plan drops a synthetic {@code $$<field>$converted_to$<type>} reference needed by
+     * {@code absent(to_string(...))} after subquery + lookup join + mv_expand.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/149509">#149509</a>.
+     */
+    static boolean isAggregateAbsentToStringSubqueryLookupJoinBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN.matcher(errorMessage).matches()
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && LOOKUP_JOIN_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && ABSENT_TO_STRING_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN = Pattern.compile(
+        ".*Plan \\[AggregateExec\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * {@code AggregateExec[...]} (physical plan) drops an {@code INLINE STATS} input reference
+     * when a subquery sits in {@code FROM} and the {@code INLINE STATS} output is unread by a
+     * downstream {@code STATS}. Distinct from {@link #isAggregateAbsentToStringSubqueryLookupJoinBug}
+     * (which is on the logical {@code Aggregate} and gated on {@code absent(to_string(...))} +
+     * {@code LOOKUP JOIN} + {@code MV_EXPAND}); only the "subquery in {@code FROM}" precondition
+     * is shared. See <a href="https://github.com/elastic/elasticsearch/issues/149589">#149589</a>.
+     */
+    static boolean isInlineStatsSubqueryAggregateExecBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN.matcher(errorMessage).matches()
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by WHERE causes the optimizer to incorrectly
+     * prune the original field reference, leaving the Filter plan node with a missing reference.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154146">#154146</a>.
+     */
+    static boolean isEvalWhereFilterBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find() && WHERE_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * RENAME followed by INLINE STATS causes the optimizer to drop renamed field references from the
+     * projection, leaving the Project plan node with missing references for the renamed aliases.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isRenameInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find() && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern STATS_COMMAND_PATTERN = Pattern.compile("(?i)(?<!INLINE\\s)\\|\\s*STATS\\b");
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS + STATS causes the
+     * optimizer to incorrectly prune the original field reference from the Aggregate plan,
+     * leaving it with a missing reference. Related to {@link #isEvalWhereFilterBug} (#154146).
+     */
+    static boolean isEvalInlineStatsAggregateBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing attributes in subplans.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * FORK + STATS (or INLINE STATS) followed by DROP _fork causes the optimizer to lose track
+     * of grouping-key references, producing "optimized incorrectly due to missing attributes in
+     * subplans". Distinct from {@link #isForkOptimizedIncorrectlyBug} which catches the
+     * "missing references" variant.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/136927">#136927</a>,
+     * <a href="https://github.com/elastic/elasticsearch/issues/146165">#146165</a>.
+     */
+    static boolean isForkAttributesInSubplansBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ATTRIBUTES_IN_SUBPLANS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * EVAL reassigning an existing index field followed by INLINE STATS (without a downstream
+     * plain STATS) causes the optimizer to drop the EVAL-reassigned reference from the Project
+     * plan node. Same root cause as {@link #isRenameInlineStatsProjectBug} (#154145): INLINE
+     * STATS with a null-typed aggregate input confuses an optimizer rule into dropping unrelated
+     * derived references; here the derived references come from EVAL reassignments rather than
+     * RENAME.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/154145">#154145</a>.
+     */
+    static boolean isEvalInlineStatsProjectBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return EVAL_COMMAND_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && FORK_COMMAND_PATTERN.matcher(query).find() == false;
+    }
+
+    @Override
+    public boolean isAllowedFailure(
+        QueryExecuted result,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        if (result.exception() == null) {
+            return false;
+        }
+        return isAllowedFailure(new FailureContext(result.exception().getMessage(), result.query(), previousCommands, currentSchema));
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public QueryExecuted execute(String query, int depth) {
+        QueryExecuted result;
+        try {
+            RestEsqlTestCase.RequestObjectBuilder requestBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+            // Occasionally cap shard concurrency per node at 1. Combined with the wide index patterns
+            // EsqlQueryGenerator#indexPattern already produces, this increases coverage of per-shard local
+            // planning (e.g. constant_keyword folding) across many shards. See
+            // https://github.com/elastic/elasticsearch/issues/150055
+            if (rarely()) {
+                requestBuilder.pragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+                requestBuilder.pragmasOk();
+            }
+            Map<String, Object> json = RestEsqlTestCase.runEsql(
+                requestBuilder.build(),
+                new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
+                profileLogger,
+                RestEsqlTestCase.Mode.SYNC
+            );
+            List<Column> outputSchema = outputSchema(json);
+            List<List<Object>> values = (List<List<Object>>) json.get("values");
+            result = new QueryExecuted(query, depth, outputSchema, values, null);
+        } catch (Exception e) {
+            result = new QueryExecuted(query, depth, null, null, e);
+        } catch (AssertionError ae) {
+            // this is for ensureNoWarnings()
+            result = new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
+        }
+        // Strip the artificial query approximation columns that are added after query execution and trail all
+        // other columns. These columns confuse follow-up command generation (that try to reference them) and
+        // result validation (that expect columns added after them).
+        if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
+            result = stripApproximationColumns(result);
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Column> outputSchema(Map<String, Object> a) {
+        List<Map<String, ?>> cols = (List<Map<String, ?>>) a.get("columns");
+        if (cols == null) {
+            return null;
+        }
+        return cols.stream().map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x))).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> originalTypes(Map<String, ?> x) {
+        List<String> originalTypes = (List<String>) x.get(COLUMN_ORIGINAL_TYPES);
+        if (originalTypes == null) {
+            return List.of();
+        }
+        return originalTypes;
+    }
+
+    protected List<String> availableIndices() throws IOException {
+        List<String> indices = new ArrayList<>(
+            availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
+                .filter(x -> x.inferenceEndpoints().isEmpty())
+                .map(x -> x.indexName())
+                .toList()
+        );
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET)) {
+            List<String> externalDatasets = ensureExternalDatasets();
+            if (externalDatasets.isEmpty()) {
+                return indices;
+            }
+            // Repeat each external dataset enough times to give it roughly a 20% per-slot selection
+            // probability alongside the regular ES index pool. Without boosting, a single external
+            // dataset competes with ~80+ indices and would almost never appear in generated FROM commands.
+            // The repetition lets the generator produce mixed patterns like "FROM parquet_employees, employees"
+            // as well as pure-parquet FROM clauses.
+            int repeat = Math.max(1, indices.size() / (4 * externalDatasets.size()));
+            for (int i = 0; i < repeat; i++) {
+                indices.addAll(externalDatasets);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Registers a data source and one dataset per fixture file with the cluster, returning the
+     * resulting dataset names (e.g. {@code ["parquet_employees"]}). {@link DatasetRegistry} caches
+     * registrations by content signature, so repeated calls within a suite are cheap map lookups.
+     * Returns an empty list when {@link #externalDatasetStorageBackend()} returns {@code null}.
+     */
+    protected List<String> ensureExternalDatasets() throws IOException {
+        BackendFixture backend = externalDatasetStorageBackend();
+        if (backend == null) {
+            return List.of();
+        }
+        String dataSourceName = "esql_generative_" + backend.dataSourceType();
+        DatasetRegistry.ensureDataSource(adminClient(), dataSourceName, backend.dataSourceType(), backend.dataSourceSettings());
+        List<String> datasetNames = new ArrayList<>();
+        for (String fixtureName : externalParquetDatasets()) {
+            String datasetName = "parquet_" + fixtureName;
+            DatasetRegistry.ensureDataset(
+                adminClient(),
+                datasetName,
+                dataSourceName,
+                backend.resourceUri("warehouse/standalone/" + fixtureName + ".parquet"),
+                null
+            );
+            datasetNames.add(datasetName);
+        }
+        return datasetNames;
+    }
+
+    /**
+     * Returns the backend fixture to use for external dataset registration, or {@code null} to skip
+     * external datasets entirely. Subclasses override to supply a concrete backend (LOCAL or S3).
+     */
+    protected BackendFixture externalDatasetStorageBackend() {
+        return null;
+    }
+
+    /**
+     * Parquet fixture base names (without path or extension) to register as {@code FROM} sources.
+     * Subclasses override to expose the fixtures available in their cluster's backend.
+     */
+    protected List<String> externalParquetDatasets() {
+        return List.of();
+    }
+
+    protected List<LookupIdx> lookupIndices() {
+        List<LookupIdx> result = new ArrayList<>();
+        // we don't have key info from the dataset loader, let's hardcode it for now
+        result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));
+        result.add(new LookupIdx("message_types_lookup", List.of(new LookupIdxColumn("message", "keyword"))));
+        List<LookupIdxColumn> multiColumnJoinableLookupKeys = List.of(
+            new LookupIdxColumn("id_int", "integer"),
+            new LookupIdxColumn("name_str", "keyword"),
+            new LookupIdxColumn("is_active_bool", "boolean"),
+            new LookupIdxColumn("ip_addr", "ip"),
+            new LookupIdxColumn("other1", "keyword"),
+            new LookupIdxColumn("other2", "integer")
+        );
+        result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
+        return result;
+    }
+
+    private interface AllowedFailureRule {
+        boolean matches(FailureContext ctx);
     }
 }

@@ -7,26 +7,34 @@
 
 package org.elasticsearch.xpack.inference.external.response.streaming;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.apache.commons.lang3.tuple.Pair;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.List;
 
 public class StreamingInferenceTestUtils {
 
     public static Deque<ServerSentEvent> events(String... data) {
         var item = new ArrayDeque<ServerSentEvent>();
-        Arrays.stream(data).map(datum -> new ServerSentEvent(ServerSentEventField.DATA, datum)).forEach(item::offer);
+        Arrays.stream(data).map(ServerSentEvent::new).forEach(item::offer);
+        return item;
+    }
+
+    public static Deque<ServerSentEvent> events(List<Pair<String, String>> data) {
+        var item = new ArrayDeque<ServerSentEvent>();
+        data.forEach(pair -> item.offer(new ServerSentEvent(pair.getKey(), pair.getValue())));
         return item;
     }
 
     @SuppressWarnings("unchecked")
-    public static Matcher<Iterable<? extends StreamingChatCompletionResults.Result>> containsResults(String... results) {
-        Matcher<StreamingChatCompletionResults.Result>[] resultMatcher = Arrays.stream(results)
-            .map(StreamingChatCompletionResults.Result::new)
+    public static Matcher<Iterable<? extends StreamingCompletionResults.Result>> containsResults(String... results) {
+        Matcher<StreamingCompletionResults.Result>[] resultMatcher = Arrays.stream(results)
+            .map(StreamingCompletionResults.Result::new)
             .map(Matchers::equalTo)
             .toArray(Matcher[]::new);
         return Matchers.contains(resultMatcher);

@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +30,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetDataStreamActionTests extends ESTestCase {
@@ -48,6 +53,7 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("data_stream_configuration"));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
         }
         {
             // Since this is not a system data stream, we expect the global retention to override the configured retention
@@ -60,7 +66,28 @@ public class GetDataStreamActionTests extends ESTestCase {
             assertThat(lifecycleResult.get("data_retention"), equalTo(configuredRetention.getStringRep()));
             assertThat(lifecycleResult.get("effective_retention"), equalTo(globalMaxRetention.getStringRep()));
             assertThat(lifecycleResult.get("retention_determined_by"), equalTo("max_global_retention"));
+            assertThat(resultMap.containsKey("minimum_lifecycle_enabled"), equalTo(false));
+            Map<String, Map<String, Object>> settingsMap = (Map<String, Map<String, Object>>) resultMap.get("settings");
+            assertThat(Settings.builder().loadFromMap(settingsMap).build(), equalTo(dataStreamInfo.getDataStream().getSettings()));
+            Map<String, Object> mappingsMap = (Map<String, Object>) resultMap.get("mappings");
+            assertThat(new CompressedXContent(mappingsMap), equalTo(dataStreamInfo.getDataStream().getMappings()));
         }
+    }
+
+    public void testNextGenerationManagedByUsesTemplateIndexMode() {
+        TimeValue retention = TimeValue.timeValueDays(10);
+        // The data stream is not a lookup data stream, but its template now is, so the next generation will be unmanaged.
+        DataStream standardDataStream = newDataStreamInstance(false, retention, IndexMode.STANDARD);
+        assertThat(
+            newDataStreamInfo(standardDataStream, IndexMode.LOOKUP).getNextGenerationManagedBy(),
+            equalTo(GetDataStreamAction.Response.ManagedBy.UNMANAGED)
+        );
+        // The data stream is a lookup data stream, but its template no longer is, so the next generation will be managed by the lifecycle.
+        DataStream lookupDataStream = newDataStreamInstance(false, retention, IndexMode.LOOKUP);
+        assertThat(
+            newDataStreamInfo(lookupDataStream, IndexMode.STANDARD).getNextGenerationManagedBy(),
+            equalTo(GetDataStreamAction.Response.ManagedBy.LIFECYCLE)
+        );
     }
 
     /*
@@ -75,14 +102,17 @@ public class GetDataStreamActionTests extends ESTestCase {
             ToXContent.Params params = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             RolloverConfiguration rolloverConfiguration = null;
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
-            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            dataStreamInfo.toXContent(builder, params, rolloverConfiguration, globalRetention, globalRetention);
             String serialized = Strings.toString(builder);
             return XContentHelper.convertToMap(XContentType.JSON.xContent(), serialized, randomBoolean());
         }
     }
 
     private static GetDataStreamAction.Response.DataStreamInfo newDataStreamInfo(boolean isSystem, TimeValue retention) {
-        DataStream dataStream = newDataStreamInstance(isSystem, retention);
+        return newDataStreamInfo(newDataStreamInstance(isSystem, retention), null);
+    }
+
+    private static GetDataStreamAction.Response.DataStreamInfo newDataStreamInfo(DataStream dataStream, IndexMode templateIndexMode) {
         return new GetDataStreamAction.Response.DataStreamInfo(
             dataStream,
             randomBoolean(),
@@ -92,13 +122,22 @@ public class GetDataStreamActionTests extends ESTestCase {
             null,
             Map.of(),
             randomBoolean(),
-            null
+            null,
+            templateIndexMode,
+            // the data stream has a configured lifecycle, so the minimum lifecycle for time series does not apply
+            randomBoolean()
         );
     }
 
     private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention) {
+        return newDataStreamInstance(isSystem, retention, null);
+    }
+
+    private static DataStream newDataStreamInstance(boolean isSystem, TimeValue retention, IndexMode indexMode) {
         List<Index> indices = List.of(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(new DataStreamLifecycle.Retention(retention), null, null);
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(true).dataRetention(retention).build();
+        Settings settings = randomSettings();
+        CompressedXContent mappings = randomMappings();
         return DataStream.builder(randomAlphaOfLength(50), indices)
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())
@@ -106,6 +145,9 @@ public class GetDataStreamActionTests extends ESTestCase {
             .setHidden(isSystem)
             .setReplicated(randomBoolean())
             .setLifecycle(lifecycle)
+            .setSettings(settings)
+            .setMappings(mappings)
+            .setIndexMode(indexMode)
             .build();
     }
 }

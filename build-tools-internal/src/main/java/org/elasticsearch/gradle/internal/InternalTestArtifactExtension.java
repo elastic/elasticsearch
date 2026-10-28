@@ -20,6 +20,8 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.jvm.tasks.Jar;
 
+import java.util.Map;
+
 public class InternalTestArtifactExtension {
     private final Project project;
     private final ProviderFactory providerFactory;
@@ -34,7 +36,7 @@ public class InternalTestArtifactExtension {
         JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         javaPluginExtension.registerFeature(name + "Artifacts", featureSpec -> {
             featureSpec.usingSourceSet(sourceSet);
-            featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-" + sourceSet.getName() + "-artifacts", "1.0");
+            featureSpec.capability(project.getGroup().toString(), project.getName() + "-" + sourceSet.getName() + "-artifacts", "1.0");
             // This feature is only used internally in the
             // elasticsearch build so we do not need any publication.
             featureSpec.disablePublication();
@@ -46,7 +48,7 @@ public class InternalTestArtifactExtension {
             Configuration apiElementsTestArtifacts = project.getConfigurations()
                 .create(sourceSet.getApiConfigurationName() + "TestArtifacts");
             apiElements.extendsFrom(apiElementsTestArtifacts);
-            Dependency projectDependency = dependencies.create(project);
+            Dependency projectDependency = dependencies.project(Map.of("path", project.getPath()));
             dependencies.add(apiElementsTestArtifacts.getName(), projectDependency);
 
             Configuration runtimeElements = project.getConfigurations().getByName(sourceSet.getRuntimeElementsConfigurationName());

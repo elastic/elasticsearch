@@ -135,6 +135,17 @@ public class SearchAfterIT extends ESIntegTestCase {
                 assertThat(failure.toString(), containsString("Failed to parse search_after value for field [field1]."));
             }
         }
+
+        {
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                prepareSearch("test").setQuery(matchAllQuery()).addSort("field1", SortOrder.ASC).searchAfter(new Object[] { null })
+            );
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.toString(), containsString("cannot be null for sort field [field1]"));
+            }
+        }
     }
 
     public void testWithNullStrings() throws InterruptedException {
@@ -386,11 +397,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
             if (from instanceof Integer integer) {
-                converted.add(integer.longValue());
+                converted.add(integer.intValue());
             } else if (from instanceof Short s) {
-                converted.add(s.longValue());
+                converted.add(s.intValue());
             } else if (from instanceof Byte b) {
-                converted.add(b.longValue());
+                converted.add(b.intValue());
             } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);

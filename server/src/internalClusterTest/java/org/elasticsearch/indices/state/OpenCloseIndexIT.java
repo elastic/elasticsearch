@@ -23,13 +23,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -47,6 +53,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class OpenCloseIndexIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(InternalSettingsPlugin.class);
+    }
+
     public void testSimpleCloseOpen() {
         Client client = client();
         createIndex("test1");
@@ -192,7 +204,11 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        AcknowledgedResponse aliasesResponse = client.admin().indices().prepareAliases().addAlias("test1", "test1-alias").get();
+        AcknowledgedResponse aliasesResponse = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test1", "test1-alias")
+            .get();
         assertThat(aliasesResponse.isAcknowledged(), equalTo(true));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1-alias").get();
@@ -211,9 +227,17 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        AcknowledgedResponse aliasesResponse1 = client.admin().indices().prepareAliases().addAlias("test1", "test-alias").get();
+        AcknowledgedResponse aliasesResponse1 = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test1", "test-alias")
+            .get();
         assertThat(aliasesResponse1.isAcknowledged(), equalTo(true));
-        AcknowledgedResponse aliasesResponse2 = client.admin().indices().prepareAliases().addAlias("test2", "test-alias").get();
+        AcknowledgedResponse aliasesResponse2 = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test2", "test-alias")
+            .get();
         assertThat(aliasesResponse2.isAcknowledged(), equalTo(true));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-alias").get();
@@ -241,7 +265,15 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(
             () -> assertThat(
-                client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getState(),
+                client.admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject()
+                    .index("test")
+                    .getState(),
                 equalTo(IndexMetadata.State.OPEN)
             )
         );
@@ -336,7 +368,15 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
 
     public void testTranslogStats() throws Exception {
         final String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                // sync global checkpoint and translog quickly so that the test assertion picks it up within a 10-sec time frame
+                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "500ms")
+                .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "500ms")
+                .build()
+        );
 
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
@@ -353,21 +393,19 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
 
         final int uncommittedTranslogOps = uncommittedOps;
+
         assertBusy(() -> {
-            IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
+            final IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().setTranslog(true).get();
             assertThat(stats.getIndex(indexName), notNullValue());
-            assertThat(
-                stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
-                equalTo(uncommittedTranslogOps)
-            );
-            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedTranslogOps));
+            final var translogStats = stats.getIndex(indexName).getPrimaries().getTranslog();
+            assertThat(translogStats.estimatedNumberOfOperations(), equalTo(uncommittedTranslogOps));
+            assertThat(translogStats.getUncommittedOperations(), equalTo(uncommittedTranslogOps));
         });
 
         assertAcked(indicesAdmin().prepareClose("test"));
 
-        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName)
-            .setIndicesOptions(indicesOptions)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN)
             .clear()
             .setTranslog(true)
             .get();

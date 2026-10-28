@@ -24,12 +24,7 @@ public enum ExternalAccess {
         return externalAccesses.stream().map(Enum::toString).collect(Collectors.joining(DELIMITER));
     }
 
-    public static EnumSet<ExternalAccess> fromPermissions(
-        boolean packageExported,
-        boolean publicClass,
-        boolean publicMethod,
-        boolean protectedMethod
-    ) {
+    public static EnumSet<ExternalAccess> fromPermissions(boolean publicAccessible, boolean publicMethod, boolean protectedMethod) {
         if (publicMethod && protectedMethod) {
             throw new IllegalArgumentException();
         }
@@ -41,7 +36,7 @@ public enum ExternalAccess {
             externalAccesses.add(ExternalAccess.PROTECTED_METHOD);
         }
 
-        if (packageExported && publicClass) {
+        if (publicAccessible) {
             externalAccesses.add(ExternalAccess.PUBLIC_CLASS);
         }
         return externalAccesses;
@@ -55,6 +50,11 @@ public enum ExternalAccess {
     public static EnumSet<ExternalAccess> fromString(String accessAsString) {
         if ("PUBLIC".equals(accessAsString)) {
             return EnumSet.of(ExternalAccess.PUBLIC_CLASS, ExternalAccess.PUBLIC_METHOD);
+        }
+        // used by JDK public API extractor (only), describing protected method access
+        // in this case public class access can be implied
+        if ("PROTECTED".equals(accessAsString)) {
+            return EnumSet.of(ExternalAccess.PUBLIC_CLASS, ExternalAccess.PROTECTED_METHOD);
         }
         if ("PUBLIC-METHOD".equals(accessAsString)) {
             return EnumSet.of(ExternalAccess.PUBLIC_METHOD);

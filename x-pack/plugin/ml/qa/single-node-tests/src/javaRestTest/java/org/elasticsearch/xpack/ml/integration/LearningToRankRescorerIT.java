@@ -20,8 +20,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LearningToRankRescorerIT extends InferenceTestCase {
 
@@ -83,7 +87,73 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
               }
             }""");
         var response = client().performRequest(request);
-        assertExplainExtractedFeatures(response, List.of("type_tv", "cost", "two"));
+        assertExplainExtractedFeatures(response, List.of("cost", "type_tv", "two"));
+    }
+
+    /**
+     * The feature queries of the model are profiled next to the main query, tagged with the rescorer, and the breakdown of the rescore
+     * node reports how the rescorer's time splits between building the feature extractors, feature extraction and inference.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLearningToRankRescoreProfile() throws Exception {
+        Request request = new Request("GET", "store/_search?size=3&error_trace");
+        request.setJsonEntity("""
+            {
+              "profile": true,
+              "query": { "term": { "product": "Laptop" } },
+              "rescore": {
+                "window_size": 10,
+                "learning_to_rank": {
+                  "model_id": "ltr-model",
+                  "params": {
+                    "keyword": "Laptop"
+                  }
+                }
+              }
+            }""");
+        Map<String, Object> response = responseAsMap(client().performRequest(request));
+        List<Map<String, Object>> shards = (List<Map<String, Object>>) XContentMapValues.extractValue("profile.shards", response);
+        assertThat(shards.size(), equalTo(1));
+        Map<String, Object> shard = shards.get(0);
+
+        List<Map<String, Object>> searches = (List<Map<String, Object>>) shard.get("searches");
+        List<Map<String, Object>> queries = (List<Map<String, Object>>) searches.get(0).get("query");
+        assertThat(queries.get(0).get("description"), equalTo("product:Laptop"));
+        assertThat(queries.get(0).get("debug"), nullValue());
+        for (Map<String, Object> featureQuery : queries.subList(1, queries.size())) {
+            assertThat(featureQuery.get("debug"), equalTo(Map.of("rescorer", 0)));
+        }
+        assertThat(
+            queries.stream().skip(1).map(query -> (String) query.get("type")).toList(),
+            containsInAnyOrder(
+                "ScriptScoreQuery",
+                "ConstantScoreQuery",
+                "ConstantScoreQuery",
+                "ConstantScoreQuery",
+                "ScriptScoreQuery",
+                "TermQuery"
+            )
+        );
+
+        List<Map<String, Object>> rescorers = (List<Map<String, Object>>) shard.get("rescore");
+        assertThat(rescorers.size(), equalTo(1));
+        Map<String, Object> rescorer = rescorers.get(0);
+        assertThat(rescorer.get("type"), equalTo("learning_to_rank"));
+        assertThat(rescorer.get("description"), equalTo("LTR model [ltr-model]"));
+        assertThat(rescorer.get("children"), nullValue());
+        assertThat(rescorer.get("debug"), equalTo(Map.of("window_size", 10)));
+        Map<String, Object> breakdown = (Map<String, Object>) rescorer.get("breakdown");
+        assertThat(breakdown.get("build_feature_extractors_count"), equalTo(1));
+        // the three matching documents are rescored
+        assertThat(breakdown.get("feature_extraction_count"), equalTo(3));
+        assertThat(breakdown.get("inference_count"), equalTo(3));
+        long steps = 0;
+        for (String step : List.of("build_feature_extractors", "feature_extraction", "inference")) {
+            long stepTime = ((Number) breakdown.get(step)).longValue();
+            assertThat(stepTime, greaterThan(0L));
+            steps += stepTime;
+        }
+        assertThat(steps, lessThanOrEqualTo(((Number) rescorer.get("time_in_nanos")).longValue()));
     }
 
     public void testLearningToRankRescoreSmallWindow() throws Exception {
@@ -192,27 +262,25 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
             assertThat(queryDetails.get(1).get("description"), equalTo("extracted features"));
 
             var featureDetails = new ArrayList<>((ArrayList<Map<String, Object>>) queryDetails.get(1).get("details"));
-            assertThat(featureDetails.size(), equalTo(3));
+            assertThat(featureDetails.size(), equalTo(expectedFeatures.size()));
 
-            var missingKeys = new ArrayList<String>();
-            for (String expectedFeature : expectedFeatures) {
-                var expectedDescription = Strings.format("feature value for [%s]", expectedFeature);
-
-                var wasFound = false;
-                for (Map<String, Object> detailItem : featureDetails) {
-                    if (detailItem.get("description").equals(expectedDescription)) {
-                        featureDetails.remove(detailItem);
-                        wasFound = true;
-                        break;
-                    }
-                }
-
-                if (wasFound == false) {
-                    missingKeys.add(expectedFeature);
+            // Extract feature names in the order they appear in the explanation
+            List<String> actualFeatureOrder = new ArrayList<>();
+            for (Map<String, Object> detailItem : featureDetails) {
+                String description = (String) detailItem.get("description");
+                // Extract feature name from "feature value for [featureName]"
+                if (description != null && description.startsWith("feature value for [") && description.endsWith("]")) {
+                    String featureName = description.substring("feature value for [".length(), description.length() - 1);
+                    actualFeatureOrder.add(featureName);
                 }
             }
 
-            assertThat(Strings.format("Could not find features: [%s]", String.join(", ", missingKeys)), featureDetails.size(), equalTo(0));
+            // Verify that features appear in the expected order
+            assertThat(
+                "Features should appear in the expected order. Expected: " + expectedFeatures + ", Actual: " + actualFeatureOrder,
+                actualFeatureOrder,
+                equalTo(expectedFeatures)
+            );
         }
     }
 

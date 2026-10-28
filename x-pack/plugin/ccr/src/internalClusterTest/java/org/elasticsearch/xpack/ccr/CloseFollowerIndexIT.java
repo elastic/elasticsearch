@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -24,8 +25,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.junit.After;
 import org.junit.Before;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -41,32 +40,26 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
     public void wrapUncaughtExceptionHandler() {
         CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(true);
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
-                    && t.getName().equals("elasticsearch-error-rethrower")) {
-                    for (StackTraceElement element : e.getStackTrace()) {
-                        if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
-                            if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
-                                logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
-                                return;
-                            }
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
+                && t.getName().equals("elasticsearch-error-rethrower")) {
+                for (StackTraceElement element : e.getStackTrace()) {
+                    if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
+                        if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
+                            logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
+                            return;
                         }
                     }
                 }
-                uncaughtExceptionHandler.uncaughtException(t, e);
-            });
-            return null;
+            }
+            uncaughtExceptionHandler.uncaughtException(t, e);
         });
     }
 
     @After
     public void restoreUncaughtExceptionHandler() {
         CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(false);
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
-            return null;
-        });
+        Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
     }
 
     public void testCloseAndReopenFollowerIndex() throws Exception {
@@ -107,8 +100,11 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertThat(response.isAcknowledged(), is(true));
 
         ClusterState clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.CLOSE));
-        assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
+        assertThat(clusterState.metadata().getProject().index("index2").getState(), is(IndexMetadata.State.CLOSE));
+        assertThat(
+            clusterState.getBlocks().hasIndexBlock(Metadata.DEFAULT_PROJECT_ID, "index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK),
+            is(true)
+        );
 
         isRunning.set(false);
         for (Thread thread : threads) {
@@ -118,8 +114,12 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().open(new OpenIndexRequest("index2").masterNodeTimeout(TimeValue.MAX_VALUE)).get());
 
         clusterState = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.getBlocks().hasIndexBlockWithId("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID), is(false));
+        assertThat(clusterState.metadata().getProject().index("index2").getState(), is(IndexMetadata.State.OPEN));
+        assertThat(
+            clusterState.getBlocks()
+                .hasIndexBlockWithId(Metadata.DEFAULT_PROJECT_ID, "index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID),
+            is(false)
+        );
         ensureFollowerGreen("index2");
 
         refresh(leaderClient(), "index1");

@@ -35,7 +35,6 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     }
 
     public RestoreSnapshotResponse(StreamInput in) throws IOException {
-        super(in);
         restoreInfo = in.readOptionalWriteable(RestoreInfo::new);
     }
 

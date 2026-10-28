@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -599,7 +599,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             response -> {
                 assertThat(response.getFailedShards(), equalTo(0));
 
-                Filter filter = response.getAggregations().get("filter");
+                SingleBucketAggregation filter = response.getAggregations().get("filter");
 
                 StringTerms terms = filter.getAggregations().get("terms");
                 assertThat(terms, notNullValue());
@@ -672,7 +672,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "less" : "more"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
-                Filter filter = tag.getAggregations().get("filter");
+                SingleBucketAggregation filter = tag.getAggregations().get("filter");
                 assertThat(filter, notNullValue());
                 assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
@@ -716,10 +716,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get("filter2");
+                SingleBucketAggregation filter2 = filter1.getAggregations().get("filter2");
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get("stats");
@@ -778,10 +778,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get(filter2Name);
+                SingleBucketAggregation filter2 = filter1.getAggregations().get(filter2Name);
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get(statsName);
@@ -840,10 +840,10 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "more" : "less"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get(filter2Name);
+                SingleBucketAggregation filter2 = filter1.getAggregations().get(filter2Name);
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Stats stats = filter2.getAggregations().get(statsName);

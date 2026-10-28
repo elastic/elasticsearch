@@ -340,8 +340,8 @@ identifier
     ;
 
 tableIdentifier
-    : (catalog=identifier ':')? TABLE_IDENTIFIER
-    | (catalog=identifier ':')? name=identifier
+    : (catalog=identifier ':')? TABLE_IDENTIFIER ('::' selector=identifier)?
+    | (catalog=identifier ':')? name=identifier ('::' selector=identifier)?
     ;
 
 quoteIdentifier
@@ -505,6 +505,9 @@ ESC_START: '{' (WS)*;
 ESC_END: '}';
 
 // Operators
+LP: '(';
+RP: ')';
+
 EQ  : '=';
 NULLEQ: '<=>';
 NEQ : '<>' | '!=';

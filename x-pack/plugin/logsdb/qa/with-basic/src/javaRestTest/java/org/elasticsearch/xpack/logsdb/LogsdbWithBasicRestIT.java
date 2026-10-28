@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -22,6 +21,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
@@ -178,10 +178,60 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(request));
 
-        String index = DataStream.getDefaultBackingIndexName("logs-test-foo", 1);
+        String index = getDataStreamBackingIndexNames("logs-test-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testColumnarIndexGetsColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(index, Settings.builder().put("index.mode", "columnar").build());
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mude must be supported by this cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder().put("index.mode", "columnar").put("index.mapping.source.mode", SourceFieldMapper.Mode.SYNTHETIC).build()
+        );
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbColumnarIndexGetsColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(index, Settings.builder().put("index.mode", "logsdb_columnar").build());
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb_columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
+        final String index = "test-index";
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.mode", "logsdb_columnar")
+                .put("index.mapping.source.mode", SourceFieldMapper.Mode.SYNTHETIC)
+                .build()
+        );
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb_columnar", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    private static boolean isColumnarIndexModeSupported() throws IOException {
+        Optional<Boolean> supported = clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes"));
+        return supported.orElse(false);
     }
 
     public void testLogsdbRouteOnSortFields() throws IOException {
@@ -231,11 +281,11 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(request));
 
-        String index = DataStream.getDefaultBackingIndexName("my-log-foo", 1);
+        String index = getDataStreamBackingIndexNames("my-log-foo").getFirst();
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
-        assertEquals("true", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
-        assertEquals(List.of("host.name", "message"), settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
+        assertEquals("false", settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey()));
+        assertNull(settings.get(IndexMetadata.INDEX_ROUTING_PATH.getKey()));
     }
 }

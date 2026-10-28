@@ -16,7 +16,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -64,7 +63,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
+     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
      */
     public int getSlop() {
         return slop;
@@ -140,7 +139,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return rewritten;
         }
         if (termArrays.isEmpty()) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         MultiPhraseQuery.Builder query = new MultiPhraseQuery.Builder();
         query.setSlop(slop);

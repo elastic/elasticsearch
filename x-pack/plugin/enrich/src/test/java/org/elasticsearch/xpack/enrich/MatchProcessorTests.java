@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -113,7 +113,7 @@ public class MatchProcessorTests extends ESTestCase {
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
-        int numProperties = ingestDocument.getSourceAndMetadata().size();
+        int numProperties = ingestDocument.getSource().size();
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
@@ -134,7 +134,7 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(numProperties));
+        assertThat(ingestDocument.getSource().size(), equalTo(numProperties));
     }
 
     public void testSearchFailure() throws Exception {
@@ -205,11 +205,11 @@ public class MatchProcessorTests extends ESTestCase {
             );
             IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
             IngestDocument[] holder = new IngestDocument[1];
             processor.execute(ingestDocument, (result, e) -> holder[0] = result);
             assertThat(holder[0], notNullValue());
-            assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
+            assertThat(ingestDocument.getSource().size(), equalTo(0));
         }
         {
             MatchProcessor processor = new MatchProcessor(
@@ -405,10 +405,10 @@ public class MatchProcessorTests extends ESTestCase {
         public void accept(
             Object value,
             int maxMatches,
-            Supplier<SearchRequest> searchRequestSupplier,
+            Function<String, SearchRequest> searchRequestBuilder,
             BiConsumer<List<Map<?, ?>>, Exception> handler
         ) {
-            capturedRequest.set(searchRequestSupplier.get());
+            capturedRequest.set(searchRequestBuilder.apply(".enrich-_name"));
             if (exception != null) {
                 handler.accept(null, exception);
             } else {

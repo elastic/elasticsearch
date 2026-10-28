@@ -16,11 +16,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +31,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     public static final ActionType<CreateSnapshotResponse> TYPE = new ActionType<>("cluster:admin/snapshot/create");
     private final SnapshotsService snapshotsService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportCreateSnapshotAction(
@@ -40,7 +40,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -53,12 +53,13 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
         // We only check metadata block, as we want to snapshot closed indices (which have a read block)
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
@@ -68,10 +69,6 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener
     ) {
-        if (request.waitForCompletion()) {
-            snapshotsService.executeSnapshot(request, listener.map(CreateSnapshotResponse::new));
-        } else {
-            snapshotsService.createSnapshot(request, listener.map(snapshot -> new CreateSnapshotResponse((SnapshotInfo) null)));
-        }
+        snapshotsService.createSnapshot(projectResolver.getProjectId(), request, listener.map(CreateSnapshotResponse::new));
     }
 }

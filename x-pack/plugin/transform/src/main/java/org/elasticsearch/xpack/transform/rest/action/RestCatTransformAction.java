@@ -141,6 +141,10 @@ public class RestCatTransformAction extends AbstractCatAction {
                     .build()
             )
             .addCell("source_index", TableColumnAttributeBuilder.builder("source index", false).setAliases("si", "sourceIndex").build())
+            .addCell(
+                "project_routing",
+                TableColumnAttributeBuilder.builder("source project routing filter", false).setAliases("pr", "projectRouting").build()
+            )
             .addCell("dest_index", TableColumnAttributeBuilder.builder("destination index", false).setAliases("di", "destIndex").build())
             .addCell("pipeline", TableColumnAttributeBuilder.builder("transform pipeline", false).setAliases("p").build())
             .addCell("description", TableColumnAttributeBuilder.builder("description", false).setAliases("d").build())
@@ -258,6 +262,7 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(config.getCreateTime() == null ? null : Date.from(config.getCreateTime()))
                 .addCell(config.getVersion())
                 .addCell(String.join(",", config.getSource().getIndex()))
+                .addCell(config.getSource().getProjectRouting())
                 .addCell(config.getDestination().getIndex())
                 .addCell(config.getDestination().getPipeline())
                 .addCell(config.getDescription())

@@ -192,7 +192,7 @@ public class AnalysisModuleTests extends ESTestCase {
         // cacheing bug meant that it was still possible to create indexes using a standard
         // filter until 7.6
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_6_0, IndexVersion.current());
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_6_0, IndexVersion.current());
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
@@ -203,7 +203,7 @@ public class AnalysisModuleTests extends ESTestCase {
             assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
         }
         {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
             final Settings settings = Settings.builder()
                 .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")

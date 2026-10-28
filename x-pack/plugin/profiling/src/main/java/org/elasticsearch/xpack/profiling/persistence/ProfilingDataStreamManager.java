@@ -55,9 +55,10 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        IndexStateResolver indexStateResolver
+        IndexStateResolver indexStateResolver,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
-        super(threadPool, client, clusterService, indexStateResolver);
+        super(threadPool, client, clusterService, indexStateResolver, templateRegistry);
     }
 
     @Override
@@ -220,7 +221,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
 
         @Override
         public IndexMetadata indexMetadata(ClusterState state) {
-            Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+            Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
             if (dataStreams == null) {
                 return null;
             }
@@ -232,7 +233,7 @@ public class ProfilingDataStreamManager extends AbstractProfilingPersistenceMana
             if (writeIndex == null) {
                 return null;
             }
-            return state.metadata().index(writeIndex);
+            return state.metadata().getProject().index(writeIndex);
         }
 
         @Override

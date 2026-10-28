@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+// trigger repeat pipeline test
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
@@ -34,13 +35,7 @@ public class InitialClusterStateIT extends ESIntegTestCase {
 
     private static void assertClusterUuid(boolean expectCommitted, String expectedValue) {
         for (String nodeName : internalCluster().getNodeNames()) {
-            final Metadata metadata = client(nodeName).admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState()
-                .metadata();
+            final Metadata metadata = client(nodeName).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
             assertEquals(expectCommitted, metadata.clusterUUIDCommitted());
             assertEquals(expectedValue, metadata.clusterUUID());
 

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -15,9 +15,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
 
@@ -47,7 +48,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
             GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -55,7 +56,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleAiStudioEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -65,13 +66,16 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public GoogleAiStudioEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleAiStudioEmbeddingsServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.uri = buildUri(serviceSettings.modelId());
+            this.uri = buildUri(modelConfigurations.getServiceSettings().modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -137,13 +141,14 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
     }
 
     public static URI buildUri(String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-            .setPathSegments(
-                GoogleAiStudioUtils.V1,
-                GoogleAiStudioUtils.MODELS,
-                format("%s:%s", model, GoogleAiStudioUtils.BATCH_EMBED_CONTENTS_ACTION)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                .setPathSegments(
+                    GoogleAiStudioUtils.V1,
+                    GoogleAiStudioUtils.MODELS,
+                    format("%s:%s", model, GoogleAiStudioUtils.BATCH_EMBED_CONTENTS_ACTION)
+                )
+        );
     }
 }

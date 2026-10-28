@@ -1,0 +1,185 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.openai;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
+import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
+
+import java.util.Map;
+import java.util.concurrent.Flow;
+import java.util.function.Function;
+
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
+
+public class OpenAiResponseHandler extends BaseResponseHandler {
+    /**
+     * Rate limit headers taken from https://platform.openai.com/docs/guides/rate-limits/rate-limits-in-headers
+     */
+    // The maximum number of requests that are permitted before exhausting the rate limit.
+    static final String REQUESTS_LIMIT = "x-ratelimit-limit-requests";
+    // The maximum number of tokens that are permitted before exhausting the rate limit.
+    static final String TOKENS_LIMIT = "x-ratelimit-limit-tokens";
+    // The remaining number of requests that are permitted before exhausting the rate limit.
+    static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
+    // The remaining number of tokens that are permitted before exhausting the rate limit.
+    static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
+
+    protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    static final String TOKEN_OVERFLOW_ERROR_TYPE = "content_too_large";
+
+    public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
+        this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
+    }
+
+    protected OpenAiResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
+        super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);
+    }
+
+    /**
+     * Handles failure status codes by returning a RetryException.
+     * Only called when the HTTP response status code is not in the range [200, 300).
+     *
+     * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
+     * @param outboundRequest The originating request
+     * @param result  The http response and body
+     * @return a RetryException describing the failure
+     */
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
+        // handle error codes
+        int statusCode = result.response().getCode();
+        if (statusCode == 500) {
+            return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
+        } else if (statusCode == 503) {
+            return new RetryException(true, buildError(OPENAI_SERVER_BUSY, outboundRequest, result));
+        } else if (statusCode > 500) {
+            return new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
+        } else if (statusCode == 429) {
+            return buildExceptionHandling429(outboundRequest, result);
+        } else if (isContentTooLarge(result)) {
+            return buildExceptionHandlingContentTooLarge(outboundRequest, result);
+        } else if (statusCode == 401) {
+            outboundRequest.onAuthenticationFailure();
+            return new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
+        } else if (statusCode >= 300 && statusCode < 400) {
+            return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+        } else if (statusCode == 422) {
+            // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
+            // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
+        } else if (statusCode == 400) {
+            return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
+        } else if (statusCode == 404) {
+            return new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
+        } else {
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+        }
+    }
+
+    protected RetryException buildExceptionHandlingContentTooLarge(OutboundRequest outboundRequest, HttpResult result) {
+        return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
+    }
+
+    protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
+    }
+
+    /**
+     * Determines if the given HTTP result indicates that the content is too large.
+     *
+     * @param result the HTTP result to check
+     * @return true if the content is too large, false otherwise
+     */
+    public boolean isContentTooLarge(HttpResult result) {
+        int statusCode = result.response().getCode();
+
+        if (statusCode == 413) {
+            return true;
+        }
+
+        if (statusCode == 400) {
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
+
+            return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
+        }
+
+        return false;
+    }
+
+    /**
+     * Returns true when the 429 response indicates that the request exceeded the model's context
+     * window (a token-overflow condition), rather than a transient rate-limit that can be retried.
+     * OpenAI and Azure OpenAI signal this with {@code "error.type": "content_too_large"} in the
+     * response body.
+     */
+    protected static boolean isTokenLimitExceeded(HttpResult result) {
+        try (
+            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY, result.body())
+        ) {
+            var responseMap = jsonParser.map();
+            @SuppressWarnings("unchecked")
+            var error = (Map<String, Object>) responseMap.get("error");
+            if (error != null) {
+                return TOKEN_OVERFLOW_ERROR_TYPE.equals(error.get("type"));
+            }
+        } catch (Exception e) {
+            // swallow — fall through to retry
+        }
+        return false;
+    }
+
+    static String buildRateLimitErrorMessage(HttpResult result) {
+        var response = result.response();
+        var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
+        var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
+        var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
+        var remainingRequests = getFirstHeaderOrUnknown(response, REMAINING_REQUESTS);
+
+        var usageMessage = Strings.format(
+            "Token limit [%s], remaining tokens [%s]. Request limit [%s], remaining requests [%s]",
+            tokenLimit,
+            remainingTokens,
+            requestLimit,
+            remainingRequests
+        );
+
+        return RATE_LIMIT + ". " + usageMessage;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var openAiProcessor = new OpenAiStreamingProcessor();
+
+        flow.subscribe(serverSentEventProcessor);
+        serverSentEventProcessor.subscribe(openAiProcessor);
+        return new StreamingCompletionResults(openAiProcessor);
+    }
+}

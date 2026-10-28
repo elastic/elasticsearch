@@ -9,34 +9,46 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Reindex tests for picking ids.
  */
-public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTestCase<ReindexRequest, BulkByPaginatedSearchResponse> {
     public void testEmptyStateCopiesId() throws Exception {
-        assertThat(action(ClusterState.EMPTY_STATE).buildRequest(doc()).getId(), equalTo(doc().getId()));
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        assertThat(action(projectState).buildRequest(doc()).getId(), equalTo(doc().getId()));
     }
 
     public void testStandardIndexCopiesId() throws Exception {
@@ -55,27 +67,102 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         assertThat(action(stateWithTemplate(tsdbSettings())).buildRequest(doc()).getId(), nullValue());
     }
 
-    private ClusterState stateWithTemplate(Settings.Builder settings) {
-        Metadata.Builder metadata = Metadata.builder();
+    public void testConversionErrorContainsDocId() {
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            new BytesArray("not valid json"),
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
+        );
+        expectThrows(
+            XContentParseException.class,
+            containsString("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
+    }
+
+    /**
+     * Simulates an I/O failure when opening the hit source stream so the {@link IOException} branch is exercised (not XContent parsing).
+     */
+    public void testConversionIoErrorContainsDocId() throws IOException {
+        final BytesReference source = mock(BytesReference.class);
+        when(source.hasArray()).thenReturn(false);
+        doThrow(new IOException(randomAlphaOfLength(8))).when(source).streamInput();
+        final PaginatedHitSource.BasicHit hit = new PaginatedHitSource.BasicHit("source_index", "doc_123", -1).setSource(
+            source,
+            XContentType.JSON
+        );
+        final ReindexRequest req = request();
+        req.getDestination().source(new BytesArray("{}"), XContentType.CBOR);
+        final ProjectState projectState = ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID);
+        final Reindexer.AsyncIndexBySearchAction action = new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            projectState,
+            null,
+            req,
+            listener(),
+            null,
+            randomTimeValue(),
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
+        );
+        expectThrows(
+            UncheckedIOException.class,
+            equalTo("failed to convert hit [source_index][doc_123] from JSON to CBOR"),
+            () -> action.buildRequest(hit)
+        );
+    }
+
+    private ProjectState stateWithTemplate(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         Template template = new Template(settings.build(), null, null);
         if (randomBoolean()) {
-            metadata.put("c", new ComponentTemplate(template, null, null));
-            metadata.put(
+            projectBuilder.put("c", new ComponentTemplate(template, null, null));
+            projectBuilder.put(
                 "c",
                 ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
             );
         } else {
-            metadata.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
+            projectBuilder.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
         }
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(projectBuilder).build().projectState(projectId);
     }
 
-    private ClusterState stateWithIndex(Settings.Builder settings) {
+    private ProjectState stateWithIndex(Settings.Builder settings) {
+        final var projectId = randomProjectIdOrDefault();
         IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
             .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1);
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();
+        return ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(meta))
+            .build()
+            .projectState(projectId);
     }
 
     private Settings.Builder standardSettings() {
@@ -91,8 +178,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
     }
 
-    private ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
+    private PaginatedHitSource.BasicHit doc() {
+        return new PaginatedHitSource.BasicHit("index", "id", -1).setSource(new BytesArray("{}"), XContentType.JSON);
     }
 
     @Override
@@ -100,7 +187,23 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
         return new ReindexRequest().setDestIndex("dest_index");
     }
 
-    private Reindexer.AsyncIndexBySearchAction action(ClusterState state) {
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener());
+    private Reindexer.AsyncIndexBySearchAction action(ProjectState state) {
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            state,
+            null,
+            request(),
+            listener(),
+            randomBoolean() ? null : Version.CURRENT,
+            randomPositiveTimeValue(),
+            null,
+            new ReindexSettings(),
+            NoopCircuitBreaker.INSTANCE
+        );
     }
 }

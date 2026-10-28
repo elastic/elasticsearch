@@ -86,7 +86,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
         });
         assertThat(runnableTasks.size(), equalTo(1));
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
         assertNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
@@ -103,7 +103,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
         publishTask.run();
 
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(1));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(1));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 1));
         assertNotNull(publishingCallback.get());
         assertFalse(firstTaskCompleted.get());
@@ -142,7 +142,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         runnableTasks.remove(0).run();
 
         runnableTasks.remove(0).run(); // publish again
-        assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
+        assertThat(lastClusterStateRef.get().metadata().getProject().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));
         assertNotNull(publishingCallback.get());
         assertFalse(secondTaskCompleted.get());

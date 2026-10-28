@@ -36,7 +36,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         if (empty) {
             return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
         }
-        final TDigestState state = TDigestState.createWithoutCircuitBreaking(100);
+        final HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, 100);
         Arrays.stream(values).forEach(state::add);
 
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);
@@ -50,7 +50,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         double max = Double.NEGATIVE_INFINITY;
         long totalCount = 0;
         for (InternalTDigestPercentileRanks ranks : inputs) {
-            if (ranks.state.centroidCount() == 0) {
+            if (ranks.state.centroids().isEmpty()) {
                 // quantiles would return NaN
                 continue;
             }
@@ -87,7 +87,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
-        TDigestState state = instance.state;
+        HistogramUnionState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
@@ -99,7 +99,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = TDigestState.createUsingParamsFrom(state);
+                HistogramUnionState newState = HistogramUnionState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

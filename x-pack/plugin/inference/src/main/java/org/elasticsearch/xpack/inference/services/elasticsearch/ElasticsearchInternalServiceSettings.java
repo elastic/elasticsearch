@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -43,7 +43,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
-    private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
+    private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
     private final String deploymentId;
 
     public static ElasticsearchInternalServiceSettings fromPersistedMap(Map<String, Object> map) {
@@ -60,26 +60,16 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
      * @param map The request map.
      * @return A builder to allow the settings to be modified.
      */
-    public static ElasticsearchInternalServiceSettings.Builder fromRequestMap(Map<String, Object> map) {
+    public static Builder fromRequestMap(Map<String, Object> map) {
         var validationException = new ValidationException();
         var builder = fromMap(map, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return builder;
     }
 
-    protected static ElasticsearchInternalServiceSettings.Builder fromMap(
-        Map<String, Object> map,
-        ValidationException validationException
-    ) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    protected static Builder fromMap(Map<String, Object> map, ValidationException validationException) {
+        Integer numAllocations = extractOptionalPositiveInteger(map, NUM_ALLOCATIONS, SERVICE_SETTINGS, validationException);
+        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, SERVICE_SETTINGS, validationException);
         AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             map,
             ADAPTIVE_ALLOCATIONS,
@@ -87,22 +77,19 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         );
 
         // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SERVICE_SETTINGS)
             );
         }
 
-        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, SERVICE_SETTINGS, validationException);
 
         // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a
         // null pointer when doing unboxing
-        return new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(numAllocations)
+        return new Builder().setNumAllocations(numAllocations)
             .setNumThreads(Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE))
             .setModelId(modelId)
             .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings)
@@ -110,10 +97,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(
-        Integer numAllocations,
+        @Nullable Integer numAllocations,
         int numThreads,
         String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         @Nullable String deploymentId
     ) {
         this.numAllocations = numAllocations;
@@ -133,7 +120,8 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     /**
      * Copy constructor with the ability to set the number of allocations. Used for Update API.
-     * @param other the existing settings
+     *
+     * @param other          the existing settings
      * @param numAllocations the new number of allocations
      */
     public ElasticsearchInternalServiceSettings(ElasticsearchInternalServiceSettings other, int numAllocations) {
@@ -145,36 +133,25 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     public ElasticsearchInternalServiceSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.numAllocations = in.readOptionalVInt();
-        } else {
-            this.numAllocations = in.readVInt();
-        }
+        this.numAllocations = in.readOptionalVInt();
         this.numThreads = in.readVInt();
         this.modelId = in.readString();
-        this.adaptiveAllocationsSettings = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? in.readOptionalWriteable(AdaptiveAllocationsSettings::new)
-            : null;
-        this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
+        this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+        this.deploymentId = in.readOptionalString();
     }
 
-    public void setNumAllocations(Integer numAllocations) {
+    public void setAllocations(Integer numAllocations, @Nullable AdaptiveAllocationsSettings adaptiveAllocationsSettings) {
         this.numAllocations = numAllocations;
+        this.adaptiveAllocationsSettings = adaptiveAllocationsSettings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalVInt(getNumAllocations());
-        } else {
-            out.writeVInt(getNumAllocations());
-        }
+        out.writeOptionalVInt(getNumAllocations());
         out.writeVInt(getNumThreads());
         out.writeString(modelId());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
-            out.writeOptionalString(deploymentId);
-        }
+        out.writeOptionalWriteable(getAdaptiveAllocationsSettings());
+        out.writeOptionalString(deploymentId);
     }
 
     @Override
@@ -236,7 +213,45 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        if (serviceSettings.containsKey(NUM_THREADS)) {
+            validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
+        }
+
+        var numAllocations = extractOptionalPositiveInteger(serviceSettings, NUM_ALLOCATIONS, SERVICE_SETTINGS, validationException);
+        var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+            serviceSettings,
+            ADAPTIVE_ALLOCATIONS,
+            validationException
+        );
+
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+            validationException.addValidationError(
+                ServiceUtils.missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), SERVICE_SETTINGS)
+            );
+        }
+        if (numAllocations != null && adaptiveAllocationsSettings != null) {
+            validationException.addValidationError(
+                Strings.format("[%s] cannot be set if [%s] is set", NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS)
+            );
+        }
+        validationException.throwIfValidationErrorsExist();
+
+        return toBuilder().setNumAllocations(numAllocations).setAdaptiveAllocationsSettings(adaptiveAllocationsSettings).build();
+    }
+
+    public Builder toBuilder() {
+        return new Builder().setAdaptiveAllocationsSettings(adaptiveAllocationsSettings)
+            .setDeploymentId(deploymentId)
+            .setModelId(modelId)
+            .setNumThreads(numThreads)
+            .setNumAllocations(numAllocations);
     }
 
     public static class Builder {

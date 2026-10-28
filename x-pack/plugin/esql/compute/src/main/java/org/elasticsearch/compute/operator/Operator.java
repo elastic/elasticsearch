@@ -8,13 +8,18 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Operator is low-level building block that consumes, transforms and produces data.
@@ -63,6 +68,22 @@ public interface Operator extends Releasable {
     boolean isFinished();
 
     /**
+     * Returns true if the operator can produce more output pages without requiring additional input pages.
+     * This is useful for operators that buffer data or have internal state that can produce multiple output pages.
+     * <p>
+     * Operators that do not buffer data should return {@code false} - they cannot produce pages out of thin air.
+     * Examples of operators that may return {@code true}:
+     * <ul>
+     *   <li>Operators with internal buffers (e.g., {@link AsyncOperator} with pending results)</li>
+     *   <li>Operators processing a single input page into multiple output pages</li>
+     *   <li>Aggregation operators that buffer partial results</li>
+     * </ul>
+     *
+     * @return {@code true} if the operator has buffered data that can produce output, {@code false} otherwise
+     */
+    boolean canProduceMoreDataWithoutExtraInput();
+
+    /**
      * returns non-null if output page available. Only called when isFinished() == false
      * @throws UnsupportedOperationException  if the operator is a {@link SinkOperator}
      */
@@ -70,7 +91,11 @@ public interface Operator extends Releasable {
 
     /**
      * notifies the operator that it won't be used anymore (i.e. none of the other methods called),
-     * and its resources can be cleaned up
+     * and its resources can be cleaned up.
+     * <p>
+     * Operators that return {@code true} from {@link #finalStatusAfterAsyncActions()} are an
+     * exception: {@link #status()} stays readable after {@code close()} so the driver can
+     * resnapshot after {@code DriverContext#waitForAsyncActions}.
      */
     @Override
     void close();
@@ -83,6 +108,15 @@ public interface Operator extends Releasable {
     }
 
     /**
+     * When {@code true}, the driver keeps this operator after {@link #close()} and replaces its
+     * completed {@link Status} after {@code DriverContext#waitForAsyncActions} so close-time
+     * producer metrics appear in the query profile. Default {@code false}: no methods after close.
+     */
+    default boolean finalStatusAfterAsyncActions() {
+        return false;
+    }
+
+    /**
      * An operator can be blocked on some action (e.g. waiting for some resources to become available).
      * If so, it returns a future that completes when the operator becomes unblocked.
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
@@ -92,7 +126,11 @@ public interface Operator extends Releasable {
         return NOT_BLOCKED;
     }
 
-    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.newSucceeded(null), "not blocked");
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.nullSuccess(), "not blocked");
+
+    default Operator tryPromote(DriverContext driverContext) {
+        return this;
+    }
 
     /**
      * A factory for creating intermediate operators.
@@ -105,5 +143,56 @@ public interface Operator extends Releasable {
     /**
      * Status of an {@link Operator} to be returned by the tasks API.
      */
-    interface Status extends ToXContentObject, VersionedNamedWriteable {}
+    interface Status extends ToXContentObject, VersionedNamedWriteable {
+        /**
+         * The number of documents found by this operator. Most operators
+         * don't find documents and will return {@code 0} here.
+         */
+        default long documentsFound() {
+            return 0;
+        }
+
+        /**
+         * The number of values loaded by this operator. Most operators
+         * don't load values and will return {@code 0} here.
+         */
+        default long valuesLoaded() {
+            return 0;
+        }
+
+        /** Rows emitted; source operators populate, summed for driver / response-root rollup. */
+        default long rowsEmitted() {
+            return 0;
+        }
+
+        /** Pre-decompression bytes from storage; external-source operators only. */
+        default long bytesRead() {
+            return 0;
+        }
+
+        /**
+         * The bytes the values this operator decoded spell, against {@link #bytesRead()} the bytes they were
+         * read from. An operator that decodes nothing returns {@code 0}.
+         */
+        default long bytesDecoded() {
+            return 0;
+        }
+
+        /** Format-reader wall time on the producer thread; external-source operators only. */
+        default long readNanos() {
+            return 0;
+        }
+
+        /** Format-reader CPU time on the producer thread (no IO wait); external-source operators only. */
+        default long readCpuNanos() {
+            return 0;
+        }
+
+        /**
+         * Additional stats attached by {@link Operator.Status}
+         */
+        abstract class ExtraStatus implements NamedWriteable {
+            protected abstract void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
+        }
+    }
 }

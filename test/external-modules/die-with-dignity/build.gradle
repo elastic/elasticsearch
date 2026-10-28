@@ -24,6 +24,8 @@ tasks.named("test").configure {
   enabled = false
 }
 
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
 tasks.named('javaRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { isSnapshotBuild }
 }

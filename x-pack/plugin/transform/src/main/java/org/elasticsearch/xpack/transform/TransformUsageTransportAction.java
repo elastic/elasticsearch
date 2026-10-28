@@ -16,7 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
@@ -71,6 +71,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
     ).map(ParseField::getPreferredName).toArray(String[]::new);
 
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransformUsageTransportAction(
@@ -78,21 +79,24 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(
+            projectResolver.getProjectMetadata(clusterState)
+        );
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {
@@ -111,7 +115,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
 
         ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(transformCountSuccess -> {
             if (transformCountSuccess.getShardFailures().length > 0) {
-                logger.error(
+                logger.warn(
                     "total transform count search returned shard failures: {}",
                     Arrays.toString(transformCountSuccess.getShardFailures())
                 );

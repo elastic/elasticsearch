@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,11 +64,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         this.startTime = in.readLong();
         this.endTime = in.readLong();
         this.resetCompensation = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            this.rateUnit = Rounding.DateTimeUnit.resolve(in.readByte());
-        } else {
-            this.rateUnit = Rounding.DateTimeUnit.SECOND_OF_MINUTE;
-        }
+        this.rateUnit = Rounding.DateTimeUnit.resolve(in.readByte());
     }
 
     @Override
@@ -84,7 +79,7 @@ public class InternalResetTrackingRate extends InternalNumericMetricsAggregation
         out.writeLong(startTime);
         out.writeLong(endTime);
         out.writeDouble(resetCompensation);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) && rateUnit != null) {
+        if (rateUnit != null) {
             out.writeByte(rateUnit.getId());
         } else {
             out.writeByte(Rounding.DateTimeUnit.SECOND_OF_MINUTE.getId());

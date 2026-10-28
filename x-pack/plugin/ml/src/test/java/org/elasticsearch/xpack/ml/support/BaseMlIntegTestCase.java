@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.support;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
@@ -35,7 +36,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -122,12 +122,16 @@ import static org.mockito.Mockito.when;
  * Note for other type of integration tests you should use the external test cluster created by the Gradle integTest task.
  * For example tests extending this base class test with the non native autodetect process.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
-    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
+    private static final Set<String> UNRELATED_TASKS = Set.of(
+        TransportListTasksAction.TYPE.name(),
+        HealthNode.TASK_NAME,
+        // Background yellow waits can exceed assertBusy's 10s default
+        TransportClusterHealthAction.TYPE.name()
+    );
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -170,8 +174,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
-        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+    public void ensureTemplatesArePresent() {
+        if (cluster().size() > 0) {
+            awaitClusterState(MachineLearning::criticalTemplatesInstalled);
+        }
     }
 
     protected Job.Builder createJob(String id) {
@@ -275,8 +281,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         waitForPendingTasks(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries().setActiveOnly(true).get();
-            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-                assertThat(recoveryStates.size(), equalTo(0));
+            for (var recoveryInfos : recoveryResponse.shardRecoveryInfos().values()) {
+                assertThat(recoveryInfos.size(), equalTo(0));
             }
         });
     }
@@ -352,6 +358,11 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         } else {
             return response.getResponse().results().get(0);
         }
+    }
+
+    public static DatafeedState getDatafeedState(String datafeedId) {
+        GetDatafeedsStatsAction.Response.DatafeedStats stats = getDatafeedStats(datafeedId);
+        return stats == null ? null : stats.getDatafeedState();
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
@@ -515,7 +526,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     protected void assertRecentLastTaskStateChangeTime(String taskId, Duration howRecent, String queryNode) {
         ClusterStateRequest csRequest = new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().metadata(true);
         ClusterStateResponse csResponse = client(queryNode).execute(ClusterStateAction.INSTANCE, csRequest).actionGet();
-        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = csResponse.getState().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull(tasks);
         PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.getTask(taskId);
         assertNotNull(task);

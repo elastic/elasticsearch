@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
@@ -27,8 +27,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -40,7 +40,7 @@ public class ValuesIntGroupingAggregatorFunctionTests extends GroupingAggregator
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongIntBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt()))
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 100), randomInt()))
         );
     }
 

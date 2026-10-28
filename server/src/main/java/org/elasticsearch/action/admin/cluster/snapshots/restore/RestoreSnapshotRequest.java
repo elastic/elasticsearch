@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
@@ -40,6 +41,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * Restore snapshot request
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
+
+    private static final TransportVersion RESTORE_OVER_EXISTING = TransportVersion.fromName("restore_over_existing");
 
     private String snapshot;
     private String repository;
@@ -52,10 +55,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static final TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private boolean restoreOverExisting = false;
 
     // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
     private boolean skipOperatorOnlyState = false;
@@ -92,14 +95,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            quiet = in.readBoolean();
-        } else {
-            quiet = true;
-        }
+        quiet = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
+        restoreOverExisting = in.getTransportVersion().supports(RESTORE_OVER_EXISTING) && in.readBoolean();
     }
 
     @Override
@@ -116,12 +116,13 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
-            out.writeBoolean(quiet);
-        }
+        out.writeBoolean(quiet);
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
+        if (out.getTransportVersion().supports(RESTORE_OVER_EXISTING)) {
+            out.writeBoolean(restoreOverExisting);
+        }
     }
 
     @Override
@@ -152,11 +153,50 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (featureStates == null) {
             validationException = addValidationError("featureStates is missing", validationException);
         }
+        if (renameReplacement != null) {
+            int byteLength = renameReplacement.getBytes(StandardCharsets.UTF_8).length;
+
+            // Allow small buffer for cases where back-references or escapes result in shorter output
+            if (renameReplacement.getBytes(StandardCharsets.UTF_8).length > MAX_INDEX_NAME_BYTES + 10) {
+                validationException = addValidationError(
+                    "rename_replacement UTF-8 byte length ["
+                        + byteLength
+                        + "] exceeds maximum allowed length ["
+                        + (MAX_INDEX_NAME_BYTES + 10)
+                        + "] bytes",
+                    validationException
+                );
+            }
+        }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);
         }
         if (ignoreIndexSettings == null) {
             validationException = addValidationError("ignoreIndexSettings are missing", validationException);
+        }
+        // Restoring over an existing destination matches it by its final name, so combining it with renaming (which changes that name)
+        // is ambiguous and unsafe: it could delete a bystander resource that merely shares the snapshot's original name. Reject the
+        // combination rather than guess which resource the caller meant to overwrite.
+        if (restoreOverExisting && (renamePattern != null || renameReplacement != null)) {
+            validationException = addValidationError(
+                "restore_over_existing is not supported together with rename_pattern or rename_replacement",
+                validationException
+            );
+        }
+        // Restoring over existing destinations and restoring the snapshot's global state (which includes the templates that govern data
+        // streams) have an unspecified interaction: the data-stream overwrite revalidates a destination against the currently-installed
+        // template while include_global_state would replace that template from the snapshot. There is no use case for combining them, so
+        // reject rather than commit to unclear semantics; the restriction can be relaxed later if a well-defined behavior is needed.
+        if (restoreOverExisting && includeGlobalState) {
+            validationException = addValidationError(
+                "restore_over_existing is not supported together with include_global_state",
+                validationException
+            );
+        }
+        // A partial restore may recreate an index or data stream with missing shards. Combined with restoring over an existing
+        // destination, that would delete complete live data and replace it with an incomplete copy, so reject the combination.
+        if (restoreOverExisting && partial) {
+            validationException = addValidationError("restore_over_existing is not supported together with partial", validationException);
         }
         return validationException;
     }
@@ -342,6 +382,28 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      */
     public RestoreSnapshotRequest partial(boolean partial) {
         this.partial = partial;
+        return this;
+    }
+
+    /**
+     * Returns true if the restore is allowed to target a destination that already exists, rather than failing because it exists.
+     * Elasticsearch performs the overwrite atomically in a single cluster-state update: a destination index that is currently open has the
+     * equivalent of closing it combined with restore initialization; a destination data stream is deleted (with its backing/failure-store
+     * indices) and recreated from the snapshot. Either way the caller does not have to close or delete the destination first. Defaults to
+     * {@code false}, preserving the older behavior.
+     *
+     * @return true if a matching restore may overwrite an existing destination
+     */
+    public boolean restoreOverExisting() {
+        return restoreOverExisting;
+    }
+
+    /**
+     * @param restoreOverExisting true to allow restoring over a destination (open index or data stream) that already exists
+     * @return this request
+     */
+    public RestoreSnapshotRequest restoreOverExisting(boolean restoreOverExisting) {
+        this.restoreOverExisting = restoreOverExisting;
         return this;
     }
 
@@ -553,6 +615,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             } else if (name.equals("include_aliases")) {
                 includeAliases = nodeBooleanValue(entry.getValue(), "include_aliases");
+            } else if (name.equals("restore_over_existing")) {
+                restoreOverExisting = nodeBooleanValue(entry.getValue(), "restore_over_existing");
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -613,6 +677,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
         builder.field("include_aliases", includeAliases);
+        builder.field("restore_over_existing", restoreOverExisting);
         if (indexSettings != null) {
             builder.startObject("index_settings");
             if (indexSettings.isEmpty() == false) {
@@ -638,6 +703,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && partial == that.partial
             && includeAliases == that.includeAliases
             && quiet == that.quiet
+            && restoreOverExisting == that.restoreOverExisting
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -666,7 +732,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             quiet,
             indexSettings,
             snapshotUuid,
-            skipOperatorOnlyState
+            skipOperatorOnlyState,
+            restoreOverExisting
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

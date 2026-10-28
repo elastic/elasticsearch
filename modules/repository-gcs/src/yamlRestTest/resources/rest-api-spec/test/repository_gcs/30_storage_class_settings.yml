@@ -1,0 +1,193 @@
+# Integration tests for per-purpose GCS storage class settings:
+#   - data_storage_class      (applies to SNAPSHOT_DATA;     allowlisted, eagerly validated)
+#   - metadata_storage_class  (applies to SNAPSHOT_METADATA; allowlisted, eagerly validated)
+
+---
+setup:
+
+  # Clean up any leftovers from previous runs (relevant when running against a real GCS backend).
+  - do:
+      snapshot.delete:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+        ignore: 404
+
+---
+teardown:
+
+  - do:
+      snapshot.delete:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        ignore: 404
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+        ignore: 404
+
+---
+"Per-purpose storage class settings round-trip via get_repository":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            data_storage_class: nearline
+            metadata_storage_class: coldline
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.data_storage_class: nearline }
+  - match: { repository_storage_classes.settings.metadata_storage_class: coldline }
+
+---
+"Snapshot and restore with per-purpose storage classes":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            data_storage_class: standard
+            metadata_storage_class: nearline
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: docs
+              _id: "1"
+          - snapshot: storage-classes
+          - index:
+              _index: docs
+              _id: "2"
+          - snapshot: storage-classes
+          - index:
+              _index: docs
+              _id: "3"
+          - snapshot: storage-classes
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+  - do:
+      snapshot.create:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: snapshot-storage-classes }
+  - match: { snapshot.state: SUCCESS }
+  - match: { snapshot.shards.failed: 0 }
+
+  - do:
+      indices.delete:
+        index: docs
+
+  - do:
+      snapshot.restore:
+        repository: repository_storage_classes
+        snapshot: snapshot-storage-classes
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: { count: 3 }
+
+---
+"Reject unknown data_storage_class":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            data_storage_class: not_a_class
+
+---
+"Reject unknown metadata_storage_class":
+
+  - do:
+      catch: /repository_exception/
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        verify: false
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            metadata_storage_class: not_a_class
+
+---
+"Accept all valid storage classes":
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            data_storage_class: standard
+            metadata_storage_class: standard
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.data_storage_class: standard }
+  - match: { repository_storage_classes.settings.metadata_storage_class: standard }
+
+  - do:
+      snapshot.delete_repository:
+        repository: repository_storage_classes
+
+  - do:
+      snapshot.create_repository:
+        repository: repository_storage_classes
+        body:
+          type: gcs
+          settings:
+            bucket: "@bucket@"
+            client: integration_test
+            base_path: "@base_path@"
+            data_storage_class: nearline
+            metadata_storage_class: coldline
+
+  - do:
+      snapshot.get_repository:
+        repository: repository_storage_classes
+
+  - match: { repository_storage_classes.settings.data_storage_class: nearline }
+  - match: { repository_storage_classes.settings.metadata_storage_class: coldline }

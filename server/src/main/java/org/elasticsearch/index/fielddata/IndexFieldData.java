@@ -11,7 +11,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
@@ -21,11 +20,11 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -63,6 +62,26 @@ public interface IndexFieldData<FD extends LeafFieldData> {
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
     FD loadDirect(LeafReaderContext context) throws Exception;
+
+    /**
+     * Returns the {@link SortField} to use for sorting depending on the version of the index.
+     */
+    default SortField sortField(
+        boolean indexSort,
+        IndexVersion indexCreatedVersion,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        boolean reverse
+    ) {
+        return indexSort
+            ? indexSort(indexCreatedVersion, missingValue, sortMode, reverse)
+            : sortField(missingValue, sortMode, nested, reverse);
+    }
+
+    default SortField indexSort(IndexVersion indexCreatedVersion, @Nullable Object missingValue, MultiValueMode sortMode, boolean reverse) {
+        return sortField(missingValue, sortMode, null, reverse);
+    }
 
     /**
      * Returns the {@link SortField} to use for sorting.
@@ -136,14 +155,14 @@ public interface IndexFieldData<FD extends LeafFieldData> {
             }
 
             /**
-             * Get a {@link BitDocIdSet} that matches the root documents.
+             * Get a {@link BitSet} that matches the root documents.
              */
             public BitSet rootDocs(LeafReaderContext ctx) throws IOException {
                 return rootFilter.getBitSet(ctx);
             }
 
             /**
-             * Get a {@link DocIdSet} that matches the inner documents.
+             * Get a {@link DocIdSetIterator} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
                 Weight weight = searcher.createWeight(searcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
@@ -217,8 +236,12 @@ public interface IndexFieldData<FD extends LeafFieldData> {
 
         public abstract SortField.Type reducedType();
 
+        public SortField.Type sortType() {
+            return reducedType();
+        }
+
         /**
-         * Return a missing value that is understandable by {@link SortField#setMissingValue(Object)}.
+         * Return a missing value that is understandable by {@link SortField} constructors.
          * Most implementations return null because they already replace the value at the fielddata level.
          * However this can't work in case of strings since there is no such thing as a string which
          * compares greater than any other string, so in that case we need to return

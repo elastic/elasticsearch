@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction.Request;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamActionTests;
@@ -17,6 +18,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -33,6 +36,30 @@ public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCa
             actions.add(DataStreamActionTests.createTestInstance());
         }
         return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, actions);
+    }
+
+    public void testValidateRejectsSelectorInDataStreamName() {
+        String dsName = randomAlphaOfLength(5);
+        String index = randomAlphaOfLength(6);
+        String selector = randomFrom("::data", "::failures");
+
+        Request request = new Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            List.of(DataStreamAction.addBackingIndex(dsName + selector, index))
+        );
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), containsString("selectors [::] are not supported in data stream modification actions"));
+        assertThat(e.getMessage(), containsString(dsName + selector));
+    }
+
+    public void testValidateAcceptsPlainDataStreamName() {
+        String dsName = randomAlphaOfLength(5);
+        String index = randomAlphaOfLength(6);
+
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, List.of(DataStreamAction.addBackingIndex(dsName, index)));
+        assertNull(request.validate());
     }
 
     @Override

@@ -17,17 +17,27 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringQueryTests extends ESTestCase {
 
     public void testQueryBuilding() {
-        QueryStringQueryBuilder qb = getBuilder(Map.of("lenient", "true"));
+        QueryStringQueryBuilder qb = getBuilder(Map.of("lenient", true));
         assertThat(qb.lenient(), equalTo(true));
 
-        qb = getBuilder(Map.of("lenient", "true", "default_operator", "AND"));
+        qb = getBuilder(Map.of("lenient", true, "default_operator", "AND"));
         assertThat(qb.lenient(), equalTo(true));
         assertThat(qb.defaultOperator(), equalTo(Operator.AND));
+
+        QueryStringQueryBuilder qb2 = getBuilder(Map.of());
+        assertThat(qb2.boost(), equalTo(DEFAULT_BOOST));
+
+        QueryStringQueryBuilder qb3 = getBuilder(Map.of("boost", 2.0f));
+        assertThat(qb3.boost(), equalTo(2.0f));
+
+        QueryStringQueryBuilder qb4 = getBuilder(Map.of("boost", 2.55f));
+        assertThat(qb4.boost(), equalTo(2.55f));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("pizza", "yummy")));
         assertThat(e.getMessage(), equalTo("illegal query_string option [pizza]"));
@@ -36,10 +46,10 @@ public class QueryStringQueryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("failed to parse [multi_match] query type [aoeu]. unknown type."));
     }
 
-    private static QueryStringQueryBuilder getBuilder(Map<String, String> options) {
+    private static QueryStringQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         final QueryStringQuery query = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), options);
-        return (QueryStringQueryBuilder) query.asBuilder();
+        return (QueryStringQueryBuilder) query.toQueryBuilder();
     }
 
     public void testToString() {

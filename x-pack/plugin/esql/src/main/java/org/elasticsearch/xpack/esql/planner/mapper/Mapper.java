@@ -11,32 +11,57 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.session.Versioned;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -49,8 +74,33 @@ import java.util.List;
  */
 public class Mapper {
 
-    public PhysicalPlan map(LogicalPlan p) {
+    /* Used to add inner join semantics atop of left join operator. */
+    public static final String JOIN_MARKER_PREFIX = Attribute.rawTemporaryName("_join_marker");
 
+    /** Fresh synthetic INTEGER lookup-ordinal attribute, see {@link #JOIN_MARKER_PREFIX}. */
+    public static ReferenceAttribute newJoinMarker(Source source) {
+        return new ReferenceAttribute(
+            source,
+            null,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(JOIN_MARKER_PREFIX),
+            DataType.INTEGER,
+            Nullability.TRUE,
+            null,
+            true
+        );
+    }
+
+    public static boolean isJoinMarker(Attribute attr) {
+        return attr.name() != null && attr.name().startsWith(JOIN_MARKER_PREFIX);
+    }
+
+    public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
+        // We ignore the version for now, but it's fine to use later for plans that work
+        // differently from some version and up.
+        return mapInner(versionedPlan.inner());
+    }
+
+    private PhysicalPlan mapInner(LogicalPlan p) {
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
@@ -63,6 +113,10 @@ public class Mapper {
             return mapBinary(binary);
         }
 
+        if (p instanceof MergePlan merge) {
+            return mapMergePlan(merge);
+        }
+
         return MapperUtils.unsupported(p);
     }
 
@@ -71,54 +125,15 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
+        if (leaf instanceof ExternalRelation external) {
+            return new FragmentExec(external);
+        }
+
         return MapperUtils.mapLeaf(leaf);
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
-        PhysicalPlan mappedChild = map(unary.child());
-
-        //
-        // TODO - this is hard to follow and needs reworking
-        // https://github.com/elastic/elasticsearch/issues/115897
-        //
-        if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-            // When we have remote enrich, we want to put it under FragmentExec, so it would be executed remotely.
-            // We're only going to do it on the coordinator node.
-            // The way we're going to do it is as follows:
-            // 1. Locate FragmentExec in the tree. If we have no FragmentExec, we won't do anything.
-            // 2. Put this Enrich under it, removing everything that was below it previously.
-            // 3. Above FragmentExec, we should deal with pipeline breakers, since pipeline ops already are supposed to go under
-            // FragmentExec.
-            // 4. Aggregates can't appear here since the plan should have errored out if we have aggregate inside remote Enrich.
-            // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
-            Holder<Boolean> hasFragment = new Holder<>(false);
-
-            var childTransformed = mappedChild.transformUp(f -> {
-                // Once we reached FragmentExec, we stuff our Enrich under it
-                if (f instanceof FragmentExec) {
-                    hasFragment.set(true);
-                    return new FragmentExec(enrich);
-                }
-                if (f instanceof EnrichExec enrichExec) {
-                    // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
-                    assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
-                    return enrichExec.child();
-                }
-                if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
-                        return f;
-                    } else {
-                        return unaryExec.child();
-                    }
-                }
-                // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
-                return f;
-            });
-
-            if (hasFragment.get()) {
-                return childTransformed;
-            }
-        }
+        PhysicalPlan mappedChild = mapInner(unary.child());
 
         if (mappedChild instanceof FragmentExec) {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
@@ -127,7 +142,9 @@ public class Mapper {
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator
-            if (isPipelineBreaker(unary) == false) {
+            if (unary instanceof PipelineBreaker == false
+                || (unary instanceof Limit limit && limit.local())
+                || (unary instanceof TopN topN && topN.local())) {
                 return new FragmentExec(unary);
             }
         }
@@ -147,28 +164,68 @@ public class Mapper {
             if (mappedChild instanceof ExchangeExec exchange) {
                 mappedChild = new ExchangeExec(mappedChild.source(), intermediate, true, exchange.child());
             }
-            // if no exchange was added (aggregation happening on the coordinator), create the initial agg
-            else {
-                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
-            }
+            // if no exchange was added (aggregation happening on the coordinator), try to only create a single-pass agg
+            else if (aggregate.groupings()
+                .stream()
+                .noneMatch(group -> group.anyMatch(expr -> expr instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+                    return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.SINGLE, intermediate);
+                } else {
+                    mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+                }
 
-            // always add the final/reduction agg
+            // The final/reduction agg
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit());
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
         }
 
-        if (unary instanceof OrderBy o) {
-            mappedChild = addExchangeForFragment(o, mappedChild);
-            return new OrderExec(o.source(), mappedChild, o.order());
+        if (unary instanceof LimitBy limitBy) {
+            mappedChild = addExchangeForFragment(limitBy, mappedChild);
+            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
         }
 
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
-            return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+            var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+
+            if (mappedChild instanceof ExchangeExec exchangeExec) {
+                // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data
+                boolean sortedInput = exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
+                return sortedInput ? topNExec.withSortedInput() : topNExec;
+            }
+
+            return topNExec;
+        }
+
+        if (unary instanceof TopNBy topNBy) {
+            mappedChild = addExchangeForFragment(topNBy, mappedChild);
+            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            if (mappedChild instanceof ExchangeExec) {
+                return topNByExec.withSortedOutput();
+            }
+            return topNByExec;
+        }
+
+        // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
+        // metric metadata from shards, FINAL on the coordinator merges rows from all data nodes.
+        if (unary instanceof MetricsInfo metricsInfo) {
+            mappedChild = addExchangeForFragment(metricsInfo, mappedChild);
+            return new MetricsInfoExec(
+                metricsInfo.source(),
+                mappedChild,
+                metricsInfo.output(),
+                metricsInfo.output(),
+                MetricsInfoExec.Mode.FINAL
+            );
+        }
+
+        // TsInfo: same two-phase pattern as MetricsInfo but per time-series granularity.
+        if (unary instanceof TsInfo tsInfo) {
+            mappedChild = addExchangeForFragment(tsInfo, mappedChild);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
         }
 
         //
@@ -178,44 +235,150 @@ public class Mapper {
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
+        if (bp instanceof InnerJoin innerJoin) {
+            PhysicalPlan left = mapInner(bp.left());
+            PhysicalPlan right = mapInner(bp.right());
+            if (right instanceof LocalSourceExec localData) {
+                var marker = newJoinMarker(innerJoin.source());
+                List<Attribute> addedFields = new ArrayList<>(innerJoin.addedFields());
+                addedFields.add(marker);
+                PhysicalPlan join = new HashJoinExec(
+                    innerJoin.source(),
+                    left,
+                    localData,
+                    innerJoin.leftFields(),
+                    innerJoin.rightFields(),
+                    addedFields
+                );
+                // inner join := left join where marker != null
+                join = new FilterExec(innerJoin.source(), join, new IsNotNull(innerJoin.source(), marker));
+                if (innerJoin.unique()) {
+                    // Guard: unique=true requires every build row to be matched at most once. The marker
+                    // is unique per build row, so a distinct-by on it alone detects duplicates independent
+                    // of the join key types and count.
+                    join = new DistinctByExec(innerJoin.source(), join, marker, true);
+                }
+                return new ProjectExec(innerJoin.source(), join, innerJoin.output());
+            }
+            return MapperUtils.unsupported(bp);
+        }
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
             if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 
-            PhysicalPlan left = map(bp.left());
-
-            // only broadcast joins supported for now - hence push down as a streaming operator
-            if (left instanceof FragmentExec fragment) {
+            if (join.executesOn() == ExecuteLocation.REMOTE) {
+                // This is generally wrong in case of pipeline breakers upstream from the join, but we validate against these.
+                // The only potential pipeline breakers upstream should be limits duplicated past the join from PushdownAndCombineLimits,
+                // but they are okay to perform on the data nodes because they only serve to reduce the number of rows processed and
+                // don't affect correctness due to another limit being downstream.
                 return new FragmentExec(bp);
             }
 
-            PhysicalPlan right = map(bp.right());
+            PhysicalPlan left = mapInner(bp.left());
+
+            // only broadcast joins supported for now - hence push down as a streaming operator
+            if (left instanceof FragmentExec) {
+                if (join.executesOn() == ExecuteLocation.COORDINATOR) {
+                    // Transfer left-side data here via exchange in order to execute join against coordinator lookup index
+                    left = new ExchangeExec(left.source(), left);
+                } else {
+                    return new FragmentExec(bp);
+                }
+            }
+
+            PhysicalPlan right = mapInner(bp.right());
             // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
                     join.source(),
                     left,
                     localData,
-                    config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
-                    join.output()
+                    join.rightOutputFields()
                 );
             }
-            if (right instanceof FragmentExec fragment
-                && fragment.fragment() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            if (right instanceof FragmentExec fragment) {
+                boolean isIndexModeLookup = isIndexModeLookup(fragment);
+                if (isIndexModeLookup) {
+                    return new LookupJoinExec(
+                        join.source(),
+                        left,
+                        right,
+                        config.leftFields(),
+                        config.rightFields(),
+                        join.rightOutputFields(),
+                        config.joinOnConditions()
+                    );
+                }
             }
         }
-
         return MapperUtils.unsupported(bp);
     }
 
-    public static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
+    private static boolean isIndexModeLookup(FragmentExec fragment) {
+        // we support 2 cases:
+        // EsRelation in index_mode=lookup
+        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+        // or Filter(EsRelation) in index_mode=lookup
+        isIndexModeLookup = isIndexModeLookup
+            || fragment.fragment() instanceof Filter filter
+                && filter.child() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP;
+        return isIndexModeLookup;
+    }
+
+    private PhysicalPlan mapMergePlan(MergePlan merge) {
+        // after removing the implicit limit attached to each branch, the branch plan may not have a coordinator plan anymore, however
+        // ComputeService.executePlan has trouble with executing plan without coordinator plan, adding exchange solves the issue
+        int childSize = merge.children().size();
+
+        // BranchPlan carries metadata about which branches are view subplans vs bare index relations. View-branch
+        // fragments must not receive the raw Lucene esFilter (integrateEsFilterIntoFragment skips them); we mark
+        // them here so the distinction survives into the physical plan.
+        boolean isBranchPlan = merge instanceof BranchPlan;
+
+        List<PhysicalPlan> newChildren = new ArrayList<>(childSize);
+        List<LogicalPlan> logicalChildren = merge.children();
+        BranchPlan vua = isBranchPlan ? (BranchPlan) merge : null;
+        // Use a positional list of keys so we can look up isViewBranch per child index.
+        List<String> viewKeys = isBranchPlan ? vua.namedSubqueries().keySet().stream().toList() : null;
+
+        for (int i = 0; i < childSize; i++) {
+            PhysicalPlan child = mapInner(logicalChildren.get(i));
+            if (isBranchPlan && vua.isViewBranch(viewKeys.get(i))) {
+                // Actual view branch: mark every FragmentExec in the subtree so integrateEsFilterIntoFragment skips them.
+                // Bare-index branches (key "main") and literal-subquery branches ("unnamed_view_<hash>") are excluded.
+                child = child.transformDown(FragmentExec.class, FragmentExec::asFromViewBranch);
+            }
+            if (child instanceof FragmentExec) {
+                child = new ExchangeExec(child.source(), child);
+            }
+            newChildren.add(child);
+        }
+
+        // BranchPlan extends UnionAll, so it maps as UNION. A new MergePlan sibling fails here
+        // instead of inheriting UNION placement.
+        MergeExec.Kind kind = switch (merge) {
+            case Fork ignored -> MergeExec.Kind.FORK;
+            case UnionAll ignored -> MergeExec.Kind.UNION;
+            default -> throw new IllegalStateException("unexpected MergePlan subclass: " + merge.getClass().getName());
+        };
+        return new MergeExec(merge.source(), newChildren, merge.output(), kind);
+    }
+
+    /**
+     * Wraps a bare {@link FragmentExec} in an {@link ExchangeExec} so that ComputeService routes it to data nodes.
+     * Subplans(from IN subquery) that contain only streaming operators (no pipeline breakers like Limit/Aggregate)
+     * map to a bare FragmentExec and need this wrapping before execution.
+     */
+    public static PhysicalPlan ensureExchangeForSubPlan(PhysicalPlan plan) {
+        if (plan instanceof FragmentExec) {
+            return new ExchangeExec(plan.source(), plan);
+        }
+        return plan;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {
@@ -228,4 +391,5 @@ public class Mapper {
         }
         return child;
     }
+
 }

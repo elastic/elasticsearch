@@ -9,8 +9,6 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -18,17 +16,14 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -41,10 +36,10 @@ import java.util.function.Supplier;
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
- *       return List.of(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
- *               new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
- *               new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
- *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+ *       return List.of(new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+ *               new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
+ *               new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
+ *               new ActionHandler(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
  *   }
  * }</pre>
  */
@@ -52,7 +47,7 @@ public interface ActionPlugin {
     /**
      * Actions added by this plugin.
      */
-    default Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    default Collection<ActionHandler> getActions() {
         return Collections.emptyList();
     }
 
@@ -74,13 +69,7 @@ public interface ActionPlugin {
      * Rest handlers added by this plugin.
      */
     default Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -101,23 +90,23 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-    final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
-        private final ActionType<Response> action;
-        private final Class<? extends TransportAction<Request, Response>> transportAction;
+    final class ActionHandler {
+        private final ActionType<?> action;
+        private final Class<? extends TransportAction<?, ?>> transportAction;
 
         /**
          * Create a record of an action, the {@linkplain TransportAction} that handles it.
          */
-        public ActionHandler(ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
+        public ActionHandler(ActionType<?> action, Class<? extends TransportAction<?, ?>> transportAction) {
             this.action = action;
             this.transportAction = transportAction;
         }
 
-        public ActionType<Response> getAction() {
+        public ActionType<?> getAction() {
             return action;
         }
 
-        public Class<? extends TransportAction<Request, Response>> getTransportAction() {
+        public Class<? extends TransportAction<?, ?>> getTransportAction() {
             return transportAction;
         }
 
@@ -131,7 +120,7 @@ public interface ActionPlugin {
             if (obj == null || obj.getClass() != ActionHandler.class) {
                 return false;
             }
-            ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
+            ActionHandler other = (ActionHandler) obj;
             return Objects.equals(action, other.action) && Objects.equals(transportAction, other.transportAction);
         }
 
@@ -153,4 +142,10 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
+    record RestHandlersServices(
+        Settings settings,
+        RestController restController,
+        ProjectResolver projectResolver,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {}
 }

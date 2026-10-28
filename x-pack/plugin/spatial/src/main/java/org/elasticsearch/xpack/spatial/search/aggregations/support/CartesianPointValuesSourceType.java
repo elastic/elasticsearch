@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.geo.XYEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -68,15 +68,15 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
         final CartesianPoint missing = new CartesianPoint().resetFromString(rawMissing.toString(), false);
         return new CartesianPointValuesSource() {
             @Override
-            public SortedNumericDocValues sortedNumericDocValues(LeafReaderContext context) {
+            public SortedNumericLongValues sortedNumericLongValues(LeafReaderContext context) {
                 final long xi = XYEncodingUtils.encode((float) missing.getX());
                 final long yi = XYEncodingUtils.encode((float) missing.getY());
                 long encoded = (yi & 0xFFFFFFFFL) | xi << 32;
-                return MissingValues.replaceMissing(pointValuesSource.sortedNumericDocValues(context), encoded);
+                return MissingValues.replaceMissing(pointValuesSource.sortedNumericLongValues(context), encoded);
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+            public SortableBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
                 return MissingValues.replaceMissing(pointValuesSource.bytesValues(context), new BytesRef(missing.toString()));
             }
 

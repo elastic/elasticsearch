@@ -14,12 +14,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             LeafFieldData fieldData = indexFieldData.load(readerContext);
-            SortedBinaryDocValues values = fieldData.getBytesValues();
+            SortableBinaryDocValues values = fieldData.getBytesValues();
             for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
                 assertTrue(values.advanceExact(i));
                 assertThat(values.docValueCount(), greaterThanOrEqualTo(1));
@@ -91,8 +91,15 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
-            assertNotNull(FieldData.unwrapSingleton(bytesValues));
+            SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
+            if (bytesValues instanceof MultiValuedSortableBinaryDocValues == false) {
+                assertNotNull(FieldData.unwrapSingleton(bytesValues));
+            }
+
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeSingleValueAllSet()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsitySingleValueAllSet()));
 
             assertTrue(bytesValues.advanceExact(0));
             assertThat(bytesValues.docValueCount(), equalTo(1));
@@ -112,7 +119,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             IndexSearcher searcher = newIndexSearcher(readerContext.reader());
             TopFieldDocs topDocs;
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
-            topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
             assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
@@ -122,7 +129,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
 
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
-            topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
             assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -133,9 +140,17 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortableBinaryDocValues.Sparsity expectedSparsitySingleValueAllSet() {
+        return SortableBinaryDocValues.Sparsity.UNKNOWN;
+    }
+
     protected abstract void fillSingleValueWithMissing() throws Exception;
 
-    public void assertValues(SortedBinaryDocValues values, int docId, BytesRef... actualValues) throws IOException {
+    public void assertValues(SortableBinaryDocValues values, int docId, BytesRef... actualValues) throws IOException {
         assertEquals(actualValues.length > 0, values.advanceExact(docId));
         if (actualValues.length > 0) {
             assertThat(values.docValueCount(), equalTo(actualValues.length));
@@ -145,7 +160,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
-    public void assertValues(SortedBinaryDocValues values, int docId, String... actualValues) throws IOException {
+    public void assertValues(SortableBinaryDocValues values, int docId, String... actualValues) throws IOException {
         assertEquals(actualValues.length > 0, values.advanceExact(docId));
         if (actualValues.length > 0) {
             assertThat(values.docValueCount(), equalTo(actualValues.length));
@@ -163,12 +178,24 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeSingleValueWithMissing()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsitySingleValueWithMissing()));
 
             assertValues(bytesValues, 0, two());
             assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 2, three());
         }
+    }
+
+    protected SortableBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortableBinaryDocValues.Sparsity expectedSparsitySingleValueWithMissing() {
+        return SortableBinaryDocValues.Sparsity.UNKNOWN;
     }
 
     protected abstract void fillMultiValueAllSet() throws Exception;
@@ -184,7 +211,11 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeMultiValueAllSet()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsityMultiValueAllSet()));
             assertNull(FieldData.unwrapSingleton(bytesValues));
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, one());
@@ -192,14 +223,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
             IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
-            TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            TopFieldDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
             assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
-            topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+            topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
             assertThat(topDocs.totalHits.value(), equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -207,6 +238,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
             searcher.getIndexReader().close();
         }
+    }
+
+    protected SortableBinaryDocValues.ValueMode expectedValueModeMultiValueAllSet() {
+        return SortableBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortableBinaryDocValues.Sparsity expectedSparsityMultiValueAllSet() {
+        return SortableBinaryDocValues.Sparsity.UNKNOWN;
     }
 
     protected abstract void fillMultiValueWithMissing() throws Exception;
@@ -219,12 +258,24 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeMultiValueWithMissing()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsityMultiValueWithMissing()));
 
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 2, three());
         }
+    }
+
+    protected SortableBinaryDocValues.ValueMode expectedValueModeMultiValueWithMissing() {
+        return SortableBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortableBinaryDocValues.Sparsity expectedSparsityMultiValueWithMissing() {
+        return SortableBinaryDocValues.Sparsity.UNKNOWN;
     }
 
     public void testMissingValueForAll() throws Exception {
@@ -236,12 +287,12 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(0L));
 
-            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            SortableBinaryDocValues bytesValues = fieldData.getBytesValues();
 
             assertValues(bytesValues, 0, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 2, Strings.EMPTY_ARRAY);
-            SortedBinaryDocValues hashedBytesValues = fieldData.getBytesValues();
+            SortableBinaryDocValues hashedBytesValues = fieldData.getBytesValues();
 
             assertValues(hashedBytesValues, 0, Strings.EMPTY_ARRAY);
             assertValues(hashedBytesValues, 1, Strings.EMPTY_ARRAY);
@@ -257,7 +308,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
         IndexSearcher searcher = newIndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+        TopFieldDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
         assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
@@ -278,7 +329,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
 
         sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
+        topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(sortField));
         assertThat(topDocs.totalHits.value(), equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));

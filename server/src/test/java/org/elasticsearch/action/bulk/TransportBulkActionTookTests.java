@@ -21,16 +21,24 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -50,7 +58,7 @@ import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -78,21 +86,19 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initClusterService() throws Exception {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         clusterService = createClusterService(threadPool, discoveryNode);
     }
 
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeClusterService() throws Exception {
         clusterService.close();
     }
 
@@ -109,9 +115,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
 
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -222,11 +228,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
     }
@@ -252,9 +258,19 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 relativeTimeProvider,
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                },
+                new TimeSeriesEligibleWriteWindowLocator(),
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
     }

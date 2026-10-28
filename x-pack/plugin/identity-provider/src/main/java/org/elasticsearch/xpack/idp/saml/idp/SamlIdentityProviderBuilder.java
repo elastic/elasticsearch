@@ -170,9 +170,7 @@ public class SamlIdentityProviderBuilder {
             ex.addValidationError("At least 1 allowed NameID format must be specified");
         }
 
-        if (ex.validationErrors().isEmpty() == false) {
-            throw ex;
-        }
+        ex.throwIfValidationErrorsExist();
 
         return new SamlIdentityProvider(
             entityId,

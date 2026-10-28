@@ -9,9 +9,12 @@
 
 module org.elasticsearch.mapper.extras {
     requires org.elasticsearch.server;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.analysis.common;
     requires org.apache.lucene.core;
     requires org.apache.lucene.memory;
     requires org.apache.lucene.queries;
+
+    exports org.elasticsearch.index.mapper.extras;
 }

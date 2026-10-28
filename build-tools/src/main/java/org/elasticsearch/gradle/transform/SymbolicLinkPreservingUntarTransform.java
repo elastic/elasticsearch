@@ -13,6 +13,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.gradle.api.artifacts.transform.TransformOutputs;
+import org.gradle.work.DisableCachingByDefault;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -25,6 +26,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
+@DisableCachingByDefault(because = "we need to revisit if caching is safe here")
 public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTransform {
 
     private static final Path CURRENT_DIR_PATH = Paths.get(".");

@@ -1,0 +1,89 @@
+---
+"composite aggregation on fields backed only by a doc values skipper":
+  # In a logsdb index that does not sort on @timestamp first, @timestamp gets a doc values skipper and no
+  # points index, and a non-indexed keyword gets a skipper and no terms dictionary. The composite
+  # aggregation only takes the index sort shortcut when the leading source matches the leading index sort
+  # field, so both of these fall back to a SortedDocsProducer, which reads the absent points index or terms
+  # dictionary and silently collects nothing.
+  - requires:
+      test_runner_features: [capabilities]
+      cluster_features: ["search.aggs.composite.doc_values_skipper_fix"]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logsdb_index_mode]
+      reason: "Fix for composite aggregation silently returning zero buckets on doc-values-skipper fields required"
+
+  - do:
+      indices.create:
+        index: test-composite
+        body:
+          settings:
+            index:
+              mode: logsdb
+              sort.field: [ "host.name", "@timestamp" ]
+              sort.order: [ "asc", "desc" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              service:
+                type: keyword
+                index: false
+
+  - do:
+      bulk:
+        index: test-composite
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:00:00Z", "host.name": "foo", "service": "a" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:16:00Z", "host.name": "bar", "service": "b" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "foo", "service": "c" }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:46:00Z", "host.name": "bar", "service": "a" }
+
+  - do:
+      search:
+        index: test-composite
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 100
+                sources:
+                  - d:
+                      date_histogram:
+                        field: "@timestamp"
+                        fixed_interval: 15m
+
+  - length: { aggregations.c.buckets: 4 }
+  - match: { aggregations.c.buckets.0.key.d: 1707732000000 }
+  - match: { aggregations.c.buckets.0.doc_count: 1 }
+  - match: { aggregations.c.buckets.3.key.d: 1707734700000 }
+  - match: { aggregations.c.buckets.3.doc_count: 1 }
+
+  - do:
+      search:
+        index: test-composite
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 100
+                sources:
+                  - s:
+                      terms:
+                        field: service
+
+  - length: { aggregations.c.buckets: 3 }
+  - match: { aggregations.c.buckets.0.key.s: "a" }
+  - match: { aggregations.c.buckets.0.doc_count: 2 }
+  - match: { aggregations.c.buckets.1.key.s: "b" }
+  - match: { aggregations.c.buckets.2.key.s: "c" }

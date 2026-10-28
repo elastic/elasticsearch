@@ -9,14 +9,17 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -28,7 +31,7 @@ import java.util.Objects;
 /**
  * A request to find the list of target shards that might match the query for the given target indices.
  */
-public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class SearchShardsRequest extends UntypedActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private final IndicesOptions indicesOptions;
     @Nullable
@@ -36,12 +39,24 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     @Nullable
     private final String routing;
+    private final boolean routingFromSlice;
     @Nullable
     private final String preference;
 
     private final boolean allowPartialSearchResults;
 
     private final String clusterAlias;
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
+
+    /**
+     * Server-internal: set by the {@code search_shards} transport handler only; not serialized on the wire.
+     * When {@code true}, can-match includes every shard in returned iterators with {@code skip} flags (BWC for peers that
+     * do not support aggregate skipped-shard accounting on {@link SearchShardsResponse}). Defaults to {@code false}.
+     */
+    private transient boolean includeSkippedShardsInIterators;
 
     public SearchShardsRequest(
         String[] indices,
@@ -52,10 +67,24 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         boolean allowPartialSearchResults,
         String clusterAlias
     ) {
+        this(indices, indicesOptions, query, routing, false, preference, allowPartialSearchResults, clusterAlias);
+    }
+
+    public SearchShardsRequest(
+        String[] indices,
+        IndicesOptions indicesOptions,
+        QueryBuilder query,
+        String routing,
+        boolean routingFromSlice,
+        String preference,
+        boolean allowPartialSearchResults,
+        String clusterAlias
+    ) {
         this.indices = indices;
         this.indicesOptions = indicesOptions;
         this.query = query;
         this.routing = routing;
+        this.routingFromSlice = routingFromSlice;
         this.preference = preference;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.clusterAlias = clusterAlias;
@@ -67,6 +96,25 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.routing = in.readOptionalString();
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            if (in.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION)) {
+                this.routingFromSlice = in.readBoolean();
+            } else {
+                // older peers also send the slice value, which is derived from routing and routingFromSlice here
+                final String searchSlice = in.readOptionalString();
+                this.routingFromSlice = in.readBoolean();
+                assert Objects.equals(searchSlice, SliceIndexing.toSearchSlice(routing, routingFromSlice))
+                    : "transmitted slice ["
+                        + searchSlice
+                        + "] does not match routing ["
+                        + routing
+                        + "] from slice ["
+                        + routingFromSlice
+                        + "]";
+            }
+        } else {
+            this.routingFromSlice = false;
+        }
         this.preference = in.readOptionalString();
         this.allowPartialSearchResults = in.readBoolean();
         this.clusterAlias = in.readOptionalString();
@@ -79,6 +127,12 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalString(routing);
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            if (out.getTransportVersion().supports(SliceIndexing.SLICE_ROUTING_STATE_DERIVED_VERSION) == false) {
+                out.writeOptionalString(searchSlice());
+            }
+            out.writeBoolean(routingFromSlice);
+        }
         out.writeOptionalString(preference);
         out.writeBoolean(allowPartialSearchResults);
         out.writeOptionalString(clusterAlias);
@@ -115,6 +169,17 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
     }
 
+    /**
+     * Server-internal: invoked from the transport request handler before the action runs.
+     */
+    public void setIncludeSkippedShardsInIterators(boolean includeSkippedShardsInIterators) {
+        this.includeSkippedShardsInIterators = includeSkippedShardsInIterators;
+    }
+
+    public boolean includeSkippedShardsInIterators() {
+        return includeSkippedShardsInIterators;
+    }
+
     public String clusterAlias() {
         return clusterAlias;
     }
@@ -125,6 +190,19 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     public String routing() {
         return routing;
+    }
+
+    /**
+     * Returns the {@code slice} value implied by the routing and its provenance, or {@code null} when routing did not come from
+     * {@code slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return SliceIndexing.toSearchSlice(routing, routingFromSlice);
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     public String preference() {
@@ -145,6 +223,8 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             + ", routing='"
             + routing
             + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''
@@ -168,6 +248,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             && Objects.equals(indicesOptions, request.indicesOptions)
             && Objects.equals(query, request.query)
             && Objects.equals(routing, request.routing)
+            && routingFromSlice == request.routingFromSlice
             && Objects.equals(preference, request.preference)
             && allowPartialSearchResults == request.allowPartialSearchResults
             && Objects.equals(clusterAlias, request.clusterAlias);
@@ -175,8 +256,29 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults, clusterAlias);
+        int result = Objects.hash(indicesOptions, query, routing, routingFromSlice, preference, allowPartialSearchResults, clusterAlias);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 }

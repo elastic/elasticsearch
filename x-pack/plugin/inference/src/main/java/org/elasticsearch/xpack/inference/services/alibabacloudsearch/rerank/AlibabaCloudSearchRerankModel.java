@@ -8,16 +8,16 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchModel;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.action.AlibabaCloudSearchActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
@@ -36,7 +36,8 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable URI url
     ) {
         this(
             modelId,
@@ -44,7 +45,8 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
             service,
             AlibabaCloudSearchRerankServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context),
+            url
         );
     }
 
@@ -55,12 +57,18 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
         String service,
         AlibabaCloudSearchRerankServiceSettings serviceSettings,
         AlibabaCloudSearchRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable URI url
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings), url);
+    }
+
+    public AlibabaCloudSearchRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets, @Nullable URI url) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings.getCommonSettings()
+            modelConfigurations,
+            modelSecrets,
+            ((AlibabaCloudSearchRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            url
         );
     }
 
@@ -88,7 +96,7 @@ public class AlibabaCloudSearchRerankModel extends AlibabaCloudSearchModel {
     }
 
     @Override
-    public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 }

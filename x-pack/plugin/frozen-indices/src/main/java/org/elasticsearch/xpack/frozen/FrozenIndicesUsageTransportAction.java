@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.frozen;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 
-@UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
+@UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
 public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
@@ -30,14 +29,13 @@ public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTranspor
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(XPackUsageFeatureAction.FROZEN_INDICES.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

@@ -1,0 +1,16 @@
+---
+"Security stats return just DLS stats":
+  - requires:
+      cluster_features: [ "security_stats_endpoint" ]
+      reason: Introduced in 9.2
+
+  - do:
+      security.get_stats: {}
+
+  - set:
+      nodes._arbitrary_key_: node_id
+  - length: { nodes.$node_id: 1 }
+  - length: { nodes.$node_id.roles: 1 }
+  - length: { nodes.$node_id.roles.dls: 1 }
+  - length: { nodes.$node_id.roles.dls.bit_set_cache: 8 }
+  - gte: { nodes.$node_id.roles.dls.bit_set_cache.count: 0 }

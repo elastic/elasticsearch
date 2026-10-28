@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -60,9 +62,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
@@ -72,6 +77,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     static final String REPO = "my-repo";
+    List<String> masterNodeNames = null;
     List<String> dataNodeNames = null;
 
     @Override
@@ -85,7 +91,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     @Before
     public void ensureClusterNodes() {
         logger.info("--> starting enough nodes to ensure we have enough to safely stop for tests");
-        internalCluster().startMasterOnlyNodes(2);
+        masterNodeNames = internalCluster().startMasterOnlyNodes(2);
         dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
     }
@@ -271,9 +277,16 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 }
             });
 
-            // Assert that the history document has been written for taking the snapshot and deleting it
+            // Wait for .slm-history* to exist and its shards to be assigned before searching
             assertBusy(() -> {
-                assertResponse(
+                ClusterHealthResponse health = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, ".slm-history*").get();
+                assertThat(health.getIndices().size(), greaterThan(0));
+                assertThat(health.getUnassignedShards(), equalTo(0));
+            });
+
+            // Assert that the history document has been written for taking the snapshot and deleting it
+            assertBusy(
+                () -> assertResponse(
                     prepareSearch(".slm-history*").setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)),
                     resp -> {
                         logger.info(
@@ -283,8 +296,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                         );
                         assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
                     }
-                );
-            });
+                )
+            );
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
@@ -327,6 +340,185 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             SLM_HISTORY_DATA_STREAM
         );
         testUnsuccessfulSnapshotRetention(randomBoolean());
+    }
+
+    // Test that SLM stats and lastSuccess/lastFailure are correctly updated with master shutdown
+    public void testSLMWithMasterShutdown() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        int clusterSize = masterNodeNames.size() + dataNodeNames.size();
+        indexRandomDocs(indexName, 20);
+        createRepository(REPO, "mock");
+
+        createSnapshotPolicy(
+            policyName,
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            true,
+            false,
+            new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null)
+        );
+
+        // block snapshot from completing
+        blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+
+        // first SLM execution
+        final String snapshotName = executePolicy(policyName);
+        final String initialMaster = internalCluster().getMasterName();
+        waitForBlock(initialMaster, REPO);
+
+        // restart master
+        internalCluster().restartNode(initialMaster);
+        ensureStableCluster(clusterSize);
+        awaitNoMoreRunningOperations();
+
+        // ensure snapshot is completed successfully after master failover
+        assertBusy(() -> {
+            final SnapshotInfo snapshotInfo;
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+                    .setSnapshots(snapshotName)
+                    .get();
+                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            } catch (SnapshotMissingException sme) {
+                throw new AssertionError(sme);
+            }
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        }, 30L, TimeUnit.SECONDS);
+        assertSnapshotSuccessful(snapshotName);
+
+        // the SLM policy metadata has not been updated due to master shutdown
+        assertBusy(() -> {
+            SnapshotLifecyclePolicyItem policy = client().execute(
+                GetSnapshotLifecycleAction.INSTANCE,
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
+            ).get().getPolicies().getFirst();
+            assertNull(policy.getLastSuccess());
+            assertNull(policy.getLastFailure());
+            assertEquals(0, policy.getPolicyStats().getSnapshotFailedCount());
+            assertEquals(0, policy.getPolicyStats().getSnapshotTakenCount());
+        });
+
+        // 2nd SLM execution, it should pick up the last missing stats
+        String snapshotSecond = executePolicy(policyName);
+
+        awaitNoMoreRunningOperations();
+        assertSnapshotSuccessful(snapshotSecond);
+
+        // stats should have 2 successful snapshots, 1 from the new snapshot and 1 from previous success
+        assertBusy(() -> {
+            SnapshotLifecyclePolicyItem policy = client().execute(
+                GetSnapshotLifecycleAction.INSTANCE,
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
+            ).get().getPolicies().getFirst();
+            assertNull(policy.getLastFailure());
+            assertNotNull(policy.getLastSuccess());
+            assertEquals(snapshotSecond, policy.getLastSuccess().getSnapshotName());
+            assertEquals(0, policy.getPolicyStats().getSnapshotFailedCount());
+            assertEquals(2, policy.getPolicyStats().getSnapshotTakenCount());
+        });
+    }
+
+    public void testSLMWithMasterShutdownAndDeletedSnapshot() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        int clusterSize = masterNodeNames.size() + dataNodeNames.size();
+        indexRandomDocs(indexName, 20);
+        createRepository(REPO, "mock");
+
+        createSnapshotPolicy(
+            policyName,
+            "snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            true,
+            false,
+            new SnapshotRetentionConfiguration(TimeValue.ZERO, null, null)
+        );
+
+        // block snapshot from completing
+        blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+
+        // first SLM execution
+        final String snapshotName = executePolicy(policyName);
+        final String initialMaster = internalCluster().getMasterName();
+        waitForBlock(initialMaster, REPO);
+
+        // restart master
+        internalCluster().restartNode(initialMaster);
+        ensureStableCluster(clusterSize);
+        awaitNoMoreRunningOperations();
+
+        // ensure snapshot is completed successfully after master failover
+        assertBusy(() -> {
+            final SnapshotInfo snapshotInfo;
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+                    .setSnapshots(snapshotName)
+                    .get();
+                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            } catch (SnapshotMissingException sme) {
+                throw new AssertionError(sme);
+            }
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        }, 30L, TimeUnit.SECONDS);
+        assertSnapshotSuccessful(snapshotName);
+
+        // the SLM policy metadata has not been updated due to master shutdown
+        assertBusy(() -> {
+            SnapshotLifecyclePolicyItem policy = client().execute(
+                GetSnapshotLifecycleAction.INSTANCE,
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
+            ).get().getPolicies().getFirst();
+            assertNull(policy.getLastSuccess());
+            assertNull(policy.getLastFailure());
+            assertEquals(0, policy.getPolicyStats().getSnapshotFailedCount());
+            assertEquals(0, policy.getPolicyStats().getSnapshotTakenCount());
+        });
+
+        // delete the snapshot, simulate missing snapshot from repo
+        assertBusy(() -> {
+            AcknowledgedResponse response = clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPO, snapshotName).get();
+            assertTrue(response.isAcknowledged());
+        });
+
+        // 2nd SLM execution, it should pick up the last missing stats
+        String snapshotSecond = executePolicy(policyName);
+
+        awaitNoMoreRunningOperations();
+        assertSnapshotSuccessful(snapshotSecond);
+
+        // stats should have 1 successful and 1 failed snapshot, the deleted snapshot is inferred failure
+        assertBusy(() -> {
+            SnapshotLifecyclePolicyItem policy = client().execute(
+                GetSnapshotLifecycleAction.INSTANCE,
+                new GetSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyName)
+            ).get().getPolicies().getFirst();
+            assertNotNull(policy.getLastSuccess());
+            assertEquals(snapshotSecond, policy.getLastSuccess().getSnapshotName());
+            assertNotNull(policy.getLastFailure());
+            assertEquals(snapshotName, policy.getLastFailure().getSnapshotName());
+            assertEquals(1, policy.getPolicyStats().getSnapshotFailedCount());
+            assertEquals(1, policy.getPolicyStats().getSnapshotTakenCount());
+        });
+    }
+
+    private void assertSnapshotSuccessful(String snapshotName) throws Exception {
+        assertBusy(() -> {
+            final SnapshotInfo snapshotInfo;
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+                    .setSnapshots(snapshotName)
+                    .get();
+                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            } catch (SnapshotMissingException sme) {
+                throw new AssertionError(sme);
+            }
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        });
     }
 
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {
@@ -550,6 +742,127 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 // This is what we want to happen
             }
             logger.info("--> snapshot [{}] has been deleted", snapshotName);
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Tests that an SLM-triggered partial snapshot completes as PARTIAL when an index shard is actively
+     * being restored, recording the restoring shard as failed rather than waiting indefinitely.
+     */
+    public void testSLMPolicyPartialSnapshotWhileRestoringCompletesAsPartial() throws Exception {
+        final String indexName = "test-index";
+        final String policyName = "test-partial-restore-policy";
+        final String sourceSnapshotName = "source-snapshot";
+        createIndexWithContent(indexName);
+        createRepository(REPO, "mock");
+        createFullSnapshot(REPO, sourceSnapshotName);
+
+        // DELETE (not close) to force the data node to read chunk blobs from the repo during
+        // restore, so blockAllDataNodes keeps the primary INITIALIZING.
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        blockAllDataNodes(REPO);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, sourceSnapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+
+        // Create an SLM policy with partial=true, then trigger it immediately.
+        createSnapshotPolicy(
+            policyName,
+            "slm-snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            false,
+            true,
+            SnapshotRetentionConfiguration.EMPTY
+        );
+        final String snapshotName = executePolicy(policyName);
+
+        // The SLM snapshot should record the restoring shard as MISSING immediately and complete
+        // as PARTIAL rather than blocking on the ongoing restore.
+        assertBusy(() -> {
+            final List<SnapshotInfo> snapshots;
+            try {
+                snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO).setSnapshots(snapshotName).get().getSnapshots();
+            } catch (Exception e) {
+                // Snapshot may not yet be visible in the repository; retry.
+                throw new AssertionError(e.getMessage(), e);
+            }
+            assertThat(snapshots, hasSize(1));
+            final SnapshotInfo info = snapshots.get(0);
+            assertThat(info.state(), is(SnapshotState.PARTIAL));
+            assertThat(info.failedShards(), equalTo(1));
+            assertThat(info.shardFailures().get(0).reason(), containsString(SnapshotsService.SHARD_BEING_RESTORED_REASON));
+        }, 30L, TimeUnit.SECONDS);
+
+        unblockAllDataNodes(REPO);
+        awaitNoMoreRunningOperations();
+    }
+
+    /**
+     * A {@code partial=false} SLM-triggered snapshot taken while a shard is being restored waits
+     * for the restore to complete, then captures the shard and completes as {@link SnapshotState#SUCCESS}.
+     * This is the regression guard for the non-partial path: the existing waiting behaviour must not
+     * be broken by the {@code isRestoringShardFromSnapshot} predicate.
+     */
+    public void testSLMPolicyNonPartialSnapshotWhileRestoringWaitsAndSucceeds() throws Exception {
+        final String indexName = "test-index";
+        final String policyName = "test-non-partial-restore-policy";
+        createIndexWithContent(indexName);
+        createRepository(REPO, "mock");
+        createFullSnapshot(REPO, "source-snapshot");
+
+        // DELETE (not close) to force the data node to read chunk blobs from the repo during
+        // restore, so blockAllDataNodes keeps the primary INITIALIZING.
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        blockAllDataNodes(REPO);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, "source-snapshot")
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+
+        // Create an SLM policy with partial=false, then trigger it.
+        createSnapshotPolicy(
+            policyName,
+            "slm-snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            false,
+            false,
+            SnapshotRetentionConfiguration.EMPTY
+        );
+        final String snapshotName = executePolicy(policyName);
+
+        // With partial=false the snapshot must wait (WAITING shard) rather than skip the restoring shard.
+        awaitNumberOfSnapshotsInProgress(1);
+        awaitClusterState(
+            state -> SnapshotsInProgress.get(state)
+                .forRepo(REPO)
+                .stream()
+                .anyMatch(e -> e.shards().values().stream().anyMatch(s -> s.state() == SnapshotsInProgress.ShardState.WAITING))
+        );
+
+        // Unblock the data node — the restore completes and the snapshot can capture the shard.
+        unblockAllDataNodes(REPO);
+        awaitNoMoreRunningOperations();
+
+        assertBusy(() -> {
+            final List<SnapshotInfo> snapshots;
+            try {
+                snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO).setSnapshots(snapshotName).get().getSnapshots();
+            } catch (Exception e) {
+                throw new AssertionError(e.getMessage(), e);
+            }
+            assertThat(snapshots, hasSize(1));
+            final SnapshotInfo info = snapshots.get(0);
+            assertThat(info.state(), is(SnapshotState.SUCCESS));
+            assertThat(info.shardFailures(), empty());
         }, 30L, TimeUnit.SECONDS);
     }
 

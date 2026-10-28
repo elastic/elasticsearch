@@ -6,7 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-testclusters'
 
 import org.elasticsearch.gradle.testclusters.RunTask
@@ -16,6 +16,9 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:security')
+  clusterModules project(':modules:repository-gcs')
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
@@ -27,27 +30,32 @@ Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
   .map { s -> Boolean.parseBoolean(s) }
   .getOrElse(false)
 
-testClusters.configureEach {
-    if (serviceAccountFile) {
-      keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
-    }
-    if (preserveData) {
-      preserveDataDir = true
-    }
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'basic'
-    jvmArgs '-Xms4g', '-Xmx4g'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
+// Gradle test-cluster wiring retained only for the `runEqlCorrectnessNode` RunTask;
+// the `javaRestTest` cluster is provisioned via a JUnit @ClassRule in EsEQLCorrectnessIT.
+def runTaskCluster = testClusters.register('runTask') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  if (serviceAccountFile) {
+    keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+  }
+  if (preserveData) {
+    preserveDataDir = true
+  }
+  jvmArgs '-Xms8g', '-Xmx8g'
 }
 
-def runTaskCluster = testClusters.register('runTask') {
-    jvmArgs '-Xms8g', '-Xmx8g'
-}
+boolean inFipsJvm = buildParams.inFipsJvm
 
 tasks.named('javaRestTest').configure {
-  onlyIf("FIPS mode disabled and service accoutn file available") {
-      serviceAccountFile && buildParams.inFipsJvm == false
+  onlyIf("FIPS mode disabled and service account file available") {
+      serviceAccountFile && inFipsJvm == false
+  }
+  if (serviceAccountFile) {
+    // Bridge the configuration-time `eql_test_credentials_file` env var (or `eql.test.credentials.file` sysprop)
+    // through to the test JVM as a system property; the @ClassRule in EsEQLCorrectnessIT reads it from there.
+    systemProperty 'eql.test.credentials.file', serviceAccountFile.absolutePath
   }
 
   testLogging {

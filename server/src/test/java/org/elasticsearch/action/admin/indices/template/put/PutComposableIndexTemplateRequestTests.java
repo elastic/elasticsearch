@@ -12,18 +12,26 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<
     TransportPutComposableIndexTemplateAction.Request> {
@@ -45,7 +53,18 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     @Override
     protected TransportPutComposableIndexTemplateAction.Request mutateInstance(TransportPutComposableIndexTemplateAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String name = instance.name();
+        String cause = instance.cause();
+        boolean create = instance.create();
+        ComposableIndexTemplate indexTemplate = instance.indexTemplate();
+        switch (between(0, 3)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
+            case 1 -> cause = randomValueOtherThan(cause, () -> randomAlphaOfLength(4));
+            case 2 -> create = create == false;
+            case 3 -> indexTemplate = ComposableIndexTemplateTests.randomInstance();
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TransportPutComposableIndexTemplateAction.Request(name).cause(cause).create(create).indexTemplate(indexTemplate);
     }
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
@@ -96,5 +115,53 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
             ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList("*")).template(new Template(null, null, null)).build()
         );
         assertNull(req.validate());
+    }
+
+    public void testValidateRejectsFrozenAfterOnFailureStoreLifecycle() {
+        DataStreamLifecycle.Template failureLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .frozenAfter(new TimeValue(30, TimeUnit.DAYS))
+            .buildTemplate();
+        DataStreamFailureStore.Template failureStore = DataStreamFailureStore.builder()
+            .lifecycle(ResettableValue.create(failureLifecycle))
+            .buildTemplate();
+        DataStreamOptions.Template dataStreamOptions = new DataStreamOptions.Template(ResettableValue.create(failureStore));
+        Template template = new Template(null, null, null, (DataStreamLifecycle.Template) null, dataStreamOptions);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(template)
+            .build();
+
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
+        request.indexTemplate(indexTemplate);
+
+        ActionRequestValidationException validationException = request.validate();
+
+        assertThat(validationException, is(notNullValue()));
+        assertThat(
+            validationException.getMessage(),
+            containsString(DataStreamLifecycle.FROZEN_AFTER_NOT_SUPPORTED_ON_FAILURES_ERROR_MESSAGE)
+        );
+    }
+
+    public void testValidateAcceptsExplicitFrozenAfterResetOnFailureStoreLifecycle() {
+        DataStreamLifecycle.Template failureLifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
+            .frozenAfter(ResettableValue.reset())
+            .buildTemplate();
+        DataStreamFailureStore.Template failureStore = DataStreamFailureStore.builder()
+            .lifecycle(ResettableValue.create(failureLifecycle))
+            .buildTemplate();
+        DataStreamOptions.Template dataStreamOptions = new DataStreamOptions.Template(ResettableValue.create(failureStore));
+        Template template = new Template(null, null, null, (DataStreamLifecycle.Template) null, dataStreamOptions);
+        ComposableIndexTemplate indexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-*"))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .template(template)
+            .build();
+
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
+        request.indexTemplate(indexTemplate);
+
+        assertThat(request.validate(), nullValue());
     }
 }

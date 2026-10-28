@@ -9,19 +9,34 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.escf.EscfLongColumn;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.sourcebatch.LuceneColumn;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+
+import static org.elasticsearch.escf.EscfColumn.windowValidity;
 
 /**
  * A mapper for the {@code _id} field that builds the {@code _id} from the
@@ -44,9 +59,16 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         });
     }
 
+    @Override
+    BytesRef nestedIdentityTerm(DocumentParserContext context) {
+        // The _id is derived from the _tsid and @timestamp, which aren't parsed yet, so postParse propagates it to the
+        // nested documents (which it asserts start without an _id).
+        return null;
+    }
+
     private static final long SEED = 0;
 
-    public static void createField(DocumentParserContext context, IndexRouting.ExtractFromSource.Builder routingBuilder, BytesRef tsid) {
+    public static BytesRef createField(DocumentParserContext context, RoutingHashBuilder routingBuilder, BytesRef tsid) {
         final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
         String id;
         if (routingBuilder != null) {
@@ -61,13 +83,23 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
              * at all we just skip the assertion because we can't be sure
              * it always must pass.
              */
-            IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
+            var indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) context.indexSettings().getIndexRouting();
             assert context.getDynamicMappers().isEmpty() == false
                 || context.getDynamicRuntimeFields().isEmpty() == false
-                || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
+                || id.equals(
+                    indexRouting.createId(
+                        context.sourceToParse().source().xContentType(),
+                        context.sourceToParse().source().originalBytes(),
+                        suffix
+                    )
+                );
         } else if (context.sourceToParse().routing() != null) {
             int routingHash = TimeSeriesRoutingHashFieldMapper.decode(context.sourceToParse().routing());
-            id = createId(routingHash, tsid, timestamp);
+            if (context.indexSettings().useTimeSeriesSyntheticId()) {
+                id = createSyntheticId(tsid, timestamp, routingHash);
+            } else {
+                id = createId(routingHash, tsid, timestamp);
+            }
         } else {
             if (context.sourceToParse().id() == null) {
                 throw new IllegalArgumentException(
@@ -90,10 +122,20 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 )
             );
         }
+        assert id != null;
         context.id(id);
 
-        BytesRef uidEncoded = Uid.encodeId(context.id());
-        context.doc().add(new StringField(NAME, uidEncoded, Field.Store.YES));
+        final Field idField;
+        if (context.indexSettings().useTimeSeriesSyntheticId()) {
+            idField = syntheticIdField(context.id());
+        } else {
+            idField = standardIdField(context.id());
+        }
+        assert NAME.equals(idField.name()) : idField.name();
+        assert idField.binaryValue() != null;
+
+        context.doc().add(idField);
+        return idField.binaryValue();
     }
 
     public static String createId(int routingHash, BytesRef tsid, long timestamp) {
@@ -108,9 +150,16 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
+    public static long extractTimestampFromId(byte[] id) {
+        assert id.length == 20;
+        // id format: [4 bytes (basic hash routing fields), 8 bytes prefix of 128 murmurhash dimension fields, 8 bytes
+        // @timestamp)
+        return ByteUtils.readLongBE(id, 12);
+    }
+
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        RoutingHashBuilder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix
@@ -129,6 +178,107 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         });
         assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         return id;
+    }
+
+    /**
+     * Returns the byte length of a synthetic _id for the given tsid.
+     */
+    public static int syntheticIdLength(BytesRef tsid) {
+        return tsid.length + Long.BYTES + Integer.BYTES;
+    }
+
+    /**
+     * Writes a synthetic _id directly into the destination byte array at the given offset.
+     * The synthetic _id has the format: [_tsid + (Long.MAX_VALUE - timestamp) + routing hash].
+     */
+    public static void writeSyntheticId(BytesRef tsid, long timestamp, int routingHash, byte[] dest, int destOffset) {
+        System.arraycopy(tsid.bytes, tsid.offset, dest, destOffset, tsid.length);
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, dest, destOffset + tsid.length);
+        ByteUtils.writeIntBE(routingHash, dest, destOffset + tsid.length + Long.BYTES);
+    }
+
+    /**
+     * Writes a synthetic _id directly into the destination byte array, using the Uid-encoded routing hash bytes.
+     * This avoids decoding/encoding the routing hash through base64 and int conversion.
+     * The routingHashBytes are expected to be Uid-encoded (LE bytes, possibly with 0xfd escape prefix).
+     */
+    public static void writeSyntheticId(BytesRef tsid, long timestamp, BytesRef routingHashBytes, byte[] dest, int destOffset) {
+        System.arraycopy(tsid.bytes, tsid.offset, dest, destOffset, tsid.length);
+        ByteUtils.writeLongBE(Long.MAX_VALUE - timestamp, dest, destOffset + tsid.length);
+
+        int hashOffset = routingHashBytes.offset;
+        if (Byte.toUnsignedInt(routingHashBytes.bytes[hashOffset]) >= Uid.BASE64_ESCAPE) {
+            hashOffset++; // Skip escape prefix
+        }
+        // Write routing hash as BE by reversing the LE bytes from Uid encoding.
+        // This is equivalent to decoding the routing hash via Uid.decodeId and TimeSeriesRoutingHashFieldMapper.decode,
+        // then writing it with ByteUtils.writeIntBE, but avoids the intermediate String allocations.
+        int pos = destOffset + tsid.length + Long.BYTES;
+        dest[pos] = routingHashBytes.bytes[hashOffset + 3];
+        dest[pos + 1] = routingHashBytes.bytes[hashOffset + 2];
+        dest[pos + 2] = routingHashBytes.bytes[hashOffset + 1];
+        dest[pos + 3] = routingHashBytes.bytes[hashOffset];
+    }
+
+    public static BytesRef createSyntheticIdBytesRef(BytesRef tsid, long timestamp, int routingHash) {
+        // A synthetic _id has the format: [_tsid (non-fixed length) + (Long.MAX_VALUE - timestamp) (8 bytes) + routing hash (4 bytes)].
+        // We dont' use hashing here because we need to be able to extract the concatenated values from the _id in various places, like
+        // when applying doc values updates in Lucene, or when routing GET or DELETE requests to the corresponding shard, or when replaying
+        // translog operations. Since the synthetic _id is not indexed and not really stored on disk we consider it fine if it is longer
+        // that standard ids.
+        //
+        // Also, when applying doc values updates Lucene expects _id to be sorted: it stops applying updates for a term "_id:ABC" if it
+        // seeks to a term "BCD" as it knows there won't be more documents matching "_id:ABC" past the term "BCD". So it is important to
+        // generate an _id as a byte array whose lexicographical order reflects the order of the documents in the segment. For this reason,
+        // the timestamp is stored in the synthetic _id as (Long.MAX_VALUE - timestamp).
+        byte[] bytes = new byte[syntheticIdLength(tsid)];
+        writeSyntheticId(tsid, timestamp, routingHash, bytes, 0);
+        return new BytesRef(bytes);
+    }
+
+    public static String createSyntheticId(BytesRef tsid, long timestamp, int routingHash) {
+        BytesRef id = createSyntheticIdBytesRef(tsid, timestamp, routingHash);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(id.bytes);
+    }
+
+    // See #createSyntheticId
+    public static BytesRef extractTimeSeriesIdFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        int len = Math.toIntExact(id.length - Long.BYTES - Integer.BYTES);
+        int offset = id.offset;
+        final int firstByte = Byte.toUnsignedInt(id.bytes[offset]);
+        assert firstByte <= Uid.BASE64_ESCAPE : "invalid first byte [" + id + "]";
+        if (firstByte >= Uid.BASE64_ESCAPE) {
+            assert len > 2 && Byte.toUnsignedInt(id.bytes[offset + 1]) >= Uid.BASE64_ESCAPE
+                : "invalid second byte with escaped [" + id + "]";
+            offset++;
+            --len;
+        }
+        byte[] tsId = new byte[len];
+        System.arraycopy(id.bytes, offset, tsId, 0, tsId.length);
+        return new BytesRef(tsId);
+    }
+
+    public static long extractTimestampFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        // See #createSyntheticId
+        long delta = ByteUtils.readLongBE(id.bytes, id.offset + id.length - Long.BYTES - Integer.BYTES);
+        long timestamp = Long.MAX_VALUE - delta;
+        assert timestamp >= 0 : delta;
+        return timestamp;
+    }
+
+    /**
+     * Extract the routing hash value by reading the last 4 bytes of the provided {@link BytesRef} representing a UID-encoded synthetic id.
+     *
+     * @param id    an array of bytes representing the synthetic _id encoded with {@link Uid#encodeId}.
+     * @return      the routing hash value as an integer
+     */
+    public static int extractRoutingHashFromSyntheticId(BytesRef id) {
+        assert id.length > Long.BYTES + Integer.BYTES;
+        // In a synthetic id the routing hash is stored in the last 4 bytes using the Big Endian notation. This differs from how the
+        // _ts_routing_hash is stored in Lucene (using Little Endian).
+        return ByteUtils.readIntBE(id.bytes, id.offset + id.length - Integer.BYTES);
     }
 
     @Override
@@ -170,8 +320,181 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public String reindexId(String id) {
-        // null the _id so we recalculate it on write
-        return null;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return true;
     }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) {
+        // No-op: _id column emission is driven by TimeSeriesIdFieldMapper.postColumnarParse calling
+        // createColumns. This mapper's own hooks are intentionally empty; the work lives here
+        // because TimeSeriesIdFieldMapper owns the _id derivation on the row path too (postParse).
+        // TODO(columnar-tsdb): once nested documents are supported columnar, _id propagation to
+        // nested docs (addSyntheticIdFieldsToNestedDocs) must be added here or in TimeSeriesIdFieldMapper.
+    }
+
+    static void createColumns(BatchMappingContext context, BytesRef[] tsids) {
+        final int docCount = context.docCount();
+        final BytesRef[] routings = context.routings();
+        final boolean useTimeSeriesSyntheticId = context.indexSettings().useTimeSeriesSyntheticId();
+        final String indexName = context.indexSettings().getIndexMetadata().getIndex().getName();
+        final BytesRef[] derivedUids = new BytesRef[docCount];
+
+        final EscfLongColumn timestamps = context.timestamps();
+        for (int d = 0; d < docCount; d++) {
+            final BytesRef tsid = tsids[d];
+            assert tsid != null : "_tsid must not be null for doc [" + d + "]";
+            if (timestamps.isPresent(d) == false) {
+                throw new IllegalArgumentException(
+                    "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+                );
+            }
+            final long timestamp = timestamps.longValueAt(d);
+
+            final BytesRef routingBytes = routings != null ? routings[d] : null;
+            if (routingBytes == null) {
+                // In translog replay the _id was already computed and the routing hash is gone.
+                // That path sets the id on the IndexRequest, so it must not reach the columnar batch.
+                throw new IllegalArgumentException(
+                    "_ts_routing_hash was null but must be set because index [" + indexName + "] is in time_series mode"
+                );
+            }
+            final int routingHash = TimeSeriesRoutingHashFieldMapper.decode(routingBytes.utf8ToString());
+
+            final String id;
+            if (useTimeSeriesSyntheticId) {
+                id = createSyntheticId(tsid, timestamp, routingHash);
+            } else {
+                id = createId(routingHash, tsid, timestamp);
+            }
+
+            // Validate any pre-set id matches the derived id (mirrors createField's check).
+            final String existingId = context.id(d);
+            if (existingId != null && existingId.equals(id) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "_id must be unset or set to [%s] but was [%s] because [%s] is in time_series mode",
+                        id,
+                        existingId,
+                        indexName
+                    )
+                );
+            }
+
+            final BytesRef uid = Uid.encodeId(id);
+            context.setSyntheticId(d, id, uid);
+            derivedUids[d] = uid;
+        }
+
+        if (useTimeSeriesSyntheticId) {
+            // The synthetic _id must be indexed (IndexOptions.DOCS) but produce zero terms, mirroring how
+            // SyntheticIdField works on the row path (it overrides tokenStream() to return empty). The columnar
+            // batch path uses Lucene's BinaryColumn, whose adapter returns InvertableType.BINARY — it uses the
+            // binary uid bytes directly as a term, which violates the TSDBSyntheticIdPostingsFormat invariant.
+            // The fix is two separate columns for the same field name, as documented by TokenStreamColumn:
+            // a BinaryColumn (DV) and a TokenStreamColumn (empty token streams, no actual terms).
+            // The row-oriented fallback path (rowFieldCursor) emits a SyntheticIdField which handles both aspects.
+            context.addColumn(MappedColumns.binaryDvOnlyColumn(derivedUids, SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_DV_ONLY_TYPE));
+            context.addColumn(new SyntheticIdTokenStreamColumn(derivedUids, 0, docCount));
+        } else {
+            context.addColumn(MappedColumns.binaryColumn(derivedUids, NAME, StringField.TYPE_STORED));
+        }
+    }
+
+    /**
+     * Inverted-index-only column for the synthetic {@code _id} in the columnar batch path. Provides an empty
+     * {@link TokenStream} per document so the field is indexed with {@code IndexOptions.DOCS} but produces zero
+     * terms — matching what {@link SyntheticIdField#tokenStream} does on the row path. Binary doc values are
+     * handled by the companion {@code binaryDvOnlyColumn}. In the row-oriented fallback path, this column
+     * emits a full {@link SyntheticIdField} (which covers both binary DV and the empty-token inverted index).
+     */
+    private static final class SyntheticIdTokenStreamColumn extends TokenStreamColumn implements LuceneColumn {
+
+        private final BytesRef[] uids;
+        private final int from;
+        private final int count;
+        private final FixedBitSet filter;
+
+        SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count) {
+            this(uids, from, count, null);
+        }
+
+        private SyntheticIdTokenStreamColumn(BytesRef[] uids, int from, int count, FixedBitSet filter) {
+            super(SyntheticIdField.NAME, SyntheticIdField.COLUMNAR_INDEXED_TYPE, filter != null ? Density.SPARSE : Density.DENSE);
+            this.uids = uids;
+            this.from = from;
+            this.count = count;
+            this.filter = filter;
+        }
+
+        @Override
+        public LuceneColumn withFilter(FixedBitSet newFilter) {
+            assert newFilter == null || newFilter.length() == count;
+            return new SyntheticIdTokenStreamColumn(uids, from, count, LuceneColumn.singleFilter(filter, newFilter));
+        }
+
+        @Override
+        public LuceneColumn slice(int from, int count) {
+            Objects.checkFromIndexSize(from, count, this.count);
+            return new SyntheticIdTokenStreamColumn(uids, this.from + from, count, windowValidity(filter, from, count));
+        }
+
+        @Override
+        public Column toLuceneColumn() {
+            return this;
+        }
+
+        @Override
+        public ObjectTupleCursor<TokenStream> tuples() {
+            return new ObjectTupleCursor<>() {
+                private int doc = -1;
+                private final SyntheticIdField.EmptyTokenStream ts = new SyntheticIdField.EmptyTokenStream();
+
+                @Override
+                public int nextDoc() {
+                    ++doc;
+                    if (filter != null) {
+                        while (doc < count && filter.get(doc) == false) {
+                            ++doc;
+                        }
+                    }
+                    return doc < count ? doc : DocIdSetIterator.NO_MORE_DOCS;
+                }
+
+                @Override
+                public TokenStream value() {
+                    return ts;
+                }
+            };
+        }
+
+        @Override
+        public LuceneColumn.RowFieldCursor rowFieldCursor() {
+            return new LuceneColumn.RowFieldCursor() {
+                private int srcIdx = from - 1;
+                private SyntheticIdField field = null;
+
+                @Override
+                public int nextDoc() {
+                    srcIdx++;
+                    while (srcIdx < from + count && (uids[srcIdx] == null || (filter != null && filter.get(srcIdx - from) == false))) {
+                        srcIdx++;
+                    }
+                    return srcIdx < from + count ? srcIdx - from : DocIdSetIterator.NO_MORE_DOCS;
+                }
+
+                @Override
+                public void appendCurrentFields(List<? super IndexableField> out) {
+                    if (field == null) {
+                        field = new SyntheticIdField(uids[srcIdx]);
+                    } else {
+                        field.setBytesValue(uids[srcIdx]);
+                    }
+                    out.add(field);
+                }
+            };
+        }
+    }
+
 }

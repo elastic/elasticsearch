@@ -109,8 +109,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private static Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
-        if (arg instanceof Expression) {
-            return traversal.apply((Expression) arg);
+        if (arg instanceof Expression exp) {
+            return traversal.apply(exp);
         }
 
         // WARNING: if the collection is typed, an incompatible function will be applied to it
@@ -119,17 +119,19 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         // has no type info so it's difficult to have automatic checking without having base classes).
 
         if (arg instanceof Collection<?> c) {
-            List<Object> transformed = new ArrayList<>(c.size());
+            List<Object> transformed = null;
             boolean hasChanged = false;
+            int i = 0;
             for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
-                if (e.equals(next)) {
-                    // use the initial value
-                    next = e;
-                } else {
-                    hasChanged = true;
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
                 }
-                transformed.add(next);
+                i++;
             }
 
             return hasChanged ? transformed : arg;
@@ -164,8 +166,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private static void doForEachExpression(Object arg, Consumer<Expression> traversal) {
-        if (arg instanceof Expression) {
-            traversal.accept((Expression) arg);
+        if (arg instanceof Expression exp) {
+            traversal.accept(exp);
         } else if (arg instanceof Collection<?> c) {
             for (Object o : c) {
                 doForEachExpression(o, traversal);

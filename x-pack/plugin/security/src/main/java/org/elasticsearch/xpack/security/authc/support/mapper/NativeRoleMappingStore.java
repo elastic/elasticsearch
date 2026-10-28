@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.IOException;
@@ -125,7 +128,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             listener.onResponse(List.of());
             return;
         }
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (securityIndex.forCurrentProject().isIndexUpToDate() == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "Security index is not on the current version - the native realm will not be operational until "
@@ -199,7 +202,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         Request request,
         ActionListener<Result> listener
     ) {
-        if (securityIndex.isIndexUpToDate() == false) {
+        if (securityIndex.forCurrentProject().isIndexUpToDate() == false) {
             listener.onFailure(
                 new IllegalStateException(
                     "Security index is not on the current version - the native realm will not be operational until "
@@ -229,7 +232,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             return;
         }
         final ExpressionRoleMapping mapping = request.getMapping();
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndex.forCurrentProject().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -269,13 +272,13 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             listener.onFailure(new IllegalStateException("Native role mapping management is disabled"));
             return;
         }
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (securityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (projectSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
@@ -324,14 +327,14 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
             listener.onResponse(List.of());
             return;
         }
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-        if (frozenSecurityIndex.indexExists() == false) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
             logger.debug("The security index does not exist - no role mappings can be loaded");
             listener.onResponse(List.of());
             return;
         }
         final List<ExpressionRoleMapping> lastLoad = lastLoadRef.get();
-        if (frozenSecurityIndex.indexIsClosed()) {
+        if (projectSecurityIndex.indexIsClosed()) {
             if (lastLoad != null) {
                 assert lastLoadCacheEnabled;
                 logger.debug("The security index exists but is closed - returning previously cached role mappings");
@@ -340,8 +343,8 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
                 logger.debug("The security index exists but is closed - no role mappings can be loaded");
                 listener.onResponse(List.of());
             }
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
+        } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            final ElasticsearchException unavailableReason = projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
             if (lastLoad != null) {
                 assert lastLoadCacheEnabled;
                 logger.debug(
@@ -376,14 +379,22 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         if (enabled == false) {
             reportStats(listener, List.of());
-        } else if (securityIndex.indexIsClosed() || securityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            reportStats(listener, List.of());
         } else {
-            getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
+            final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+            if (projectSecurityIndex.indexIsClosed() || projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+                reportStats(listener, List.of());
+            } else {
+                getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));
+            }
         }
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    @FixForMultiProject
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false

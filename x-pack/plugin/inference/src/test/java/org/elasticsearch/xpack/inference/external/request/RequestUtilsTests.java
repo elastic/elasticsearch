@@ -7,17 +7,80 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthApiKeyHeader;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.decorateWithAuthHeader;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.jsonEntity;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class RequestUtilsTests extends ESTestCase {
-    public void testCreateAuthBearerHeader() {
-        var header = createAuthBearerHeader(new SecureString("abc".toCharArray()));
+    private static final String SECRET = "abc";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String APIKEY_PREFIX = "ApiKey ";
+    private static final String AUTHORIZATION_HEADER = "Authorization";
 
-        assertThat(header.getName(), is("Authorization"));
-        assertThat(header.getValue(), is("Bearer abc"));
+    public void testCreateAuthBearerHeader() {
+        var header = createAuthBearerHeader(new SecureString(SECRET.toCharArray()));
+
+        assertThat(header.getName(), is(AUTHORIZATION_HEADER));
+        assertThat(header.getValue(), is(BEARER_PREFIX + SECRET));
+    }
+
+    public void testBearerToken() {
+        assertThat(bearerToken(SECRET), is(BEARER_PREFIX + SECRET));
+    }
+
+    public void testCreateAuthApiKeyHeader() {
+        var header = createAuthApiKeyHeader(new SecureString(SECRET.toCharArray()));
+
+        assertThat(header.getName(), is(AUTHORIZATION_HEADER));
+        assertThat(header.getValue(), is(APIKEY_PREFIX + SECRET));
+    }
+
+    public void testApiKey() {
+        assertThat(apiKey(SECRET), is(APIKEY_PREFIX + SECRET));
+    }
+
+    public void testDecorateWithAuthHeader() throws URISyntaxException {
+        var httpPost = SimpleRequestBuilder.post(new URI("https://example.com/v1/embeddings")).build();
+        decorateWithAuthHeader(httpPost, new SecureString(SECRET.toCharArray()));
+
+        assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", SECRET)));
+    }
+
+    public void testJsonEntity_WritesTheSerializedObject() {
+        ToXContentObject object = (builder, params) -> builder.startObject().field("key", "value").endObject();
+
+        var entity = jsonEntity(object);
+
+        assertThat(new String(entity, StandardCharsets.UTF_8), is("""
+            {"key":"value"}"""));
+    }
+
+    public void testJsonEntity_WhenSerializationFails_Throws() {
+        ToXContentObject object = (builder, params) -> { throw new IOException("boom"); };
+
+        var exception = expectThrows(UncheckedIOException.class, () -> jsonEntity(object));
+
+        assertThat(exception.getMessage(), containsString("Failed to serialize ["));
+        assertThat(exception.getCause().getMessage(), is("boom"));
     }
 }

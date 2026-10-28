@@ -6,20 +6,23 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvAvg}.
+ * {@link ExpressionEvaluator} implementation for {@link MvAvg}.
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvAvgIntEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvAvgIntEvaluator.class);
+
+  public MvAvgIntEvaluator(ExpressionEvaluator field, DriverContext driverContext) {
     super(driverContext, field);
   }
 
@@ -38,11 +41,11 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           int value = v.getInt(first);
@@ -102,11 +105,11 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         int value = v.getInt(first);
@@ -138,10 +141,15 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+  @Override
+  public long baseRamBytesUsed() {
+    return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+  }
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+  public static class Factory implements ExpressionEvaluator.Factory {
+    private final ExpressionEvaluator.Factory field;
+
+    public Factory(ExpressionEvaluator.Factory field) {
       this.field = field;
     }
 

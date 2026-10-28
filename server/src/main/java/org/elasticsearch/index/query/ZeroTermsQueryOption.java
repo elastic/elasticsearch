@@ -26,7 +26,7 @@ public enum ZeroTermsQueryOption implements Writeable {
     },
     ALL(1) {
         public Query asQuery() {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     },
     // this is used internally to make sure that query_string and simple_query_string
@@ -53,6 +53,15 @@ public enum ZeroTermsQueryOption implements Writeable {
             }
         }
         throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+    }
+
+    public static ZeroTermsQueryOption readFromString(String input) {
+        for (ZeroTermsQueryOption zeroTermsQuery : ZeroTermsQueryOption.values()) {
+            if (zeroTermsQuery.name().equalsIgnoreCase(input)) {
+                return zeroTermsQuery;
+            }
+        }
+        throw new ElasticsearchException("unknown serialized type [" + input + "]");
     }
 
     @Override

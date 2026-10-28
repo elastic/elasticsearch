@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -23,7 +24,7 @@ import java.util.jar.Manifest;
 public class VersionTests extends ESTestCase {
 
     public void testCurrent() {
-        SqlVersion ver = SqlVersion.fromString(org.elasticsearch.Version.CURRENT.toString());
+        SqlVersion ver = SqlVersion.fromString(Build.current().version());
         assertEquals(ver, ClientVersion.CURRENT);
     }
 
@@ -35,7 +36,7 @@ public class VersionTests extends ESTestCase {
     private static final String JAR_PATH_SEPARATOR = "!/";
 
     private static String versionString(byte[] parts) {
-        StringBuffer version = new StringBuffer();
+        StringBuilder version = new StringBuilder();
         for (byte part : parts) {
             version.append(".");
             version.append(part);

@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,8 +24,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +38,7 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class RangeFieldMapperTests extends MapperTestCase {
@@ -47,6 +52,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
         return false;
     }
 
@@ -72,7 +82,20 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        if (rangeType() == RangeType.DATE) {
+            checker.registerConflictCheck("locale", b -> b.field("locale", "en_gb"));
+            checker.registerConflictCheck("format", fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", DATE_FORMAT);
+            }), fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", "epoch_millis");
+            }));
+        } else {
+            checker.registerIgnoredParameter("locale");
+            checker.registerIgnoredParameter("format");
+        }
     }
 
     private String getFromField() {
@@ -120,7 +143,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertFalse(pointField.fieldType().stored());
     }
 
-    public final void testNotIndexed() throws Exception {
+    @Override
+    public final void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("index", false);
@@ -128,6 +152,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
     }
 
     public final void testNoDocValues() throws Exception {
@@ -408,7 +433,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), null, SourceFieldMetrics.NOOP);
+                SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), null, SourceFieldMetrics.NOOP, null);
                 Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
 
                 return syntheticSource;
@@ -418,12 +443,55 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
     protected abstract RangeType rangeType();
 
+    /**
+     * Generates a two-sided inclusive range in object form. Doc values only keep inclusive bounds and render an unbounded
+     * side as {@code null}, so exclusive, one-sided or CIDR inputs legitimately come back from {@code docvalue_fields} in a
+     * different form than the {@code fields} API returns them from {@code _source}. Those cases are covered by dedicated tests.
+     */
     @Override
-    protected Object generateRandomInputValue(MappedFieldType ft) {
-        // Doc value fetching crashes.
-        // https://github.com/elastic/elasticsearch/issues/70269
-        // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
-        assumeFalse("DocValuesFetcher doesn't work", true);
-        return null;
+    protected final Object generateRandomInputValue(MappedFieldType ft) {
+        Tuple<Object, Object> bounds = randomInclusiveBounds();
+        Map<String, Object> range = new LinkedHashMap<>();
+        range.put(GTE_FIELD.getPreferredName(), bounds.v1());
+        range.put(LTE_FIELD.getPreferredName(), bounds.v2());
+        return range;
+    }
+
+    /**
+     * Random {@code from <= to} bounds for {@link #generateRandomInputValue}, neither of which may be the min or max value of the
+     * range type, because doc values render those as {@code null}.
+     */
+    protected abstract Tuple<Object, Object> randomInclusiveBounds();
+
+    /**
+     * An object without bounds is indexed as the full range of the type. {@code docvalue_fields} renders both unbounded sides as
+     * {@code null}, the same as synthetic source does.
+     */
+    public final void testFetchUnboundedFromDocValues() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("gte", null);
+        expected.put("lte", null);
+        assertThat(docValueFields(mapperService, Map.of(), null), equalTo(List.of(expected)));
+    }
+
+    /**
+     * Fetches the values of {@code field} the way {@code docvalue_fields} does, for a document whose {@code field} is
+     * {@code sourceValue}.
+     */
+    protected final List<Object> docValueFields(MapperService mapperService, Object sourceValue, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType("field");
+        return new ArrayList<>(fetchFromDocValues(mapperService, ft, ft.docValueFormat(format, null), sourceValue));
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        // all ranges of a document are stored in a set, so duplicates are dropped from doc values
+        return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

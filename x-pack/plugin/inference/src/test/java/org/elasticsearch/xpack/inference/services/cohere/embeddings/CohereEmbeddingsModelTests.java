@@ -12,9 +12,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.MatcherAssert;
 
@@ -26,45 +26,21 @@ import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsModelTests extends ESTestCase {
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, Map.of(), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, Map.of());
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull_AndInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
         var model = createModel("url", "api_key", null, null, null);
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, null, InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, null);
         MatcherAssert.assertThat(overriddenModel, is(model));
     }
 
-    public void testOverrideWith_SetsInputTypeToIngest_WhenTheFieldIsNullInModelTaskSettings_AndNullInRequestTaskSettings() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(null, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.INGEST);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingStoredTaskSettings() {
+    public void testOverrideWith_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
         var model = createModel(
             "url",
             "api_key",
@@ -75,7 +51,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.SEARCH);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, getTaskSettingsMap(InputType.SEARCH, null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -88,31 +64,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
 
-    public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingRequestTaskSettings() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(null, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST, null), InputType.SEARCH);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_OverridesInputType_WithRequestTaskSettingsSearch_WhenRequestInputTypeIsInvalid() {
+    public void testOverrideWith_DoesNotOverrideInputType_WhenRequestTaskSettingsIsNull() {
         var model = createModel(
             "url",
             "api_key",
@@ -123,55 +75,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             CohereEmbeddingType.FLOAT
         );
 
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH, null), InputType.UNSPECIFIED);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_DoesNotSetInputType_FromRequest_IfInputTypeIsInvalid() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(null, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
-        var expectedModel = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(null, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-        MatcherAssert.assertThat(overriddenModel, is(expectedModel));
-    }
-
-    public void testOverrideWith_DoesNotSetInputType_WhenRequestTaskSettingsIsNull_AndRequestInputTypeIsInvalid() {
-        var model = createModel(
-            "url",
-            "api_key",
-            new CohereEmbeddingsTaskSettings(InputType.INGEST, null),
-            null,
-            null,
-            "model",
-            CohereEmbeddingType.FLOAT
-        );
-
-        var overriddenModel = CohereEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
+        var overriddenModel = CohereEmbeddingsModel.createWithOverriddenTaskSettings(model, getTaskSettingsMap(null, null));
         var expectedModel = createModel(
             "url",
             "api_key",
@@ -215,12 +119,14 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable String model,
         @Nullable CohereEmbeddingType embeddingType
     ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
@@ -235,15 +141,39 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         CohereEmbeddingsTaskSettings taskSettings,
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
-        @Nullable String model,
+        String model,
         @Nullable CohereEmbeddingType embeddingType
     ) {
+        return createModel(
+            url,
+            apiKey,
+            taskSettings,
+            tokenLimit,
+            dimensions,
+            model,
+            embeddingType,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public static CohereEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        String model,
+        @Nullable CohereEmbeddingType embeddingType,
+        CohereCommonServiceSettings.CohereApiVersion apiVersion
+    ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
+                new CohereCommonServiceSettings(testUri, model, null, apiVersion),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
@@ -262,12 +192,14 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable CohereEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarityMeasure
     ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model, null),
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                similarityMeasure,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,

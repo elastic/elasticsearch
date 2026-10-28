@@ -1,0 +1,227 @@
+---
+navigation_title: "Known issues"
+mapped_pages:
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
+---
+
+# Elasticsearch known issues [elasticsearch-known-issues]
+
+Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
+
+## 9.5.2 [elasticsearch-9.5.2-known-issues]
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause using a `terms` query
+  (multi-value), along with a `must_not` clause, on fields with disabled indexing can still return
+  false-positive matches despite the partial fix in 9.5.1. The 9.5.1 fix
+  ([#155936](https://github.com/elastic/elasticsearch/pull/155936)) addressed the bulk-scorer defect
+  for `term` and `range` query paths, but the multi-value `terms` query uses a different Lucene query
+  type that was not covered by that fix. [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds)
+  and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data
+  streams remain affected for this query shape.
+
+  The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)), which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+## 9.5.0 [elasticsearch-9.5.0-known-issues]
+
+* Boolean queries containing a `must`, `filter`, or `should` clause, along with a `must_not` clause, on fields with disabled indexing can return false-positive matches. This occurs when a DSL or ES|QL query selects Lucene's bulk-scoring path due to an iterator evaluation defect in Lucene ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)). [TSDB](https://www.elastic.co/docs/manage-data/data-store/data-streams/time-series-data-stream-tsds) and [columnar](https://www.elastic.co/docs/reference/elasticsearch/columnar) indices and data streams are affected, since they disable indexing on all fields by default.
+
+  A [partial fix](https://github.com/elastic/elasticsearch/pull/155936) is included in 9.5.1, addressing `term` and `range` query paths, but missing the multi-value `terms` query. The full fix ([#156643](https://github.com/elastic/elasticsearch/pull/156643)). which upgrades Elasticsearch to Lucene 10.5.1 ([apache/lucene#16450](https://github.com/apache/lucene/pull/16450)), is included in 9.5.2.
+
+* A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
+
+  This defect was introduced in [#147151](https://github.com/elastic/elasticsearch/pull/147151), released in Elasticsearch v9.5.0, and is fixed in [#158235](https://github.com/elastic/elasticsearch/pull/158235), released in Elasticsearch v9.5.3. We recommend all users of earlier versions in the 9.5 series to upgrade to at least v9.5.3 as soon as possible.
+
+  Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
+
+## 9.3.6 [elasticsearch-9.3.6-known-issues]
+
+* The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/152000) is included in 9.3.7.
+
+
+## 9.3.3 [elasticsearch-9.3.3-known-issues]
+
+* GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.3.3 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.3.4.
+
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+
+    ```
+    -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjMuMwpwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
+    ```
+
+## 9.3.1 [elasticsearch-9.3.1-known-issues]
+
+* On multi-node clusters where one or more nodes do not have a GPU, the GPU stats collection for `_xpack/usage` triggers repeated WARN-level log messages from `OutboundHandler`:
+
+  ```
+  [WARN ][o.e.t.OutboundHandler] failed to serialize outbound message [org.elasticsearch.xpack.gpu.NodeGpuStatsResponse@...] java.lang.IllegalStateException: Negative longs unsupported, use writeLong or writeZLong for negative numbers [-1]
+  ```
+
+  The GPU stats for affected nodes are not collected, but all other `_xpack/usage` features continue to work normally. Single-node clusters are not affected because the response does not need to be serialized over the network.
+
+  To mitigate the log flooding, temporarily raise the log level for `OutboundHandler` to `ERROR`:
+
+  ```
+  PUT /_cluster/settings
+  {
+    "persistent": {
+      "logger.org.elasticsearch.transport.OutboundHandler": "ERROR"
+    }
+  }
+  ```
+
+  This bug is fixed in version 9.3.2.
+
+
+## 9.2.8 [elasticsearch-9.2.8-known-issues]
+
+* GCS repository operations fail when using Application Default Credentials (ADC). A [change](https://github.com/elastic/elasticsearch/pull/144519) in 9.2.8 caused `NotEntitledException` to no longer extend `AccessControlException`. The Google auth library's `DefaultCredentialsProvider` catches `AccessControlException` when checking credential file paths via `File.isFile()`, so the exception now propagates instead of falling through to the GCE metadata server.
+
+  The [fix](https://github.com/elastic/elasticsearch/pull/145626) is included in 9.2.9.
+
+  As a workaround, patch the `repository-gcs` entitlement policy to allow reading the gcloud credential path. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-gcsadc.options` and add the following line:
+
+    ```
+    -Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjIuOApwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgICAtIHJlbGF0aXZlX3BhdGg6ICIuY29uZmlnL2djbG91ZCIKICAgICAgICAgIHJlbGF0aXZlX3RvOiBob21lCiAgICAgICAgICBtb2RlOiByZWFkCg==
+    ```
+
+## 9.2.4 [elasticsearch-9.2.4-known-issues]
+
+* Upgrading from 9.1.10 to 9.2.4 may cause the following error:
+
+  ```
+  fatal exception while booting Elasticsearch org.elasticsearch.ElasticsearchException: failed to load metadata at org.elasticsearch.gateway.GatewayMetaState.start(GatewayMetaState.java:119) ~[elasticsearch-9.2.4.jar:?] at [..] Caused by: org.elasticsearch.gateway.CorruptStateException: org.elasticsearch.xcontent.XContentParseException: [-1:107032] [node_shutdown] failed to parse field [nodes]
+  ...
+  org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]
+  ```
+
+  This bug is addressed in version 9.2.5.
+
+## 9.2.0 [elasticsearch-9.2.0-known-issues]
+
+* The `bbq_disk` index format, licensed under the [Enterprise subscription tier](https://www.elastic.co/subscriptions) was introduced in 9.2.0 without appropriate license enforcement. This allowed users to create and use `bbq_disk` indices without an Enterprise license. This will be addressed in version 9.3.0. Upon upgrading to 9.3+ indices created on 9.2 will still be available for updates and queries, but new indices created on 9.3+ will require an Enterprise license.
+
+  This will be addressed in version 9.3.0.
+
+## 9.1.1 [elasticsearch-9.1.1-known-issues]
+
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+
+The bug is addressed in version 9.1.2.
+
+## 9.1.0 [elasticsearch-9.1.0-known-issues]
+
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+
+The bug is addressed in version 9.1.2.
+
+* The `-Dvector.rescoring.directio` JVM option is enabled (set to `true`) by default. When used with `bbq_hnsw` type vector indices, this can cause significant search performance degradation; particularly when enough memory is available to hold all vector data. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
+
+**How do I know if my index vector type is `bbq_hnsw`?**
+
+* Prior to 9.1, the vector type had to be explicitly set to `bbq_hnsw`. Starting with 9.1, `bbq_hnsw` is the default vector type for dense vectors with more than 384 dimensions in new indices, unless another type is specified.
+
+## 9.0.3 [elasticsearch-9.0.3-known-issues]
+
+* A bug in the merge scheduler in Elasticsearch 9.0.3 may prevent shards from closing when there isn’t enough disk space to complete a merge. As a result, operations such as closing or relocating an index may hang until sufficient disk space becomes available.
+To mitigate this issue, the disk space checker is disabled by default in 9.0.3 by setting `indices.merge.disk.check_interval` to `0` seconds. Manually enabling this setting is not recommended.
+
+  This issue is planned to be fixed in future patch release [#129613](https://github.com/elastic/elasticsearch/pull/129613)
+
+* A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
+
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
+
+  Possible workarounds include:
+  * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
+  * reducing the grouping key cardinality, by filtering out values before STATS
+
+## 9.0.0 [elasticsearch-9.0.0-known-issues]
+* Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.
+
+  For example: If Elasticsearch is installed in  `C:\ELK\elasticsearch`, and you try to launch it as `c:\elk\elasticsearch\bin\elasticsearch.bat`, you will get a `NotEntitledException` while booting. This is because Elasticsearch blocks access to `c:\elk\elasticsearch`, because does not match `C:\ELK\elasticsearch`. \
+This issue will be fixed in a future patch release (see [PR #126990](https://github.com/elastic/elasticsearch/pull/126990)).
+
+  As a workaround, make sure that all paths you specify have the same casing as the paths stored in the filesystem. Files and directory names should be entered as they appear in Windows Explorer or in a command prompt. This applies to paths specified in the command line, config files, environment variables and secure settings.
+
+* Active Directory authentication is blocked by default. Entitlements, the new security system used by Elasticsearch, has a policy for the `x-pack-core` module that is too restrictive, and does not allow the LDAP library used for AD authentication to perform outbound network connections. This issue will be fixed in a future patch release (see [PR #126992](https://github.com/elastic/elasticsearch/pull/126992)).
+
+  As a workaround, you can temporarily patch the policy using a JVM option:
+
+  1. Create a file called `${ES_CONF_PATH}/jvm_options/workaround-127061.options`.
+  2. Add the following line to the new file:
+
+     ```
+     -Des.entitlements.policy.x-pack-core=dmVyc2lvbnM6CiAgLSA4LjE4LjAKICAtIDkuMC4wCnBvbGljeToKICB1bmJvdW5kaWQubGRhcHNkazoKICAgIC0gc2V0X2h0dHBzX2Nvbm5lY3Rpb25fcHJvcGVydGllcwogICAgLSBvdXRib3VuZF9uZXR3b3Jr
+     ```
+
+  For information about editing your JVM settings, refer to [JVM settings](https://www.elastic.co/docs/reference/elasticsearch/jvm-settings).
+
+* Users upgrading from an Elasticsearch cluster that had previously been on a version between 7.10.0 and 7.12.1 may see that Watcher will not start on 9.x. The solution is to run the following commands in Kibana Dev Tools (or the equivalent using curl):
+     ```
+     DELETE _index_template/.triggered_watches
+     DELETE _index_template/.watches
+     POST /_watcher/_start
+     ```
+
+* A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
+
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
+
+  Possible workarounds include:
+    * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
+    * reducing the grouping key cardinality, by filtering out values before STATS
+
+* Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).
+
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
+  Affected {{es}} versions can experience significant vector search slowdowns and delayed Lucene index merges.
+  MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
+  An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
+  To determine whether MGLRU is enabled, run:
+  
+  ```bash
+  cat /sys/kernel/mm/lru_gen/enabled
+  ```
+  
+  A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+  This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+  It does not affect {{es}} 8.19.
+  For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).
+
+* A `double`, `float`, `half_float`, or `scaled_float` field can be indexed with the wrong value on indices that use stored `_source` with [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](/reference/elasticsearch/index-settings/mapping-limit.md) set to `true`. This happens when the field's value is sent as an integer literal (for example `2` rather than `2.0`) after a floating-point dynamic field in the same document that was dropped for exceeding `index.mapping.total_fields.limit`. The field's doc values and points then hold the dropped field's value instead, while `_source` keeps the original value, so queries, aggregations, and sorting disagree with `_source`. No error or warning is logged. Indices that use synthetic `_source` are not affected.
+
+  The cause is a bug in jackson-core 2.15.0 ([FasterXML/jackson-core#1391](https://github.com/FasterXML/jackson-core/pull/1391)). It affects {{es}} 8.13.0 through 8.19.18, 9.0.0 through 9.2.x, 9.3.0 through 9.3.7, and 9.4.0 through 9.4.3, and is fixed by the Jackson upgrade in [#152163](https://github.com/elastic/elasticsearch/pull/152163), included in 8.19.19, 9.3.8, 9.4.4, and 9.5.0. Documents indexed on an affected version keep the wrong values until they are reindexed.
+
+  To avoid the issue on an affected version, send floating-point values with a decimal point (for example `2.0`), or raise `index.mapping.total_fields.limit` so that dynamic fields are not dropped.
+
+  Refer to [#162209](https://github.com/elastic/elasticsearch/issues/162209) for further details.

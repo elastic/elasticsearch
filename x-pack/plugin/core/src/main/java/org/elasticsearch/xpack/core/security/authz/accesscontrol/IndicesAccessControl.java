@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,13 +57,15 @@ public class IndicesAccessControl {
     }
 
     /**
-     * @return The document and field permissions for an index if exist, otherwise <code>null</code> is returned.
+     * @return The document and field permissions for an index if they exist, otherwise <code>null</code> is returned.
      *         If <code>null</code> is being returned this means that there are no field or document level restrictions.
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
-        Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(index);
-        return this.getAllIndexPermissions().get(indexAndSelector.v1());
+        assert false == IndexNameExpressionResolver.hasSelectorSuffix(index)
+            || IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)
+            : "index name [" + index + "] cannot have explicit selector other than ::failures";
+        return getAllIndexPermissions().get(index);
     }
 
     public boolean hasIndexPermissions(String index) {
@@ -77,9 +80,24 @@ public class IndicesAccessControl {
     }
 
     public DlsFlsUsage getFieldAndDocumentLevelSecurityUsage() {
+        return computeDlsFlsUsage(iac -> false);
+    }
+
+    /**
+     * Like {@link #getFieldAndDocumentLevelSecurityUsage()} but excludes indices whose DLS/FLS was implicitly granted
+     * (e.g. derived from application privileges) and therefore does not require a platinum+ license.
+     */
+    public DlsFlsUsage getExplicitlyGrantedDlsFlsUsage() {
+        return computeDlsFlsUsage(IndexAccessControl::isDlsFlsImplicit);
+    }
+
+    private DlsFlsUsage computeDlsFlsUsage(Predicate<IndexAccessControl> skip) {
         boolean hasFls = false;
         boolean hasDls = false;
         for (IndexAccessControl iac : this.getAllIndexPermissions().values()) {
+            if (skip.test(iac)) {
+                continue;
+            }
             if (iac.fieldPermissions.hasFieldLevelSecurity()) {
                 hasFls = true;
             }
@@ -167,14 +185,20 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl implements CacheKey {
 
-        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(null, null);
+        public static final IndexAccessControl ALLOW_ALL = new IndexAccessControl(null, null, false);
 
         private final FieldPermissions fieldPermissions;
         private final DocumentPermissions documentPermissions;
+        private final boolean dlsFlsImplicit;
 
         public IndexAccessControl(FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
+            this(fieldPermissions, documentPermissions, false);
+        }
+
+        public IndexAccessControl(FieldPermissions fieldPermissions, DocumentPermissions documentPermissions, boolean dlsFlsImplicit) {
             this.fieldPermissions = (fieldPermissions == null) ? FieldPermissions.DEFAULT : fieldPermissions;
             this.documentPermissions = (documentPermissions == null) ? DocumentPermissions.allowAll() : documentPermissions;
+            this.dlsFlsImplicit = dlsFlsImplicit;
         }
 
         /**
@@ -193,10 +217,32 @@ public class IndicesAccessControl {
         }
 
         /**
+         * Whether the DLS/FLS on this index was contributed exclusively by implicit grants — for
+         * example, those derived from application privileges via an ImplicitPrivilegesProvider
+         * rather than by anything declared in the role definition.
+         * <p>
+         * Used to gate license enforcement and feature-usage tracking for DLS/FLS. Returns {@code true}
+         * only when {@link #getFieldPermissions()} or {@link #getDocumentPermissions()} carry actual
+         * restrictions <em>and</em> every contributor of those restrictions was implicit; an index
+         * without any DLS or FLS therefore reports {@code false}. If any explicit DLS/FLS contributed
+         * to this index — even alongside implicit grants — the flag is {@code false} and the strictest
+         * semantics apply.
+         * <p>
+         * When two {@link IndexAccessControl} instances are composed via {@link #limitIndexAccessControl}
+         * (e.g. for API-key or run-as flows), the result is implicit when every side that contributed
+         * DLS/FLS was already implicit. A side with no DLS/FLS is neutral. See that method.
+         */
+        public boolean isDlsFlsImplicit() {
+            return dlsFlsImplicit;
+        }
+
+        /**
          * Returns an instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
          * contained in the provided parameter.<br>
          * Allowed fields for this index permission would be an intersection of allowed fields.<br>
          * Allowed documents for this index permission would be an intersection of allowed documents.<br>
+         * The result is marked implicit when every side that contributed DLS or FLS was already implicit;
+         * see the inline rationale.
          *
          * @param limitedByIndexAccessControl {@link IndexAccessControl}
          * @return {@link IndexAccessControl}
@@ -210,14 +256,46 @@ public class IndicesAccessControl {
             DocumentPermissions constrainedDocumentPermissions = getDocumentPermissions().limitDocumentPermissions(
                 limitedByIndexAccessControl.getDocumentPermissions()
             );
-            return new IndexAccessControl(constrainedFieldPermissions, constrainedDocumentPermissions);
+            // Match the semantic used at role-build time in IndicesPermission#buildIndicesAccessControl:
+            // the composed IAC is implicit when every side that actually contributes DLS or FLS was
+            // already implicit. A side with no DLS/FLS is neutral — it doesn't force the result to
+            // explicit just because isDlsFlsImplicit() is vacuously false. The result is reported
+            // implicit only when the composition still has DLS/FLS to gate; without any DLS/FLS, the
+            // flag is false per the class invariant.
+            final boolean resultHasDlsFls = constrainedDocumentPermissions.hasDocumentLevelPermissions()
+                || constrainedFieldPermissions.hasFieldLevelSecurity();
+            final boolean dlsFlsImplicit = resultHasDlsFls
+                && isDlsFlsImplicitOrAbsent()
+                && limitedByIndexAccessControl.isDlsFlsImplicitOrAbsent();
+            return new IndexAccessControl(constrainedFieldPermissions, constrainedDocumentPermissions, dlsFlsImplicit);
+        }
+
+        private boolean hasDlsFls() {
+            return getDocumentPermissions().hasDocumentLevelPermissions() || getFieldPermissions().hasFieldLevelSecurity();
+        }
+
+        private boolean isDlsFlsImplicitOrAbsent() {
+            return hasDlsFls() == false || isDlsFlsImplicit();
         }
 
         @Override
         public String toString() {
-            return "IndexAccessControl{" + "fieldPermissions=" + fieldPermissions + ", documentPermissions=" + documentPermissions + '}';
+            return "IndexAccessControl{"
+                + "fieldPermissions="
+                + fieldPermissions
+                + ", documentPermissions="
+                + documentPermissions
+                + ", dlsFlsImplicit="
+                + dlsFlsImplicit
+                + '}';
         }
 
+        /**
+         * Note: {@link #dlsFlsImplicit} is deliberately excluded from the cache key. Two entries with the
+         * same DLS queries and FLS restrictions produce identical query results regardless of whether
+         * the restrictions were contributed implicitly (via application-privilege-derived grants) or
+         * explicitly (via a role definition), so the request cache should be shared across them.
+         */
         @Override
         public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
             if (documentPermissions.hasDocumentLevelPermissions()) {
@@ -239,12 +317,14 @@ public class IndicesAccessControl {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IndexAccessControl that = (IndexAccessControl) o;
-            return Objects.equals(fieldPermissions, that.fieldPermissions) && Objects.equals(documentPermissions, that.documentPermissions);
+            return dlsFlsImplicit == that.dlsFlsImplicit
+                && Objects.equals(fieldPermissions, that.fieldPermissions)
+                && Objects.equals(documentPermissions, that.documentPermissions);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fieldPermissions, documentPermissions);
+            return Objects.hash(fieldPermissions, documentPermissions, dlsFlsImplicit);
         }
     }
 
@@ -275,14 +355,44 @@ public class IndicesAccessControl {
             Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
             Map<String, IndexAccessControl> indexPermissionsMap = Maps.newMapWithExpectedSize(commonIndexes.size());
+            final Map<IndexAccessControl, Map<IndexAccessControl, IndexAccessControl>> limitedPairs = commonIndexes.size() > 1
+                ? new IdentityHashMap<>(1)
+                : null;
             for (String index : commonIndexes) {
                 IndexAccessControl indexAccessControl = getIndexPermissions(index);
                 IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
-                indexPermissionsMap.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
+                indexPermissionsMap.put(index, limitOrReuse(limitedPairs, indexAccessControl, limitedByIndexAccessControl));
             }
             return indexPermissionsMap;
         };
         return new IndicesAccessControl(isGranted, limitedIndexPermissions);
+    }
+
+    /**
+     * Limits {@code indexAccessControl} by {@code limitedByIndexAccessControl}, or reuses the result already held in
+     * {@code limitedPairs} for that pair. Each side shares one {@code IndexAccessControl} across all backing indices of a
+     * data stream (see {@code IndicesPermission#buildIndicesAccessControl}), so the same pair recurs once per backing
+     * index, and limiting is a pure function of the pair, so the result is keyed on the pair's identity. A {@code null}
+     * {@code limitedPairs} limits directly: the single-index case has nothing to reuse.
+     */
+    private static IndexAccessControl limitOrReuse(
+        @Nullable Map<IndexAccessControl, Map<IndexAccessControl, IndexAccessControl>> limitedPairs,
+        IndexAccessControl indexAccessControl,
+        IndexAccessControl limitedByIndexAccessControl
+    ) {
+        if (limitedPairs == null) {
+            return indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl);
+        }
+        final Map<IndexAccessControl, IndexAccessControl> limitedForOwner = limitedPairs.computeIfAbsent(
+            indexAccessControl,
+            k -> new IdentityHashMap<>(1)
+        );
+        IndexAccessControl limited = limitedForOwner.get(limitedByIndexAccessControl);
+        if (limited == null) {
+            limited = indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl);
+            limitedForOwner.put(limitedByIndexAccessControl, limited);
+        }
+        return limited;
     }
 
     @Override

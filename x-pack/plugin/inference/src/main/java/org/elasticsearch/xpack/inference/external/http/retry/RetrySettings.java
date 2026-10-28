@@ -18,7 +18,7 @@ public class RetrySettings {
 
     static final Setting<TimeValue> RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "xpack.inference.http.retry.initial_delay",
-        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(100),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

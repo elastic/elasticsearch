@@ -9,23 +9,15 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -49,28 +41,23 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
-            new ActionHandler<>(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
+            new ActionHandler(SEARCH_TEMPLATE_ACTION, TransportSearchTemplateAction.class),
+            new ActionHandler(MULTI_SEARCH_TEMPLATE_ACTION, TransportMultiSearchTemplateAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestSearchTemplateAction(clusterSupportsFeature),
-            new RestMultiSearchTemplateAction(settings),
+            new RestSearchTemplateAction(clusterSupportsFeature, restHandlersServices.crossProjectModeDecider()),
+            new RestMultiSearchTemplateAction(settings, restHandlersServices.crossProjectModeDecider()),
             new RestRenderSearchTemplateAction()
         );
     }

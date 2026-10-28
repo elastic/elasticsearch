@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.junit.Before;
 import org.mockito.Mock;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -27,6 +30,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class SimpleModelValidatorTests extends ESTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
+
     @Mock
     private ServiceIntegrationValidator mockServiceIntegrationValidator;
     @Mock
@@ -34,7 +40,7 @@ public class SimpleModelValidatorTests extends ESTestCase {
     @Mock
     private Model mockModel;
     @Mock
-    private ActionListener<Model> mockActionListener;
+    private ActionListener<ModelValidationResult> mockActionListener;
 
     private SimpleModelValidator underTest;
 
@@ -49,33 +55,33 @@ public class SimpleModelValidatorTests extends ESTestCase {
 
     public void testValidate_ServiceIntegrationValidatorThrowsException() {
         doThrow(ElasticsearchStatusException.class).when(mockServiceIntegrationValidator)
-            .validate(eq(mockInferenceService), eq(mockModel), any());
+            .validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
+            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
         );
         verifyInteractions();
     }
 
     public void testValidate_ServiceReturnsInferenceServiceResults() {
         mockCallToServiceIntegrationValidator(SparseEmbeddingResultsTests.createRandomResults());
-        verify(mockActionListener).onResponse(mockModel);
+        verify(mockActionListener).onResponse(argThat(result -> result.model() == mockModel && result.deploymentStarted() == false));
         verifyInteractions();
     }
 
     private void mockCallToServiceIntegrationValidator(InferenceServiceResults results) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(2);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(results);
             return null;
-        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        }).when(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
 
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
     private void verifyInteractions() {
-        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), any());
+        verify(mockServiceIntegrationValidator).validate(eq(mockInferenceService), eq(mockModel), eq(TIMEOUT), any());
         verify(mockActionListener).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(mockServiceIntegrationValidator, mockInferenceService, mockModel, mockActionListener);
     }

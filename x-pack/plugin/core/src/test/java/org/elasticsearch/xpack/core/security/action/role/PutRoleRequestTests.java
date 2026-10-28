@@ -48,6 +48,21 @@ public class PutRoleRequestTests extends ESTestCase {
         assertValidationError("unknown cluster privilege [" + unknownClusterPrivilegeName.toLowerCase(Locale.ROOT) + "]", request);
     }
 
+    public void testValidationErrorWithFailureStorePrivilegeInRemoteIndices() {
+        final PutRoleRequest request = new PutRoleRequest();
+        request.name(randomAlphaOfLengthBetween(4, 9));
+        request.addRemoteIndex(
+            new String[] { "*" },
+            new String[] { "index" },
+            new String[] { "read_failure_store", "read", "indices:data/read" },
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        assertValidationError("remote index privileges cannot contain privileges that grant access to the failure store", request);
+    }
+
     public void testValidationErrorWithTooLongRoleName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(

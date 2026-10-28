@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.UUIDs;
@@ -48,8 +46,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      */
     private boolean shouldStoreResult;
 
-    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersions.V_8_0_0;
-
     /**
      * Force merge UUID to store in the live commit data of a shard under
      * {@link org.elasticsearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
@@ -71,12 +67,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
-            forceMergeUUID = in.readString();
-        } else {
-            forceMergeUUID = in.readOptionalString();
-            assert forceMergeUUID != null : "optional was just used as a BwC measure";
-        }
+        forceMergeUUID = in.readString();
     }
 
     /**
@@ -167,11 +158,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
-            out.writeString(forceMergeUUID);
-        } else {
-            out.writeOptionalString(forceMergeUUID);
-        }
+        out.writeString(forceMergeUUID);
     }
 
     @Override

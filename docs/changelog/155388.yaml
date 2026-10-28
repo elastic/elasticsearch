@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 155388
+summary: Add explicit bucket boundary support for histogram APM metrics
+type: enhancement

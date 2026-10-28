@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,11 +105,11 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testSecurityAckTrialGoldOrPlatinumToBasic() {
-        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 6);
+        assertAckMessages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 5);
     }
 
     public void testSecurityAckStandardToBasic() {
-        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 1);
+        assertAckMessages(XPackField.SECURITY, STANDARD, BASIC, 0);
     }
 
     public void testSecurityAckAnyToStandard() {
@@ -156,7 +157,41 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
         for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
-            assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+            assertAckMessages(
+                XPackField.ESQL,
+                randomFrom(TRIAL, ENTERPRISE),
+                to,
+                Set.of(
+                    "ES|QL cross-cluster search will be disabled.",
+                    "Creating and querying ES|QL datasets and data sources will be disabled."
+                        + " Existing datasets and data sources can still be listed and deleted."
+                )
+            );
+        }
+    }
+
+    public void testInferenceAckMessageTrialOrEnterpriseToNotTrialOrEnterprise() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(TRIAL, ENTERPRISE), to, Set.of("The Inference API will be disabled"));
+        }
+    }
+
+    public void testInferenceAckMessageToTrialOrEnterprise() {
+        var fromAll = EnumSet.allOf(License.OperationMode.class);
+        for (OperationMode from : fromAll) {
+            assertAckMessages(XPackField.INFERENCE, from, randomFrom(TRIAL, ENTERPRISE), 0);
+        }
+    }
+
+    public void testInferenceAckMessageUnlicensedToUnlicensed() {
+        var notTrialOrEnterprise = EnumSet.allOf(License.OperationMode.class);
+        notTrialOrEnterprise.remove(TRIAL);
+        notTrialOrEnterprise.remove(ENTERPRISE);
+        for (OperationMode to : notTrialOrEnterprise) {
+            assertAckMessages(XPackField.INFERENCE, randomFrom(notTrialOrEnterprise), to, 0);
         }
     }
 
@@ -240,6 +275,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(lastUsed.get(usage), equalTo(100L));
 
         currentTime.set(200);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
+
+        // updates to the last used timestamp only happen if the time has increased
+        currentTime.set(199);
         goldFeature.check(licenseState);
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
@@ -335,7 +377,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         String warningSoon = "warning: license expiring soon";
         licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
-        assertCriticalWarnings(warningSoon);
+        assertWarnings(warningSoon);
 
         /*
         TODO: this does not yet work because the active comes before expiry check as a chance

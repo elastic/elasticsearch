@@ -23,6 +23,11 @@ public abstract class SinkOperator implements Operator {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return false;
+    }
+
     protected abstract void doAddInput(Page page);
 
     @Override

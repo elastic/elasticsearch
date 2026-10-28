@@ -1,40 +1,46 @@
 {
-  "rollup.stop_job":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-stop-job.html",
-      "description":"Stops an existing, started rollup job."
+  "rollup.stop_job": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-rollup-stop-job",
+      "description": "Stop rollup jobs"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "experimental",
+    "visibility": "public",
+    "deprecated": {
+      "version": "8.11.0",
+      "description": "Rollup APIs are deprecated, use downsampling with time series data stream instead"
     },
-    "url":{
-      "paths":[
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
         {
-          "path":"/_rollup/job/{id}/_stop",
-          "methods":[
+          "path": "/_rollup/job/{id}/_stop",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the job to stop"
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the job to stop"
             }
           }
         }
       ]
     },
-    "params":{
-      "wait_for_completion":{
-        "type":"boolean",
-        "required":false,
-        "description":"True if the API should block until the job has fully stopped, false if should be executed async. Defaults to false."
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": false,
+        "description": "True if the API should block until the job has fully stopped, false if should be executed async. Defaults to false."
       },
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"Block for (at maximum) the specified duration while waiting for the job to stop.  Defaults to 30s."
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Block for (at maximum) the specified duration while waiting for the job to stop.  Defaults to 30s."
       }
     }
   }

@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -69,7 +69,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -78,9 +77,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.persistGlobalCheckpointOnPrimaryShards;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -131,10 +132,20 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFieldDataStats() {
         assertAcked(
             indicesAdmin().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .setSettings(
+                    settingsBuilder().put("index.number_of_shards", 2)
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                )
                 .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         ensureGreen();
+
+        // Ensure each node has at least one shard
+        if (internalCluster().nodesInclude("test").size() == 1) {
+            updateIndexSettings(Settings.builder().put("index.number_of_replicas", 1), "test");
+            ensureGreen();
+        }
+
         prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").get();
         prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").get();
         indicesAdmin().prepareRefresh().get();
@@ -467,50 +478,61 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testThrottleStats() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
+            prepareCreate("test_throttle_stats_index").setSettings(
                 settingsBuilder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
                     .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                     .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                     .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
+                    .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), "true")
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC.name())
             )
         );
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
+        ensureGreen("test_throttle_stats_index");
         // make sure we see throttling kicking in:
-        boolean done = false;
-        long start = System.currentTimeMillis();
-        while (done == false) {
-            for (int i = 0; i < 100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for (int j = 0; j < 100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
+        AtomicBoolean done = new AtomicBoolean();
+        AtomicLong termUpTo = new AtomicLong();
+        Thread[] indexingThreads = new Thread[5];
+        for (int threadIdx = 0; threadIdx < indexingThreads.length; threadIdx++) {
+            indexingThreads[threadIdx] = new Thread(() -> {
+                while (done.get() == false) {
+                    for (int i = 0; i < 100; i++) {
+                        // Provoke slowish merging by making many unique terms:
+                        StringBuilder sb = new StringBuilder();
+                        for (int j = 0; j < 100; j++) {
+                            sb.append(' ');
+                            sb.append(termUpTo.incrementAndGet());
+                        }
+                        prepareIndex("test_throttle_stats_index").setId("" + termUpTo.get())
+                            .setSource("field" + (i % 10), sb.toString())
+                            .get();
+                        if (i % 2 == 0) {
+                            refresh("test_throttle_stats_index");
+                        }
+                    }
+                    refresh("test_throttle_stats_index");
                 }
-                prepareIndex("test").setId("" + termUpto).setSource("field" + (i % 10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
-                }
-            }
-            refresh();
-            stats = indicesAdmin().prepareStats().get();
-            // nodesStats = clusterAdmin().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
-            if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
-                fail("index throttling didn't kick in after 5 minutes of intense merging");
-            }
+            });
+            indexingThreads[threadIdx].start();
+        }
+
+        assertBusy(() -> {
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test_throttle_stats_index").get();
+            assertTrue(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0);
+            done.set(true);
+        }, 5L, TimeUnit.MINUTES);
+
+        for (Thread indexingThread : indexingThreads) {
+            indexingThread.join();
         }
 
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ESIntegTestCase.after tries to remove indices created by the test:
-        logger.info("test: now optimize");
-        indicesAdmin().prepareForceMerge("test").get();
-        flush();
-        logger.info("test: test done");
+        logger.info("test throttle stats: now optimize");
+        indicesAdmin().prepareForceMerge("test_throttle_stats_index").get();
+        flush("test_throttle_stats_index");
+        logger.info("test throttle stats: test done");
     }
 
     public void testSimpleStats() throws Exception {
@@ -1095,7 +1117,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             prepareIndex("index").setId("1").setSource("foo", "bar"),
             prepareIndex("index").setId("2").setSource("foo", "baz")
         );
-        persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
+        persistGlobalCheckpointOnPrimaryShards("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
         refresh();
         ensureGreen();
 
@@ -1128,7 +1150,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // Here we are testing that a fully deleted segment should be dropped and its cached is evicted.
         // In order to instruct the merge policy not to keep a fully deleted segment,
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
-        persistGlobalCheckpoint("index");
+        persistGlobalCheckpointOnPrimaryShards("index");
         assertBusy(() -> {
             for (final ShardStats shardStats : indicesAdmin().prepareStats("index").get().getIndex("index").getShards()) {
                 final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
@@ -1343,22 +1365,5 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(indexStatsAfterIndexing, is(notNullValue()));
             assertThat(indexStatsAfterIndexing.getPrimaries().getIndexing().getTotal().getWriteLoad(), is(greaterThan(0.0)));
         });
-    }
-
-    /**
-     * Persist the global checkpoint on all shards of the given index into disk.
-     * This makes sure that the persisted global checkpoint on those shards will equal to the in-memory value.
-     */
-    private void persistGlobalCheckpoint(String index) throws Exception {
-        final Set<String> nodes = internalCluster().nodesInclude(index);
-        for (String node : nodes) {
-            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            for (IndexService indexService : indexServices) {
-                for (IndexShard indexShard : indexService) {
-                    indexShard.sync();
-                    assertThat(indexShard.getLastSyncedGlobalCheckpoint(), equalTo(indexShard.getLastKnownGlobalCheckpoint()));
-                }
-            }
-        }
     }
 }

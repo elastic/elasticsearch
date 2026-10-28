@@ -1,0 +1,22 @@
+---
+version: ${xpack.prometheus.template.version}
+index_patterns: ["metrics-*.prometheus-*"]
+priority: 140
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Default Prometheus metrics template installed by x-pack
+  managed: true
+composed_of:
+  - metrics@tsdb-settings
+  - metrics-prometheus@mappings
+  - metrics-prometheus@settings
+  - metrics@custom
+  - metrics-prometheus@custom
+ignore_missing_component_templates:
+  - metrics@custom
+  - metrics-prometheus@custom
+template:
+  settings:
+    index:
+      mode: time_series

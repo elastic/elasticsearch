@@ -1,28 +1,31 @@
 {
-  "logstash.delete_pipeline":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/logstash-api-delete-pipeline.html",
-      "description":"Deletes Logstash Pipelines used by Central Management"
+  "logstash.delete_pipeline": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-logstash-delete-pipeline",
+      "description": "Delete a Logstash pipeline"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_logstash/pipeline/{id}",
-          "methods":[ "DELETE" ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The ID of the Pipeline"
+          "path": "/_logstash/pipeline/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The ID of the Pipeline"
             }
           }
         }
       ]
-    },
-    "params":{}
+    }
   }
 }

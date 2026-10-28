@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -93,12 +93,12 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
             assertThat(remoteStats.get(clusterAlias).heapBytes(), greaterThan(0L));
             assertThat(remoteStats.get(clusterAlias).memBytes(), greaterThan(0L));
             assertThat(remoteStats.get(clusterAlias).indicesBytes(), greaterThan(0L));
-            assertThat(remoteStats.get(clusterAlias).versions(), hasItem(Version.CURRENT.toString()));
+            assertThat(remoteStats.get(clusterAlias).versions(), hasItem(Build.current().version()));
             assertThat(remoteStats.get(clusterAlias).clusterUUID(), not(equalTo("")));
             assertThat(remoteStats.get(clusterAlias).mode(), oneOf("sniff", "proxy"));
         }
-        assertFalse(remoteStats.get(REMOTE1).skipUnavailable());
-        assertTrue(remoteStats.get(REMOTE2).skipUnavailable());
+        assertFalse(remoteStats.get(REMOTE1).skipUnavailable().get());
+        assertTrue(remoteStats.get(REMOTE2).skipUnavailable().get());
     }
 
     private void setupClusters() {

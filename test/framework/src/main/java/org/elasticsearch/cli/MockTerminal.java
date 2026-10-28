@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.terminal.Terminal;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterReader;

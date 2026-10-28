@@ -144,6 +144,18 @@ public class BulkResponseTests extends ESTestCase {
         }
     }
 
+    public void testCombineNoIngest() {
+        BulkResponse first = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        BulkResponse second = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        assertThat(BulkResponse.combine(List.of(first, second)).getIngestTookInMillis(), equalTo(NO_INGEST_TOOK));
+    }
+
+    public void testCombineOneIngest() {
+        BulkResponse first = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        BulkResponse second = new BulkResponse(new BulkItemResponse[0], 1, 2);
+        assertThat(BulkResponse.combine(List.of(first, second)).getIngestTookInMillis(), equalTo(2L));
+    }
+
     private static Tuple<? extends DocWriteResponse, ? extends DocWriteResponse> success(
         DocWriteRequest.OpType opType,
         XContentType xContentType

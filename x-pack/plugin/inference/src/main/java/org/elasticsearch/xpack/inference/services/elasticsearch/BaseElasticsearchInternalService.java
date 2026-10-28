@@ -7,50 +7,57 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceRequestMetadata;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public abstract class BaseElasticsearchInternalService implements InferenceService {
 
     protected final OriginSettingClient client;
+    protected final ThreadPool threadPool;
     protected final ExecutorService inferenceExecutor;
     protected final Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn;
     private final ClusterService clusterService;
+    private final InferenceStats inferenceStats;
 
     public enum PreferredModelVariant {
         LINUX_X86_OPTIMIZED,
@@ -61,13 +68,15 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
     public BaseElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.threadPool = context.threadPool();
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
         this.preferredModelVariantFn = this::preferredVariantFromPlatformArchitecture;
         this.clusterService = context.clusterService();
+        this.inferenceStats = context.inferenceStats();
     }
 
     // For testing.
-    // platformArchFn enables similating different architectures
+    // platformArchFn enables simulating different architectures
     // without extensive mocking on the client to simulate the nodes info response.
     // TODO make package private once the elser service is moved to the Elasticsearch
     // service package.
@@ -76,13 +85,15 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         Consumer<ActionListener<PreferredModelVariant>> preferredModelVariantFn
     ) {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
+        this.threadPool = context.threadPool();
         this.inferenceExecutor = context.threadPool().executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
         this.preferredModelVariantFn = preferredModelVariantFn;
         this.clusterService = context.clusterService();
+        this.inferenceStats = context.inferenceStats();
     }
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> finalListener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Void> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
@@ -93,24 +104,60 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
             if (esModel.usesExistingDeployment()) {
                 // don't start a deployment
-                finalListener.onResponse(Boolean.TRUE);
+                finalListener.onResponse(null);
                 return;
             }
 
-            SubscribableListener.<Boolean>newForked(forkedListener -> { isBuiltinModelPut(model, forkedListener); })
-                .<Boolean>andThen((l, modelConfigExists) -> {
-                    if (modelConfigExists == false) {
-                        putModel(model, l);
-                    } else {
-                        l.onResponse(true);
-                    }
-                })
-                .<Boolean>andThen((l2, modelDidPut) -> {
-                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
-                    var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
-                    client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
-                })
-                .addListener(finalListener);
+            var timer = InferenceTimer.start();
+            var attribution = InferenceRequestMetadata.capture(threadPool.getThreadContext()::getHeader);
+            // instead of a subscribably listener, use some wait to wait for the first one.
+            var subscribableListener = SubscribableListener.<Boolean>newForked(
+                forkedListener -> { isBuiltinModelPut(model, forkedListener); }
+            ).<Boolean>andThen((l, modelConfigExists) -> {
+                if (modelConfigExists == false) {
+                    putModel(model, l);
+                } else {
+                    l.onResponse(true);
+                }
+            }).<Boolean>andThen((l2, modelDidPut) -> {
+                var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
+                var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(esModel, l2);
+                client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
+            });
+            subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
+            subscribableListener.addListener(ActionListener.wrap(started -> {
+                inferenceStats.deploymentDuration()
+                    .withModel(model)
+                    .withSuccess()
+                    .withRequestMetadata(attribution)
+                    .record(timer.elapsedMillis());
+                finalListener.onResponse(null);
+            }, e -> {
+                if (e instanceof ElasticsearchTimeoutException) {
+                    var timeoutException = new ModelDeploymentTimeoutException(
+                        format(
+                            "Timed out after [%s] waiting for trained model deployment for inference endpoint [%s] to start. "
+                                + "The inference endpoint can not be used to perform inference until the deployment has started. "
+                                + "Use the trained model stats API to track the state of the deployment.",
+                            timeout,
+                            model.getInferenceEntityId()
+                        )
+                    );
+                    inferenceStats.deploymentDuration()
+                        .withModel(model)
+                        .withThrowable(timeoutException)
+                        .withRequestMetadata(attribution)
+                        .record(timer.elapsedMillis());
+                    finalListener.onFailure(timeoutException);
+                } else {
+                    inferenceStats.deploymentDuration()
+                        .withModel(model)
+                        .withThrowable(unwrapCause(e))
+                        .withRequestMetadata(attribution)
+                        .record(timer.elapsedMillis());
+                    finalListener.onFailure(e);
+                }
+            }));
 
         } else {
             finalListener.onFailure(notElasticsearchModelException(model));
@@ -118,9 +165,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
-
-        var model = parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+    public void stop(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
 
             var serviceSettings = esModel.getServiceSettings();
@@ -244,33 +289,21 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     private void preferredVariantFromPlatformArchitecture(ActionListener<PreferredModelVariant> preferredVariantListener) {
-        // Find the cluster platform as the service may need that
-        // information when creating the model
-        MlPlatformArchitecturesUtil.getMlNodesArchitecturesSet(
-            preferredVariantListener.delegateFailureAndWrap((delegate, architectures) -> {
-                if (architectures.isEmpty() && isClusterInElasticCloud()) {
-                    // There are no ml nodes to check the current arch.
-                    // However, in Elastic cloud ml nodes run on Linux x86
-                    delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                } else {
-                    boolean homogenous = architectures.size() == 1;
-                    if (homogenous && architectures.iterator().next().equals("linux-x86_64")) {
-                        delegate.onResponse(PreferredModelVariant.LINUX_X86_OPTIMIZED);
-                    } else {
-                        delegate.onResponse(PreferredModelVariant.PLATFORM_AGNOSTIC);
-                    }
-                }
-            }),
+        MlPlatformArchitecturesUtil.resolveEffectiveArchitectures(
+            clusterService.getClusterSettings(),
             client,
-            inferenceExecutor
+            inferenceExecutor,
+            preferredVariantListener.map(architectures -> {
+                var variant = MlPlatformArchitecturesUtil.resolveModelPlatformVariant(architectures, clusterService.getClusterSettings());
+                return MlPlatformArchitecturesUtil.LINUX_X86_64.equals(variant)
+                    ? PreferredModelVariant.LINUX_X86_OPTIMIZED
+                    : PreferredModelVariant.PLATFORM_AGNOSTIC;
+            })
         );
     }
 
-    boolean isClusterInElasticCloud() {
-        // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
-        // A value > 0 means scaling should be available for ml nodes
-        var maxMlLazyNodes = clusterService.getClusterSettings().get(MachineLearningField.MAX_LAZY_ML_NODES);
-        return maxMlLazyNodes > 0;
+    protected ClusterService getClusterService() {
+        return clusterService;
     }
 
     public static InferModelAction.Request buildInferenceRequest(
@@ -281,10 +314,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         TimeValue timeout
     ) {
         var request = InferModelAction.Request.forTextInput(id, update, inputs, true, timeout);
-        request.setPrefixType(
-            InputType.SEARCH == inputType ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST
-        );
-        request.setHighPriority(InputType.SEARCH == inputType);
+        var isSearchInput = InputType.SEARCH == inputType || InputType.INTERNAL_SEARCH == inputType;
+        var isIngestInput = InputType.INGEST == inputType || InputType.INTERNAL_INGEST == inputType;
+        if (isSearchInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        } else if (isIngestInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+        }
+        request.setHighPriority(isSearchInput);
         request.setChunked(false);
         return request;
     }
@@ -297,7 +334,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         InferModelAction.Request request,
         ActionListener<InferModelAction.Response> listener
     ) {
-        if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+        if (isDefaultId(model.getInferenceEntityId()) && unwrapCause(e) instanceof ResourceNotFoundException) {
             this.start(model, request.getInferenceTimeout(), listener.delegateFailureAndWrap((l, started) -> {
                 client.execute(InferModelAction.INSTANCE, request, listener);
             }));

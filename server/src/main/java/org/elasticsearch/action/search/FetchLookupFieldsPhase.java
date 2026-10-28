@@ -12,9 +12,12 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -36,6 +39,8 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
     static final String NAME = "fetch_lookup_fields";
 
+    private static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[lookup]";
+
     private final AbstractSearchAsyncAction<?> context;
     private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
@@ -51,9 +56,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         this.queryResults = queryResults;
     }
 
-    private record Cluster(String clusterAlias, List<SearchHit> hitsWithLookupFields, List<LookupField> lookupFields) {
-
-    }
+    private record Cluster(String clusterAlias, List<SearchHit> hitsWithLookupFields, List<LookupField> lookupFields) {}
 
     private static List<Cluster> groupLookupFieldsByClusterAlias(SearchHits searchHits) {
         final Map<String, List<SearchHit>> perClusters = new HashMap<>();
@@ -80,7 +83,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
     protected void run() {
         final List<Cluster> clusters = groupLookupFieldsByClusterAlias(searchResponse.hits);
         if (clusters.isEmpty()) {
-            context.sendSearchResponse(searchResponse, queryResults);
+            sendResponse();
             return;
         }
         doRun(clusters);
@@ -102,6 +105,9 @@ final class FetchLookupFieldsPhase extends SearchPhase {
         context.getSearchTransport().sendExecuteMultiSearch(multiSearchRequest, context.getTask(), new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse items) {
+                // Charged hits must stay fully charged, since multi-search does not count them again.
+                final boolean chargeValues = searchResponse.hasCoordinatorFetchCharge();
+                long lookupValuesBytes = 0L;
                 Exception failure = null;
                 int index = 0;
                 for (Cluster cluster : clusters) {
@@ -113,6 +119,12 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                         } else if (failure == null) {
                             final List<Object> fetchedValues = new ArrayList<>();
                             for (SearchHit rightHit : item.getResponse().getHits()) {
+                                if (chargeValues) {
+                                    // Hits that share a lookup share its values, so they are counted once here.
+                                    for (DocumentField field : rightHit.getDocumentFields().values()) {
+                                        lookupValuesBytes += field.ramBytesUsedEstimate();
+                                    }
+                                }
                                 final Map<String, List<Object>> fetchedFields = rightHit.getDocumentFields()
                                     .values()
                                     .stream()
@@ -131,10 +143,13 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                         }
                     }
                 }
+                if (failure == null && lookupValuesBytes > 0L) {
+                    chargeLookupValues(lookupValuesBytes);
+                }
                 if (failure != null) {
-                    context.onPhaseFailure(NAME, "failed to fetch lookup fields", failure);
+                    onFailure(failure);
                 } else {
-                    context.sendSearchResponse(searchResponse, queryResults);
+                    sendResponse();
                 }
             }
 
@@ -143,5 +158,20 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                 context.onPhaseFailure(NAME, "failed to fetch lookup fields", e);
             }
         });
+    }
+
+    /**
+     * The lookup searches release their charges with their responses, but the hits keep the looked up values alive.
+     * The lookup multi-search has already admitted the values and releases them only after this phase, so they are added
+     * without breaking.
+     */
+    private void chargeLookupValues(long bytes) {
+        final CircuitBreaker breaker = context.circuitBreaker();
+        breaker.addWithoutBreaking(bytes, BREAKER_LABEL);
+        searchResponse.addCoordinatorFetchCharge(Releasables.assertOnce(() -> breaker.addWithoutBreaking(-bytes, BREAKER_LABEL)));
+    }
+
+    private void sendResponse() {
+        context.sendSearchResponse(searchResponse, queryResults);
     }
 }

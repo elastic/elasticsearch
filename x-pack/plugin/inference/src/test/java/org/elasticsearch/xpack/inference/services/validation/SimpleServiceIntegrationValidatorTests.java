@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.junit.Before;
 import org.mockito.Mock;
 
@@ -34,7 +33,7 @@ import static org.mockito.MockitoAnnotations.openMocks;
 public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
 
     private static final List<String> TEST_INPUT = List.of("how big");
-    private static final String TEST_QUERY = "test query";
+    private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
 
     @Mock
     private InferenceService mockInferenceService;
@@ -57,74 +56,42 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
     }
 
     public void testValidate_ServiceThrowsException() {
-        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
-
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
-            .infer(
-                eq(mockModel),
-                eq(null),
-                eq(TEST_INPUT),
-                eq(false),
-                eq(Map.of()),
-                eq(InputType.INGEST),
-                eq(InferenceAction.Request.DEFAULT_TIMEOUT),
-                any()
-            );
+            .infer(eq(mockModel), eq(TEST_INPUT), eq(false), eq(Map.of()), eq(InputType.INTERNAL_INGEST), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
-            () -> { underTest.validate(mockInferenceService, mockModel, mockActionListener); }
+            () -> { underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener); }
         );
 
-        verifyCallToService(false);
+        verifyCallToService();
     }
 
-    public void testValidate_SuccessfulCallToServiceForNonReRankTaskType() {
-        when(mockModel.getTaskType()).thenReturn(randomValueOtherThan(TaskType.RERANK, () -> randomFrom(TaskType.values())));
-
-        mockSuccessfulCallToService(null, mockInferenceServiceResults);
+    public void testValidate_SuccessfulCallToService() {
+        mockSuccessfulCallToService(mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
-        verifyCallToService(false);
+        verifyCallToService();
     }
 
-    public void testValidate_SuccessfulCallToServiceForReRankTaskType() {
-        when(mockModel.getTaskType()).thenReturn(TaskType.RERANK);
-
-        mockSuccessfulCallToService(TEST_QUERY, mockInferenceServiceResults);
-        verify(mockActionListener).onResponse(mockInferenceServiceResults);
-        verifyCallToService(true);
-    }
-
-    private void mockSuccessfulCallToService(String query, InferenceServiceResults result) {
+    private void mockSuccessfulCallToService(InferenceServiceResults result) {
         doAnswer(ans -> {
-            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(7);
+            ActionListener<InferenceServiceResults> responseListener = ans.getArgument(6);
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
-            .infer(
-                eq(mockModel),
-                eq(query),
-                eq(TEST_INPUT),
-                eq(false),
-                eq(Map.of()),
-                eq(InputType.INGEST),
-                eq(InferenceAction.Request.DEFAULT_TIMEOUT),
-                any()
-            );
+            .infer(eq(mockModel), eq(TEST_INPUT), eq(false), eq(Map.of()), eq(InputType.INTERNAL_INGEST), eq(TIMEOUT), any());
 
-        underTest.validate(mockInferenceService, mockModel, mockActionListener);
+        underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
-    private void verifyCallToService(boolean withQuery) {
-        verify(mockModel).getTaskType();
+    private void verifyCallToService() {
         verify(mockInferenceService).infer(
             eq(mockModel),
-            eq(withQuery ? TEST_QUERY : null),
             eq(TEST_INPUT),
             eq(false),
             eq(Map.of()),
-            eq(InputType.INGEST),
-            eq(InferenceAction.Request.DEFAULT_TIMEOUT),
+            eq(InputType.INTERNAL_INGEST),
+            eq(TIMEOUT),
             any()
         );
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);

@@ -13,6 +13,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
@@ -222,6 +224,11 @@ public abstract class Streams {
         }
 
         @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
         public void flush() throws IOException {
             delegate.flush();
         }
@@ -234,6 +241,31 @@ public abstract class Streams {
         @Override
         public BytesReference bytes() {
             return delegate.bytes();
+        }
+
+        @Override
+        public void seek(long position) {
+            delegate.seek(position);
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            delegate.writeString(str);
+        }
+
+        @Override
+        public void writeOptionalString(@Nullable String str) throws IOException {
+            delegate.writeOptionalString(str);
+        }
+
+        @Override
+        public void writeGenericString(String value) throws IOException {
+            delegate.writeGenericString(value);
+        }
+
+        @Override
+        public void writeText(Text text) throws IOException {
+            delegate.writeText(text);
         }
     }
 

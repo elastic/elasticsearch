@@ -35,8 +35,9 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("health-shards-availability")
         .module("data-streams")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
-        .feature(FeatureFlag.INDEX_RECOVERY_USE_SYNTHETIC_SOURCE)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RANDOM_SAMPLING)
+        .feature(FeatureFlag.SLICE_INDEXING)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

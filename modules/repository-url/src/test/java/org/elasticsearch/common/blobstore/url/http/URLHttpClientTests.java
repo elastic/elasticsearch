@@ -28,8 +28,6 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -217,38 +215,39 @@ public class URLHttpClientTests extends ESTestCase {
             RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus(),
             RestStatus.INTERNAL_SERVER_ERROR.getStatus()
         );
+        final String[] charsetParams = {
+            "; charset=not-a-charset", // UnsupportedCharsetException
+            "; charset=%%%", // IllegalCharsetNameException
+            "; charset" // IllegalArgumentException: null charset name
+        };
+        for (int i = 0; i < charsetParams.length; i++) {
+            final String charsetParam = charsetParams[i];
+            final String path = "/unknown_charset_" + i;
+            httpServer.createContext(path, exchange -> {
+                assertThat(exchange.getRequestMethod(), equalTo("GET"));
+                Streams.readFully(exchange.getRequestBody());
+                try {
+                    final Headers responseHeaders = exchange.getResponseHeaders();
+                    final String contentType = randomFrom("text/plain", "text/html", "application/json", "application/xml");
+                    responseHeaders.add("Content-Type", contentType + charsetParam);
+                    final byte[] errorMessageBytes = randomByteArrayOfLength(randomIntBetween(1, 100));
+                    exchange.sendResponseHeaders(errorCode, errorMessageBytes.length);
 
-        httpServer.createContext("/unknown_charset", exchange -> {
-            assertThat(exchange.getRequestMethod(), equalTo("GET"));
-            Streams.readFully(exchange.getRequestBody());
+                    exchange.getResponseBody().write(errorMessageBytes);
+                } finally {
+                    exchange.close();
+                }
+            });
 
-            try {
-                final Headers responseHeaders = exchange.getResponseHeaders();
-                final String contentType = randomFrom("text/plain", "text/html", "application/json", "application/xml");
-                responseHeaders.add("Content-Type", contentType + "; charset=" + randomAlphaOfLength(4));
+            final URLHttpClientException urlHttpClientException = expectThrows(URLHttpClientException.class, () -> executeRequest(path));
 
-                final byte[] errorMessageBytes = randomByteArrayOfLength(randomIntBetween(1, 100));
-                exchange.sendResponseHeaders(errorCode, errorMessageBytes.length);
-
-                exchange.getResponseBody().write(errorMessageBytes);
-            } finally {
-                exchange.close();
-            }
-        });
-
-        final URLHttpClientException urlHttpClientException = expectThrows(
-            URLHttpClientException.class,
-            () -> executeRequest("/unknown_charset")
-        );
-
-        assertThat(urlHttpClientException.getMessage(), is(createErrorMessage(errorCode, "")));
-        assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
+            assertThat(urlHttpClientException.getMessage(), is(createErrorMessage(errorCode, "")));
+            assertThat(urlHttpClientException.getStatusCode(), equalTo(errorCode));
+        }
     }
 
     private URLHttpClient.HttpResponse executeRequest(String endpoint) throws Exception {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<URLHttpClient.HttpResponse>) () -> {
-            return httpClient.get(getURIForEndpoint(endpoint), Map.of());
-        });
+        return httpClient.get(getURIForEndpoint(endpoint), Map.of());
     }
 
     private URI getURIForEndpoint(String endpoint) throws Exception {

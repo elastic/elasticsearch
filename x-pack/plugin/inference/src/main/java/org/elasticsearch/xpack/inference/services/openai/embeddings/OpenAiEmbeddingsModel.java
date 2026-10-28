@@ -7,18 +7,29 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUtils;
+import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiSecretSettings;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
@@ -27,8 +38,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new OpenAiEmbeddingsModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public OpenAiEmbeddingsModel(
@@ -39,6 +49,9 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         ConfigurationParseContext context
     ) {
         this(
@@ -46,28 +59,65 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             taskType,
             service,
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            new OpenAiEmbeddingsTaskSettings(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            OpenAiSecretSettings.fromMap(secrets),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
-    // Should only be used directly for testing
-    OpenAiEmbeddingsModel(
+    public OpenAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable SecretSettings secrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
-            serviceSettings,
-            secrets
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings
         );
+    }
+
+    public OpenAiEmbeddingsModel(
+        ModelConfigurations modelConfigurations,
+        ModelSecrets modelSecrets,
+        ThreadPool threadPool,
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            modelSecrets.getSecretSettings(),
+            (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
+            threadPool,
+            tokenCache,
+            oauth2ClusterSettings,
+            buildUri(
+                ((OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).uri(),
+                OpenAiService.NAME,
+                OpenAiEmbeddingsModel::buildDefaultUri
+            )
+        );
+    }
+
+    public static URI buildDefaultUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(OpenAiUtils.HOST)
+            .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)
+            .build();
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
@@ -89,8 +139,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
+    public SecretSettings getSecretSettings() {
+        return super.getSecretSettings();
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -49,7 +50,23 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
-    public ConstantNullVector filter(int... positions) {
+    public long estimateTotalValueBytes() {
+        return 0;
+    }
+
+    @Override
+    public ConstantNullVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public ConstantNullVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
+
+    @Override
+    public ConstantNullVector deepCopy(BlockFactory blockFactory) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }
@@ -79,6 +96,12 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public float getFloat(int position) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
@@ -103,6 +126,36 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, double[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
     public int min() {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
@@ -110,6 +163,12 @@ public final class ConstantNullVector extends AbstractVector
 
     @Override
     public int max() {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public ConstantNullVector slice(int beginInclusive, int endExclusive) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }
@@ -129,6 +188,11 @@ public final class ConstantNullVector extends AbstractVector
     @Override
     public ElementType elementType() {
         return ElementType.NULL;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return 0;
     }
 
     @Override

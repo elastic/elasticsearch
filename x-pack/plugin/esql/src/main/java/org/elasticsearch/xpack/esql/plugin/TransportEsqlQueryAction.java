@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
@@ -15,48 +16,84 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.iplocation.api.IpLocationService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlFailureBounds;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,6 +104,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     implements
         AsyncTaskManagementService.AsyncOperation<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> {
 
+    private static final Logger logger = LogManager.getLogger(TransportEsqlQueryAction.class);
+
     private final ThreadPool threadPool;
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
@@ -74,12 +113,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
+    private final ViewResolver viewResolver;
+    private final DatasetResolver datasetResolver;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
     private final TransportActionServices services;
+    private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final QueryMetricsListener metricsCollector;
+    private volatile boolean defaultAllowPartialResults;
+    private volatile int resultTruncationMaxSize;
+    private volatile int resultTruncationDefaultSize;
+    private volatile int timeseriesResultTruncationMaxSize;
+    private volatile int timeseriesResultTruncationDefaultSize;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -89,51 +137,74 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanExecutor planExecutor,
         SearchService searchService,
         ExchangeService exchangeService,
+        ComputeExecutor computeExecutor,
         ClusterService clusterService,
+        ViewResolver viewResolver,
+        ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory,
+        BlockFactoryProvider blockFactoryProvider,
         Client client,
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        UsageService usageService
+        UsageService usageService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        IpLocationService ipLocationService,
+        ActionLoggingFieldsProvider fieldProvider,
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider,
+        QueryMetricsListener metricsCollector,
+        FederationLicense federationLicense
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
+        this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.datasetResolver = new DatasetResolver(
+            client,
+            requestExecutor,
+            crossProjectModeDecider,
+            Federation.isAvailable(clusterService.getSettings()),
+            federationLicense
+        );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
+        this.enrichPolicyResolver = new EnrichPolicyResolver(
+            clusterService,
+            transportService,
+            planExecutor.indexResolver(),
+            projectResolver
+        );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory(),
+            projectResolver,
+            plannerSettings
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory(),
+            projectResolver,
+            plannerSettings,
+            exchangeService
         );
-        this.computeService = new ComputeService(
-            searchService,
-            transportService,
-            exchangeService,
-            enrichLookupService,
-            lookupFromIndexService,
-            clusterService,
-            threadPool,
-            bigArrays,
-            blockFactory
-        );
+
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             client,
@@ -155,9 +226,114 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchService,
             exchangeService,
             clusterService,
+            projectResolver,
             indexNameExpressionResolver,
-            usageService
+            usageService,
+            new InferenceService(client, clusterService),
+            userAgentParserRegistry,
+            ipLocationService,
+            blockFactoryProvider,
+            new PlannerSettings.Holder(clusterService),
+            crossProjectModeDecider
         );
+
+        var dataSourceModule = planExecutor.dataSourceModule();
+        // Two deliberately-distinct pools so the external parse pipeline can never starve its own consumer.
+        // Arg 1 (registry.executor()) is the page-consumer / coordination role: the esql_worker compute pool that
+        // also runs the drivers polling the source buffer, so the non-blocking producer-loop drain runs there.
+        // Arg 2 (registry.fileReadExecutor()) is the read/parse role: the dedicated esql_external_io pool that runs
+        // the blocking opens, the segmentator, and the one-shot parser workers. Collapsing both onto one pool
+        // deadlocks multi-file text reads — a full I/O pool of blocked parsers with no free thread to run the drain
+        // that must consume them (see AsyncExternalSourceOperatorFactory + StreamingParallelParsingCoordinator).
+        OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
+            computeExecutor,
+            externalBlobStoreExecutor()
+        );
+        this.computeService = new ComputeService(
+            services,
+            enrichLookupService,
+            lookupFromIndexService,
+            threadPool,
+            computeExecutor,
+            bigArrays,
+            blockFactoryProvider.blockFactory(),
+            operatorFactoryRegistry,
+            dataSourceModule.formatReaderRegistry(),
+            client
+        );
+
+        this.activityLogger = new QueryLogger<>(
+            clusterService.getClusterSettings(),
+            new EsqlLogProducer(),
+            logWriterProvider,
+            fieldProvider,
+            indexNameExpressionResolver.getSystemNamePredicate()
+        );
+
+        defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+        resultTruncationMaxSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
+        resultTruncationDefaultSize = AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(clusterService.getSettings());
+        timeseriesResultTruncationMaxSize = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
+        timeseriesResultTruncationDefaultSize = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(
+            clusterService.getSettings()
+        );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE, v -> {
+            resultTruncationMaxSize = v;
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
+            resultTruncationDefaultSize = v;
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE, v -> {
+            timeseriesResultTruncationMaxSize = v;
+        });
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
+                timeseriesResultTruncationDefaultSize = v;
+            });
+        this.metricsCollector = metricsCollector;
+    }
+
+    /**
+     * Executor for external blob-store access: connector handshakes, registry wiring, source resolution (glob
+     * expansion, footer reads, schema reconciliation performed by
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}), and the blocking data reads and
+     * streaming parse pipeline routed through {@link OperatorFactoryRegistry#fileReadExecutor}.
+     * <p>
+     * Backed by {@link EsqlPlugin#externalBlobStorePool()} — the dedicated {@code esql_external_io} scaling pool,
+     * sized {@code 0..}{@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * (the heap- and CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
+     * ({@link EsqlPlugin#computePool()}): the blocking parse pipeline (segmentator + parser tasks) must not occupy the
+     * same threads as the compute drivers that consume its output, or the parser starves its consumer and deadlocks
+     * the query. Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over
+     * thousands of files, S3 footer reads) from starving regular ES searches — the reported production regression. The
+     * resolver's join pattern needs up to {@code MAX_PARALLEL_METADATA_READS + 1} running slots; on nodes where that
+     * exceeds the pool size the {@link org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather} runner
+     * throttles submission rather than overflowing the queue, and on saturation across concurrent ES|QL queries it
+     * fails fast per-slot rather than deadlocking. In-flight cloud API calls are additionally bounded by the per-scheme
+     * permit semaphore in {@code StorageProviderRegistry} — permits govern concurrency fairness, the pool governs
+     * thread isolation.
+     * <p>
+     * This method is the coordinator-side hook: overriding it lets tests or a future re-routing move external
+     * blob-store access to a different pool without touching call sites.
+     */
+    protected Executor externalBlobStoreExecutor() {
+        return threadPool.executor(EsqlPlugin.externalBlobStorePool());
+    }
+
+    /**
+     * Maximum number of in-flight per-file metadata (footer) reads a single multi-file resolution may have
+     * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
+     * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
+     * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
+     * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * value — the same heap- and CPU-scaled default the data-read path uses ({@code NodeScope};
+     * {@code esql.external.max_concurrent_requests} wins when set, still memory-capped) — so discovery
+     * throttles its footer fan-out with that formula instead of the raw {@code esql_worker.getMax()} pool size.
+     */
+    protected int externalSourceConcurrency() {
+        return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());
     }
 
     @Override
@@ -174,15 +350,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
+            assert task instanceof CancellableTask : "EsqlQueryRequest.createTask always returns CancellableTask";
             asyncTaskManagementService.asyncExecute(
                 request,
                 request.waitForCompletionTimeout(),
                 request.keepAlive(),
                 request.keepOnCompletion(),
-                listener
+                listener,
+                (CancellableTask) task
             );
         } else {
-            innerExecute(task, request, listener);
+            innerExecuteWithLogging(task, request, listener);
         }
     }
 
@@ -190,71 +368,168 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
-        ActionListener.run(listener, l -> innerExecute(task, request, l));
+        task.rescheduleCancellationOnExpiry();
+        ActionListener.run(listener, l -> innerExecuteWithLogging(task, request, l));
+    }
+
+    @Override
+    public void onResponseAfterTimeout(EsqlQueryResponse response) {
+        EsqlResponseListener.logPartialFailures("/_query/async", Map.of(), response.getExecutionInfo());
+    }
+
+    @Override
+    public void onFailureAfterTimeout(Exception exception) {
+        EsqlResponseListener.logOnFailure(exception);
+    }
+
+    private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        if (request.analyzeOnly()) {
+            ActionListener.run(EsqlFailureBounds.wrap(listener, request.query()), bounded -> innerExecute(task, request, bounded));
+            return;
+        }
+        activityLogger.wrapAndRun(
+            listener,
+            new EsqlLogContextBuilder(task, request),
+            (l) -> ActionListener.run(EsqlFailureBounds.wrap(l, request.query()), bounded -> innerExecute(task, request, bounded))
+        );
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        Configuration configuration = new Configuration(
-            ZoneOffset.UTC,
-            request.locale() != null ? request.locale() : Locale.US,
-            // TODO: plug-in security
-            null,
-            clusterService.getClusterName().value(),
-            request.pragmas(),
-            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
-            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
-            request.query(),
-            request.profile(),
-            request.tables(),
-            System.nanoTime()
-        );
-        String sessionId = sessionID(task);
+        if (request.allowPartialResults() == null) {
+            request.allowPartialResults(defaultAllowPartialResults);
+        }
+        TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
+        EsqlFlags flags = computeService.createFlags();
+        String sessionId = getOrCreateSessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        FoldContext foldCtx = configuration.newFoldContext();
-        PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
+            flags,
             plan,
             configuration,
             foldCtx,
             executionInfo,
+            planTimeProfile,
             resultListener
         );
         planExecutor.esql(
             request,
             sessionId,
-            configuration,
-            foldCtx,
+            localMinimumVersion,
+            new AnalyzerSettings(
+                resultTruncationMaxSize,
+                resultTruncationDefaultSize,
+                timeseriesResultTruncationMaxSize,
+                timeseriesResultTruncationDefaultSize
+            ),
             enrichPolicyResolver,
+            viewResolver,
+            datasetResolver,
             executionInfo,
             remoteClusterService,
             planRunner,
             services,
+            externalBlobStoreExecutor(),
+            externalSourceConcurrency(),
+            ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                // If we had any skipped or partial clusters, the result is partial
-                if (executionInfo.getClusters()
-                    .values()
-                    .stream()
-                    .anyMatch(
-                        c -> c.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED
-                            || c.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
-                    )) {
-                    executionInfo.markAsPartial();
+                failIfCancelled(task, result.inner());
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, null);
+                    planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                    collectMetrics(result.inner());
                 }
-                recordCCSTelemetry(task, executionInfo, request, null);
-                listener.onResponse(toResponse(task, request, configuration, result));
+                var response = toResponse(task, request, request.profile(), result);
+                assert response.isAsync() == request.async() : "The response must be async if the request was async";
+
+                if (response.isAsync()) {
+                    if (response.asyncExecutionId().isPresent()) {
+                        String asyncExecutionId = response.asyncExecutionId().get();
+                        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                    }
+                    boolean isRunning = response.isRunning();
+                    threadPool.getThreadContext()
+                        .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
+                }
+
+                listener.onResponse(response);
             }, ex -> {
-                recordCCSTelemetry(task, executionInfo, request, ex);
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, ex);
+                }
                 listener.onFailure(ex);
             })
         );
 
     }
 
-    private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
-        if (executionInfo.isCrossClusterSearch() == false) {
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
+    // planning and split discovery, and must be metered.
+    private boolean hasExternalSources(Result result) {
+        return result.executionInfo() != null && result.executionInfo().externalSource();
+    }
+
+    void collectMetrics(Result result) {
+        if (hasExternalSources(result) == false) {
+            return;
+        }
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
+        var ci = result.completionInfo();
+        var qp = result.executionInfo().queryProfile();
+        // Read once and shared by the APM/phone-home and billing paths so the two cannot report different CPU values.
+        long executionCpu = ci.cpuNanos();
+        long readCpu = ci.readCpuNanos();
+        long planningCpu = qp.planningCpuNanos();
+        long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
+        // APM and phone-home CPU recording — independent of the billing listener so that a failure
+        // here never silently suppresses the billing call below.
+        try {
+            planExecutor.dataSourceModule().externalSourceMetrics().recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
+        } catch (Exception ex) {
+            logger.warn("failed to record query CPU metrics", ex);
+        }
+        // Billing listener — unchanged from before; kept in its own try so a CPU-recording failure
+        // above never silently skips this call.
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
+            try {
+                metricsCollector.onQueryCompleted(
+                    Map.of(
+                        QueryMetricsListener.PLANNING_NANOS,
+                        qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.PLANNING_CPU_NANOS,
+                        planningCpu,
+                        QueryMetricsListener.CPU_NANOS,
+                        executionCpu,
+                        QueryMetricsListener.DRIVER_NANOS,
+                        ci.driverNanos(),
+                        QueryMetricsListener.READ_NANOS,
+                        ci.readNanos(),
+                        QueryMetricsListener.READ_CPU_NANOS,
+                        readCpu,
+                        QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                        qp.splitDiscoveryNanos(),
+                        QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
+                        splitDiscoveryCpu,
+                        QueryMetricsListener.BYTES_READ,
+                        ci.bytesRead()
+                    )
+                );
+            } catch (Exception ex) {
+                logger.warn("failed to collect query metrics", ex);
+            }
+        }
+    }
+
+    void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
+        if (executionInfo.isCrossClusterSearch() == false
+            && executionInfo.includeExecutionMetadata() != EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS) {
             return;
         }
 
@@ -291,7 +566,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 remotesCount.getAndIncrement();
             }
         });
-        assert remotesCount.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
+        if (remotesCount.get() == 0) {
+            return;
+        }
         usageBuilder.setRemotesCount(remotesCount.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }
@@ -311,38 +588,139 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
     }
 
-    private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
-        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias), request.includeCCSMetadata());
+    EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
+        if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
+            throw new VerificationException(
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one"
+            );
+        }
+
+        EsqlExecutionInfo.IncludeExecutionMetadata includeExecutionMetadata;
+        if (Boolean.TRUE.equals(request.includeExecutionMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
+        } else if (Boolean.TRUE.equals(request.includeCCSMetadata())) {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY;
+        } else {
+            includeExecutionMetadata = EsqlExecutionInfo.IncludeExecutionMetadata.NEVER;
+        }
+        Boolean allowPartialResults = request.allowPartialResults() != null ? request.allowPartialResults() : defaultAllowPartialResults;
+        return new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.shouldSkipOnFailure(clusterAlias, allowPartialResults),
+            includeExecutionMetadata
+        );
     }
 
-    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> new ColumnInfoImpl(c.name(), c.dataType().outputType())).toList();
-        EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
-        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
+    /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
+    static void failIfCancelled(Task task, Result result) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            Releasables.closeExpectNoException(result.pages());
+            throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+        }
+    }
+
+    private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
+        var result = versionedResult.inner();
+        // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
+        // records than the source held. Surface that as is_partial on the response — the structured counterpart of
+        // the client Warning header — here at the single Result->response chokepoint, so every execution path
+        // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no
+        // LOCAL_CLUSTER entry, hence the direct markPartial() rather than the per-cluster status path.
+        if (result.completionInfo().partial()) {
+            assert result.executionInfo() != null : "a partial completion must carry an executionInfo to surface is_partial";
+            if (result.executionInfo() != null) {
+                result.executionInfo().markPartial();
+            }
+        }
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
+        }
+        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
+            List<String> originalTypes;
+            if (c instanceof UnsupportedAttribute ua) {
+                // Sort the original types so they are easier to test against and prettier.
+                originalTypes = new ArrayList<>(ua.originalTypes());
+                Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
+            }
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, result.attributeMetadata(c.id()));
+        }).toList();
+        EsqlQueryResponse.Profile profile = profileEnabled
+            ? new EsqlQueryResponse.Profile(
+                result.completionInfo().driverProfiles(),
+                result.completionInfo().planProfiles(),
+                versionedResult.minimumVersion()
+            )
+            : null;
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
-            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),
+                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
+                result.completionInfo().rowsEmitted(),
+                result.completionInfo().bytesRead(),
+                result.completionInfo().readNanos(),
+                result.completionInfo().readCpuNanos(),
+                result.completionInfo().cpuNanos(),
+                result.completionInfo().driverNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.executionInfo()
+                QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+                task.getStartTime(),
+                ((EsqlQueryTask) task).getExpirationTimeMillis(),
+                result.executionInfo(),
+                result.approximationApplied()
             );
         }
-        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async(), result.executionInfo());
+        return new EsqlQueryResponse(
+            columns,
+            result.pages(),
+            result.completionInfo().documentsFound(),
+            result.completionInfo().valuesLoaded(),
+            result.completionInfo().rowsEmitted(),
+            result.completionInfo().bytesRead(),
+            result.completionInfo().readNanos(),
+            result.completionInfo().readCpuNanos(),
+            result.completionInfo().cpuNanos(),
+            result.completionInfo().driverNanos(),
+            profile,
+            request.columnar(),
+            null,
+            false,
+            request.async(),
+            QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
+            task.getStartTime(),
+            task instanceof StoredAsyncTask<?> sat
+                ? sat.getExpirationTimeMillis()
+                : threadPool.absoluteTimeInMillis() + EsqlQueryRequest.DEFAULT_KEEP_ALIVE.millis(),
+            result.executionInfo(),
+            result.approximationApplied()
+        );
+    }
+
+    /**
+     * Returns the session ID from the task if it is an {@link EsqlQueryTask}, otherwise generates a new one.
+     */
+    static String getOrCreateSessionID(Task task) {
+        return task instanceof EsqlQueryTask eqt ? eqt.sessionId() : newSessionID();
     }
 
     /**
      * Returns the ID for this compute session. The ID is unique within the cluster, and is used
-     * to identify the compute-session across nodes. The ID is just the TaskID of the task that
-     * initiated the session.
+     * to identify the compute-session across nodes. The ID is a cryptographically secure random
+     * value so that exchange sinks cannot be accessed by guessing a session key.
      */
-    final String sessionID(Task task) {
-        return new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+    static String newSessionID() {
+        return UUIDs.randomBase64UUID();
     }
 
     public ExchangeService exchangeService() {
@@ -362,19 +740,43 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new EsqlQueryTask(
+            newSessionID(),
             id,
             type,
             action,
-            request.getDescription(),
+            request.queryDescription(), // Pass the query description as the task description
             parentTaskId,
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive()
-        );
+            keepAlive
+        ) {
+            @Override
+            public Status getStatus() {
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
+            }
+
+            @Override
+            protected Scheduler.ScheduledCancellable scheduleCancellationOnExpiry(long expirationTimeMillis) {
+                final long delay = Math.max(expirationTimeMillis - threadPool.absoluteTimeInMillis(), 0);
+                final CancellableTask task = this;
+                return threadPool.schedule(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to cancel async-query on expiry", e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        taskManager.cancelTaskAndDescendants(task, "keep_alive expired", false, ActionListener.noop());
+                    }
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
+            }
+        };
     }
 
     @Override
@@ -385,11 +787,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         return new EsqlQueryResponse(
             List.of(),
             List.of(),
+            0,
+            0,
             null,
             false,
             asyncExecutionId,
             true, // is_running
             true, // isAsync
+            ZoneOffset.UTC,
+            task.getStartTime(),
+            task.getExpirationTimeMillis(),
             task.executionInfo()
         );
     }
@@ -405,5 +812,25 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     public LookupFromIndexService getLookupFromIndexService() {
         return lookupFromIndexService;
+    }
+
+    public ComputeService computeService() {
+        return computeService;
+    }
+
+    public TransportActionServices services() {
+        return services;
+    }
+
+    public EnrichPolicyResolver enrichPolicyResolver() {
+        return enrichPolicyResolver;
+    }
+
+    public DatasetResolver datasetResolver() {
+        return datasetResolver;
+    }
+
+    public ActivityLogger<EsqlLogContext> activityLogger() {
+        return activityLogger;
     }
 }

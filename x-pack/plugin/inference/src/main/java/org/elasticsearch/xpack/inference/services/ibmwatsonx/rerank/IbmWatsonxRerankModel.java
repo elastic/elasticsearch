@@ -7,28 +7,32 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.ML;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.RERANKS;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.TEXT;
-import static org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxUtils.V1;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.RERANKS;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.TEXT;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.V1;
 
 public class IbmWatsonxRerankModel extends IbmWatsonxModel {
+
+    private final URI uri;
+
     public static IbmWatsonxRerankModel of(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = IbmWatsonxRerankTaskSettings.fromMap(taskSettings);
         return new IbmWatsonxRerankModel(model, IbmWatsonxRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
@@ -49,12 +53,11 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
             service,
             IbmWatsonxRerankServiceSettings.fromMap(serviceSettings, context),
             IbmWatsonxRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    // should only be used for testing
-    IbmWatsonxRerankModel(
+    public IbmWatsonxRerankModel(
         String modelId,
         TaskType taskType,
         String service,
@@ -62,15 +65,47 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         IbmWatsonxRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+    }
+
+    public IbmWatsonxRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
+        try {
+            var serviceSettings = (IbmWatsonxRerankServiceSettings) modelConfigurations.getServiceSettings();
+            this.uri = buildUri(serviceSettings.uri().toString(), serviceSettings.apiVersion());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // Should only be used directly for testing.
+    // This constructor allows tests to override the behaviour when setting the auth header, which by default requires making a call to
+    // IBM's token provider API. It also allows a custom URL to be set for unit testing.
+    public IbmWatsonxRerankModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        String url,
+        IbmWatsonxRerankServiceSettings serviceSettings,
+        IbmWatsonxRerankTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+    ) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings
+            authHeaderDecorator
         );
+        try {
+            this.uri = url == null ? buildUri(serviceSettings.uri().toString(), serviceSettings.apiVersion()) : new URI(url);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private IbmWatsonxRerankModel(IbmWatsonxRerankModel model, IbmWatsonxRerankTaskSettings taskSettings) {
         super(model, taskSettings);
+        this.uri = model.uri();
     }
 
     @Override
@@ -89,25 +124,17 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     }
 
     public URI uri() {
-        URI uri;
-        try {
-            uri = buildUri(this.getServiceSettings().uri().toString(), this.getServiceSettings().apiVersion());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
-
         return uri;
     }
 
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
-     * @param visitor _
-     * @param taskSettings _
-     * @param inputType ignored for rerank task
+     * @param visitor          Interface for creating {@link ExecutableAction} instances for IBM watsonx models.
+     * @param taskSettings     Settings in the request to override the model's defaults
      * @return the rerank action
      */
     @Override
-    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

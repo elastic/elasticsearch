@@ -5,11 +5,13 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
 
 dependencies {
   javaRestTestImplementation project(':x-pack:qa')
@@ -18,53 +20,23 @@ dependencies {
   javaRestTestImplementation project(xpackModule('sql:qa:server'))
 }
 
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
+// A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
+def supportedVersion = bwcVersion -> {
+  return bwcVersion.onOrAfter(Version.fromString("7.10.3")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
-tasks.named("javaRestTest").configure{ enabled = false}
-
-// A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
-buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
-        v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
-
-  def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 3
-      testDistribution = 'DEFAULT'
-      setting 'xpack.security.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.license.self_generated.type', 'trial'
-      // for debugging purposes
-      // setting 'logger.org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction', 'TRACE'
-  }
-
-  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-      useCluster baseCluster
-      mustRunAfter("precommit")
-      testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-      classpath = sourceSets.javaRestTest.runtimeClasspath
-      def beforeUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def afterUpdateInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      doFirst {
-          def cluster = baseCluster.get()
-          // Getting the endpoints causes a wait for the cluster
-          println "Endpoints are: ${-> beforeUpdateInfo.get()}"
-          println "Upgrading one node to create a mixed cluster"
-          getRegistry().get().nextNodeToNextVersion(cluster)
-          println "Upgrade complete, endpoints are: ${-> afterUpdateInfo.get() }"
-      }
-      nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
-      nonInputProperties.systemProperty('tests.clustername', baseName)
-      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-
-      def bwcEnabled = project.bwc_tests_enabled
-      onlyIf("BWC tests disabled") { bwcEnabled }
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#mixedClusterTest"
+    dependsOn "v${bwcVersion}#javaRestTest"
   }
+}
+
+tasks.named("javaRestTest") {
+  enabled = false
 }

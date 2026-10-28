@@ -11,8 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
@@ -21,7 +21,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class MinDoubleGroupingAggregatorFunctionTests extends PartitionedGroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         return new LongDoubleTupleBlockSourceOperator(
@@ -31,8 +31,8 @@ public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinDoubleAggregatorFunctionSupplier();
     }
 
     @Override

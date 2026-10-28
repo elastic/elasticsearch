@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.core.async;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteAsyncResultRequest extends ActionRequest {
+public class DeleteAsyncResultRequest extends UntypedActionRequest {
     private final String id;
 
     public DeleteAsyncResultRequest(String id) {

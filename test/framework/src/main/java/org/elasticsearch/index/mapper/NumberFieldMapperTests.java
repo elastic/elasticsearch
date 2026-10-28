@@ -13,9 +13,12 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -23,7 +26,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,13 +33,12 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notANumber;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -61,23 +62,24 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
 
         if (allowsIndexTimeScript()) {
-            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
-            checker.registerUpdateCheck(b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "fail");
-            }, b -> {
-                minimalMapping(b);
-                b.field("script", "test");
-                b.field("on_script_error", "continue");
-            }, m -> assertThat((m).builderParams.onScriptError(), is(OnScriptError.CONTINUE)));
+            registerScriptChecks(checker);
+        } else {
+            checker.registerIgnoredParameter("script");
+            checker.registerIgnoredParameter("on_script_error");
         }
+
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
+        checker.registerIgnoredParameter("index_terms");
     }
 
     @Override
@@ -114,19 +116,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertEquals(1, fields.stream().filter(f -> f.fieldType().pointIndexDimensionCount() != 0).count());
         // One field indexes doc values
         assertEquals(1, fields.stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
-    }
-
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("index", false);
-        }));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", 123)));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
     }
 
     public void testNoDocValues() throws Exception {
@@ -255,6 +244,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
         // dimension = true is allowed
         assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
     }
 
     public void testMetricType() throws IOException {
@@ -300,7 +291,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }));
         var ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     public void testMetricAndDocvalues() {
@@ -333,12 +324,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
 
             @Override
-            ScriptFactory emptyFieldScript() {
+            protected ScriptFactory emptyFieldScript() {
                 return null;
             }
 
             @Override
-            ScriptFactory nonEmptyFieldScript() {
+            protected ScriptFactory nonEmptyFieldScript() {
                 return null;
             }
         };
@@ -373,40 +364,68 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
-        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        // Block loader can either use doc values or source.
-        // So with synthetic source it only works when doc values are enabled.
-        return new BlockReaderSupport(ft.hasDocValues(), ft.hasDocValues(), mapper, loaderFieldName);
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return n -> ((Number) n); // Just assert it's a number
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
     }
 
     protected abstract Number randomNumber();
 
-    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    protected final class NumberSyntheticSourceSupportForKeepTests extends NumberSyntheticSourceSupport {
+        private final boolean preserveSource;
+
+        protected NumberSyntheticSourceSupportForKeepTests(
+            Function<Number, Number> round,
+            boolean ignoreMalformed,
+            Mapper.SourceKeepMode sourceKeepMode
+        ) {
+            super(round, ignoreMalformed);
+            this.preserveSource = sourceKeepMode == Mapper.SourceKeepMode.ALL;
+        }
+
+        @Override
+        public boolean preservesExactSource() {
+            return preserveSource;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            var example = super.example(maxVals);
+            return new SyntheticSourceExample(
+                example.expectedForSyntheticSource(),
+                example.expectedForSyntheticSource(),
+                example.mapping()
+            );
+        }
+    }
+
+    protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
-        private final boolean docValues = randomBoolean();
+        private final boolean docValues;
+        private final boolean isColumnar;
+        private final boolean enforceSingleValue;
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
 
         protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed) {
+            this(round, ignoreMalformed, false);
+        }
+
+        protected NumberSyntheticSourceSupport(Function<Number, Number> round, boolean ignoreMalformed, boolean isColumnar) {
             this.round = round;
             this.ignoreMalformed = ignoreMalformed;
+            this.isColumnar = isColumnar;
+            // Columnar mode requires doc values on every field; non-columnar may fall back to _ignored_source.
+            this.docValues = isColumnar || randomBoolean();
+            this.enforceSingleValue = docValues && isColumnar && randomBoolean();
+        }
+
+        @Override
+        public boolean isColumnar() {
+            return isColumnar;
         }
 
         @Override
@@ -417,56 +436,45 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxVals) {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (preservesExactSource()) {
                     var rawInput = v.v1();
-
-                    // This code actually runs with synthetic source disabled
-                    // to test block loader loading from source.
-                    // That's why we need to set expected block loader value here.
-                    var blockLoaderResult = v.v2() instanceof Number n ? round.apply(n) : null;
-                    return new SyntheticSourceExample(rawInput, rawInput, blockLoaderResult, this::mapping);
+                    return new SyntheticSourceExample(rawInput, rawInput, this::mapping);
                 }
                 if (v.v2() instanceof Number n) {
                     Number result = round.apply(n);
-                    return new SyntheticSourceExample(v.v1(), result, result, this::mapping);
+                    return new SyntheticSourceExample(v.v1(), result, this::mapping);
                 }
                 // ignore_malformed value
-                return new SyntheticSourceExample(v.v1(), v.v2(), List.of(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
             List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
-            Object out;
-            List<Object> outBlockList;
+
             if (preservesExactSource()) {
-                // This code actually runs with synthetic source disabled
-                // to test block loader loading from source.
-                // That's why we need to set expected block loader value here.
-                out = in;
-                outBlockList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .collect(Collectors.toCollection(ArrayList::new));
+                return new SyntheticSourceExample(in, in, this::mapping);
             } else {
-                List<Object> outList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .sorted()
-                    .collect(Collectors.toCollection(ArrayList::new));
-                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
-                out = outList.size() == 1 ? outList.get(0) : outList;
+                Stream<Object> nonMalformed = values.stream().filter(v -> v.v2() instanceof Number).map(t -> round.apply((Number) t.v2()));
+                List<Object> outList = (isColumnar ? nonMalformed : nonMalformed.sorted()).collect(Collectors.toCollection(ArrayList::new));
+                // Columnar indices route malformed values to the UNSORTED ._on_failure column (encounter order);
+                // non-columnar indices use the SORTED ._ignore_malformed column.
+                Stream<Object> malformedStream = values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2);
+                List<Object> malformed = (isColumnar
+                    ? malformedStream
+                    : malformedStream.sorted(SyntheticSourceMalformedValueSorter.comparator())).toList();
+                malformed.forEach(outList::add);
+                var out = outList.size() == 1 ? outList.get(0) : outList;
 
-                outBlockList = values.stream()
-                    .filter(v -> v.v2() instanceof Number)
-                    .map(t -> round.apply((Number) t.v2()))
-                    .sorted()
-                    .collect(Collectors.toCollection(ArrayList::new));
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
-
-            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private Tuple<Object, Object> generateValue() {
@@ -500,6 +508,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
             if (docValues == false) {
                 b.field("doc_values", "false");
+            } else if (enforceSingleValue) {
+                b.field("multi_value", false);
             }
         }
 
@@ -507,5 +517,129 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            new SortShortcutSupport(this::minimalMapping, this::writeField, true),
+            new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
+    protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
+        return DocValuesType.SORTED_NUMERIC;
+    }
+
+    /**
+     * Both values are malformed and would route to the {@code _ignored} fallback. Enforcement still throws on the second
+     * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
+     */
+    public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.field("multi_value", false);
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-a-number", "also-not-a-number")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * One regular value and one malformed value (routed to {@code _ignored} fallback). Single value enforcement throws on the
+     * second (malformed) value.
+     */
+    public void testMultiValueFalseRejectsRegularPlusMalformed() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.field("multi_value", false);
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), "not-a-number")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    /**
+     * One malformed value (routed to {@code _ignored} fallback) followed by one regular value. Single value enforcement throws on the
+     * second (regular) value.
+     */
+    public void testMultiValueFalseRejectsMalformedPlusRegular() throws IOException {
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("ignore_malformed", true);
+            b.field("multi_value", false);
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "not-a-number", getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testColumnarModeSkippers() throws IOException {
+
+        {
+            // In columnar mode, non-indexed numeric fields use skippers
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
+        }
+
+        {
+            // If index=true then we use points and not skippers
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(settings, fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("index", true);
+            }));
+            assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.points(true, true)));
+        }
+    }
+
+    @Override
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }, b -> {
+            minimalMapping(b);
+            b.field("index", true);
+        });
     }
 }

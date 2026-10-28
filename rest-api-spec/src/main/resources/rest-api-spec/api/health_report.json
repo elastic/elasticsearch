@@ -1,8 +1,8 @@
 {
   "health_report": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/health-api.html",
-      "description": "Returns the health of the cluster."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-health-report",
+      "description": "Get the cluster health"
     },
     "stability": "stable",
     "visibility": "public",
@@ -26,22 +26,22 @@
           ],
           "parts": {
             "feature": {
-              "type": "string",
-              "description": "A feature of the cluster, as returned by the top-level health API"
+              "type": "list",
+              "description": "Comma-separated list of cluster features, as returned by the top-level health report API."
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Explicit operation timeout"
       },
-      "verbose":{
-        "type":"boolean",
-        "description":"Opt in for more information about the health of the system",
-        "default":true
+      "verbose": {
+        "type": "boolean",
+        "description": "Opt in for more information about the health of the system",
+        "default": true
       },
       "size": {
         "type": "int",

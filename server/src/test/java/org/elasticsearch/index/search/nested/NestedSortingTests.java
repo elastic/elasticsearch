@@ -615,7 +615,16 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = newSearcher(reader, false);
-        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, searcher, () -> 0L, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+            0,
+            0,
+            searcher,
+            () -> 0L,
+            null,
+            emptyMap(),
+            null,
+            null
+        );
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
         sortBuilder.setNestedSort(new NestedSortBuilder("chapters").setNestedSort(new NestedSortBuilder("chapters.paragraphs")));
@@ -624,15 +633,15 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         assertThat(topFields.totalHits.value(), equalTo(5L));
         StoredFields storedFields = searcher.storedFields();
         assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
-        assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+        assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76));
         assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
-        assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87L));
+        assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87));
         assertThat(storedFields.document(topFields.scoreDocs[2].doc).get("_id"), equalTo("1"));
-        assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(234L));
+        assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(234));
         assertThat(storedFields.document(topFields.scoreDocs[3].doc).get("_id"), equalTo("3"));
-        assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(976L));
+        assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(976));
         assertThat(storedFields.document(topFields.scoreDocs[4].doc).get("_id"), equalTo("5"));
-        assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Long.MAX_VALUE));
+        assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Integer.MAX_VALUE));
 
         // Specific genre
         {
@@ -640,25 +649,25 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(234L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(234));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87));
         }
 
         // reverse sort order
@@ -668,15 +677,15 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(5L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976));
             assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("1"));
-            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(849L));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(849));
             assertThat(storedFields.document(topFields.scoreDocs[2].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(180L));
+            assertThat(((FieldDoc) topFields.scoreDocs[2]).fields[0], equalTo(180));
             assertThat(storedFields.document(topFields.scoreDocs[3].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[3]).fields[0], equalTo(76));
             assertThat(storedFields.document(topFields.scoreDocs[4].doc).get("_id"), equalTo("5"));
-            assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Long.MIN_VALUE));
+            assertThat(((FieldDoc) topFields.scoreDocs[4]).fields[0], equalTo(Integer.MIN_VALUE));
         }
 
         // Specific genre and reverse sort order
@@ -685,25 +694,25 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(849L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(849));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(976));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(180L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(180));
         }
 
         // Nested filter + query
@@ -721,9 +730,9 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             );
             assertThat(topFields.totalHits.value(), equalTo(2L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76));
             assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(87));
 
             sortBuilder.order(SortOrder.DESC);
             topFields = search(
@@ -734,9 +743,9 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             );
             assertThat(topFields.totalHits.value(), equalTo(2L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87));
             assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(76));
         }
 
         // Multiple Nested filters + query
@@ -759,9 +768,9 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             );
             assertThat(topFields.totalHits.value(), equalTo(2L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87));
             assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MAX_VALUE));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Integer.MAX_VALUE));
 
             sortBuilder.order(SortOrder.DESC);
             topFields = search(
@@ -772,9 +781,9 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             );
             assertThat(topFields.totalHits.value(), equalTo(2L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87));
             assertThat(storedFields.document(topFields.scoreDocs[1].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Long.MIN_VALUE));
+            assertThat(((FieldDoc) topFields.scoreDocs[1]).fields[0], equalTo(Integer.MIN_VALUE));
         }
 
         // Nested filter + Specific genre
@@ -789,25 +798,25 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("2"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(76));
 
             queryBuilder = new TermQueryBuilder("genre", "science fiction");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("1"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Integer.MAX_VALUE));
 
             queryBuilder = new TermQueryBuilder("genre", "horror");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("3"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Long.MAX_VALUE));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(Integer.MAX_VALUE));
 
             queryBuilder = new TermQueryBuilder("genre", "cooking");
             topFields = search(queryBuilder, sortBuilder, searchExecutionContext, searcher);
             assertThat(topFields.totalHits.value(), equalTo(1L));
             assertThat(storedFields.document(topFields.scoreDocs[0].doc).get("_id"), equalTo("4"));
-            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87L));
+            assertThat(((FieldDoc) topFields.scoreDocs[0]).fields[0], equalTo(87));
         }
 
         searcher.getIndexReader().close();

@@ -38,7 +38,8 @@ class CompositeAggregationDataExtractorContext {
         boolean includeDocCount,
         Map<String, String> headers,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.fields = Objects.requireNonNull(fields);
@@ -53,7 +54,8 @@ class CompositeAggregationDataExtractorContext {
             end,
             headers,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 }

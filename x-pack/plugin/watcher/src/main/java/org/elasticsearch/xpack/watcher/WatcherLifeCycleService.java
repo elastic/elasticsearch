@@ -13,12 +13,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
@@ -43,6 +46,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
+    private final AtomicReference<ClusterState> pendingReloadState = new AtomicReference<>(null);
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
     private final WatcherService watcherService;
     private final EnumSet<WatcherState> stopStates = EnumSet.of(WatcherState.STOPPED, WatcherState.STOPPING);
@@ -64,6 +68,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
+        pendingReloadState.set(null);
         watcherService.shutDown(() -> {
             this.state.set(WatcherState.STOPPED);
             logger.info("watcher has stopped and shutdown");
@@ -153,8 +158,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         // also check if non local shards have changed, as loosing a shard on a
         // remote node or adding a replica on a remote node needs to trigger a reload too
         Set<ShardId> localShardIds = localShards.stream().map(ShardRouting::shardId).collect(Collectors.toSet());
-        List<ShardRouting> allShards = event.state().routingTable().index(watchIndex).shardsWithState(STARTED);
-        allShards.addAll(event.state().routingTable().index(watchIndex).shardsWithState(RELOCATING));
+
+        @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+        IndexRoutingTable routingTable = event.state().routingTable(ProjectId.DEFAULT).index(watchIndex);
+        List<ShardRouting> allShards = routingTable.shardsWithState(STARTED);
+        allShards.addAll(routingTable.shardsWithState(RELOCATING));
         List<ShardRouting> localAffectedShardRoutings = allShards.stream()
             .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
             // shardrouting is not comparable, so we need some order mechanism
@@ -163,17 +171,48 @@ public class WatcherLifeCycleService implements ClusterStateListener {
 
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
-                previousShardRoutings.set(localAffectedShardRoutings);
-                if (state.get() == WatcherState.STARTED) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
-                        clearAllocationIds(); // will cause reload again
-                    });
-                } else if (isStoppedOrStopping) {
-                    this.state.set(WatcherState.STARTING);
-                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
-                        clearAllocationIds();
-                        this.state.set(WatcherState.STOPPED);
-                    });
+                switch (state.get()) {
+                    case STARTED -> {
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                            clearAllocationIds(); // will cause reload again
+                        });
+                    }
+                    case STARTING -> {
+                        // A start task is already on the single-threaded lifecycle executor — do not enqueue a second
+                        // task. Instead record the new cluster state so start()'s success callback can reload
+                        // immediately once it completes, without waiting for the next cluster state event.
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        pendingReloadState.set(event.state());
+                        // Double-check: if start()'s success callback ran between the switch evaluation above and the
+                        // pendingReloadState.set() (setting state=STARTED and reading a null pendingReloadState),
+                        // pick up the pending reload now so it is not lost.
+                        // Use == STARTED, not != STARTING: a failure callback sets STOPPED, and we must not
+                        // call reload() against a service that never started successfully.
+                        if (state.get() == WatcherState.STARTED) {
+                            ClusterState pending = pendingReloadState.getAndSet(null);
+                            if (pending != null) {
+                                watcherService.reload(pending, "routing changed during start", (e) -> clearAllocationIds());
+                            }
+                        }
+                    }
+                    case STOPPED, STOPPING -> {
+                        previousShardRoutings.set(localAffectedShardRoutings);
+                        pendingReloadState.set(null); // discard any stale pending from a previous cycle
+                        this.state.set(WatcherState.STARTING);
+                        watcherService.start(event.state(), () -> {
+                            this.state.set(WatcherState.STARTED);
+                            // Pick up any routing change that arrived while we were STARTING.
+                            ClusterState pending = pendingReloadState.getAndSet(null);
+                            if (pending != null) {
+                                watcherService.reload(pending, "routing changed during start", (e) -> clearAllocationIds());
+                            }
+                        }, (exception) -> {
+                            clearAllocationIds();
+                            pendingReloadState.set(null);
+                            this.state.set(WatcherState.STOPPED);
+                        });
+                    }
                 }
             } else {
                 clearAllocationIds();
@@ -186,18 +225,19 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (clearAllocationIds()) {
             watcherService.pauseExecution(reason);
         }
+        pendingReloadState.set(null);
         this.state.set(WatcherState.STARTED);
     }
 
     /**
      * check if watcher has been stopped manually via the stop API
      */
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     private static boolean isWatcherStoppedManually(ClusterState state) {
-        WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
+        WatcherMetadata watcherMetadata = state.getMetadata().getProject(ProjectId.DEFAULT).custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }
 
-    /**
     /**
      * clear out current allocation ids if not already happened
      * @return true, if existing allocation ids were cleaned out, false otherwise

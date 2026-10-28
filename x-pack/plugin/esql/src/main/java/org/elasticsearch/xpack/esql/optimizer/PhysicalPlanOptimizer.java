@@ -8,50 +8,59 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
-import java.util.Collection;
 import java.util.List;
-
-import static java.util.Arrays.asList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
  * occur later by operating just on a plan {@link FragmentExec} (subplan).
  */
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
-    private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+
+    private final AtomicBoolean approximationApplied = new AtomicBoolean();
 
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
     }
 
-    public PhysicalPlan optimize(PhysicalPlan plan) {
-        return verify(execute(plan));
+    public boolean approximationApplied() {
+        return approximationApplied.get();
     }
 
-    PhysicalPlan verify(PhysicalPlan plan) {
-        Collection<Failure> failures = verifier.verify(plan);
-        if (failures.isEmpty() == false) {
+    public PhysicalPlan optimize(PhysicalPlan plan) {
+        return verify(execute(plan), plan.output());
+    }
+
+    PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
+        Failures failures = verifier.verify(optimizedPlan, expectedOutputAttributes);
+        if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
-        return plan;
-    }
-
-    static List<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
-        var boundary = new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
-        return asList(boundary);
+        return optimizedPlan;
     }
 
     @Override
-    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
-        return rules;
+    protected List<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        return List.of(
+            new Batch<>(
+                "Plan Boundary",
+                Limiter.ONCE,
+                new ProjectAwayColumns(),
+                new ReplaceSampledStatsBySampleAndStats(() -> approximationApplied.set(true)),
+                new InsertPartialWindowAggregates()
+            )
+        );
     }
 }

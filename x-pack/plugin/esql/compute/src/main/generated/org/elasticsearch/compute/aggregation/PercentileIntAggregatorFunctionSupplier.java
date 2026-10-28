@@ -15,23 +15,36 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class PercentileIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final double percentile;
 
-  public PercentileIntAggregatorFunctionSupplier(List<Integer> channels, double percentile) {
-    this.channels = channels;
+  private final double tDigestStateCompression;
+
+  public PercentileIntAggregatorFunctionSupplier(double percentile,
+      double tDigestStateCompression) {
     this.percentile = percentile;
+    this.tDigestStateCompression = tDigestStateCompression;
   }
 
   @Override
-  public PercentileIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return PercentileIntAggregatorFunction.create(driverContext, channels, percentile);
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public PercentileIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return PercentileIntGroupingAggregatorFunction.create(channels, driverContext, percentile);
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public PercentileIntAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new PercentileIntAggregatorFunction(driverContext, channels, percentile, tDigestStateCompression);
+  }
+
+  @Override
+  public PercentileIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return new PercentileIntGroupingAggregatorFunction(channels, driverContext, percentile, tDigestStateCompression);
   }
 
   @Override

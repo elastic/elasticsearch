@@ -24,9 +24,18 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<RegexExtract>, PostAnalysisVerificationAware {
+public abstract class RegexExtract extends UnaryPlan
+    implements
+        GeneratingPlan<RegexExtract>,
+        PostAnalysisVerificationAware,
+        Streaming,
+        SortAgnostic,
+        SortPreserving,
+        DocPreserving {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
+
+    private List<Attribute> lazyOutput;
 
     protected RegexExtract(Source source, LogicalPlan child, Expression input, List<Attribute> extracted) {
         super(source, child);
@@ -41,7 +50,10 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
 
     @Override
     public List<Attribute> output() {
-        return mergeOutputAttributes(extractedFields, child().output());
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(extractedFields, child().output());
+        }
+        return lazyOutput;
     }
 
     @Override
@@ -98,9 +110,9 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
+    public final void postAnalysisVerification(Failures failures) {
         DataType type = input.dataType();
-        if (DataType.isString(type) == false) {
+        if (DataType.isNull(type) == false && DataType.isString(type) == false) {
             failures.add(
                 fail(
                     input,

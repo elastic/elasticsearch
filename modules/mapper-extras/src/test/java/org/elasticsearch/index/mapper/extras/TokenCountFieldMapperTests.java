@@ -36,8 +36,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -72,12 +70,20 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
-            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-            assertThat(tcfm.analyzer(), equalTo("standard"));
-        });
+        checker.registerUpdateCheck(
+            "analyzer",
+            this::minimalMapping,
+            b -> b.field("type", "token_count").field("analyzer", "standard"),
+            m -> {
+                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+                assertThat(tcfm.analyzer(), equalTo("standard"));
+            }
+        );
     }
 
     @Override
@@ -170,7 +176,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         }));
     }
 
-    private static SourceToParse createDocument(String fieldValue) throws Exception {
+    private SourceToParse createDocument(String fieldValue) throws Exception {
         return source(b -> b.field("test", fieldValue));
     }
 
@@ -213,17 +219,13 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     var value = generateValue();
-                    return new SyntheticSourceExample(value.text, value.text, value.tokenCount, this::mapping);
+                    return new SyntheticSourceExample(value.text, value.text, this::mapping);
                 }
 
                 var values = randomList(1, 5, this::generateValue);
-
                 var textArray = values.stream().map(Value::text).toList();
 
-                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).sorted().toList();
-                var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
-
-                return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
+                return new SyntheticSourceExample(textArray, textArray, this::mapping);
             }
 
             private record Value(String text, Integer tokenCount) {}
@@ -258,11 +260,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         };
     }
 
-    protected Function<Object, Object> loadBlockExpected() {
-        // we can get either a number from doc values or null
-        return v -> v != null ? (Number) v : null;
-    }
-
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
@@ -274,5 +271,21 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             b.field("doc_values", false);
         }));
         assertAggregatableConsistency(mapperService.fieldType("field"));
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a token count field are the number of tokens of a text.
+        return false;
     }
 }

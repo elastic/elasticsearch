@@ -20,10 +20,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +44,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -66,8 +72,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -75,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -89,6 +94,8 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private NodeEnvironment nodeEnvironment;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
     @Before
@@ -97,6 +104,16 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        nodeEnvironment = newNodeEnvironment(settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            ClusterSettings.createBuiltInClusterSettings(settings),
+            nodeEnvironment
+        );
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -105,7 +122,6 @@ public class RefreshListenersTests extends ESTestCase {
             new MeanMetric()
         );
 
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -131,35 +147,34 @@ public class RefreshListenersTests extends ESTestCase {
             primaryTerm
         );
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.singletonList(listeners),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            System::nanoTime,
-            null,
-            true,
-            EngineTestCase.createMapperService()
-        );
+        EngineConfig config = EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(iwc.getAnalyzer())
+            .similarity(iwc.getSimilarity())
+            .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+            .eventListener(eventListener)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of(listeners))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(() -> primaryTerm)
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(System::nanoTime)
+            .promotableToPrimary(true)
+            .mapperService(EngineTestCase.createMapperService())
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
@@ -169,8 +184,11 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
-        IOUtils.close(engine, store);
-        terminate(threadPool);
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+        IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }
 
     public void testBeforeRefresh() throws Exception {
@@ -432,6 +450,7 @@ public class RefreshListenersTests extends ESTestCase {
                                 get,
                                 mapperService.mappingLookup(),
                                 mapperService.documentParser(),
+                                SplitShardCountSummary.IRRELEVANT,
                                 EngineTestCase.randomSearcherWrapper()
                             )
                         ) {
@@ -553,7 +572,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field idField = new StringField(IdFieldMapper.NAME, uid, Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(engine.config().getIndexSettings().seqNoIndexOptions());
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
@@ -563,7 +582,7 @@ public class RefreshListenersTests extends ESTestCase {
             seqID,
             id,
             null,
-            Arrays.asList(document),
+            List.of(document),
             source,
             XContentType.JSON,
             null,

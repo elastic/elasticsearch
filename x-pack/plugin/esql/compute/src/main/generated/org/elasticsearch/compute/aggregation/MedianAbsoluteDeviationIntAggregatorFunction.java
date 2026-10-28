@@ -14,10 +14,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,16 +39,11 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationIntAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, QuantileStates.SingleState state) {
+  MedianAbsoluteDeviationIntAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MedianAbsoluteDeviationIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationIntAggregator.initSingle(driverContext));
+    this.state = MedianAbsoluteDeviationIntAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -59,69 +59,198 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      IntBlock block = page.getBlock(channels.get(0));
-      IntVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    IntBlock block = page.getBlock(channels.get(0));
-    IntVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(IntVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      MedianAbsoluteDeviationIntAggregator.combine(state, vector.getInt(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock, mask);
+      return;
+    }
+    addRawVector(vVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      if (vBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
+      addRawBlock(vBlock);
+      return;
+    }
+    addRawVector(vVector);
+  }
+
+  private void addRawVector(IntVector vVector) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawVector(IntVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(IntVector vVector, BooleanVector mask) {
+    if (vVector.getClass() == IntArrayVector.class) {
+      IntArrayVector specialized = (IntArrayVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == IntArrowBufVector.class) {
+      IntArrowBufVector specialized = (IntArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int16ArrowBufVector.class) {
+      Int16ArrowBufVector specialized = (Int16ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == Int8ArrowBufVector.class) {
+      Int8ArrowBufVector specialized = (Int8ArrowBufVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    if (vVector.getClass() == ConstantIntVector.class) {
+      ConstantIntVector specialized = (ConstantIntVector) vVector;
+      for (int valuesPosition = 0; valuesPosition < specialized.getPositionCount(); valuesPosition++) {
+        if (mask.getBoolean(valuesPosition) == false) {
+          continue;
+        }
+        int vValue = specialized.getInt(valuesPosition);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
+      }
+      return;
+    }
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      MedianAbsoluteDeviationIntAggregator.combine(state, vector.getInt(i));
+      int vValue = vVector.getInt(valuesPosition);
+      MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
     }
   }
 
-  private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(IntBlock vBlock) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        MedianAbsoluteDeviationIntAggregator.combine(state, block.getInt(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
       }
     }
   }
 
-  private void addRawBlock(IntBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock vBlock, BooleanVector mask) {
+    for (int p = 0; p < vBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        MedianAbsoluteDeviationIntAggregator.combine(state, block.getInt(i));
+      int vStart = vBlock.getFirstValueIndex(p);
+      int vEnd = vStart + vValueCount;
+      for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
+        int vValue = vBlock.getInt(vOffset);
+        MedianAbsoluteDeviationIntAggregator.combine(state, vValue);
       }
     }
   }
@@ -132,12 +261,21 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block quartUncast = page.getBlock(channels.get(0));
     if (quartUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
+    BytesRef quartScratch = new BytesRef();
+    MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override

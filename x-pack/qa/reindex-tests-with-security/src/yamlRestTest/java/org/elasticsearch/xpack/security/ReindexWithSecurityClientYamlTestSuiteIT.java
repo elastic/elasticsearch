@@ -63,7 +63,7 @@ public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteT
     }
 
     /**
-     * All tests run as a an administrative user but use <code>es-security-runas-user</code> to become a less privileged user.
+     * All tests run as an administrative user but use <code>es-security-runas-user</code> to become a less privileged user.
      */
     @Override
     protected Settings restClientSettings() {

@@ -42,10 +42,11 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, null, null);
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
     }
 
     public void testRequestNotAcknowledged() {
@@ -61,10 +62,11 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.FALSE);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, null, null));
+        var state = projectStateWithEmptyProject();
+        Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null));
         assertThat(e.getMessage(), is("unfollow request failed to be acknowledged"));
     }
 
@@ -84,10 +86,11 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(RuntimeException.class, () -> performActionAndWait(step, indexMetadata, null, null)));
+        var state = projectStateWithEmptyProject();
+        assertSame(error, expectThrows(RuntimeException.class, () -> performActionAndWait(step, indexMetadata, state, null)));
     }
 
     public void testFailureToReleaseRetentionLeases() throws Exception {
@@ -107,9 +110,10 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        performActionAndWait(step, indexMetadata, null, null);
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
     }
 }

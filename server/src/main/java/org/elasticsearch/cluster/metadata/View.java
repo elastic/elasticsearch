@@ -1,0 +1,201 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+package org.elasticsearch.cluster.metadata;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Represents a single view definition: a name, a query string and an optional description.
+ */
+public final class View implements Writeable, ToXContentObject, IndexAbstraction {
+    private static final TransportVersion VIEW_DESCRIPTION_VERSION = TransportVersion.fromName("esql_view_description");
+    public static final TransportVersion VIEW_RESERVED_VERSION = TransportVersion.fromName("esql_view_reserved");
+
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField QUERY = new ParseField("query");
+    private static final ParseField DESCRIPTION = new ParseField("description");
+    private static final ParseField RESERVED = new ParseField("reserved");
+
+    // Parser that includes the name field (eg. serializing/deserializing the full object)
+    static final ConstructingObjectParser<View, Void> PARSER = new ConstructingObjectParser<>(
+        "view",
+        false,
+        (args, ctx) -> new View((String) args[0], (String) args[1], (String) args[2], args[3] != null && (Boolean) args[3])
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), RESERVED);
+    }
+
+    // Parser that excludes the name field (eg. when the name is provided externally, in the URL path)
+    // reserved is intentionally omitted — users cannot set it via the REST API.
+    public static ConstructingObjectParser<View, Void> parser(String name) {
+        ConstructingObjectParser<View, Void> parser = new ConstructingObjectParser<>(
+            "view",
+            false,
+            (args, ctx) -> new View(name, (String) args[0], (String) args[1])
+        );
+        parser.declareString(ConstructingObjectParser.constructorArg(), QUERY);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), DESCRIPTION);
+        return parser;
+    }
+
+    private final String name;
+    private final String query;
+    @Nullable
+    private final String description;
+    /**
+     * Reserved views can not be created/updated/deleted by the user.
+     * Unlike system resources they can still be queried.
+     */
+    private final boolean reserved;
+
+    public View(String name, String query) {
+        this(name, query, null);
+    }
+
+    public View(String name, String query, @Nullable String description) {
+        this(name, query, description, false);
+    }
+
+    public View(String name, String query, @Nullable String description, boolean reserved) {
+        this.name = Objects.requireNonNull(name, "view name must not be null");
+        this.query = Objects.requireNonNull(query, "view query must not be null");
+        this.description = description;
+        this.reserved = reserved;
+    }
+
+    public View(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.query = in.readString();
+        this.description = in.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION) ? in.readOptionalString() : null;
+        this.reserved = in.getTransportVersion().supports(VIEW_RESERVED_VERSION) && in.readBoolean();
+    }
+
+    public static View fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(query);
+        if (out.getTransportVersion().supports(VIEW_DESCRIPTION_VERSION)) {
+            out.writeOptionalString(description);
+        }
+        if (out.getTransportVersion().supports(VIEW_RESERVED_VERSION)) {
+            out.writeBoolean(reserved);
+        }
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public String query() {
+        return query;
+    }
+
+    @Nullable
+    public String description() {
+        return description;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(NAME.getPreferredName(), name);
+        builder.field(QUERY.getPreferredName(), query);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
+        if (reserved) {
+            builder.field(RESERVED.getPreferredName(), true);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        View other = (View) o;
+        return Objects.equals(name, other.name)
+            && Objects.equals(query, other.query)
+            && Objects.equals(description, other.description)
+            && reserved == other.reserved;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, query, description, reserved);
+    }
+
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
+    public Type getType() {
+        return Type.VIEW;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public List<Index> getIndices() {
+        return List.of();
+    }
+
+    @Override
+    public Index getWriteIndex() {
+        return null;
+    }
+
+    @Override
+    public DataStream getParentDataStream() {
+        return null;
+    }
+
+    @Override
+    public boolean isHidden() {
+        return false;
+    }
+
+    @Override
+    public boolean isSystem() {
+        return false;
+    }
+
+    public boolean isReserved() {
+        return reserved;
+    }
+}

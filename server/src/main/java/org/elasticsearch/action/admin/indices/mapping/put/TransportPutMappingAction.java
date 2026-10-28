@@ -24,9 +24,13 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -35,7 +39,9 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,6 +61,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutMappingAction(
@@ -65,7 +72,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final RequestValidators<PutMappingRequest> requestValidators,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -74,23 +82,26 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.metadataMappingService = metadataMappingService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
+        final ProjectId projectId = projectResolver.getProjectId();
         String[] indices;
         if (request.getConcreteIndex() == null) {
-            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
+            ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
+            indices = indexNameExpressionResolver.concreteIndexNames(projectMetadata, request);
         } else {
             indices = new String[] { request.getConcreteIndex().getName() };
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
+        return state.blocks().indicesBlockedException(projectId, ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override
@@ -101,15 +112,29 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            // Normalize to JSON once on the master thread; CompressedXContent and system index
+            // checks both require JSON, and utf8ToString() is unsafe on binary XContent formats.
+            if (request.xContentType() != XContentType.JSON) {
+                request.source(
+                    new BytesArray(XContentHelper.convertToJson(request.source(), false, request.xContentType())),
+                    XContentType.JSON
+                );
+            }
 
-            final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            final Index[] concreteIndices = resolveIndices(projectMetadata, request, indexNameExpressionResolver);
+
+            final Optional<Exception> maybeValidationException = requestValidators.validateRequest(
+                request,
+                projectMetadata,
+                concreteIndices
+            );
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
 
-            String message = checkForFailureStoreViolations(clusterService.state(), concreteIndices, request);
+            String message = checkForFailureStoreViolations(projectMetadata, concreteIndices, request);
             if (message != null) {
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
@@ -127,17 +152,23 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> "failed to put mappings on indices " + Arrays.toString(request.indices()), ex);
             throw ex;
+        } catch (IOException e) {
+            listener.onFailure(e);
         }
     }
 
-    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+    static Index[] resolveIndices(
+        final ProjectMetadata projectMetadata,
+        PutMappingRequest request,
+        final IndexNameExpressionResolver iner
+    ) {
         if (request.getConcreteIndex() == null) {
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
                 for (String indexExpression : request.indices()) {
                     indices.add(
                         iner.concreteWriteIndex(
-                            state,
+                            projectMetadata,
                             request.indicesOptions(),
                             indexExpression,
                             request.indicesOptions().allowNoIndices(),
@@ -147,7 +178,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 }
                 return indices.toArray(Index.EMPTY_ARRAY);
             } else {
-                return iner.concreteIndices(state, request);
+                return iner.concreteIndices(projectMetadata, request);
             }
         } else {
             return new Index[] { request.getConcreteIndex() };
@@ -169,7 +200,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 new PutMappingClusterStateUpdateRequest(
                     request.masterNodeTimeout(),
                     request.ackTimeout(),
-                    request.source(),
+                    request.source().utf8ToString(),
                     autoUpdate,
                     concreteIndices
                 ),
@@ -178,7 +209,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         );
     }
 
-    static String checkForFailureStoreViolations(ClusterState clusterState, Index[] concreteIndices, PutMappingRequest request) {
+    static String checkForFailureStoreViolations(ProjectMetadata projectMetadata, Index[] concreteIndices, PutMappingRequest request) {
         // Requests that a cluster generates itself are permitted to make changes to mappings
         // so that rolling upgrade scenarios still work. We check this via the request's origin.
         if (Strings.isNullOrEmpty(request.origin()) == false) {
@@ -186,7 +217,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
 
         List<String> violations = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+        SortedMap<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
         for (Index index : concreteIndices) {
             IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
             if (indexAbstraction != null) {
@@ -214,7 +245,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
         List<String> violations = new ArrayList<>();
 
-        final String requestMappings = request.source();
+        // TODO update SystemIndexDescriptor to use BytesReference
+        final String requestMappings = request.source().utf8ToString();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());

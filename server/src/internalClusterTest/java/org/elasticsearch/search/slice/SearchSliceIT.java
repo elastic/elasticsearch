@@ -140,7 +140,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         });
 
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias1").routing("foo"))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias2").routing("bar"))
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias3").routing("baz"))
@@ -201,8 +201,8 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(numDocs, numShards);
         int max = randomIntBetween(2, numShards * 3);
 
-        // Test the default slicing strategy (null), as well as numeric doc values
-        for (String field : new String[] { null, "random_int", "static_int" }) {
+        // Test the default slicing strategy (null), explicit _id slicing, and numeric doc values
+        for (String field : new String[] { null, "_id", "random_int", "static_int" }) {
             // Open point-in-time reader
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueSeconds(10));
             OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();

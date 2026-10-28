@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -42,10 +43,11 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
 
     @Override
     protected TestRange<Float> randomRangeForSyntheticSourceTest() {
-        var includeFrom = randomBoolean();
         Float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE - Math.ulp(Float.MAX_VALUE), true);
-        var includeTo = randomBoolean();
         Float to = (float) randomDoubleBetween(from + Math.ulp(from), Float.MAX_VALUE, true);
+        boolean valuesAdjacent = Math.nextUp(from) > Math.nextDown(to);
+        var includeFrom = valuesAdjacent || randomBoolean();
+        var includeTo = valuesAdjacent || randomBoolean();
 
         if (rarely()) {
             from = null;
@@ -55,6 +57,13 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
         }
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected Tuple<Object, Object> randomInclusiveBounds() {
+        float from = (float) randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
+        float to = (float) randomDoubleBetween(from, Float.MAX_VALUE, true);
+        return Tuple.tuple(from, to);
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -58,6 +59,7 @@ public class IndexMetadataVerifier {
 
     private final Settings settings;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -67,6 +69,7 @@ public class IndexMetadataVerifier {
     public IndexMetadataVerifier(
         Settings settings,
         ClusterService clusterService,
+        FeatureService featureService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
@@ -75,6 +78,7 @@ public class IndexMetadataVerifier {
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
@@ -84,16 +88,33 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Checks that the index can be upgraded to the current version of the master node.
+     * Checks that the index can be upgraded to the current version as provided.
      *
      * <p>
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
-     * cannot be updated the method throws an exception.
+     * cannot be updated the method throws an exception. Also archives or deletes unsupported settings.
      */
     public IndexMetadata verifyIndexMetadata(
         IndexMetadata indexMetadata,
         IndexVersion minimumIndexCompatibilityVersion,
         IndexVersion minimumReadOnlyIndexCompatibilityVersion
+    ) {
+        return verifyIndexMetadata(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion, true);
+    }
+
+    /**
+     * Checks that the index can be upgraded to the current version as provided.
+     *
+     * <p>
+     * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
+     * cannot be updated the method throws an exception. If {@code archiveOrDeleteBrokenIndexSettings} is {@code true},
+     * unsupported settings will be either archived or deleted.
+     */
+    public IndexMetadata verifyIndexMetadata(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion,
+        boolean archiveOrDeleteBrokenIndexSettings
     ) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
 
@@ -103,10 +124,12 @@ public class IndexMetadataVerifier {
         // invalid settings, since they are now removed the FilterAllocationDecider treats them as
         // regular attribute filters, and shards cannot be allocated.
         newMetadata = removeTierFiltering(newMetadata);
-        // Next we have to run this otherwise if we try to create IndexSettings
-        // with broken settings it would fail in checkMappingsCompatibility
-        newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
+        if (archiveOrDeleteBrokenIndexSettings) {
+            // Next we have to run this otherwise if we try to create IndexSettings
+            // with broken settings it would fail in checkMappingsCompatibility
+            newMetadata = archiveOrDeleteBrokenIndexSettings(newMetadata);
+            checkMappingsCompatibility(newMetadata);
+        }
         return newMetadata;
     }
 
@@ -279,18 +302,21 @@ public class IndexMetadataVerifier {
             try (
                 MapperService mapperService = new MapperService(
                     clusterService,
+                    featureService,
                     indexSettings,
                     (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
+                    () -> false,
                     scriptService,
                     query -> {
                         throw new UnsupportedOperationException("IndexMetadataVerifier");
                     },
-                    mapperMetrics
+                    mapperMetrics,
+                    null,
+                    null
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
@@ -314,6 +340,7 @@ public class IndexMetadataVerifier {
         final Settings newSettings;
 
         if (indexMetadata.isSystem()) {
+            // TODO This is also skipped if the upgrade/archive step is skipped. To be discussed
             newSettings = indexScopedSettings.deleteUnknownOrInvalidSettings(
                 settings,
                 e -> logger.warn(

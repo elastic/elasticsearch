@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -33,11 +34,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -52,6 +58,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -63,8 +70,11 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -77,6 +87,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.recovery.RecoveryFeatures;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -100,6 +112,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -111,8 +124,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
@@ -125,7 +140,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
  * <p>
  * Restore operation is performed in several stages.
  * <p>
- * First {@link #restoreSnapshot(RestoreSnapshotRequest, org.elasticsearch.action.ActionListener)}
+ * First {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, org.elasticsearch.action.ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
  * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore} method.
@@ -158,6 +173,7 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_HISTORY_UUID,
         IndexSettings.MODE.getKey(),
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
@@ -185,6 +201,7 @@ public final class RestoreService implements ClusterStateApplier {
     private final MetadataCreateIndexService createIndexService;
 
     private final IndexMetadataVerifier indexMetadataVerifier;
+    private final boolean deserializeProjectMetadata;
 
     private final ShardLimitValidator shardLimitValidator;
 
@@ -200,7 +217,13 @@ public final class RestoreService implements ClusterStateApplier {
 
     private final Executor snapshotMetaExecutor;
 
+    private final IndexMetadataRestoreTransformer indexMetadataRestoreTransformer;
+
+    private final FeatureService featureService;
+
     private volatile boolean refreshRepositoryUuidOnRestore;
+
+    private final RestoreLifecycleListener lifecycleListener;
 
     public RestoreService(
         ClusterService clusterService,
@@ -212,13 +235,18 @@ public final class RestoreService implements ClusterStateApplier {
         SystemIndices systemIndices,
         IndicesService indicesService,
         FileSettingsService fileSettingsService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        boolean deserializeProjectMetadata,
+        IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
+        FeatureService featureService,
+        RestoreLifecycleListener restoreLifecycleListener
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.indexMetadataVerifier = indexMetadataVerifier;
+        this.deserializeProjectMetadata = deserializeProjectMetadata;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -232,36 +260,111 @@ public final class RestoreService implements ClusterStateApplier {
         this.refreshRepositoryUuidOnRestore = REFRESH_REPO_UUID_ON_RESTORE_SETTING.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
+        this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
+        this.featureService = featureService;
+        this.lifecycleListener = Objects.requireNonNull(restoreLifecycleListener);
     }
 
     /**
      * Restores snapshot specified in the restore request.
      *
+     * @param projectId project for the restore
      * @param request  restore request
      * @param listener restore listener
      */
-    public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
-        restoreSnapshot(request, listener, (clusterState, builder) -> {});
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final ActionListener<RestoreCompletionResponse> listener
+    ) {
+        restoreSnapshot(projectId, request, listener, (clusterState, builder) -> {});
     }
 
     /**
      * Restores snapshot specified in the restore request.
      *
+     * @param projectId project for the restore
      * @param request  restore request
      * @param listener restore listener
-     * @param updater  handler that allows callers to make modifications to {@link Metadata}
+     * @param updater  handler that allows callers to make modifications to {@link ProjectMetadata}
      *                 in the same cluster state update as the restore operation
      */
     public void restoreSnapshot(
+        final ProjectId projectId,
         final RestoreSnapshotRequest request,
         final ActionListener<RestoreCompletionResponse> listener,
-        final BiConsumer<ClusterState, Metadata.Builder> updater
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
     ) {
+        restoreSnapshot(projectId, request, UUIDs.randomBase64UUID(), listener, updater);
+    }
+
+    /**
+     * Restores a snapshot using a caller-supplied restore UUID so the caller can correlate the restore
+     * with an external record (e.g. a persistent task). A UUID matching an existing
+     * {@link RestoreInProgress} entry is treated as an idempotent retry and applies nothing.
+     *
+     * @param projectId   project for the restore
+     * @param request     restore request
+     * @param restoreUUID caller-supplied UUID for the restore entry; must not be
+     *                    {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}
+     * @param listener    restore listener
+     * @param updater     handler that allows callers to make modifications to {@link ProjectMetadata}
+     *                    in the same cluster state update as the restore operation
+     */
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
+        restoreSnapshot(projectId, request, restoreUUID, /* reportShardRestoring = */ false, listener, updater);
+    }
+
+    /**
+     * As {@link #restoreSnapshot(ProjectId, RestoreSnapshotRequest, String, ActionListener, BiConsumer)}, but the caller states whether
+     * requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by default, and the restore
+     * entry points that do not take this parameter never report, so a restore keeps the generic shard-unavailable errors unless its
+     * caller explicitly opts in through an overload that does.
+     *
+     * <p>A call whose {@code restoreUUID} already has a {@link RestoreInProgress} entry is an idempotent retry that applies nothing, so it
+     * never changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreSnapshot(
+        final ProjectId projectId,
+        final RestoreSnapshotRequest request,
+        final String restoreUUID,
+        final boolean reportShardRestoring,
+        final ActionListener<RestoreCompletionResponse> listener,
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater
+    ) {
+        Objects.requireNonNull(restoreUUID);
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(restoreUUID)) {
+            throw new IllegalArgumentException(
+                "restore UUID must not be the reserved value [" + SnapshotRecoverySource.NO_API_RESTORE_UUID + "]"
+            );
+        }
         assert Repository.assertSnapshotMetaThread();
+
+        if (clusterService.state().metadata().hasProject(projectId) == false) {
+            listener.onFailure(
+                new SnapshotRestoreException(request.repository(), request.snapshot(), "project [" + projectId + "] does not exist")
+            );
+            return;
+        }
 
         // Try and fill in any missing repository UUIDs in case they're needed during the restore
         final var repositoryUuidRefreshStep = SubscribableListener.newForked(
-            l -> refreshRepositoryUuids(refreshRepositoryUuidOnRestore, repositoriesService, () -> l.onResponse(null), snapshotMetaExecutor)
+            l -> refreshRepositoryUuids(
+                refreshRepositoryUuidOnRestore,
+                projectId,
+                repositoriesService,
+                () -> l.onResponse(null),
+                snapshotMetaExecutor
+            )
         );
 
         // AtomicReference just so we have somewhere to hold these objects, there's no interesting concurrency here
@@ -272,7 +375,7 @@ public final class RestoreService implements ClusterStateApplier {
 
             .<Void>newForked(repositorySetListener -> {
                 // do this within newForked for exception handling
-                repositoryRef.set(repositoriesService.repository(request.repository()));
+                repositoryRef.set(repositoriesService.repository(projectId, request.repository()));
                 repositorySetListener.onResponse(null);
             })
 
@@ -309,13 +412,22 @@ public final class RestoreService implements ClusterStateApplier {
                     repositoryRef.get(),
                     request,
                     repositoryDataRef.get(),
+                    restoreUUID,
                     updater,
+                    reportShardRestoring,
                     responseListener
                 )
             )
 
             .addListener(listener.delegateResponse((delegate, e) -> {
-                logger.warn(() -> "[" + request.repository() + ":" + request.snapshot() + "] failed to restore snapshot", e);
+                logger.warn(
+                    () -> "["
+                        + projectRepoString(projectId, request.repository())
+                        + ":"
+                        + request.snapshot()
+                        + "] failed to restore snapshot",
+                    e
+                );
                 delegate.onFailure(e);
             }));
     }
@@ -329,8 +441,10 @@ public final class RestoreService implements ClusterStateApplier {
      * @param repository     the repository to restore from
      * @param request        restore request
      * @param repositoryData current repository data for the repository to restore from
-     * @param updater        handler that allows callers to make modifications to {@link Metadata} in the same cluster state update as the
-     *                       restore operation
+     * @param updater        handler that allows callers to make modifications to {@link ProjectMetadata} in the same cluster state update
+     *                       as the restore operation
+     * @param reportShardRestoring whether requests that hit a shard of this restore should fail with {@link ShardRestoringException};
+     *                             see {@link RestoreInProgress.Entry#reportShardRestoring()}
      * @param listener       listener to resolve once restore has been started
      * @throws IOException   on failure to load metadata from the repository
      */
@@ -339,22 +453,25 @@ public final class RestoreService implements ClusterStateApplier {
         Repository repository,
         RestoreSnapshotRequest request,
         RepositoryData repositoryData,
-        BiConsumer<ClusterState, Metadata.Builder> updater,
+        String restoreUUID,
+        BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
+        boolean reportShardRestoring,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
         assert Repository.assertSnapshotMetaThread();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         final String repositoryName = repository.getMetadata().name();
-        final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+        final Snapshot snapshot = new Snapshot(snapshotInfo.projectId(), repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
         validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo, repositoriesService.getPreRestoreVersionChecks());
 
+        final var projectId = snapshotInfo.projectId();
         // Get the global state if necessary
         Metadata globalMetadata = null;
         final Metadata.Builder metadataBuilder;
         if (request.includeGlobalState()) {
-            globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+            globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId, deserializeProjectMetadata);
             metadataBuilder = Metadata.builder(globalMetadata);
         } else {
             metadataBuilder = Metadata.builder();
@@ -384,7 +501,7 @@ public final class RestoreService implements ClusterStateApplier {
             logger.warn(
                 () -> format(
                     "Restoring snapshot[%s] skipping feature [%s] because it is not available in this cluster",
-                    snapshotInfo.snapshotId(),
+                    snapshotInfo.snapshot(),
                     featureName
                 )
             );
@@ -422,13 +539,10 @@ public final class RestoreService implements ClusterStateApplier {
                 .stream()
                 .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                 .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            Map<Boolean, Set<String>> failureIndices = Map.of();
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                failureIndices = dataStreamsToRestore.values()
-                    .stream()
-                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
-                    .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            }
+            Map<Boolean, Set<String>> failureIndices = dataStreamsToRestore.values()
+                .stream()
+                .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
             nonSystemDataStreamBackingIndices = backingIndices.getOrDefault(false, Set.of());
             nonSystemDataStreamFailureIndices = failureIndices.getOrDefault(false, Set.of());
@@ -480,44 +594,431 @@ public final class RestoreService implements ClusterStateApplier {
         ).flatMap(Collection::stream).distinct().toList();
 
         final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
+
+        ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(projectId);
+        if (projectBuilder == null) {
+            projectBuilder = ProjectMetadata.builder(projectId);
+            metadataBuilder.put(projectBuilder);
+        }
+        // Repository identity and raw (pre-transform) metadata of each snapshot index, captured as we read it so that a restore over an
+        // existing data stream (below) can describe every backing/failure-store index of its snapshot-side destination without re-reading
+        // it from the repository. Every such index passes through this loop because it is part of requestedIndicesIncludingSystem.
+        final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndicesByName = new HashMap<>();
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
+            snapshotIndicesByName.put(indexId.getName(), new DataStreamRestoreTarget.SnapshotIndex(indexId, snapshotIndexMetaData));
+            // Update the snapshot index metadata before adding it to the metadata
+            snapshotIndexMetaData = indexMetadataRestoreTransformer.updateIndexMetadata(snapshotIndexMetaData);
             if (snapshotIndexMetaData.isSystem()) {
                 if (requestIndices.contains(indexId.getName())) {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
                 }
             }
-            metadataBuilder.put(snapshotIndexMetaData, false);
+            projectBuilder.put(snapshotIndexMetaData, false);
         }
 
         assert explicitlyRequestedSystemIndices.size() == 0
             : "it should be impossible to reach this point with explicitly requested system indices, but got: "
                 + explicitlyRequestedSystemIndices;
 
+        projectBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore);
+
+        // Get map of new index name to old IndexId:
+        final Map<String, IndexId> indicesToRestore = renamedIndices(
+            request,
+            requestedIndicesIncludingSystem,
+            nonSystemDataStreamBackingIndices,
+            nonSystemDataStreamFailureIndices,
+            allSystemIndicesToRestore,
+            repositoryData
+        );
+
+        // When explicitly requested via RestoreSnapshotRequest#restoreOverExisting(), restore over destinations that already exist instead
+        // of failing because they exist. A destination that is a data stream is deleted (along with its backing/failure-store indices) and
+        // recreated from the snapshot in this same cluster-state update. A plain destination index that is currently open is restored over
+        // in place. Each destination's exact current identity is resolved here so that one deleted and recreated under the same name before
+        // this update is published is rejected rather than silently overwritten.
+        final List<DataStreamRestoreTarget> existingDataStreamTargets;
+        final Map<String, Index> openIndexTargets;
+        if (request.restoreOverExisting()) {
+            final ProjectMetadata currentProject = clusterService.state().metadata().getProject(projectId);
+
+            // Here we build a delete-and-restore target for each snapshot data stream whose destination currently exists, and remember the
+            // snapshot-side index names it owns so the plain-index pass below does not also try to restore over them.
+            existingDataStreamTargets = new ArrayList<>();
+            final Set<String> dataStreamOwnedIndexNames = new HashSet<>();
+            for (Map.Entry<String, DataStream> entry : dataStreamsToRestore.entrySet()) {
+                final DataStream snapshotDataStream = entry.getValue();
+                // Every data stream's backing/failure indices are handled as part of their data stream, so keep them out of the plain
+                // open-index pass below regardless of whether the data stream itself becomes a restore_over_existing target.
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(dataStreamOwnedIndexNames::add);
+                // System data streams are restored only as part of a feature state, which deletes and recreates them itself, so they are
+                // never restore_over_existing destinations; skip them here to avoid deleting them twice in the same update.
+                if (snapshotDataStream.isSystem()) {
+                    continue;
+                }
+                final DataStream currentDataStream = currentProject.dataStreams().get(entry.getKey());
+                if (currentDataStream == null) {
+                    continue;
+                }
+                final Map<String, DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
+                Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
+                    .map(Index::getName)
+                    .forEach(indexName -> snapshotIndices.put(indexName, snapshotIndicesByName.get(indexName)));
+                existingDataStreamTargets.add(new DataStreamRestoreTarget(currentDataStream, snapshotDataStream, snapshotIndices));
+            }
+
+            // Here we build plain index destinations. We want to restore over any that are currently open, except a data stream's
+            // backing/failure-store indices, which the data-stream pass above already deletes and recreates. Routing such an index through
+            // the open-index path too would fail, because that deletion removes it before the open-index path validates it.
+            openIndexTargets = new HashMap<>();
+            for (String renamedIndexName : indicesToRestore.keySet()) {
+                if (dataStreamOwnedIndexNames.contains(renamedIndexName)) {
+                    continue;
+                }
+                final IndexMetadata currentIndexMetadata = currentProject.index(renamedIndexName);
+                if (currentIndexMetadata != null && currentIndexMetadata.getState() == IndexMetadata.State.OPEN) {
+                    openIndexTargets.put(renamedIndexName, currentIndexMetadata.getIndex());
+                }
+            }
+        } else {
+            existingDataStreamTargets = List.of();
+            openIndexTargets = Map.of();
+        }
+
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
         submitUnbatchedTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
             new RestoreSnapshotStateTask(
+                listener,
                 request,
                 snapshot,
                 featureStatesToRestore.keySet(),
-                // Apply renaming on index names, returning a map of names where
-                // the key is the renamed index and the value is the original name
-                renamedIndices(
-                    request,
-                    requestedIndicesIncludingSystem,
-                    nonSystemDataStreamBackingIndices,
-                    nonSystemDataStreamFailureIndices,
-                    allSystemIndicesToRestore,
-                    repositoryData
-                ),
+                indicesToRestore,
                 snapshotInfo,
-                metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
+                metadataBuilder.build(),
                 dataStreamsToRestore.values(),
                 updater,
                 clusterService.getSettings(),
-                listener
+                restoreUUID,
+                reportShardRestoring,
+                existingDataStreamTargets,
+                openIndexTargets
+            )
+        );
+    }
+
+    /**
+     * A single destination for {@link #restoreSnapshotOverOpenIndices}. This represents the exact identity of the existing open index to
+     * restore over, the repository-side identity of the snapshot index to restore it from, and that snapshot index's metadata.
+     *
+     * @param destinationIndex      the exact current identity (name and index UUID) of the open index to restore over, resolved by the
+     *                              caller before submitting the restore, so that an index deleted and recreated under the same name is
+     *                              never silently adopted
+     * @param snapshotIndexId       the repository-side identity of the index to restore from within the snapshot
+     * @param snapshotIndexMetadata the {@link IndexMetadata} exactly as recorded in the snapshot. The caller is not responsible for
+     *                              applying {@link RestoreService#indexMetadataRestoreTransformer} because
+     *                              {@link RestoreService#restoreSnapshotOverOpenIndices} applies it internally, the same as
+     *                              {@link RestoreService#restoreSnapshot} does for every other index restored from a snapshot
+     */
+    public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {
+        public OpenIndexRestoreTarget {
+            Objects.requireNonNull(destinationIndex, "destinationIndex");
+            Objects.requireNonNull(snapshotIndexId, "snapshotIndexId");
+            Objects.requireNonNull(snapshotIndexMetadata, "snapshotIndexMetadata");
+        }
+    }
+
+    /**
+     * Restores over already-open destination indices from pre-resolved targets, in one cluster-state update that atomically applies the
+     * restored metadata and a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery routing, adds the
+     * correlated {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so a conflict on any
+     * one target, such as an active snapshot of the destination, leaves every destination unchanged.
+     * <p>
+     * Unlike {@link #restoreSnapshot}, this does not resolve indices by name against a {@link RestoreSnapshotRequest}. The caller supplies
+     * the exact resolved {@link Index} identities and snapshot metadata for every target directly. Renaming, feature states, global state
+     * restore, and partial restore are not supported here.
+     * <p>
+     * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated {@link RestoreInProgress}
+     * entry and is a no-op rather than a second initialization, but only while that first entry still exists. That entry is transient.
+     * {@link #removeCompletedRestoresFromClusterState()} removes it once the restore completes. After it is gone, a retry carrying the same
+     * {@code restoreUUID} is <em>not</em> deduplicated here, because restoring over an open index preserves the destination's index UUID,
+     * so the exact-identity check in {@link #validateExistingOpenIndexForRestore} still passes and a second restore is initialized,
+     * creating a fresh history UUID and discarding any writes accepted after the first restore completed. (This differs from
+     * {@link #restoreOverExistingDataStreams}, whose post-cleanup retry instead fails, because that operation replaces the backing indices
+     * with new UUIDs that no longer match the stale identity the retry carries.)
+     * <p>
+     * This method therefore provides at-most-once initialization only <em>while the restore is in progress</em>. Guaranteeing at-most-once
+     * across the full restore lifecycle is the caller's responsibility: the intended production caller is a durable, resumable executor
+     * (like a persistent task) that owns a stable identifier across retries and failovers, passes it here as the restore UUID, and must not
+     * resubmit a restore it has already observed complete. The caller-supplied stable UUID is the main difference from the public
+     * {@link #restoreSnapshot} path, which always creates a random restore UUID.
+     *
+     * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
+     */
+    public void restoreSnapshotOverOpenIndices(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        List<OpenIndexRestoreTarget> targets,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        restoreSnapshotOverOpenIndices(
+            projectId,
+            snapshot,
+            snapshotInfo,
+            masterNodeTimeout,
+            restoreUUID,
+            /* reportShardRestoring = */ false,
+            targets,
+            listener
+        );
+    }
+
+    /**
+     * As {@link #restoreSnapshotOverOpenIndices(ProjectId, Snapshot, SnapshotInfo, TimeValue, String, List, ActionListener)}, but the
+     * caller states whether requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by
+     * default, so a restore keeps the generic shard-unavailable errors unless its caller explicitly opts in here.
+     *
+     * <p>A retry that supplies the same {@code restoreUUID} as an existing {@link RestoreInProgress} entry applies nothing, so it never
+     * changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreSnapshotOverOpenIndices(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        boolean reportShardRestoring,
+        List<OpenIndexRestoreTarget> targets,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        Objects.requireNonNull(targets, "targets");
+        if (targets.isEmpty()) {
+            throw new IllegalArgumentException("targets must not be empty");
+        }
+        final Map<String, IndexId> indicesToRestore = new HashMap<>();
+        final Map<String, Index> openIndexTargets = new HashMap<>();
+        final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
+        for (OpenIndexRestoreTarget target : targets) {
+            final String name = target.destinationIndex().getName();
+            indicesToRestore.put(name, target.snapshotIndexId());
+            openIndexTargets.put(name, target.destinationIndex());
+            // mirrors the equivalent step in #restoreSnapshot, after reading each IndexMetadata from the repository
+            snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(target.snapshotIndexMetadata()), false);
+        }
+        final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
+        final RestoreSnapshotRequest request = new RestoreSnapshotRequest(
+            masterNodeTimeout,
+            snapshot.getRepository(),
+            snapshot.getSnapshotId().getName()
+        );
+        submitUnbatchedTask(
+            "restore_snapshot_over_open_index[" + restoreUUID + "]",
+            new RestoreSnapshotStateTask(
+                listener,
+                request,
+                snapshot,
+                Set.of(),
+                indicesToRestore,
+                snapshotInfo,
+                snapshotMetadata,
+                List.of(),
+                (state, builder) -> {},
+                clusterService.getSettings(),
+                restoreUUID,
+                reportShardRestoring,
+                List.of(),
+                openIndexTargets
+            )
+        );
+    }
+
+    /**
+     * A single destination for {@link #restoreOverExistingDataStreams}: the exact identity of the existing data stream to delete and
+     * restore over, the snapshot-side {@link DataStream} to restore, and the repository-side identity plus metadata of every backing and
+     * failure-store index the snapshot-side data stream references.
+     *
+     * @param destinationDataStream the exact current identity (name plus exact backing/failure {@link Index} identities) of the data
+     *                              stream to delete and restore over, resolved by the caller before submitting the restore, so
+     *                              that a data stream deleted and recreated under the same name is never silently adopted
+     * @param snapshotDataStream    the data stream as recorded in the snapshot, to be restored under the same name
+     * @param snapshotIndices       every backing/failure-store index referenced by {@code snapshotDataStream}, keyed by name
+     */
+    public record DataStreamRestoreTarget(
+        DataStream destinationDataStream,
+        DataStream snapshotDataStream,
+        Map<String, SnapshotIndex> snapshotIndices
+    ) {
+        public DataStreamRestoreTarget {
+            if (destinationDataStream.getName().equals(snapshotDataStream.getName()) == false) {
+                throw new IllegalArgumentException(
+                    "cannot restore data stream ["
+                        + snapshotDataStream.getName()
+                        + "] over data stream ["
+                        + destinationDataStream.getName()
+                        + "] because a restore over an existing data stream only supports restoring it over one of the same name"
+                );
+            }
+            final Set<String> expectedIndexNames = Stream.concat(
+                snapshotDataStream.getIndices().stream(),
+                snapshotDataStream.getFailureIndices().stream()
+            ).map(Index::getName).collect(Collectors.toSet());
+            if (snapshotIndices.keySet().equals(expectedIndexNames) == false) {
+                throw new IllegalArgumentException(
+                    "cannot restore data stream ["
+                        + destinationDataStream.getName()
+                        + "] because the supplied indices to restore do not exactly match its backing and failure-store indices"
+                );
+            }
+            for (Map.Entry<String, SnapshotIndex> entry : snapshotIndices.entrySet()) {
+                final SnapshotIndex snapshotIndex = entry.getValue();
+                if (entry.getKey().equals(snapshotIndex.indexId().getName()) == false
+                    || entry.getKey().equals(snapshotIndex.metadata().getIndex().getName()) == false) {
+                    throw new IllegalArgumentException(
+                        "cannot restore data stream ["
+                            + destinationDataStream.getName()
+                            + "] because index ["
+                            + entry.getKey()
+                            + "] does not match the name of its supplied IndexId or IndexMetadata"
+                    );
+                }
+            }
+        }
+
+        /**
+         * The repository-side identity and metadata of a single index within a snapshot, neither of which is derivable from the
+         * {@link DataStream}'s own {@link Index} references: {@link IndexId} is a repository-generated identifier distinct from the
+         * index's cluster-side UUID, and {@link IndexMetadata} (settings, mappings, aliases) isn't part of {@link DataStream} at all.
+         *
+         * @param metadata the {@link IndexMetadata} exactly as recorded in the snapshot, e.g. from {@link
+         *                 Repository#getSnapshotIndexMetaData}; the caller is not responsible for applying
+         *                 {@link RestoreService#indexMetadataRestoreTransformer}, {@link RestoreService#restoreOverExistingDataStreams}
+         *                 applies it internally, the same as {@link RestoreService#restoreSnapshot} does for every other index restored
+         *                 from a snapshot
+         */
+        public record SnapshotIndex(IndexId indexId, IndexMetadata metadata) {}
+    }
+
+    /**
+     * The atomic delete-and-restore operation for existing data streams: deletes the given destination data streams and their
+     * backing/failure-store indices and restores the corresponding snapshot data streams under the same names, in one
+     * cluster-state update that atomically removes the old destinations, applies the restored metadata, adds snapshot-recovery routing
+     * for the newly-restored backing/failure indices, installs the correlated {@link RestoreInProgress} entry, and reroutes. Every target
+     * is validated before anything is deleted, so a conflict on any one target leaves every destination unchanged.
+     * <p>
+     * Unlike {@link #restoreSnapshot}, this does not resolve indices or data streams by name against a {@link RestoreSnapshotRequest}:
+     * the caller has already completed recovery-point lookup, source expansion, destination mapping, and preflight, and supplies the
+     * exact resolved {@link DataStream} identity and snapshot metadata for every target directly. Renaming, feature states, global state
+     * restore, and partial restore are not supported here.
+     * <p>
+     * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated
+     * {@link RestoreInProgress} entry and is a no-op rather than a second initialization while that first entry still exists. If that
+     * first entry no longer exists, the retry will fail because the check now sees the restored backing/failure indices' new UUIDs and
+     * rejects the stale identity the retry still carries.
+     *
+     * @param restoreUUID               the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
+     * @param snapshotDataStreamAliases every data-stream alias recorded in the snapshot's global metadata, keyed by alias name; only the
+     *                                  entries that reference a data stream actually being restored are applied. Data-stream deletion
+     *                                  removes the destination from every existing alias that referenced it, so this is the only source
+     *                                  from which a restored data stream's aliases can be repopulated.
+     */
+    public void restoreOverExistingDataStreams(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        List<DataStreamRestoreTarget> targets,
+        Map<String, DataStreamAlias> snapshotDataStreamAliases,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        restoreOverExistingDataStreams(
+            projectId,
+            snapshot,
+            snapshotInfo,
+            masterNodeTimeout,
+            restoreUUID,
+            /* reportShardRestoring = */ false,
+            targets,
+            snapshotDataStreamAliases,
+            listener
+        );
+    }
+
+    /**
+     * As
+     * {@link #restoreOverExistingDataStreams(ProjectId, Snapshot, SnapshotInfo, TimeValue, String, List, Map, ActionListener)}, but the
+     * caller states whether requests that hit a shard of this restore should fail with {@link ShardRestoringException}. That is off by
+     * default, so a restore keeps the generic shard-unavailable errors unless its caller explicitly opts in here.
+     *
+     * <p>A retry that supplies the same {@code restoreUUID} as an existing {@link RestoreInProgress} entry applies nothing, so it never
+     * changes {@code reportShardRestoring} for the existing restore: the value from the first call stays.
+     *
+     * @param reportShardRestoring {@code true} to have requests that hit a shard of this restore fail with
+     *                             {@link ShardRestoringException}; see {@link RestoreInProgress.Entry#reportShardRestoring()}
+     */
+    public void restoreOverExistingDataStreams(
+        ProjectId projectId,
+        Snapshot snapshot,
+        SnapshotInfo snapshotInfo,
+        TimeValue masterNodeTimeout,
+        String restoreUUID,
+        boolean reportShardRestoring,
+        List<DataStreamRestoreTarget> targets,
+        Map<String, DataStreamAlias> snapshotDataStreamAliases,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        final Map<String, IndexId> indicesToRestore = new HashMap<>();
+        final Map<String, DataStream> dataStreamsToRestore = new HashMap<>();
+        final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
+        for (DataStreamRestoreTarget target : targets) {
+            dataStreamsToRestore.put(target.snapshotDataStream().getName(), target.snapshotDataStream());
+            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
+                indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
+                // mirrors the equivalent step in #restoreSnapshot, right after reading each IndexMetadata from the repository
+                snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(entry.getValue().metadata()), false);
+            }
+        }
+        final Map<String, DataStreamAlias> restoredDataStreamAliases = new HashMap<>();
+        for (DataStreamAlias alias : snapshotDataStreamAliases.values()) {
+            final DataStreamAlias intersected = alias.intersect(dataStreamsToRestore::containsKey);
+            if (intersected.getDataStreams().isEmpty() == false) {
+                restoredDataStreamAliases.put(alias.getName(), intersected);
+            }
+        }
+        snapshotProjectBuilder.dataStreams(dataStreamsToRestore, restoredDataStreamAliases);
+        final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
+        final RestoreSnapshotRequest request = new RestoreSnapshotRequest(
+            masterNodeTimeout,
+            snapshot.getRepository(),
+            snapshot.getSnapshotId().getName()
+        );
+        submitUnbatchedTask(
+            "restore_snapshot_over_existing_data_stream[" + restoreUUID + "]",
+            new RestoreSnapshotStateTask(
+                listener,
+                request,
+                snapshot,
+                Set.of(),
+                indicesToRestore,
+                snapshotInfo,
+                snapshotMetadata,
+                dataStreamsToRestore.values(),
+                (state, builder) -> {},
+                clusterService.getSettings(),
+                restoreUUID,
+                reportShardRestoring,
+                List.copyOf(targets),
+                Map.of()
             )
         );
     }
@@ -527,22 +1028,32 @@ public final class RestoreService implements ClusterStateApplier {
         SnapshotInfo snapshotInfo,
         Metadata globalMetadata
     ) {
-
+        final var projectId = snapshotInfo.projectId();
         Stream<ComposableIndexTemplate> streams = Stream.concat(
-            clusterService.state().metadata().templatesV2().values().stream(),
-            globalMetadata == null ? Stream.empty() : globalMetadata.templatesV2().values().stream()
+            clusterService.state().metadata().getProject(projectId).templatesV2().values().stream(),
+            globalMetadata == null ? Stream.empty() : globalMetadata.getProject(projectId).templatesV2().values().stream()
         );
 
         Set<String> templatePatterns = streams.filter(cit -> cit.getDataStreamTemplate() != null)
             .flatMap(cit -> cit.indexPatterns().stream())
             .collect(Collectors.toSet());
+        warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+    }
 
-        for (String name : dataStreamsToRestore.keySet()) {
-            if (templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+    // Visible for testing
+    static void warnIfIndexTemplateMissing(
+        Map<String, DataStream> dataStreamsToRestore,
+        Set<String> templatePatterns,
+        SnapshotInfo snapshotInfo
+    ) {
+        for (var entry : dataStreamsToRestore.entrySet()) {
+            String name = entry.getKey();
+            DataStream dataStream = entry.getValue();
+            if (dataStream.isSystem() == false && templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
                 String warningMessage = format(
                     "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
                         + " rollover to fail until a matching index template is created",
-                    snapshotInfo.snapshotId(),
+                    snapshotInfo.snapshot(),
                     name
                 );
                 logger.warn(() -> warningMessage);
@@ -552,7 +1063,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
@@ -565,6 +1076,7 @@ public final class RestoreService implements ClusterStateApplier {
      * {@link BlobStoreRepository} with a missing UUID.
      *
      * @param enabled             If {@code false} this method completes the listener immediately
+     * @param projectId           project for the restore
      * @param repositoriesService Supplies the repositories to check
      * @param onCompletion        Action that is executed when all repositories have been refreshed.
      * @param responseExecutor    Executor on which to execute {@code onCompletion} if not using the calling thread.
@@ -572,6 +1084,7 @@ public final class RestoreService implements ClusterStateApplier {
     // Exposed for tests
     static void refreshRepositoryUuids(
         boolean enabled,
+        ProjectId projectId,
         RepositoriesService repositoriesService,
         Runnable onCompletion,
         Executor responseExecutor
@@ -582,7 +1095,7 @@ public final class RestoreService implements ClusterStateApplier {
                 return;
             }
 
-            for (Repository repository : repositoriesService.getRepositories().values()) {
+            for (Repository repository : repositoriesService.getProjectRepositories(projectId).values()) {
                 // We only care about BlobStoreRepositories because they're the only ones that can contain a searchable snapshot, and we
                 // only care about ones with missing UUIDs. It's possible to have the UUID change from under us if, e.g., the repository was
                 // wiped by an external force, but in this case any searchable snapshots are lost anyway so it doesn't really matter.
@@ -609,7 +1122,7 @@ public final class RestoreService implements ClusterStateApplier {
         return indexMetadata.isSystem() || systemIndices.isSystemName(indexMetadata.getIndex().getName());
     }
 
-    private static Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> getDataStreamsToRestore(
+    private Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> getDataStreamsToRestore(
         Repository repository,
         SnapshotId snapshotId,
         SnapshotInfo snapshotInfo,
@@ -618,7 +1131,7 @@ public final class RestoreService implements ClusterStateApplier {
         Collection<String> featureStateDataStreams,
         boolean includeAliases
     ) {
-        Map<String, DataStream> dataStreams;
+        Map<String, DataStream> allDataStreams;
         Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
@@ -626,20 +1139,22 @@ public final class RestoreService implements ClusterStateApplier {
             IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
-            dataStreams = Map.of();
+            allDataStreams = Map.of();
             dataStreamAliases = Map.of();
         } else {
             if (globalMetadata == null) {
-                globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId, deserializeProjectMetadata);
             }
-            final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-            dataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
+            final ProjectId projectId = snapshotInfo.projectId();
+            final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.getProject(projectId).dataStreams();
+            allDataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
+            Map<String, DataStream> systemDataStreams = new HashMap<>();
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
 
                 if (dataStreamInSnapshot.isSystem() == false) {
-                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    allDataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
                         format(
@@ -648,7 +1163,8 @@ public final class RestoreService implements ClusterStateApplier {
                         )
                     );
                 } else if (featureStateDataStreams.contains(requestedDataStream)) {
-                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    allDataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                    systemDataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else {
                     logger.debug(
                         "omitting system data stream [{}] from snapshot restoration because its feature state was not requested",
@@ -656,11 +1172,12 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
             }
-            if (includeAliases) {
+            if (includeAliases || systemDataStreams.isEmpty() == false) {
                 dataStreamAliases = new HashMap<>();
-                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
+                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.getProject(projectId).dataStreamAliases();
+                Map<String, DataStream> dataStreamsWithAliases = includeAliases ? allDataStreams : systemDataStreams;
                 for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                    DataStreamAlias copy = alias.intersect(dataStreams.keySet()::contains);
+                    DataStreamAlias copy = alias.intersect(dataStreamsWithAliases.keySet()::contains);
                     if (copy.getDataStreams().isEmpty() == false) {
                         dataStreamAliases.put(alias.getName(), copy);
                     }
@@ -669,7 +1186,7 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamAliases = Map.of();
             }
         }
-        return new Tuple<>(dataStreams, dataStreamAliases);
+        return new Tuple<>(allDataStreams, dataStreamAliases);
     }
 
     private Map<String, List<String>> getFeatureStatesToRestore(
@@ -741,11 +1258,11 @@ public final class RestoreService implements ClusterStateApplier {
      * Resolves a set of index names that currently exist in the cluster that are part of a feature state which is about to be restored,
      * and should therefore be removed prior to restoring those feature states from the snapshot.
      *
-     * @param currentState The current cluster state
+     * @param projectMetadata The current project metadata
      * @param featureStatesToRestore A set of feature state names that are about to be restored
      * @return A set of index names that should be removed based on the feature states being restored
      */
-    private Set<Index> resolveSystemIndicesToDelete(ClusterState currentState, Set<String> featureStatesToRestore) {
+    private Set<Index> resolveSystemIndicesToDelete(ProjectMetadata projectMetadata, Set<String> featureStatesToRestore) {
         if (featureStatesToRestore == null) {
             return Collections.emptySet();
         }
@@ -754,36 +1271,89 @@ public final class RestoreService implements ClusterStateApplier {
             .map(systemIndices::getFeature)
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+            .flatMap(descriptor -> descriptor.getMatchingIndices(projectMetadata).stream())
             .map(indexName -> {
-                assert currentState.metadata().hasIndex(indexName) : "index [" + indexName + "] not found in metadata but must be present";
-                return currentState.metadata().getIndices().get(indexName).getIndex();
+                assert projectMetadata.hasIndex(indexName) : "index [" + indexName + "] not found in metadata but must be present";
+                return projectMetadata.indices().get(indexName).getIndex();
             })
             .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Resolves a set of datastream names that currently exist in the cluster that are part of a feature state which is
+     * about to be restored, and should therefore be removed prior to restoring those feature states from the snapshot.
+     *
+     * @param projectMetadata        The current project metadata
+     * @param featureStatesToRestore A set of feature state names that are about to be restored
+     * @return A set of datastream names that should be removed based on the feature states being restored
+     */
+    private Set<DataStream> resolveSystemDataStreamsToDelete(ProjectMetadata projectMetadata, Set<String> featureStatesToRestore) {
+        if (featureStatesToRestore == null) {
+            return Collections.emptySet();
+        }
+
+        return featureStatesToRestore.stream()
+            .map(systemIndices::getFeature)
+            .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
+            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .map(SystemDataStreamDescriptor::getDataStreamName)
+            .filter(datastreamName -> projectMetadata.dataStreams().containsKey(datastreamName))
+            .map(dataStreamName -> projectMetadata.dataStreams().get(dataStreamName))
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
     // visible for testing
-    static DataStream updateDataStream(DataStream dataStream, Metadata.Builder metadata, RestoreSnapshotRequest request) {
+    static DataStream updateDataStream(DataStream dataStream, ProjectMetadata.Builder projectMetadata, RestoreSnapshotRequest request) {
         String dataStreamName = dataStream.getName();
         if (request.renamePattern() != null && request.renameReplacement() != null) {
             dataStreamName = dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
         }
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
-            .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
+            .map(i -> projectMetadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
-        List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? dataStream.getFailureComponent()
-                .getIndices()
-                .stream()
-                .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
-                .toList()
-            : List.of();
+        List<Index> updatedFailureIndices = dataStream.getFailureComponent()
+            .getIndices()
+            .stream()
+            .map(i -> projectMetadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
+            .toList();
         return dataStream.copy()
             .setName(dataStreamName)
             .setBackingIndices(dataStream.getDataComponent().copy().setIndices(updatedIndices).build())
             .setFailureIndices(dataStream.getFailureComponent().copy().setIndices(updatedFailureIndices).build())
             .build();
+    }
+
+    /**
+     * Puts the data streams that are restored over back in the aliases that they were in before, with the filters and the write data
+     * stream flags that they had there. A data stream that is restored over is deleted and created again, and deleting a data stream
+     * removes it from all of its aliases. When the aliases of the snapshot are not restored, nothing else would put them back, and the
+     * aliases that exist are meant to be the ones that are in effect after the restore, like they are for an index that is restored over.
+     *
+     * @param before            the project before the data streams that are restored over were deleted
+     * @param replacedTargets   the data streams that are restored over
+     * @param restored          the project after the restore, which has the data streams that were restored
+     */
+    // visible for testing
+    static void keepAliasesOfReplacedDataStreams(
+        ProjectMetadata before,
+        Collection<DataStreamRestoreTarget> replacedTargets,
+        ProjectMetadata.Builder restored
+    ) {
+        for (DataStreamRestoreTarget target : replacedTargets) {
+            final String dataStream = target.destinationDataStream().getName();
+            for (DataStreamAlias alias : before.dataStreamAliases().values()) {
+                if (alias.getDataStreams().contains(dataStream)) {
+                    final CompressedXContent filter = alias.getFilter(dataStream);
+                    restored.put(
+                        alias.getName(),
+                        dataStream,
+                        dataStream.equals(alias.getWriteDataStream()),
+                        filter == null ? null : filter.string()
+                    );
+                }
+            }
+        }
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
@@ -810,7 +1380,8 @@ public final class RestoreService implements ClusterStateApplier {
                         overallState(RestoreInProgress.State.STARTED, shards),
                         entry.quiet(),
                         entry.indices(),
-                        shards
+                        shards,
+                        entry.reportShardRestoring()
                     )
                 );
             } else {
@@ -924,7 +1495,15 @@ public final class RestoreService implements ClusterStateApplier {
                         Map<ShardId, ShardRestoreStatus> shards = Map.copyOf(shardsBuilder);
                         RestoreInProgress.State newState = overallState(RestoreInProgress.State.STARTED, shards);
                         builder.add(
-                            new RestoreInProgress.Entry(entry.uuid(), entry.snapshot(), newState, entry.quiet(), entry.indices(), shards)
+                            new RestoreInProgress.Entry(
+                                entry.uuid(),
+                                entry.snapshot(),
+                                newState,
+                                entry.quiet(),
+                                entry.indices(),
+                                shards,
+                                entry.reportShardRestoring()
+                            )
                         );
                     } else {
                         builder.add(entry);
@@ -991,7 +1570,7 @@ public final class RestoreService implements ClusterStateApplier {
         if (prefix != null) {
             index = index.substring(prefix.length());
         }
-        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+        renamedIndex = safeRenameIndex(index, request.renamePattern(), request.renameReplacement());
         if (prefix != null) {
             renamedIndex = prefix + renamedIndex;
         }
@@ -1046,13 +1625,13 @@ public final class RestoreService implements ClusterStateApplier {
     ) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                new Snapshot(snapshotInfo.projectId(), repository.name(), snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                new Snapshot(snapshotInfo.projectId(), repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with version ["
                     + snapshotInfo.version().toReleaseVersion()
                     + "] which is higher than the version of this node ["
@@ -1060,11 +1639,11 @@ public final class RestoreService implements ClusterStateApplier {
                     + "]"
             );
         }
-        Snapshot snapshot = new Snapshot(repository.name(), snapshotInfo.snapshotId());
+        Snapshot snapshot = new Snapshot(snapshotInfo.projectId(), repository.name(), snapshotInfo.snapshotId());
         preRestoreVersionChecks.forEach(c -> c.accept(snapshot, snapshotInfo.version()));
         if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                new Snapshot(snapshotInfo.projectId(), repository.name(), snapshotInfo.snapshotId()),
                 "cannot restore global state since the snapshot was created without global state"
             );
         }
@@ -1082,14 +1661,14 @@ public final class RestoreService implements ClusterStateApplier {
     /**
      * Returns the indices that are currently being restored and that are contained in the indices-to-check set.
      */
-    public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+    public static Set<Index> restoringIndices(final ProjectState currentState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
-        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState.cluster())) {
             for (Map.Entry<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards().entrySet()) {
                 Index index = shard.getKey().getIndex();
                 if (indicesToCheck.contains(index)
                     && shard.getValue().state().completed() == false
-                    && currentState.getMetadata().index(index) != null) {
+                    && currentState.metadata().index(index) != null) {
                     indices.add(index);
                 }
             }
@@ -1102,34 +1681,314 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
+     * Fails the restore unless every node in the cluster supports recreating an {@link org.elasticsearch.index.IndexService} in place for a
+     * restore over an already-open index (the open-to-open history-UUID transition a node without this feature cannot apply). Checked
+     * against {@code currentState} at publish time, so a node lacking the feature that joined after the request was submitted is still
+     * caught.
+     */
+    static void ensureClusterSupportsRestoreOverOpenIndex(FeatureService featureService, ClusterState currentState, Snapshot snapshot) {
+        if (featureService.clusterHasFeature(currentState, RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE) == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore over an open index because not every node in the cluster supports it yet"
+            );
+        }
+    }
+
+    // Older nodes cannot safely handle callbacks and cleanup for shard IDs removed by a restore.
+    static void ensureClusterSupportsRestoreWithDifferentShardCounts(FeatureService featureService, ClusterState state, Snapshot snapshot) {
+        if (featureService.clusterHasFeature(state, RecoveryFeatures.RESTORE_WITH_DIFFERENT_SHARD_COUNTS) == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore with a different shard count because not every node supports it yet"
+            );
+        }
+    }
+
+    /**
+     * Validates a restore over an already-open index: the caller has explicitly authorized restoring over {@code expectedIndex} while it
+     * stays open, so this replaces the ordinary closed-index validation rather than extending it. Preserves the same close-index safety
+     * rule that blocks closing an index being snapshotted or already restored, without cancelling the conflicting operation.
+     *
+     * @param expectedIndex the exact identity (name and index UUID) of the destination the caller resolved before submitting this
+     *                      cluster-state update, so that an index deleted and recreated under the same name is never silently adopted
+     */
+    static void validateExistingOpenIndexForRestore(
+        Snapshot snapshot,
+        ClusterState currentState,
+        ProjectId projectId,
+        IndexMetadata currentIndexMetadata,
+        Index expectedIndex,
+        boolean partial
+    ) {
+        if (currentIndexMetadata.getIndex().equals(expectedIndex) == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore over index [" + expectedIndex + "] because it no longer exists in the cluster state"
+            );
+        }
+        // The caller resolved this destination as open, but it could have been closed by a concurrent operation between then and now. The
+        // open-index restore path assumes an open-to-open transition, so we reject rather than proceed if the index is no longer open.
+        if (currentIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            throw new SnapshotRestoreException(snapshot, "cannot restore over index [" + expectedIndex + "] because it is no longer open");
+        }
+        if (partial) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore partial index [" + expectedIndex.getName() + "] because such index already exists"
+            );
+        }
+
+        final ProjectState projectState = currentState.projectState(projectId);
+        final Set<Index> indexAsSet = Set.of(expectedIndex);
+        final Set<Index> reshardingIndices = IndexReshardService.reshardingIndices(projectState, indexAsSet);
+        if (reshardingIndices.isEmpty() == false) {
+            throw new SnapshotRestoreException(snapshot, "cannot restore index [" + expectedIndex + "] because it is being resharded");
+        }
+        // Preserve the existing close-index safety rule: an index being snapshotted cannot be restored over in place either, and this
+        // restore must not cancel or otherwise interfere with that snapshot.
+        final Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(projectState, indexAsSet);
+        if (snapshottingIndices.isEmpty() == false) {
+            throw new SnapshotInProgressException(
+                "Cannot restore over index that is being snapshotted: "
+                    + SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
+                    + ". Try again after these snapshots finish, or cancel them."
+            );
+        }
+        // Any restore already targeting this index is a genuine conflict.
+        final Set<Index> restoringIndices = restoringIndices(projectState, indexAsSet);
+        if (restoringIndices.isEmpty() == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore index [" + expectedIndex + "] because it is already being restored"
+            );
+        }
+    }
+
+    /**
+     * Returns {@code true} when the given primary shard routing is actively being restored from a snapshot and that restore is still
+     * in progress according to the supplied {@link RestoreInProgress} custom.
+     *
+     * <p>All seven conditions below must hold simultaneously. The chain exists to distinguish a genuine mid-restore INITIALIZING primary
+     * from other INITIALIZING causes (peer recovery, empty-store allocation, relocation target), which must not be affected:
+     *
+     * <ol>
+     *   <li>The routing's {@link RecoverySource} is a {@link SnapshotRecoverySource}; without this the shard is not being restored
+     *       from a snapshot at all.</li>
+     *   <li>The restore UUID is not {@link SnapshotRecoverySource#NO_API_RESTORE_UUID}; that sentinel marks searchable-snapshot
+     *       allocations, which are not API-level restores and must not be treated as such.</li>
+     *   <li>The UUID resolves to a live {@link RestoreInProgress.Entry}; without an entry the restore either never started or its
+     *       cluster-state record has already been cleaned up.</li>
+     *   <li>The entry's source snapshot matches the routing's recovery source snapshot; a mismatch would indicate corrupt or
+     *       inconsistent cluster state, where the UUID in the shard routing does not agree with the snapshot recorded in the
+     *       corresponding {@link RestoreInProgress.Entry}.</li>
+     *   <li>The entry's overall state is not {@link RestoreInProgress.State#completed() completed}; this is a cheap early-exit
+     *       before the per-shard lookup, since a completed entry implies all shard statuses are also completed.</li>
+     *   <li>The entry contains this exact {@link org.elasticsearch.index.shard.ShardId}; it is legitimate for an entry to cover
+     *       only a subset of an index's shards.</li>
+     *   <li>The shard's restore status is not completed; a {@link RestoreInProgress.State#completed() completed} status
+     *       ({@link RestoreInProgress.State#SUCCESS} or {@link RestoreInProgress.State#FAILURE}) means the restore is already
+     *       done for this shard even though the cluster-state entry may not yet have been cleaned up.</li>
+     * </ol>
+     *
+     * <p>The caller is responsible for passing a {@link RestoreInProgress} resolved from the same {@link ClusterState} as the
+     * routing table that produced {@code primary}, so that the two cannot disagree.
+     *
+     * @param restoreInProgress the restore custom from the current cluster state
+     * @param primary           the primary shard routing being evaluated; must be in the UNASSIGNED or INITIALIZING state
+     * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
+     */
+    public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
+        if (!(primary.recoverySource() instanceof SnapshotRecoverySource source)) {
+            return false;
+        }
+        if (SnapshotRecoverySource.NO_API_RESTORE_UUID.equals(source.restoreUUID())) {
+            return false;
+        }
+        RestoreInProgress.Entry entry = restoreInProgress.get(source.restoreUUID());
+        if (entry == null) {
+            logger.debug(
+                "shard [{}] has restore UUID [{}] but no matching RestoreInProgress entry exists; treating shard as not actively restoring",
+                primary.shardId(),
+                source.restoreUUID()
+            );
+            return false;
+        }
+        if (entry.snapshot().equals(source.snapshot()) == false) {
+            assert false
+                : "shard ["
+                    + primary.shardId()
+                    + "] has restore UUID ["
+                    + source.restoreUUID()
+                    + "] that resolves to snapshot ["
+                    + entry.snapshot()
+                    + "] but routing recovery source names snapshot ["
+                    + source.snapshot()
+                    + "]";
+            logger.error(
+                "shard [{}] has restore UUID [{}] that resolves to snapshot [{}] but routing recovery source names snapshot [{}]; "
+                    + "treating shard as not actively restoring",
+                primary.shardId(),
+                source.restoreUUID(),
+                entry.snapshot(),
+                source.snapshot()
+            );
+            return false;
+        }
+        if (entry.state().completed()) {
+            return false;
+        }
+        RestoreInProgress.ShardRestoreStatus shardStatus = entry.shards().get(primary.shardId());
+        if (shardStatus == null) {
+            return false;
+        }
+        return shardStatus.state().completed() == false;
+    }
+
+    /**
+     * Returns the {@link ShardRestoringException} that requests hitting the given shard should fail with, or {@code null} if they should
+     * fail with the generic shard-unavailable errors as they did before the exception existed. The exception is returned only if the
+     * shard's primary is currently in the UNASSIGNED or INITIALIZING state and the caller that started that restore asked for the restore
+     * exception to be reported (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+     *
+     * <p>Both the routing table and the {@link RestoreInProgress} are read from {@code state}, which guarantees they are consistent with
+     * each other.
+     *
+     * <p>A shard can still be recovering from a snapshot after its restore entry is gone, for example when a restore finishes with a failed
+     * shard and its entry is cleaned up while the shard stays unassigned, or when the entry is lost in a master failover while the shard is
+     * really still being restored. There is then no entry to say the restore asked for its shards to be reported, so {@code null} is
+     * returned.
+     *
+     * @param projectId the project that contains the shard's index. Only that project's routing table is read, and the lookup fails if the
+     *                  cluster state has no routing table for it
+     * @param shardId   the shard to query
+     * @param state     the cluster state to read from
+     * @return the exception to fail with, or {@code null} if the shard is not being restored by a restore that reports its shards
+     */
+    @Nullable
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, ShardId shardId, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(shardId.getIndex());
+        if (indexRouting == null) {
+            return null;
+        }
+        var shardTable = indexRouting.shard(shardId.id());
+        if (shardTable == null) {
+            return null;
+        }
+        String restoreUuid = findRestoreUuidToReport(RestoreInProgress.get(state), shardTable.primaryShard());
+        return restoreUuid == null ? null : new ShardRestoringException(shardId.getIndexName(), restoreUuid);
+    }
+
+    /**
+     * As {@link #reportableRestoreException(ProjectId, ShardId, ClusterState)}, for index-level callers that do not have a concrete
+     * {@link ShardId} available at the point of failure. The exception is returned if any primary of the index qualifies.
+     *
+     * @param projectId the project that contains the index
+     * @param index     the index to query
+     * @param state     the cluster state to read from
+     * @return the exception to fail with, or {@code null} if no primary of the index is being restored by a restore that reports its shards
+     */
+    @Nullable
+    public static ShardRestoringException reportableRestoreException(ProjectId projectId, Index index, ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable(projectId).index(index);
+        if (indexRouting == null) {
+            return null;
+        }
+        RestoreInProgress restoreInProgress = RestoreInProgress.get(state);
+        for (int i = 0; i < indexRouting.size(); i++) {
+            String restoreUuid = findRestoreUuidToReport(restoreInProgress, indexRouting.shard(i).primaryShard());
+            if (restoreUuid != null) {
+                return new ShardRestoringException(index.getName(), restoreUuid);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the restore UUID of the API-level restore that the given primary is being recovered by, but only if that restore asked for
+     * its shards to be reported as {@link ShardRestoringException} (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+     * Returns {@code null} if the primary is missing or active, if the shard is not mid-restore, or if the restore asked for the generic
+     * shard-unavailable errors, so callers fall back to those errors without needing to know why.
+     */
+    @Nullable
+    private static String findRestoreUuidToReport(RestoreInProgress restoreInProgress, @Nullable ShardRouting primary) {
+        if (primary == null || primary.active()) {
+            // STARTED or RELOCATING — restore is complete or this is not a restore
+            return null;
+        }
+        if (isRestoringShardFromSnapshot(restoreInProgress, primary) == false) {
+            return null;
+        }
+        String restoreUuid = ((SnapshotRecoverySource) primary.recoverySource()).restoreUUID();
+        RestoreInProgress.Entry entry = restoreInProgress.get(restoreUuid);
+        assert entry != null : "isRestoringShardFromSnapshot returned true without a matching entry for [" + restoreUuid + "]";
+        return entry != null && entry.reportShardRestoring() ? restoreUuid : null;
+    }
+
+    /**
      * Set to true if {@link #removeCompletedRestoresFromClusterState()} already has an in-flight state update running that will clean up
      * all completed restores from the cluster state.
      */
     private volatile boolean cleanupInProgress = false;
+
+    /**
+     * Invokes {@link RestoreLifecycleListener#onRestoreInitialized} for a newly installed restore
+     * entry, or returns {@code state} unchanged when {@code entry} is {@code null}. Package-private for unit tests.
+     */
+    ClusterState applyRestoreInitializedListener(@Nullable RestoreInProgress.Entry entry, ClusterState state) {
+        return entry != null ? lifecycleListener.onRestoreInitialized(entry, state) : state;
+    }
+
+    /**
+     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
+     * then removes those entries. The listener fires before removal so its writes publish atomically
+     * with the entry disappearing. Package-private for unit tests.
+     */
+    ClusterState executeRestoreCleanup(ClusterState currentState) {
+        RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
+        boolean changed = false;
+        for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
+            if (entry.state().completed()) {
+                logger.log(
+                    entry.quiet() ? Level.DEBUG : Level.INFO,
+                    "completed restore of snapshot [{}] with state [{}]",
+                    entry.snapshot(),
+                    entry.state()
+                );
+                // Notify the listener before the entry disappears from cluster state.
+                try {
+                    currentState = Objects.requireNonNull(
+                        lifecycleListener.onRestoreCompleted(entry, currentState),
+                        "restore lifecycle listener returned a null cluster state"
+                    );
+                    changed = true;
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "failed to notify restore lifecycle listener of completed restore [%s] of snapshot [%s]; "
+                                + "retaining the entry to retry",
+                            entry.uuid(),
+                            entry.snapshot()
+                        ),
+                        e
+                    );
+                    restoreInProgressBuilder.add(entry);
+                }
+            } else {
+                restoreInProgressBuilder.add(entry);
+            }
+        }
+        return changed == false
+            ? currentState
+            : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+    }
 
     // run a cluster state update that removes all completed restores from the cluster state
     private void removeCompletedRestoresFromClusterState() {
         submitUnbatchedTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
-                boolean changed = false;
-                for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
-                    if (entry.state().completed()) {
-                        logger.log(
-                            entry.quiet() ? Level.DEBUG : Level.INFO,
-                            "completed restore of snapshot [{}] with state [{}]",
-                            entry.snapshot(),
-                            entry.state()
-                        );
-                        changed = true;
-                    } else {
-                        restoreInProgressBuilder.add(entry);
-                    }
-                }
-                return changed == false
-                    ? currentState
-                    : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+                return executeRestoreCleanup(currentState);
             }
 
             @Override
@@ -1202,7 +2061,7 @@ public final class RestoreService implements ClusterStateApplier {
                         format(
                             "cannot change value of [%s] when restoring searchable snapshot [%s:%s] as index %s",
                             SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION,
-                            snapshot.getRepository(),
+                            projectRepoString(snapshot.getProjectId(), snapshot.getRepository()),
                             snapshot.getSnapshotId().getName(),
                             indexMetadata.getIndex()
                         )
@@ -1257,12 +2116,32 @@ public final class RestoreService implements ClusterStateApplier {
         /**
          * UUID to use for this restore, as returned by {@link RestoreInProgress.Entry#uuid()}.
          */
-        private final String restoreUUID = UUIDs.randomBase64UUID();
+        private final String restoreUUID;
+
+        /**
+         * Whether requests that hit a shard of this restore should fail with {@link ShardRestoringException} rather than the generic
+         * shard-unavailable errors. Chosen by the caller that started the restore, defaulting to {@code false}, and recorded on the
+         * {@link RestoreInProgress.Entry} this task creates (see {@link RestoreInProgress.Entry#reportShardRestoring()}).
+         */
+        private final boolean reportShardRestoring;
 
         /**
          * The restore request that triggered this restore task.
          */
         private final RestoreSnapshotRequest request;
+
+        /**
+         * The {@link DataStreamRestoreTarget}s that the caller has explicitly authorized deleting and restoring over. Empty for an ordinary
+         * restore, which only ever restores into a data stream that doesn't already exist.
+         */
+        private final Collection<DataStreamRestoreTarget> existingDataStreamTargets;
+
+        /**
+         * Renamed index name to the expected exact current {@link Index} identity (name and UUID) for indices that the caller has
+         * explicitly authorized restoring over while still open. Empty unless the destination is allowed to be open, i.e. an ordinary
+         * restore with {@link RestoreSnapshotRequest#restoreOverExisting()} set, resolved just before this task was submitted.
+         */
+        private final Map<String, Index> openIndexTargets;
 
         /**
          * Feature states to restore.
@@ -1288,7 +2167,7 @@ public final class RestoreService implements ClusterStateApplier {
 
         private final Collection<DataStream> dataStreamsToRestore;
 
-        private final BiConsumer<ClusterState, Metadata.Builder> updater;
+        private final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
 
         private final AllocationActionListener<RestoreCompletionResponse> listener;
         private final Settings settings;
@@ -1297,6 +2176,7 @@ public final class RestoreService implements ClusterStateApplier {
         private RestoreInfo restoreInfo;
 
         RestoreSnapshotStateTask(
+            ActionListener<RestoreCompletionResponse> listener,
             RestoreSnapshotRequest request,
             Snapshot snapshot,
             Set<String> featureStatesToRestore,
@@ -1304,9 +2184,12 @@ public final class RestoreService implements ClusterStateApplier {
             SnapshotInfo snapshotInfo,
             Metadata metadata,
             Collection<DataStream> dataStreamsToRestore,
-            BiConsumer<ClusterState, Metadata.Builder> updater,
+            BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
-            ActionListener<RestoreCompletionResponse> listener
+            String restoreUUID,
+            boolean reportShardRestoring,
+            Collection<DataStreamRestoreTarget> existingDataStreamTargets,
+            Map<String, Index> openIndexTargets
         ) {
             super(request.masterNodeTimeout());
             this.request = request;
@@ -1319,17 +2202,60 @@ public final class RestoreService implements ClusterStateApplier {
             this.updater = updater;
             this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
+            this.restoreUUID = restoreUUID;
+            this.reportShardRestoring = reportShardRestoring;
+            this.existingDataStreamTargets = existingDataStreamTargets;
+            this.openIndexTargets = openIndexTargets;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
+            final ProjectId projectId = snapshot.getProjectId();
+
+            if (currentState.metadata().hasProject(projectId) == false) {
+                throw new SnapshotRestoreException(snapshot, "project [" + projectId + "] does not exist");
+            }
+
+            // A restore that supplies its own restore UUID (restoreOverExistingDataStreams) means an existing RestoreInProgress entry with
+            // that UUID is a retry of an already-applied restore. We should treat it as a no-op rather than re-validating, re-deleting, or
+            // re-mutating anything. An ordinary restore's restoreUUID is always freshly random, so this never matches for it.
+            if (RestoreInProgress.get(currentState).get(restoreUUID) != null) {
+                // execute() returns without ever calling allocationService.reroute(), so the reroute half of the
+                // AllocationActionListener contract must be completed explicitly or the listener would never resolve.
+                listener.reroute().onResponse(null);
+                return currentState;
+            }
+            // A restore over an already-open index requires every node to support recreating the index service for the open-to-open
+            // history-UUID transition; reject before publishing anything if any node does not.
+            if (openIndexTargets.isEmpty() == false) {
+                ensureClusterSupportsRestoreOverOpenIndex(featureService, currentState, snapshot);
+            }
+
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
+            // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have
+            // to be taken from the project as it is before they are deleted.
+            final ProjectMetadata projectBeforeDeletingDataStreams = currentState.metadata().getProject(projectId);
+            if (existingDataStreamTargets.isEmpty() == false) {
+                // Validate and delete the destination data streams and their backing/failure-store indices, in the same cluster-state
+                // update, before the ordinary per-index restore loop below runs. Once deleted, the restored backing/failure indices no
+                // longer exist from that loop's perspective, so they naturally take its "index doesn't exist yet" path and are created
+                // fresh with new index UUIDs, exactly like an ordinary restore into a brand-new index.
+                currentState = validateAndDeleteExistingDataStreams(currentState, projectId, existingDataStreamTargets);
+            }
+
             // Clear out all existing indices which fall within a system index pattern being restored
             currentState = MetadataDeleteIndexService.deleteIndices(
-                currentState,
-                resolveSystemIndicesToDelete(currentState, featureStatesToRestore),
+                currentState.projectState(projectId),
+                resolveSystemIndicesToDelete(currentState.metadata().getProject(projectId), featureStatesToRestore),
+                settings
+            );
+
+            // Clear out all existing system data streams
+            currentState = MetadataDataStreamsService.deleteDataStreams(
+                currentState.projectState(projectId),
+                resolveSystemDataStreamsToDelete(currentState.metadata().getProject(projectId), featureStatesToRestore),
                 settings
             );
 
@@ -1341,17 +2267,18 @@ public final class RestoreService implements ClusterStateApplier {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             final RoutingTable.Builder rtBuilder = RoutingTable.builder(
                 allocationService.getShardRoutingRoleStrategy(),
-                currentState.routingTable()
+                currentState.routingTable(projectId)
             );
 
             final Map<ShardId, ShardRestoreStatus> shards = new HashMap<>();
+            final List<IndexMetadata> restoredIndices = new ArrayList<>();
 
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
             final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
-                final IndexMetadata originalIndexMetadata = metadata.index(index.getName());
+                final IndexMetadata originalIndexMetadata = metadata.getProject(projectId).index(index.getName());
                 repositoriesService.getPreRestoreVersionChecks()
                     .forEach(check -> check.accept(snapshot, originalIndexMetadata.getCreationVersion()));
                 IndexMetadata snapshotIndexMetadata = updateIndexSettings(
@@ -1374,7 +2301,7 @@ public final class RestoreService implements ClusterStateApplier {
                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index + "] because it cannot be upgraded", ex);
                 }
                 final String renamedIndexName = indexEntry.getKey();
-                final IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
+                final IndexMetadata currentIndexMetadata = currentState.metadata().getProject(projectId).index(renamedIndexName);
                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                     restoreUUID,
                     snapshot,
@@ -1388,13 +2315,23 @@ public final class RestoreService implements ClusterStateApplier {
                 // different paths depending on whether we are restoring to create a new index or restoring over an existing closed index
                 // that will be opened by the restore
                 if (currentIndexMetadata == null) {
+                    if (openIndexTargets.containsKey(renamedIndexName)) {
+                        // The caller resolved this destination as an existing open index to restore over, but it has since been deleted.
+                        // Reject rather than silently creating a new index, which would break the exact-identity contract (and the "same
+                        // index UUID" invariant) that restoring over an open index relies on. This mirrors the rejection
+                        // validateExistingOpenIndexForRestore applies when the index was instead deleted and recreated under the same name.
+                        throw new SnapshotRestoreException(
+                            snapshot,
+                            "cannot restore over index [" + renamedIndexName + "] because it no longer exists in the cluster state"
+                        );
+                    }
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState.metadata(), currentState.routingTable(), snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(
-                        snapshotIndexMetadata.getSettings(),
-                        currentState.nodes(),
-                        currentState.metadata()
+                    ensureValidIndexName(
+                        currentState.metadata().getProject(projectId),
+                        currentState.routingTable(projectId),
+                        snapshotIndexMetadata,
+                        renamedIndexName
                     );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(snapshotIndexMetadata, renamedIndexName);
@@ -1411,11 +2348,30 @@ public final class RestoreService implements ClusterStateApplier {
                         populateIgnoredShards(index.getName(), ignoreShards);
                     }
                     rtBuilder.addAsNewRestore(updatedIndexMetadata, recoverySource, ignoreShards);
-                    blocks.addBlocks(updatedIndexMetadata);
+                    blocks.addBlocks(projectId, updatedIndexMetadata);
                 } else {
-                    // Index exists and it's closed - open it in metadata and start recovery
-                    validateExistingClosedIndex(currentIndexMetadata, snapshotIndexMetadata, renamedIndexName, partial);
-                    final IndexMetadata.Builder indexMdBuilder = restoreOverClosedIndex(snapshotIndexMetadata, currentIndexMetadata);
+                    if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
+                        ensureClusterSupportsRestoreWithDifferentShardCounts(featureService, currentState, snapshot);
+                    }
+                    final Index openIndexTarget = openIndexTargets.get(renamedIndexName);
+                    final IndexMetadata.Builder indexMdBuilder;
+                    if (openIndexTarget != null) {
+                        // Restore over an already-open index: the caller has explicitly
+                        // authorized restoring over this exact open index, so use the open-index validation instead of requiring CLOSE.
+                        validateExistingOpenIndexForRestore(
+                            snapshot,
+                            currentState,
+                            projectId,
+                            currentIndexMetadata,
+                            openIndexTarget,
+                            partial
+                        );
+                        indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
+                    } else {
+                        // Index exists and it's closed - open it in metadata and start recovery
+                        validateExistingClosedIndex(currentIndexMetadata, renamedIndexName, partial);
+                        indexMdBuilder = restoreOverExistingIndex(snapshotIndexMetadata, currentIndexMetadata);
+                    }
 
                     if (request.includeAliases() == false && isSystemIndex(snapshotIndexMetadata) == false) {
                         // Remove all snapshot aliases
@@ -1431,10 +2387,11 @@ public final class RestoreService implements ClusterStateApplier {
                     }
                     updatedIndexMetadata = indexMdBuilder.build();
                     rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
-                    blocks.updateBlocks(updatedIndexMetadata);
+                    blocks.updateBlocks(projectId, updatedIndexMetadata);
                 }
 
-                mdBuilder.put(updatedIndexMetadata, true);
+                restoredIndices.add(updatedIndexMetadata);
+                mdBuilder.getProject(projectId).put(updatedIndexMetadata, true);
                 final Index renamedIndex = updatedIndexMetadata.getIndex();
                 for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
                     shards.put(
@@ -1450,29 +2407,40 @@ public final class RestoreService implements ClusterStateApplier {
                 }
             }
 
+            shardLimitValidator.validateShardLimitOnRestore(currentState.nodes(), currentState.metadata(), projectId, restoredIndices);
             final ClusterState.Builder builder = ClusterState.builder(currentState);
+            final RestoreInProgress.Entry restoreEntry;
             if (shards.isEmpty() == false) {
+                restoreEntry = new RestoreInProgress.Entry(
+                    restoreUUID,
+                    snapshot,
+                    overallState(RestoreInProgress.State.INIT, shards),
+                    request.quiet(),
+                    List.copyOf(indicesToRestore.keySet()),
+                    Map.copyOf(shards),
+                    reportShardRestoring
+                );
                 builder.putCustom(
                     RestoreInProgress.TYPE,
-                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(
-                        new RestoreInProgress.Entry(
-                            restoreUUID,
-                            snapshot,
-                            overallState(RestoreInProgress.State.INIT, shards),
-                            request.quiet(),
-                            List.copyOf(indicesToRestore.keySet()),
-                            Map.copyOf(shards)
-                        )
-                    ).build()
+                    new RestoreInProgress.Builder(RestoreInProgress.get(currentState)).add(restoreEntry).build()
+                );
+            } else {
+                restoreEntry = null;
+            }
+
+            applyDataStreamRestores(currentState, mdBuilder, projectId);
+            if (request.includeAliases() == false) {
+                keepAliasesOfReplacedDataStreams(
+                    projectBeforeDeletingDataStreams,
+                    existingDataStreamTargets,
+                    mdBuilder.getProject(projectId)
                 );
             }
 
-            applyDataStreamRestores(currentState, mdBuilder);
-
             // Restore global state if needed
             if (request.includeGlobalState()) {
-                applyGlobalStateRestore(currentState, mdBuilder);
-                fileSettingsService.handleSnapshotRestore(currentState, mdBuilder);
+                applyGlobalStateRestore(currentState, mdBuilder, projectId);
+                fileSettingsService.handleSnapshotRestore(currentState, builder, mdBuilder, projectId);
             }
 
             if (completed(shards)) {
@@ -1485,35 +2453,46 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            updater.accept(currentState, mdBuilder);
-            final ClusterState updatedClusterState = builder.metadata(mdBuilder).blocks(blocks).routingTable(rtBuilder.build()).build();
+            updater.accept(currentState, mdBuilder.getProject(projectId));
+            ClusterState updatedClusterState = builder.metadata(mdBuilder)
+                .blocks(blocks)
+                .putRoutingTable(projectId, rtBuilder.build())
+                .build();
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
+
+            updatedClusterState = applyRestoreInitializedListener(restoreEntry, updatedClusterState);
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 
-        private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {
-            final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().dataStreams());
+        private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {
+            final Map<String, DataStream> updatedDataStreams = new HashMap<>(currentState.metadata().getProject(projectId).dataStreams());
             updatedDataStreams.putAll(
                 dataStreamsToRestore.stream()
-                    .map(ds -> updateDataStream(ds, mdBuilder, request))
+                    .map(ds -> updateDataStream(ds, mdBuilder.getProject(projectId), request))
                     .collect(Collectors.toMap(DataStream::getName, Function.identity()))
             );
-            final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(currentState.metadata().dataStreamAliases());
-            for (DataStreamAlias alias : metadata.dataStreamAliases().values()) {
+            final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(
+                currentState.metadata().getProject(projectId).dataStreamAliases()
+            );
+            for (DataStreamAlias alias : metadata.getProject(projectId).dataStreamAliases().values()) {
                 // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
                 updatedDataStreamAliases.compute(
                     alias.getName(),
                     (key, previous) -> alias.restore(previous, request.renamePattern(), request.renameReplacement())
                 );
             }
-            mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
+            mdBuilder.getProject(projectId).dataStreams(updatedDataStreams, updatedDataStreamAliases);
         }
 
         private void ensureSnapshotNotDeleted(ClusterState currentState) {
             SnapshotDeletionsInProgress deletionsInProgress = SnapshotDeletionsInProgress.get(currentState);
-            if (deletionsInProgress.getEntries().stream().anyMatch(entry -> entry.snapshots().contains(snapshot.getSnapshotId()))) {
+            if (deletionsInProgress.getEntries()
+                .stream()
+                .anyMatch(
+                    entry -> entry.projectId().equals(snapshot.getProjectId()) && entry.snapshots().contains(snapshot.getSnapshotId())
+                )) {
                 throw new ConcurrentSnapshotExecutionException(
                     snapshot,
                     "cannot restore a snapshot while a snapshot deletion is in-progress [" + deletionsInProgress.getEntries().get(0) + "]"
@@ -1521,8 +2500,87 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
 
-        private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder) {
+        /**
+         * Validates a restore over one or more existing data streams and, if every target passes, deletes them and their
+         * backing/failure-store indices in the returned cluster state. The caller has explicitly
+         * authorized deleting and restoring over each target, but this method still re-verifies the exact identity it resolved before
+         * submitting hasn't changed, so a data stream deleted and recreated under the same name since then is never silently adopted.
+         * <p>
+         * Because every target is validated before any of them are deleted, a failure on any one target leaves every destination
+         * unchanged: the thrown exception discards the whole (never-returned) {@link ClusterState}, matching the {@link
+         * ClusterStateUpdateTask} contract that already gives the rest of this task's per-index loop its all-or-nothing guarantee.
+         *
+         * @param existingDataStreamTargets the targets the caller resolved for this restore
+         */
+        private ClusterState validateAndDeleteExistingDataStreams(
+            ClusterState currentState,
+            ProjectId projectId,
+            Collection<DataStreamRestoreTarget> existingDataStreamTargets
+        ) {
+            final ProjectState projectState = currentState.projectState(projectId);
+            final ProjectMetadata projectMetadata = projectState.metadata();
+            for (DataStreamRestoreTarget target : existingDataStreamTargets) {
+                final DataStream expected = target.destinationDataStream();
+                final DataStream current = projectMetadata.dataStreams().get(expected.getName());
+                if (current == null) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        "cannot restore over data stream [" + expected.getName() + "] because it no longer exists in the cluster state"
+                    );
+                }
+                if (sameBackingAndFailureIndices(current, expected) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        "cannot restore over data stream ["
+                            + expected.getName()
+                            + "] because its backing or failure-store indices have changed (for example by a rollover) since being"
+                            + " resolved for this restore"
+                    );
+                }
+
+                // fail if there's no winning template, or the winning template no longer defines a data stream
+                MetadataCreateDataStreamService.lookupTemplateForDataStream(expected.getName(), projectMetadata);
+
+                final Set<Index> backingAndFailureIndices = Sets.union(
+                    Set.copyOf(expected.getIndices()),
+                    Set.copyOf(expected.getFailureIndices())
+                );
+                // Preserve the existing close/delete safety rule: a data stream already being restored cannot be restored over again in
+                // place either. This is the one conflict we have to reject explicitly, because of an asymmetry in the delete path called
+                // below: MetadataDataStreamsService.deleteDataStreams rejects a destination that's being snapshotted, both by data-stream
+                // name (snapshottingDataStreams) and, via its MetadataDeleteIndexService.deleteIndices call, by exact backing/failure index
+                // (snapshottingIndicesBySnapshot). But deleteIndices does not reject an index that's being restored. It silently aborts
+                // that in-flight restore instead (updateRestoreStateWithDeletedIndices). There is no data-stream-name equivalent to check
+                // for restore, since RestoreInProgress is keyed by shard/index rather than by data-stream name, so this index-level check
+                // is the complete one.
+                if (restoringIndices(projectState, backingAndFailureIndices).isEmpty() == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        "cannot restore data stream [" + expected.getName() + "] because it is already being restored"
+                    );
+                }
+            }
+            final Set<DataStream> destinationsToDelete = existingDataStreamTargets.stream()
+                .map(DataStreamRestoreTarget::destinationDataStream)
+                .collect(Collectors.toSet());
+            return MetadataDataStreamsService.deleteDataStreams(projectState, destinationsToDelete, settings);
+        }
+
+        private static boolean sameBackingAndFailureIndices(DataStream a, DataStream b) {
+            return a.getIndices().equals(b.getIndices()) && a.getFailureIndices().equals(b.getFailureIndices());
+        }
+
+        private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {
+            final var projectBuilder = mdBuilder.getProject(projectId);
             if (metadata.persistentSettings() != null) {
+                assert (deserializeProjectMetadata == false && ProjectId.DEFAULT.equals(projectId))
+                    || metadata.persistentSettings().isEmpty()
+                    : "Inconsistent deserializeProjectMetadata ["
+                        + deserializeProjectMetadata
+                        + "], project ["
+                        + projectId
+                        + "], and cluster level persistent settings "
+                        + metadata.persistentSettings();
                 Settings settings = metadata.persistentSettings();
                 if (request.skipOperatorOnlyState()) {
                     // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
@@ -1543,25 +2601,38 @@ public final class RestoreService implements ClusterStateApplier {
                 clusterSettings.validateUpdate(settings);
                 mdBuilder.persistentSettings(settings);
             }
-            if (metadata.templates() != null) {
+            if (metadata.getProject(projectId).templates() != null) {
                 // TODO: Should all existing templates be deleted first?
-                for (IndexTemplateMetadata cursor : metadata.templates().values()) {
-                    mdBuilder.put(cursor);
+                for (IndexTemplateMetadata cursor : metadata.getProject(projectId).templates().values()) {
+                    projectBuilder.put(cursor);
                 }
             }
 
             // override existing restorable customs (as there might be nothing in snapshot to override them)
             mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
+            projectBuilder.removeCustomIf((key, value) -> value.isRestorable());
 
             // restore customs from the snapshot
             if (metadata.customs() != null) {
+                assert deserializeProjectMetadata == false || metadata.persistentSettings().isEmpty()
+                    : "Inconsistent deserializeProjectMetadata ["
+                        + deserializeProjectMetadata
+                        + "] and cluster level customs "
+                        + metadata.customs();
                 for (var entry : metadata.customs().entrySet()) {
                     if (entry.getValue().isRestorable()) {
                         // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                         // Don't restore repositories while we are working with them
                         // TODO: Should we restore them at the end?
-                        // Also, don't restore data streams here, we already added them to the metadata builder above
                         mdBuilder.putCustom(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            if (metadata.getProject(projectId).customs() != null) {
+                for (var entry : metadata.getProject(projectId).customs().entrySet()) {
+                    if (entry.getValue().isRestorable()) {
+                        // Also, don't restore data streams here, we already added them to the metadata builder above
+                        projectBuilder.putCustom(entry.getKey(), entry.getValue());
                     }
                 }
             }
@@ -1604,15 +2675,10 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
 
-        private void validateExistingClosedIndex(
-            IndexMetadata currentIndexMetadata,
-            IndexMetadata snapshotIndexMetadata,
-            String renamedIndex,
-            boolean partial
-        ) {
-            // Index exist - checking that it's closed
+        private void validateExistingClosedIndex(IndexMetadata currentIndexMetadata, String renamedIndex, boolean partial) {
+            // Index exist - checking that it's closed. An open destination is only reached when the caller opted into restoring over it
+            // (validateExistingOpenIndexForRestore handles that case), so it never reaches this method.
             if (currentIndexMetadata.getState() != IndexMetadata.State.CLOSE) {
-                // TODO: Enable restore for open indices
                 throw new SnapshotRestoreException(
                     snapshot,
                     "cannot restore index ["
@@ -1627,21 +2693,6 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(
                     snapshot,
                     "cannot restore partial index [" + renamedIndex + "] because such index already exists"
-                );
-            }
-            // Make sure that the number of shards is the same. That's the only thing that we cannot change
-            if (currentIndexMetadata.getNumberOfShards() != snapshotIndexMetadata.getNumberOfShards()) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore index ["
-                        + renamedIndex
-                        + "] with ["
-                        + currentIndexMetadata.getNumberOfShards()
-                        + "] shards from a snapshot of index ["
-                        + snapshotIndexMetadata.getIndex().getName()
-                        + "] with ["
-                        + snapshotIndexMetadata.getNumberOfShards()
-                        + "] shards"
                 );
             }
         }
@@ -1664,6 +2715,13 @@ public final class RestoreService implements ClusterStateApplier {
         }
     }
 
+    /// Converts a legacy index (created before [org.elasticsearch.index.IndexVersions#MINIMUM_READONLY_COMPATIBLE])
+    /// into a degraded read-only archive so it can be opened on the current version.
+    ///
+    /// The conversion sets `index.version.compatibility` to the minimum index version supported by the cluster's
+    /// nodes, adds a write block, and rewrites the index mappings with a best-effort approach.
+    /// The original field mappings are stored under `_meta/legacy_mappings` and replaced with a minimal schema
+    /// that the current version can parse.
     private static IndexMetadata convertLegacyIndex(
         IndexMetadata snapshotIndexMetadata,
         ClusterState clusterState,
@@ -1801,7 +2859,8 @@ public final class RestoreService implements ClusterStateApplier {
             .eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
     }
 
-    private static IndexMetadata.Builder restoreOverClosedIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
+    // Package-private for testing the primary-term floor across successive restores.
+    static IndexMetadata.Builder restoreOverExistingIndex(IndexMetadata snapshotIndexMetadata, IndexMetadata currentIndexMetadata) {
         final IndexMetadata.Builder indexMdBuilder = IndexMetadata.builder(snapshotIndexMetadata)
             .state(IndexMetadata.State.OPEN)
             .version(Math.max(snapshotIndexMetadata.getVersion(), 1 + currentIndexMetadata.getVersion()))
@@ -1818,22 +2877,49 @@ public final class RestoreService implements ClusterStateApplier {
                     .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID())
                     .put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())
             );
+        // Carry the terms of removed shards forward too. A later restore or reshard can reuse their IDs under the same index UUID,
+        // and must not reuse a primary term (and therefore an object-store namespace) from before this restore.
+        long maxCurrentPrimaryTerm = 0;
+        for (int shard = 0; shard < currentIndexMetadata.getNumberOfShards(); shard++) {
+            maxCurrentPrimaryTerm = Math.max(maxCurrentPrimaryTerm, currentIndexMetadata.primaryTerm(shard));
+        }
         for (int shard = 0; shard < snapshotIndexMetadata.getNumberOfShards(); shard++) {
-            indexMdBuilder.primaryTerm(shard, Math.max(snapshotIndexMetadata.primaryTerm(shard), currentIndexMetadata.primaryTerm(shard)));
+            indexMdBuilder.primaryTerm(shard, Math.max(snapshotIndexMetadata.primaryTerm(shard), maxCurrentPrimaryTerm));
         }
         return indexMdBuilder;
     }
 
     private void ensureValidIndexName(
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         RoutingTable routingTable,
         IndexMetadata snapshotIndexMetadata,
         String renamedIndexName
     ) {
         final boolean isHidden = snapshotIndexMetadata.isHidden();
-        MetadataCreateIndexService.validateIndexName(renamedIndexName, metadata, routingTable);
+        MetadataCreateIndexService.validateIndexName(renamedIndexName, projectMetadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
+    }
+
+    // package-private for unit testing
+    static String safeRenameIndex(String index, String renamePattern, String renameReplacement) {
+        final var matcher = Pattern.compile(renamePattern).matcher(index);
+        var found = matcher.find();
+        if (found) {
+            final var sb = new StringBuilder();
+            do {
+                matcher.appendReplacement(sb, renameReplacement);
+                found = matcher.find();
+            } while (found && sb.length() <= MAX_INDEX_NAME_BYTES);
+
+            if (sb.length() > MAX_INDEX_NAME_BYTES) {
+                throw new IllegalArgumentException("index name would exceed " + MAX_INDEX_NAME_BYTES + " bytes after rename");
+            }
+            matcher.appendTail(sb);
+            return sb.toString();
+        } else {
+            return index;
+        }
     }
 
     private static void ensureSearchableSnapshotsRestorable(
@@ -1841,9 +2927,9 @@ public final class RestoreService implements ClusterStateApplier {
         final SnapshotInfo snapshotInfo,
         final Set<Index> indices
     ) {
-        final Metadata metadata = currentState.metadata();
+        final ProjectMetadata projectMetadata = currentState.metadata().getProject(snapshotInfo.projectId());
         for (Index index : indices) {
-            final Settings indexSettings = metadata.getIndexSafe(index).getSettings();
+            final Settings indexSettings = projectMetadata.getIndexSafe(index).getSettings();
             assert "snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings)) : "not a snapshot backed index: " + index;
 
             final String repositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
@@ -1853,8 +2939,7 @@ public final class RestoreService implements ClusterStateApplier {
             final boolean deleteSnapshot = indexSettings.getAsBoolean(SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION, false);
             if (deleteSnapshot && snapshotInfo.indices().size() != 1 && Objects.equals(snapshotUuid, snapshotInfo.snapshotId().getUUID())) {
                 throw new SnapshotRestoreException(
-                    repositoryName,
-                    snapshotInfo.snapshotId().getName(),
+                    snapshotInfo.snapshot(),
                     format(
                         "cannot mount snapshot [%s/%s:%s] as index [%s] with the deletion of snapshot on index removal enabled "
                             + "[index.store.snapshot.delete_searchable_snapshot: true]; snapshot contains [%d] indices instead of 1.",
@@ -1867,7 +2952,7 @@ public final class RestoreService implements ClusterStateApplier {
                 );
             }
 
-            for (IndexMetadata other : metadata) {
+            for (IndexMetadata other : projectMetadata) {
                 if (other.getIndex().equals(index)) {
                     continue; // do not check the searchable snapshot index against itself
                 }

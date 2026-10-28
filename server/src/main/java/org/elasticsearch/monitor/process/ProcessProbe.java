@@ -9,6 +9,7 @@
 
 package org.elasticsearch.monitor.process;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.monitor.Probes;
 
@@ -16,9 +17,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.Method;
 
+import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.monitor.jvm.JvmInfo.jvmInfo;
 
 public class ProcessProbe {
+
+    private static final Logger logger = getLogger(ProcessProbe.class);
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
 
@@ -78,7 +82,15 @@ public class ProcessProbe {
      * Returns the process CPU usage in percent
      */
     public static short getProcessCpuPercent() {
-        return Probes.getLoadAndScaleToPercent(getProcessCpuLoad, osMxBean);
+        return Probes.scaleToPercent(Probes.getLoad(getProcessCpuLoad, osMxBean));
+    }
+
+    /**
+     * Returns the process CPU usage as a value in range [0.0, 1.0]. May return a negative value if the CPU load information is not
+     * available.
+     */
+    public static double getProcessCpuLoad() {
+        return Probes.getLoad(getProcessCpuLoad, osMxBean);
     }
 
     /**
@@ -130,10 +142,12 @@ public class ProcessProbe {
      * or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        String className = "com.sun.management.OperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
-        } catch (Exception t) {
+            return Class.forName(className).getMethod(methodName);
+        } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }
@@ -143,10 +157,12 @@ public class ProcessProbe {
      * or null if the method is not found or unavailable.
      */
     private static Method getUnixMethod(String methodName) {
+        String className = "com.sun.management.UnixOperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.UnixOperatingSystemMXBean").getMethod(methodName);
-        } catch (Exception t) {
+            return Class.forName(className).getMethod(methodName);
+        } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

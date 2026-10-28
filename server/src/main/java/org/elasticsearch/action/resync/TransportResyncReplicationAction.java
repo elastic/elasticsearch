@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,7 +59,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -75,6 +77,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             PrimaryActionExecution.Force, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure,
             systemIndices,
+            projectResolver,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
@@ -107,7 +110,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     }
 
     @Override
-    protected void dispatchedShardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
         ResyncReplicationRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener
@@ -135,16 +138,17 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         return request.getOperations().length;
     }
 
+    @Override
+    protected long primaryLargestOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).max().orElse(0);
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(
-        ResyncReplicationRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> listener
-    ) {
+    protected void shardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             Translog.Location location = performOnReplica(request, replica);
             return new WriteReplicaResult<>(request, location, null, replica, logger);

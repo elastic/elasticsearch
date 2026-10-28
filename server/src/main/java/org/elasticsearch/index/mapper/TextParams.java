@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -123,11 +125,6 @@ public final class TextParams {
         }
     }
 
-    public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
-        // norms can be updated from 'true' to 'false' but not vv
-        return Parameter.boolParam("norms", true, initializer, defaultValue).setMergeValidator((o, n, c) -> o == n || (o && n == false));
-    }
-
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
         return new Parameter<>(
             "similarity",
@@ -154,8 +151,18 @@ public final class TextParams {
         });
     }
 
-    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
+    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer, Supplier<String> defaultValue) {
+        // The default is a Supplier (rather than a fixed String) so callers can resolve it lazily, e.g. depending on the index mode
+        // and on index_phrases / position_increment_gap, whose values are only known once parsing has finished.
+        return new Parameter<>(
+            "index_options",
+            false,
+            defaultValue,
+            (n, c, o) -> XContentMapValues.nodeStringValue(o),
+            initializer,
+            XContentBuilder::field,
+            Function.identity()
+        ).addValidator(v -> {
             switch (v) {
                 case "positions":
                 case "docs":
@@ -173,6 +180,7 @@ public final class TextParams {
     public static FieldType buildFieldType(
         Supplier<Boolean> indexed,
         Supplier<Boolean> stored,
+        Supplier<Boolean> hasDocValues,
         Supplier<String> indexOptions,
         Supplier<Boolean> norms,
         Supplier<String> termVectors

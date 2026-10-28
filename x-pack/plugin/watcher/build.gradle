@@ -1,12 +1,19 @@
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name = 'x-pack-watcher'
   description = 'Elasticsearch Expanded Pack Plugin - Watcher'
-  classname ='org.elasticsearch.xpack.watcher.Watcher'
-  hasNativeController =false
-  requiresKeystore =false
+  classname = 'org.elasticsearch.xpack.watcher.Watcher'
+  hasNativeController = false
+  requiresKeystore = false
   extendedPlugins = ['x-pack-core', 'lang-painless']
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 base {
@@ -15,8 +22,19 @@ base {
 
 ext.compactProfile = 'full'
 
-tasks.named("dependencyLicenses").configure {
+restResources {
+  restApi {
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack',
+      'put_script', 'ingest', 'count', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
+
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'
+  mapping from: /httpclient|httpcore/, to: 'httpclient'
 }
 
 dependencies {
@@ -32,37 +50,42 @@ dependencies {
 
   // watcher deps
   api 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20211018.2'
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre' // needed by watcher for the html sanitizer
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  api 'com.sun.mail:jakarta.mail:1.6.4'
+  runtimeOnly 'com.google.guava:guava:33.7.2-jre' // needed by watcher for the html sanitizer
+  runtimeOnly 'com.google.guava:failureaccess:1.0.3'
+  api 'com.sun.mail:jakarta.mail:1.6.8'
   api 'com.sun.activation:jakarta.activation:1.2.1'
-  compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
   testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation
   testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 
   internalClusterTestImplementation project(":modules:analysis-common")
+
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:lang-mustache')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('ilm'))
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
   )
 
   ignoreViolations(

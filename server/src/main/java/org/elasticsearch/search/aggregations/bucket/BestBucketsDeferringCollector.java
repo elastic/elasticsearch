@@ -12,13 +12,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
 /**
@@ -46,17 +47,20 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         AggregationExecutionContext aggCtx;
         PackedLongValues docDeltas;
         PackedLongValues buckets;
+        final long ramBytesUsed;
 
         Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
+            this.ramBytesUsed = docDeltas.ramBytesUsed() + buckets.ramBytesUsed();
         }
     }
 
     private final Query topLevelQuery;
     private final IndexSearcher searcher;
     private final boolean isGlobal;
+    private final LongConsumer bytesAccounter;
 
     private List<Entry> entries = new ArrayList<>();
     private BucketCollector collector;
@@ -65,15 +69,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     private PackedLongValues.Builder bucketsBuilder;
     private LongHash selectedBuckets;
     private boolean finished = false;
+    private long callCount;
 
-    /**
-     * Sole constructor.
-     * @param isGlobal Whether this collector visits all documents (global context)
-     */
-    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal) {
+    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal, LongConsumer bytesAccounter) {
         this.topLevelQuery = topLevelQuery;
         this.searcher = searcher;
         this.isGlobal = isGlobal;
+        this.bytesAccounter = Objects.requireNonNull(bytesAccounter, "bytesAccounter");
     }
 
     @Override
@@ -97,7 +99,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         if (aggCtx != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
             assert docDeltasBuilder.size() > 0;
-            entries.add(new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build()));
+            Entry entry = new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build());
+            // On trip, the exception propagates to the aggregator framework for cleanup via AggregatorBase.close().
+            bytesAccounter.accept(entry.ramBytesUsed);
+            entries.add(entry);
             clearLeaf();
         }
     }
@@ -128,8 +133,17 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
+                heartbeat();
             }
         };
+    }
+
+    // Passing 0 triggers the parent breaker's real-memory check without
+    // charging bytes — same protocol as AggregatorBase.checkRealMemoryCB.
+    private void heartbeat() {
+        if ((++callCount & 0x3FF) == 0) {
+            bytesAccounter.accept(0);
+        }
     }
 
     @Override
@@ -163,7 +177,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = isGlobal ? new MatchAllDocsQuery() : topLevelQuery;
+            Query query = isGlobal ? Queries.ALL_DOCS_INSTANCE : topLevelQuery;
             weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
         }
 
@@ -206,9 +220,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // collection was terminated prematurely
                 // continue with the following leaf
             }
-            // release resources
             entry.buckets = null;
             entry.docDeltas = null;
+            bytesAccounter.accept(-entry.ramBytesUsed);
         }
         collector.postCollection();
     }
@@ -263,6 +277,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
+        for (Entry sourceEntry : entries) {
+            bytesAccounter.accept(-sourceEntry.ramBytesUsed);
+        }
+
         List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
@@ -272,7 +290,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             // Only create an entry if this segment has buckets after merging
             if (newBuckets.size() > 0) {
                 assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
-                newEntries.add(new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build()));
+                Entry newEntry = new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build());
+                bytesAccounter.accept(newEntry.ramBytesUsed);
+                newEntries.add(newEntry);
             }
         }
         entries = newEntries;

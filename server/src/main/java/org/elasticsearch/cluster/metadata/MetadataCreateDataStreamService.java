@@ -31,7 +31,9 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -40,7 +42,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,6 +91,7 @@ public class MetadataCreateDataStreamService {
                     : new String[] { firstBackingIndexName, firstFailureStoreName };
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    request.projectId(),
                     waitForIndices,
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
@@ -108,8 +114,14 @@ public class MetadataCreateDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store
                     // because we don't need to redirect any failures in the same request.
-                    ClusterState clusterState = createDataStream(request, currentState, delegate.reroute(), false);
-                    DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
+                    ClusterState clusterState = createDataStream(
+                        request,
+                        currentState,
+                        RerouteBehavior.PERFORM_REROUTE,
+                        delegate.reroute(),
+                        false
+                    );
+                    DataStream createdDataStream = clusterState.metadata().getProject(request.projectId()).dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
                     if (createdDataStream.getFailureIndices().isEmpty() == false) {
                         firstFailureStoreRef.set(createdDataStream.getFailureIndices().get(0).getName());
@@ -128,6 +140,7 @@ public class MetadataCreateDataStreamService {
     public ClusterState createDataStream(
         CreateDataStreamClusterStateUpdateRequest request,
         ClusterState current,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -137,18 +150,19 @@ public class MetadataCreateDataStreamService {
             current,
             isDslOnlyMode,
             request,
+            rerouteBehavior,
             rerouteListener,
             initializeFailureStore
         );
     }
 
     public record CreateDataStreamClusterStateUpdateRequest(
+        ProjectId projectId,
         String name,
         long startTime,
         @Nullable SystemDataStreamDescriptor systemDataStreamDescriptor,
         TimeValue masterNodeTimeout,
-        TimeValue ackTimeout,
-        boolean performReroute
+        TimeValue ackTimeout
     ) {
         public CreateDataStreamClusterStateUpdateRequest {
             Objects.requireNonNull(name);
@@ -156,18 +170,18 @@ public class MetadataCreateDataStreamService {
             Objects.requireNonNull(ackTimeout);
         }
 
-        public CreateDataStreamClusterStateUpdateRequest(String name) {
-            this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO, true);
+        public CreateDataStreamClusterStateUpdateRequest(final ProjectId projectId, String name) {
+            this(projectId, name, null, TimeValue.ZERO, TimeValue.ZERO);
         }
 
         public CreateDataStreamClusterStateUpdateRequest(
+            ProjectId projectId,
             String name,
             SystemDataStreamDescriptor systemDataStreamDescriptor,
             TimeValue masterNodeTimeout,
-            TimeValue ackTimeout,
-            boolean performReroute
+            TimeValue ackTimeout
         ) {
-            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout, performReroute);
+            this(projectId, name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout);
         }
 
         public boolean isSystem() {
@@ -181,6 +195,7 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -192,6 +207,7 @@ public class MetadataCreateDataStreamService {
             request,
             List.of(),
             null,
+            rerouteBehavior,
             rerouteListener,
             initializeFailureStore
         );
@@ -217,6 +233,7 @@ public class MetadataCreateDataStreamService {
         CreateDataStreamClusterStateUpdateRequest request,
         List<IndexMetadata> backingIndices,
         IndexMetadata writeIndex,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -226,12 +243,31 @@ public class MetadataCreateDataStreamService {
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
             || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
             : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
+        final SystemIndexDescriptor matchingSystemIndexDescriptor = metadataCreateIndexService.getSystemIndices()
+            .findMatchingDescriptor(dataStreamName);
+        if (matchingSystemIndexDescriptor != null) {
+            logger.warn(
+                "creating data stream [{}] whose name matches system index pattern [{}] but which is not registered as a system data "
+                    + "stream; its backing indices will not receive system index protections and may be accessible to unauthorized users",
+                dataStreamName,
+                matchingSystemIndexDescriptor.getIndexPattern()
+            );
+        }
+        assert matchingSystemIndexDescriptor == null
+            : "dataStream [" + dataStreamName + "] matches a SystemIndexDescriptor but should use a SystemDataStreamDescriptor instead";
 
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
-        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
-            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
+        final var currentProject = currentState.metadata().getProject(request.projectId());
+        if (currentProject.dataStreams().containsKey(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists", dataStreamName);
+        }
+        if (currentProject.hasView(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL view", dataStreamName);
+        }
+        if (currentProject.hasDataset(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL dataset", dataStreamName);
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(
@@ -253,19 +289,20 @@ public class MetadataCreateDataStreamService {
             );
         }
 
-        final var metadata = currentState.metadata();
         final boolean isSystem = systemDataStreamDescriptor != null;
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
-            : lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            : lookupTemplateForDataStream(dataStreamName, currentProject);
         // The initial backing index and the initial failure store index will have the same initial generation.
         // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
         // when rolling over in the future.
         final long initialGeneration = 1;
-        ResettableValue<DataStreamOptions.Template> dataStreamOptionsTemplate = isSystem
-            ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
-        final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate.mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        final DataStreamOptions dataStreamOptions = resolveDataStreamOptions(
+            currentProject,
+            systemDataStreamDescriptor,
+            template,
+            isSystem
+        );
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do
         // that as part of creating the backing index if required. N.B. This is done if initializeFailureStore,
@@ -273,22 +310,21 @@ public class MetadataCreateDataStreamService {
         // responsibility to check that before setting.
         IndexMetadata failureStoreIndex = null;
         if (initializeFailureStore) {
-            if (isSystem) {
-                throw new IllegalArgumentException("Failure stores are not supported on system data streams");
-            }
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.startTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
                 "initialize_data_stream",
+                request.projectId(),
                 settings,
                 currentState,
                 request.startTime(),
                 dataStreamName,
                 template,
+                systemDataStreamDescriptor,
                 failureStoreIndexName,
                 null
             );
-            failureStoreIndex = currentState.metadata().index(failureStoreIndexName);
+            failureStoreIndex = currentState.metadata().getProject(request.projectId()).index(failureStoreIndexName);
         }
 
         if (writeIndex == null) {
@@ -297,14 +333,14 @@ public class MetadataCreateDataStreamService {
                 metadataCreateIndexService,
                 currentState,
                 request,
+                rerouteBehavior,
                 rerouteListener,
                 dataStreamName,
                 systemDataStreamDescriptor,
-                isSystem,
                 template,
                 firstBackingIndexName
             );
-            writeIndex = currentState.metadata().index(firstBackingIndexName);
+            writeIndex = currentState.metadata().getProject(request.projectId()).index(firstBackingIndexName);
         } else {
             rerouteListener.onResponse(null);
         }
@@ -313,38 +349,38 @@ public class MetadataCreateDataStreamService {
         assert initializeFailureStore == false || failureStoreIndex != null : "failure store should have an initial index";
         assert failureStoreIndex == null || failureStoreIndex.mapping() != null
             : "no mapping found for failure store [" + failureStoreIndex.getIndex().getName() + "]";
+        final var newProject = currentState.metadata().getProject(request.projectId());
 
         List<Index> dsBackingIndices = backingIndices.stream()
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.retrieveIndexModeFromTemplate(template);
-        final DataStreamLifecycle lifecycle = isSystem
-            ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
+        final IndexMode indexMode = newProject.retrieveIndexModeFromTemplate(template);
+        final DataStreamLifecycle lifecycle = resolveDataStreamLifecycle(currentProject, systemDataStreamDescriptor, template, isSystem);
         List<Index> failureIndices = failureStoreIndex == null ? List.of() : List.of(failureStoreIndex.getIndex());
         DataStream newDataStream = new DataStream(
             dataStreamName,
             initialGeneration,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            copyMapAllowingNulls(template.metadata()),
+            Settings.EMPTY,
+            ComposableIndexTemplate.EMPTY_MAPPINGS,
             hidden,
             false,
             isSystem,
             System::currentTimeMillis,
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
-            lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
+            lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE : lifecycle,
             dataStreamOptions,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null),
             // If the failure store shouldn't be initialized on data stream creation, we're marking it for "lazy rollover", which will
             // initialize the failure store on first write.
             new DataStream.DataStreamIndices(DataStream.FAILURE_STORE_PREFIX, failureIndices, initializeFailureStore == false, null)
         );
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(newProject).put(newDataStream);
         List<String> aliases = new ArrayList<>();
-        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(newProject, template);
         for (var resolvedAliasMap : resolvedAliases) {
             for (var alias : resolvedAliasMap.values()) {
                 aliases.add(alias.getAlias());
@@ -360,38 +396,53 @@ public class MetadataCreateDataStreamService {
             Strings.collectionToCommaDelimitedString(aliases)
         );
 
-        return ClusterState.builder(currentState).metadata(builder).build();
+        return ClusterState.builder(currentState).putProjectMetadata(builder).build();
+    }
+
+    @Nullable
+    private static Map<String, Object> copyMapAllowingNulls(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return null;
+        }
+        // Map.copyOf would reject null values, which a template's _meta may contain
+        return Collections.unmodifiableMap(new HashMap<>(map));
     }
 
     private static ClusterState createBackingIndex(
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         String dataStreamName,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
-        boolean isSystem,
         ComposableIndexTemplate template,
         String firstBackingIndexName
     ) throws Exception {
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             "initialize_data_stream",
+            request.projectId(),
             firstBackingIndexName,
             firstBackingIndexName
         ).dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(systemDataStreamDescriptor)
             .nameResolvedInstant(request.startTime())
-            .performReroute(request.performReroute())
             .setMatchingTemplate(template);
 
-        if (isSystem) {
+        if (systemDataStreamDescriptor != null) {
             createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
         } else {
             createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
         }
 
         try {
-            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false, rerouteListener);
+            currentState = metadataCreateIndexService.applyCreateIndexRequest(
+                currentState,
+                createIndexRequest,
+                false,
+                rerouteBehavior,
+                rerouteListener
+            );
         } catch (ResourceAlreadyExistsException e) {
             // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
             // auto index/data stream creation.
@@ -406,33 +457,77 @@ public class MetadataCreateDataStreamService {
         return currentState;
     }
 
+    /**
+     * Creates a past backing index with the requested start and end time for the specified data stream
+     * and updates the cluster state accordingly. Might throw ResourceAlreadyExistsException if the
+     * resource already exists, the caller needs to handle this.
+     */
+    public ClusterState createPastBackingIndex(
+        ClusterState currentState,
+        ProjectId projectId,
+        RerouteBehavior rerouteBehavior,
+        ActionListener<Void> rerouteListener,
+        DataStream dataStream,
+        String backingIndexName,
+        Instant startTime,
+        Instant endTime
+    ) throws Exception {
+        final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+        assert dataStream.isSystem() == false : "Automatic backing index creation is not supported for system time series data streams.";
+        final ComposableIndexTemplate template = dataStream.getEffectiveIndexTemplate(projectMetadata);
+        CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
+            "initialize_past_backing_index",
+            projectId,
+            backingIndexName,
+            backingIndexName
+        ).dataStreamName(dataStream.getName()).setMatchingTemplate(template);
+
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(startTime))
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(endTime))
+            .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, endTime.toEpochMilli())
+            .put(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+        if (isDslOnlyMode == false) {
+            // If the index is managed by ILM, it will skip rollover
+            settings.put("index.lifecycle.indexing_complete", true);
+        }
+        createIndexRequest.settings(settings.build());
+        return metadataCreateIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexRequest,
+            false,
+            (builder, indexMetadata) -> builder.put(dataStream.unsafeAddBackingIndex(indexMetadata.getIndex())),
+            rerouteBehavior,
+            rerouteListener
+        );
+    }
+
     public static ClusterState createFailureStoreIndex(
         MetadataCreateIndexService metadataCreateIndexService,
         String cause,
+        ProjectId projectId,
         Settings nodeSettings,
         ClusterState currentState,
         long nameResolvedInstant,
         String dataStreamName,
         ComposableIndexTemplate template,
+        SystemDataStreamDescriptor systemDataStreamDescriptor,
         String failureStoreIndexName,
-        @Nullable BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        @Nullable BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            return currentState;
-        }
-
         var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(nodeSettings);
 
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
+            projectId,
             failureStoreIndexName,
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
             .nameResolvedInstant(nameResolvedInstant)
-            .performReroute(false)
             .setMatchingTemplate(template)
             .settings(indexSettings)
-            .isFailureIndex(true);
+            .isFailureIndex(true)
+            .systemDataStreamDescriptor(systemDataStreamDescriptor);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(
@@ -440,6 +535,7 @@ public class MetadataCreateDataStreamService {
                 createIndexRequest,
                 false,
                 metadataTransformer,
+                RerouteBehavior.SKIP_REROUTE,
                 AllocationActionListener.rerouteCompletionIsNotRequired()
             );
         } catch (ResourceAlreadyExistsException e) {
@@ -456,12 +552,12 @@ public class MetadataCreateDataStreamService {
         return currentState;
     }
 
-    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
-        final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
+    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, ProjectMetadata projectMetadata) {
+        final String v2Template = MetadataIndexTemplateService.findV2Template(projectMetadata, dataStreamName, false);
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
         }
-        ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+        ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException(
                 "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
@@ -480,5 +576,29 @@ public class MetadataCreateDataStreamService {
         }
         // Sanity check (this validation logic should already have been executed when merging mappings):
         fieldMapper.validate(mappingLookup);
+    }
+
+    private static DataStreamOptions resolveDataStreamOptions(
+        ProjectMetadata project,
+        SystemDataStreamDescriptor systemDataStreamDescriptor,
+        ComposableIndexTemplate template,
+        boolean isSystem
+    ) {
+        DataStreamOptions.Builder builder = isSystem
+            ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
+            : MetadataIndexTemplateService.resolveDataStreamOptions(template, project.componentTemplates());
+        return builder == null ? null : builder.build();
+    }
+
+    private static DataStreamLifecycle resolveDataStreamLifecycle(
+        ProjectMetadata project,
+        SystemDataStreamDescriptor systemDataStreamDescriptor,
+        ComposableIndexTemplate template,
+        boolean isSystem
+    ) {
+        DataStreamLifecycle.Builder builder = isSystem
+            ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
+            : MetadataIndexTemplateService.resolveLifecycle(template, project.componentTemplates());
+        return builder == null ? null : builder.build();
     }
 }

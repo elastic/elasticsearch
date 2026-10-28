@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,12 +23,15 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -49,17 +53,21 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -84,13 +92,18 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new StackTemplateRegistry(
+            Settings.EMPTY,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
+        );
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void shutdownThreadPool() throws Exception {
         threadPool.shutdownNow();
     }
 
@@ -101,7 +114,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
     }
@@ -113,7 +127,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
         assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
         assertThat(
@@ -175,6 +190,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.TRACES_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.EXEMPLARS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_30_DAYS_POLICY_NAME),
                         equalTo(StackTemplateRegistry.ILM_90_DAYS_POLICY_NAME),
@@ -198,7 +214,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(9)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getLifecyclePolicies().size())));
     }
 
     public void testPolicyAlreadyExists() {
@@ -207,7 +223,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(9));
+        assertThat(policies, hasSize(10));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -278,7 +294,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
         List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
-        assertThat(policies, hasSize(9));
+        assertThat(policies, hasSize(10));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -357,7 +373,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            new FeatureService(List.of())
         );
 
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
@@ -412,6 +429,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.EXEMPLARS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
@@ -464,6 +482,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
         );
         versions.put(
             StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.EXEMPLARS_SETTINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(
@@ -531,6 +553,43 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
     }
 
+    public void testRegistryIsUpToDate() throws Exception {
+        assumeFalse("This test relies on text files checksum, which is inconsistent between Windows and Linux", Constants.WINDOWS);
+        CRC32 crc32 = new CRC32();
+        for (IndexTemplateConfig config : StackTemplateRegistry.getComponentTemplateConfigsAsConfigs()) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (LifecyclePolicyConfig config : StackTemplateRegistry.LIFECYCLE_POLICY_CONFIGS) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (IndexTemplateConfig config : StackTemplateRegistry.getComposableTemplateConfigsAsConfigs()) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (IngestPipelineConfig config : StackTemplateRegistry.INGEST_PIPELINE_CONFIGS) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        String computedChecksum = Long.toHexString(crc32.getValue());
+        assertEquals(
+            "The StackTemplateRegistry.REGISTRY_VERSION must be incremented when templates are changed. "
+                + "Please update REGISTRY_VERSION to "
+                + (StackTemplateRegistry.REGISTRY_VERSION + 1)
+                + " and update COMPUTED_CHECKSUM to \""
+                + computedChecksum
+                + "\"",
+            StackTemplateRegistry.COMPUTED_CHECKSUM,
+            computedChecksum
+        );
+    }
+
+    private byte[] loadTemplate(String name) throws IOException {
+        try (InputStream is = StackTemplateRegistry.class.getResourceAsStream(name)) {
+            if (is == null) {
+                throw new IOException("Template [" + name + "] not found");
+            }
+            return is.readAllBytes();
+        }
+    }
+
     // -------------
 
     /**
@@ -544,7 +603,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override
@@ -606,7 +665,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes,
         boolean addRegistryPipelines
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes, addRegistryPipelines);
+        ClusterState cs = createClusterState(existingTemplates, existingPolicies, nodes, addRegistryPipelines);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -619,7 +678,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes,
@@ -650,15 +708,14 @@ public class StackTemplateRegistryTests extends ESTestCase {
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .componentTemplates(componentTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .componentTemplates(componentTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

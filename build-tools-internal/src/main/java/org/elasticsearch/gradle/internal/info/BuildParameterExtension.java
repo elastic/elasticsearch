@@ -32,6 +32,8 @@ public interface BuildParameterExtension {
 
     Boolean getIsRuntimeJavaHomeSet();
 
+    RuntimeJava getRuntimeJava();
+
     List<JavaHome> getJavaVersions();
 
     JavaVersion getMinimumCompilerVersion();
@@ -54,17 +56,21 @@ public interface BuildParameterExtension {
 
     String getTestSeed();
 
-    Boolean isCi();
+    Provider<String> getTestSeedProvider();
+
+    Boolean getCi();
 
     Integer getDefaultParallel();
 
-    Boolean isSnapshotBuild();
+    Boolean getSnapshotBuild();
 
     BwcVersions getBwcVersions();
 
     Provider<BwcVersions> getBwcVersionsProvider();
 
-    Random getRandom();
+    Provider<Random> getRandom();
 
-    Boolean isGraalVmRuntime();
+    Boolean getGraalVmRuntime();
+
+    String getFipsMode();
 }

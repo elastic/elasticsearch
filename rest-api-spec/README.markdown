@@ -58,8 +58,8 @@ The specification contains:
 * Request parameters
 * Request body specification
 
-**NOTE**
-If an API is stable but it response should be treated as an arbitrary map of key values please notate this as followed
+> [!Note]
+> If an API is stable but it response should be treated as an arbitrary map of key values please notate this as followed
 
 ```json
 {

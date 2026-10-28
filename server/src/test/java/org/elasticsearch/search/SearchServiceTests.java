@@ -9,18 +9,31 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -28,22 +41,32 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -51,17 +74,40 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.elasticsearch.search.SearchService.isTransientRejection;
+import static org.elasticsearch.search.SearchService.wrapFailureListener;
+import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -98,6 +144,51 @@ public class SearchServiceTests extends IndexShardTestCase {
         doTestCanMatch(searchRequest, sortField, true, expectedMinAndMax, false);
     }
 
+    public void testCanMatchTimeRangeFilter() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from("2025-12-15")));
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, false, null, false);
+        LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
+        assertEquals(
+            localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
+    }
+
+    // Verify that a range filter nested inside a bool `should` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideShouldClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::should);
+    }
+
+    // Verify that a range filter nested inside a bool `mustNot` clause does not contribute to
+    // the time_range_filter_from metric — only mandatory (must/filter) clauses should be tracked.
+    public void testCanMatchTimeRangeFilterInsideMustNotClauseIsNotTracked() throws IOException {
+        dotestNotTrackedTimeRangeFilter(BoolQueryBuilder::mustNot);
+    }
+
+    private void dotestNotTrackedTimeRangeFilter(BiFunction<BoolQueryBuilder, QueryBuilder, BoolQueryBuilder> queryWrapper)
+        throws IOException {
+        // outer filter: @timestamp >= 2025-12-01 (should match the indexed doc from 2025-12-09)
+        // inner should: @timestamp >= 2020-01-01 (old date in an optional clause — must not be tracked)
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(
+                new SearchSourceBuilder().query(
+                    queryWrapper.apply(
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2025-12-01")),
+                        new BoolQueryBuilder().filter(new RangeQueryBuilder("@timestamp").from("2020-01-01"))
+                    )
+                )
+            );
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, true, null, false);
+        // Only the outer filter range should be reported; Math.min must not drag it back to 2020-01-01
+        LocalDateTime expectedFrom = LocalDateTime.of(2025, 12, 1, 0, 0);
+        assertEquals(
+            expectedFrom.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
+    }
+
     public void testCanMatchKeywordSortedQueryMatchNoneWithException() throws IOException {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
             .source(new SearchSourceBuilder().sort("field").query(new MatchNoneQueryBuilder()));
@@ -124,7 +215,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         doTestCanMatch(searchRequest, sortField, true, null, false);
     }
 
-    public void testMaybeWrapListenerForStackTrace() {
+    public void testWrapListenerForErrorHandling() {
+        ShardId shardId = new ShardId("index", "index", 0);
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -146,12 +238,440 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool, randomLifecycle());
         isWrapped.set(true);
         listener.onFailure(e);
     }
 
-    private void doTestCanMatch(
+    private static Lifecycle randomLifecycle() {
+        return randomBoolean() ? randomInitializedOrStartedLifecycle() : randomStoppedOrClosedLifecycle();
+    }
+
+    private static Lifecycle randomInitializedOrStartedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        if (randomBoolean()) {
+            lifecycle.started();
+        }
+        return lifecycle;
+    }
+
+    private static Lifecycle randomStoppedOrClosedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        lifecycle.started();
+        lifecycle.stopped();
+        if (randomBoolean()) {
+            lifecycle.closed();
+        }
+        return lifecycle;
+    }
+
+    public void testBadRequestIfPatternTooComplex() {
+        TooComplexToDeterminizeException tooComplex = new TooComplexToDeterminizeException(Automata.makeEmpty(), 10);
+
+        for (Exception e : List.of(tooComplex, new ElasticsearchException("wrapped", tooComplex))) {
+            Exception converted = SearchService.badRequestIfPatternTooComplex(e);
+            assertThat(converted, instanceOf(IllegalArgumentException.class));
+            assertThat(converted.getMessage(), equalTo("Pattern was too complex to determinize"));
+            assertThat(converted.getCause(), sameInstance(e));
+            assertThat(ExceptionsHelper.status(converted), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        Exception alreadyClientError = new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST, tooComplex);
+        assertThat(SearchService.badRequestIfPatternTooComplex(alreadyClientError), sameInstance(alreadyClientError));
+        Exception unrelated = new ElasticsearchException("boom", new IllegalStateException());
+        assertThat(SearchService.badRequestIfPatternTooComplex(unrelated), sameInstance(unrelated));
+    }
+
+    public void testWrapListenerForErrorHandlingTooComplexPattern() {
+        final String nodeId = "node";
+        final ShardId shardId = new ShardId("index", "index", 0);
+        final long taskId = 123L;
+        final String logMessage = format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId);
+        final TooComplexToDeterminizeException tooComplex = new TooComplexToDeterminizeException(Automata.makeEmpty(), 10);
+
+        for (Exception failure : List.of(tooComplex, new ElasticsearchException("wrapped", tooComplex))) {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                Configurator.setLevel(SearchService.class, Level.DEBUG);
+                mockLog.addExpectation(
+                    new MockLog.ExceptionSeenEventExpectation(
+                        "converted failure logged at debug",
+                        SearchService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        logMessage,
+                        IllegalArgumentException.class,
+                        "Pattern was too complex to determinize"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("no warn log", SearchService.class.getCanonicalName(), Level.WARN, "*")
+                );
+
+                AtomicReference<Exception> received = new AtomicReference<>();
+                ActionListener<SearchPhaseResult> listener = wrapListenerForErrorHandling(
+                    ActionListener.wrap(r -> fail("expected a failure"), received::set),
+                    TransportVersion.current(),
+                    nodeId,
+                    shardId,
+                    taskId,
+                    threadPool,
+                    randomInitializedOrStartedLifecycle()
+                );
+                listener.onFailure(failure);
+
+                assertThat(received.get(), instanceOf(IllegalArgumentException.class));
+                assertThat(received.get().getCause(), sameInstance(failure));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    public void testWrapListenerForErrorHandlingDebugLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            Configurator.setLevel(SearchService.class, Level.DEBUG);
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG, // We will throw a 400-level exception, so it should only be logged at the debug level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalArgumentException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            // Default behavior is to use debug level for 400-level exceptions
+            IllegalArgumentException iae = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomLifecycle()
+            );
+            listener.onFailure(iae);
+
+            // Debug logging for a 500-level exception when closing or stopped lifecycle is to log as debug level
+            IllegalStateException ise = new IllegalStateException(exceptionMessage);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomStoppedOrClosedLifecycle()
+            );
+            listener.onFailure(ise);
+        }
+    }
+
+    public void testWrapListenerForErrorHandlingWarnLog() {
+        final String nodeId = "node";
+        final String index = "index";
+        ShardId shardId = new ShardId(index, index, 0);
+        final long taskId = 123L;
+
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    format("\"[%s]%s: failed to execute search request for task [%d]\" and an exception logged", nodeId, shardId, taskId),
+                    SearchService.class.getCanonicalName(),
+                    Level.WARN, // We will throw a 500-level exception, so it should be logged at the warn level
+                    format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId),
+                    IllegalStateException.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomInitializedOrStartedLifecycle()
+            );
+            listener.onFailure(e);
+        }
+    }
+
+    public void testWrapFailureListenerOnResponse() {
+        var releasableClosed = new AtomicBoolean(false);
+        var response = new AtomicReference<String>();
+
+        var wrapped = wrapFailureListener(ActionListener.<String>wrap((r) -> {
+            assertTrue("releasable must be closed before listener.onResponse runs", releasableClosed.get());
+            response.set(r);
+        }, e -> fail("unexpected failure")), () -> releasableClosed.set(true), e -> fail("cleanup must not run on success"));
+        wrapped.onResponse("ok");
+
+        assertTrue("releasable must be closed after onResponse", releasableClosed.get());
+        assertEquals("ok", response.get());
+    }
+
+    public void testWrapFailureListenerOnFailure() {
+        var releasableClosed = new AtomicBoolean(false);
+        var cleanupRan = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> cleanupRan.set(true)
+        );
+        wrapped.onFailure(cause);
+
+        assertTrue("cleanup must run on failure", cleanupRan.get());
+        assertTrue("releasable must be closed after onFailure", releasableClosed.get());
+        assertSame("original exception must reach the listener", cause, failure.get());
+    }
+
+    public void testWrapFailureListenerCleanupThrows() {
+        var releasableClosed = new AtomicBoolean(false);
+        var failure = new AtomicReference<Exception>();
+        var cause = new RuntimeException("search failed");
+
+        var wrapped = wrapFailureListener(
+            ActionListener.<String>wrap(r -> fail("unexpected response"), failure::set),
+            () -> releasableClosed.set(true),
+            e -> {
+                throw new RuntimeException("cleanup exploded");
+            }
+        );
+
+        expectThrows(RuntimeException.class, () -> wrapped.onFailure(cause));
+        assertTrue("releasable must be closed even when cleanup throws", releasableClosed.get());
+        assertSame("listener.onFailure must be called even when cleanup throws", cause, failure.get());
+    }
+
+    public void testIsTransientRejection() {
+        assertTrue(isTransientRejection(new EsRejectedExecutionException("rejected", false)));
+        assertFalse(isTransientRejection(new EsRejectedExecutionException("shutdown", true)));
+        assertFalse(isTransientRejection(new RuntimeException("other")));
+
+        Exception wrapped = new RuntimeException(new EsRejectedExecutionException("rejected", false));
+        assertTrue(isTransientRejection(wrapped));
+
+        // suppressed-only rejection must not retain (cause-chain unwrap only)
+        RuntimeException primary = new RuntimeException("primary");
+        primary.addSuppressed(new EsRejectedExecutionException("rejected", false));
+        assertFalse(isTransientRejection(primary));
+    }
+
+    public void testIsExecutorQueuedBeyondPrewarmingFactor() throws InterruptedException {
+        {
+            final String threadPoolName = randomFrom(
+                ThreadPool.THREAD_POOL_TYPES.entrySet()
+                    .stream()
+                    .filter(t -> t.getValue().equals(ThreadPool.ThreadPoolType.FIXED))
+                    .map(Map.Entry::getKey)
+                    .sorted()
+                    .toList()
+            );
+            final int size = 6;
+            final int queueSize = size * 100;
+
+            ThreadPool threadPool = null;
+            final Settings nodeSettings = Settings.builder()
+                .put("node.name", "testPrewarmingBasedOnQueuedItems")
+                .put("thread_pool." + threadPoolName + ".size", size)
+                .put("thread_pool." + threadPoolName + ".queue_size", queueSize)
+                .build();
+            final CountDownLatch blockThreadPoolToQueueItems = new CountDownLatch(1);
+
+            try {
+                threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+                ExecutorService executor = threadPool.executor(threadPoolName);
+
+                // these tasks will consume the thread pool causing further
+                // submissions to queue
+                final CountDownLatch occupyAllThreads = new CountDownLatch(size);
+                for (int i = 0; i < size; i++) {
+                    executor.execute(() -> {
+                        try {
+                            occupyAllThreads.countDown();
+                            blockThreadPoolToQueueItems.await();
+                        } catch (InterruptedException e) {
+                            fail(e.toString());
+                        }
+                    });
+                }
+
+                // wait for all threads to have an active task in their hands
+                occupyAllThreads.await();
+
+                // now on to the fun stuff, let's queue up items - 2 queued items
+                // for every thread in the pool (plus one more for one thread)
+                for (int i = 0; i < 13; i++) {
+                    executor.execute(() -> {});
+                }
+
+                // 13 queued up items
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 10), is(false));
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 2), is(true));
+
+                // let's get us at the 10 factor (6 threads * 10 + 1= 61 queued up items - at which point we should indicate
+                // prewarming should not happen)
+                for (int i = 0; i < 48; i++) {
+                    executor.execute(() -> {});
+                }
+
+                // 61 queued up items
+                assertThat(isExecutorQueuedBeyondPrewarmingFactor(executor, 10), is(true));
+                blockThreadPoolToQueueItems.countDown();
+            } catch (AssertionError e) {
+                // terminate more gracefully if there's an assertion error above
+                blockThreadPoolToQueueItems.countDown();
+                throw e;
+            } finally {
+                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            }
+        }
+
+        {
+            // executors that are not ThreadPoolExecutor (i.e. no stats available) are always
+            // allowing prewarming
+            assertThat(isExecutorQueuedBeyondPrewarmingFactor(DIRECT_EXECUTOR_SERVICE, 2), is(false));
+        }
+    }
+
+    public void testBuildQueryWithCircuitBreakerAccountsMemory() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    long cbBefore = cb.getUsed();
+                    assertEquals("Freshly created breaker must start at zero", 0L, cbBefore);
+
+                    WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("field", "*test*pattern*");
+                    assertNotNull(queryBuilder.toQuery(context));
+
+                    long cbAfter = cb.getUsed();
+                    long tracked = context.getQueryConstructionMemoryUsed();
+
+                    assertTrue("Circuit breaker should have accounted memory", cbAfter > cbBefore);
+                    assertTrue("Context should have tracked memory", tracked > 0);
+                    assertEquals("CB delta must match tracked memory", cbAfter - cbBefore, tracked);
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testBuildQueryWithCircuitBreakerTripsOnLimitExceeded() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("1kb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                    for (int i = 0; i < 50; i++) {
+                        boolQuery.should(new WildcardQueryBuilder("field", "*a*b*c*" + i + "*"));
+                    }
+
+                    expectThrows(CircuitBreakingException.class, () -> boolQuery.toQuery(context));
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testQueryConstructionMemoryReleasedOnContextClose() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                for (int i = 0; i < 3; i++) {
+                    new WildcardQueryBuilder("field", "*test" + i + "*").toQuery(context);
+                }
+
+                long cbAfterBuild = cb.getUsed();
+                long tracked = context.getQueryConstructionMemoryUsed();
+                assertTrue("Memory should be accounted before release", cbAfterBuild > 0);
+                assertEquals("Tracked memory should match CB", cbAfterBuild, tracked);
+
+                context.releaseQueryConstructionMemory();
+
+                assertEquals("CB must be fully released", 0L, cb.getUsed());
+                assertEquals("Tracked memory must be zeroed", 0L, context.getQueryConstructionMemoryUsed());
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    private CircuitBreaker createQueryConstructionBreaker(String limit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new HierarchyCircuitBreakerService(CircuitBreakerMetrics.NOOP, settings, Collections.emptyList(), clusterSettings)
+            .getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private SearchService.CanMatchContext doTestCanMatch(
         SearchRequest searchRequest,
         SortField sortField,
         boolean expectedCanMatch,
@@ -173,7 +693,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\"}").isCreated());
+            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\", \"@timestamp\":\"2025-12-09\"}").isCreated());
             assertTrue(indexShard.refresh("test").refreshed());
             try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                 SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
@@ -197,7 +717,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMin());
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMax());
                 }
-
+                return canMatchContext;
             }
         } finally {
             closeShards(indexShard);
@@ -217,25 +737,35 @@ public class SearchServiceTests extends IndexShardTestCase {
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
 
         MapperBuilderContext root = MapperBuilderContext.root(false, false);
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Mapping mapping = new Mapping(
             builder.build(MapperBuilderContext.root(false, false)),
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(root);
+        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", indexSettings).build(root);
+        DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+            "@timestamp",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            ScriptCompiler.NONE,
+            indexSettings
+        ).build(root);
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
-            Collections.singletonList(keywordFieldMapper),
-            Collections.emptyList()
+            List.of(keywordFieldMapper, dateFieldMapper),
+            Collections.emptyList(),
+            IndexMode.STANDARD
         );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
             indexFieldDataLookup,
-            null,
+            mapperService,
             mappingLookup,
             null,
             null,
@@ -249,7 +779,9 @@ public class SearchServiceTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 
@@ -333,5 +865,38 @@ public class SearchServiceTests extends IndexShardTestCase {
                 return null;
             }
         };
+    }
+
+    public void testAsyncKeepAliveSettingsValidator() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        // max == -1 means unbounded; any default is allowed
+        cs.validate(asyncKeepAliveSettings("30d", "-1"), true);
+        // default == max is allowed (inclusive)
+        cs.validate(asyncKeepAliveSettings("7d", "7d"), true);
+        // default < max is allowed
+        cs.validate(asyncKeepAliveSettings("1d", "7d"), true);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cs.validate(asyncKeepAliveSettings("8d", "7d"), true)
+        );
+        assertThat(e.getMessage(), containsString("async_search.default_keep_alive"));
+        assertThat(e.getMessage(), containsString("async_search.max_keep_alive"));
+    }
+
+    public void testAsyncDefaultKeepAliveMinimum() {
+        ClusterSettings cs = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        String key = SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey();
+
+        expectThrows(IllegalArgumentException.class, () -> cs.validate(Settings.builder().put(key, "30s").build(), true));
+        cs.validate(Settings.builder().put(key, "1m").build(), true);
+    }
+
+    private static Settings asyncKeepAliveSettings(String defaultKeepAlive, String maxKeepAlive) {
+        return Settings.builder()
+            .put(SearchService.ASYNC_SEARCH_DEFAULT_KEEP_ALIVE_SETTING.getKey(), defaultKeepAlive)
+            .put(SearchService.ASYNC_SEARCH_MAX_KEEP_ALIVE_SETTING.getKey(), maxKeepAlive)
+            .build();
     }
 }

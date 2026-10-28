@@ -7,17 +7,19 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Generic {@link Block#lookup} implementation {@link BytesRefBlock}s.
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
-final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
+public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
     private final BytesRef firstScratch = new BytesRef();
     private final BytesRef valueScratch = new BytesRef();
     private final BytesRefBlock values;
@@ -28,7 +30,7 @@ final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
     private BytesRef first;
     private int valuesInPosition;
 
-    BytesRefLookup(BytesRefBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
+    public BytesRefLookup(BytesRefBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
         positions.incRef();
         this.values = values;

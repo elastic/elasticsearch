@@ -63,7 +63,9 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -123,9 +125,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
         long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
@@ -135,15 +136,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public final void stopTestNode() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
         ensureAllFreeContextActionsAreConsumed();
 
         ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
-        super.tearDown();
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
@@ -230,11 +230,23 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
+     */
+    protected boolean randomizeColumnarIdMode() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
+            Stream.of(
+                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
+            )
         ).collect(Collectors.toList());
     }
 
@@ -285,7 +297,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        if (randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();
         } catch (NodeValidationException e) {
@@ -359,13 +374,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null);
-    }
-
-    /**
-     * Create a new index on the singleton node with the provided index settings.
-     */
     protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
@@ -377,11 +385,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
-        if (type != null) {
-            createIndexRequestBuilder.setMapping(mappings);
-        }
+        createIndexRequestBuilder.setMapping(mappings);
         return createIndex(index, createIndexRequestBuilder);
     }
 
@@ -532,5 +538,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 )
             )
         );
+    }
+
+    protected void updateClusterSettings(Settings settings) {
+        safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
     }
 }

@@ -565,3 +565,9 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSetLevel
   issue: https://github.com/elastic/elasticsearch/issues/163699
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: "test {yaml=security/authz/90_tsdb_fls_hidden_timestamp_id/GET with the _id returned by search when field level security hides @timestamp}"
+  issue: https://github.com/elastic/elasticsearch/issues/163725
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: "test {yaml=security/authz/90_tsdb_fls_hidden_timestamp_id/ES|QL METADATA _id when field level security hides @timestamp}"
+  issue: https://github.com/elastic/elasticsearch/issues/163725

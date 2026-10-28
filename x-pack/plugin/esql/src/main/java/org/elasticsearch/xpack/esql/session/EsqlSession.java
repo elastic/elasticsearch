@@ -167,8 +167,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -581,12 +583,12 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert planningCpu.isMeteringCurrentThread() : "analyseAndExecute reached on an unmetered thread";
 
-        // Skip all telemetry and side effects in explain mode: the EXPLAIN command itself was
-        // already counted at parse time (planTelemetry.command(explain)). Traversing the inner
-        // query would inflate FeatureMetric.VIEW, FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc.
-        // with diagnostic invocations that are not real feature usage; and requestIpLocationDownloads
-        // must not trigger a real database download for a diagnostic call.
-        if (explainContext == null) {
+        // Skip all telemetry and side effects for diagnostic invocations: explain mode and the analyze-only pass
+        // that validates a view definition. The EXPLAIN command itself was already counted at parse time
+        // (planTelemetry.command(explain)). Traversing the inner query would inflate FeatureMetric.VIEW,
+        // FeatureMetric.IN_SUBQUERY, STATS, WHERE, etc. with diagnostic invocations that are not real feature
+        // usage; and requestIpLocationDownloads must not trigger a real database download for a diagnostic call.
+        if (explainContext == null && request.analyzeOnly() == false) {
             // stack telemetry
             gatherViewMetrics(viewResolution);
             gatherInSubqueryMetrics(viewResolution);
@@ -653,6 +655,26 @@ public class EsqlSession {
                     assert planningCpu.isMeteringCurrentThread() : "analyzed-plan callback reached on an unmetered thread";
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+
+                    if (request.analyzeOnly()) {
+                        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+                        executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+                        listener.onResponse(
+                            new Versioned<>(
+                                new Result(
+                                    analyzedPlan.inner().output(),
+                                    List.of(),
+                                    Map.of(),
+                                    finalConfiguration,
+                                    DriverCompletionInfo.EMPTY,
+                                    executionInfo,
+                                    null
+                                ),
+                                minimumVersion
+                            )
+                        );
+                        return;
+                    }
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path.
@@ -1048,7 +1070,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
-        var subPlansResults = new HashSet<LocalRelation>();
+        var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
         var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, graphExpand, subPlansResults);
 
         // TODO: merge into one method

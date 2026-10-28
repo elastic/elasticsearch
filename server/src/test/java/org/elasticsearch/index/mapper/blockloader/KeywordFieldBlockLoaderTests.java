@@ -55,7 +55,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Columnar index modes preserve arrival order via offsets
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var resultList = preserveOrder
                 ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
                 : convertValues.andThen(Stream::distinct)

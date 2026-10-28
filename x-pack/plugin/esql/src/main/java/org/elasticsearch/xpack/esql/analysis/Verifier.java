@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -133,6 +132,14 @@ public class Verifier {
     }
 
     /**
+     * A copy of this verifier that runs every check but records no feature or function telemetry. Diagnostic analyses —
+     * such as the analyze-only pass that validates a view definition — must not count the plans they walk as feature usage.
+     */
+    public Verifier withoutMetrics() {
+        return new Verifier(null, licenseState, extraCheckers);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -163,7 +170,6 @@ public class Verifier {
 
         if (unmappedResolution.loadsAllUnmappedFields()) {
             checkLoadAllModeSupportedCommands(plan, failures);
-            checkLoadAllFillNullAllColumnsInSubqueries(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -207,7 +213,7 @@ public class Verifier {
         }
 
         // gather metrics
-        if (failures.hasFailures() == false) {
+        if (metrics != null && failures.hasFailures() == false) {
             gatherMetrics(plan, partialMetrics);
         }
 
@@ -254,8 +260,8 @@ public class Verifier {
         for (LogicalPlan child : plan.children()) {
             countFillNullFields(child, failures, maxFields, total, overflowing);
         }
-        if (plan instanceof FillNull fillNull && fillNull.fields() != null) {
-            total.set(total.get() + fillNull.fields().size());
+        if (plan instanceof FillNull fillNull) {
+            total.set(total.get() + fillNull.fillAliases().size());
             if (total.get() > maxFields) {
                 overflowing.setIfAbsent(fillNull);
             }
@@ -775,30 +781,6 @@ public class Verifier {
             || (plan instanceof UnionAll && plan instanceof BranchPlan == false)
             || (plan instanceof Subquery && plan instanceof NamedSubquery == false)
             || plan instanceof AbstractSubqueryJoin;
-    }
-
-    // Temporary: resolveMergePlan casts, by id, a loader it injects below a branch's FILLNULL; ON * would re-alias the loader and orphan
-    // the cast. See https://github.com/elastic/elasticsearch/issues/162866
-    private static void checkLoadAllFillNullAllColumnsInSubqueries(LogicalPlan plan, Failures failures) {
-        ViewUtils.forEachOutsideViews(plan, p -> {
-            if (p instanceof UnionAll union) {
-                for (int i = 0; i < union.children().size(); i++) {
-                    if (ViewUtils.isViewBody(union, i) == false) {
-                        ViewUtils.forEachOutsideViews(union.children().get(i), node -> {
-                            if (node instanceof FillNull fillNull && (fillNull.allColumns() || fillNull.targetFields().isEmpty())) {
-                                failures.add(
-                                    fail(
-                                        fillNull,
-                                        "unmapped_fields=\"LOAD_ALL\" does not support [{}] in a subquery yet; name the columns to fill",
-                                        fillNull.sourceText()
-                                    )
-                                );
-                            }
-                        });
-                    }
-                }
-            }
-        });
     }
 
     /**

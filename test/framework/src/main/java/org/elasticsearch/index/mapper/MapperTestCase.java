@@ -2646,7 +2646,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     /**
      * The single-value proof that ES|QL uses ({@link FieldMapper#guaranteesSingleValue()}) holds for a field with
-     * {@code multi_value=false} and {@code on_failure=ignore}, because the second value never reaches the doc values. This pins the
+     * {@code multi_value=false} and {@code on_failure=ignore}, because the second value never reaches the doc values or the stored fields. This pins the
      * reader side of that: the block loaders that ES|QL uses return the first value only, never the value that went to the
      * {@code ._on_failure} column and is still in {@code _source}. If this fails, the proof is wrong for such a field and must not
      * be used until the loader, or the proof, is fixed.
@@ -2676,7 +2676,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         b.field("on_failure", "ignore");
                     })
                 );
-                // The second value is diverted: it is accepted, and it is not in the doc values.
+                // The second value is diverted: it is accepted, and it is not in the doc values or the stored fields.
                 Object diverted = loadSingleDocument(mapperService, params, b -> b.array("field", sample, sample));
                 Object once = loadSingleDocument(mapperService, params, b -> b.field("field", sample));
                 String message = "source mode " + sourceMode + ", preference " + preference;

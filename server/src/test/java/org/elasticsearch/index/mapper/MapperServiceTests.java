@@ -131,8 +131,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
     /**
      * A field with {@code multi_value=false} is reported as single-valued, so that ES|QL can rely on it. The
      * guarantee comes from the field's own {@code multi_value=false} or from the index-level default. With
-     * {@code on_failure=ignore} the extra value is kept out of the doc values instead of rejecting the document, so the field is still
-     * reported.
+     * {@code on_failure=ignore} the extra value is kept out of the doc values and the stored fields instead of rejecting the document,
+     * so the field is still reported.
      */
     public void testIsSingleValueGuaranteed() throws IOException {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
@@ -149,8 +149,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
             assertTrue(type, lookup.isStaticallySingleValued(type + "_single"));
             assertFalse(type, lookup.isStaticallySingleValued(type + "_multi"));
         }
-        // With on_failure=ignore the extra value is not in the doc values, which the ES|QL block loaders read, so the field is still
-        // single-valued.
+        // With on_failure=ignore the extra value is not in the doc values or the stored fields, which are what the ES|QL block loaders
+        // read, so the field is still single-valued.
         // MapperTestCase#testMultiValueFalseOnFailureIgnoreBlockLoaderSeesOneValue checks that the block loaders do not expose it.
         assertTrue(lookup.isStaticallySingleValued("keyword_ignore"));
         assertFalse(lookup.isStaticallySingleValued("unknown"));
@@ -173,12 +173,17 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     /**
-     * No {@code copy_to} can feed a field with {@code multi_value=false}: the {@code multi_value} parameter is only accepted in strict
-     * columnar index modes, and those modes reject {@code copy_to}. {@link MappingLookup#isStaticallySingleValued} also never reports a
-     * {@code copy_to} target, so the guarantee stays correct if either rule changes. If this test fails because one did, replace it with
-     * a test that a {@code copy_to} target is not reported.
+     * Today no {@code copy_to} can feed a field with {@code multi_value=false}: the {@code multi_value} parameter is only accepted in
+     * strict columnar index modes, and those modes reject {@code copy_to}. This pins that.
+     * <p>
+     * {@link MappingLookup#isStaticallySingleValued} does not exclude a {@code copy_to} target, because a target enforces
+     * {@code multi_value=false} like any field: the copied values are parsed by the target's {@code FieldMapper#parse}, in a context
+     * that shares the per-document set of fields that already have a value. A mapping with a {@code copy_to} source never takes the
+     * columnar batch path. If this test fails because {@code multi_value} can now be combined with {@code copy_to}, replace it with a
+     * test that a {@code copy_to} into a {@code multi_value=false} field rejects a second value, from one source array, from two
+     * sources, and from a source plus the field's own value. The single-value proof relies on that.
      */
-    public void testSingleValueGuaranteeExcludesCopyTo() {
+    public void testMultiValueFalseCannotBeCombinedWithCopyTo() {
         Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(columnar, mapping(b -> {
             b.startObject("src").field("type", "keyword").field("copy_to", "target").endObject();

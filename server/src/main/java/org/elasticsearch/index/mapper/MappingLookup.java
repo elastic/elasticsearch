@@ -62,7 +62,6 @@ public final class MappingLookup {
     private final Set<String> vectorEmbeddingFields;
     private final Map<String, FieldMapper> dimensionFieldMappers;
     private final Map<String, FieldMapper> metricFieldMappers;
-    private final Set<String> copyToTargets;
     private final int runtimeFieldMappersCount;
     private final NestedLookup nestedLookup;
     // [nullability=false] field paths partitioned by their nearest nested parent path ("" = the root document). Each Lucene doc is checked
@@ -199,9 +198,7 @@ public final class MappingLookup {
         final Map<String, FieldMapper> dimensionMappers = new LinkedHashMap<>();
         final Map<String, FieldMapper> metricMappers = new LinkedHashMap<>();
         this.requiredFieldsByNestedParent = new HashMap<>();
-        final Set<String> copyToTargets = new HashSet<>();
         for (FieldMapper mapper : mappers) {
-            copyToTargets.addAll(mapper.copyTo().copyToFields());
             if (objects.containsKey(mapper.fullPath())) {
                 throw new MapperParsingException("Field [" + mapper.fullPath() + "] is defined both as an object and a field");
             }
@@ -278,7 +275,6 @@ public final class MappingLookup {
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.dimensionFieldMappers = Collections.unmodifiableMap(dimensionMappers);
         this.metricFieldMappers = Collections.unmodifiableMap(metricMappers);
-        this.copyToTargets = Collections.unmodifiableSet(copyToTargets);
         this.objectMappers = Collections.unmodifiableMap(objects);
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzers = Collections.unmodifiableMap(indexAnalyzers);
@@ -809,18 +805,13 @@ public final class MappingLookup {
 
     /**
      * Whether the mapping guarantees that a block loader sees at most one value per document for the field that {@code fieldType}
-     * describes. The field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field, for example from
-     * the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper, so it has no
-     * guarantee: the field type must be the one of the mapper.
-     * <p>
-     * {@code copy_to} targets are never guaranteed. Today {@code multi_value=false} and {@code copy_to} cannot be combined (see
-     * {@code MapperServiceTests#testSingleValueGuaranteeExcludesCopyTo}), but the values a {@code copy_to} adds are not described by the
-     * target's own mapper parameters, so this method does not rely on that.
+     * describes. The field type of an alias is the one of its target, so an alias has the guarantee of its target. A runtime field,
+     * for example from the request, replaces the field type of the mapped field it shadows. Its values do not come from the mapper,
+     * so it has no guarantee: the field type must be the one of the mapper.
      */
     public boolean isStaticallySingleValued(MappedFieldType fieldType) {
         String target = fieldType.name();
-        return copyToTargets.contains(target) == false
-            && fieldMappers.get(target) instanceof FieldMapper fieldMapper
+        return fieldMappers.get(target) instanceof FieldMapper fieldMapper
             && fieldMapper.fieldType() == fieldType
             && fieldMapper.guaranteesSingleValue();
     }

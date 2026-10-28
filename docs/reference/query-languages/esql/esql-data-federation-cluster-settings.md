@@ -38,9 +38,9 @@ $$$esql-federation-enabled$$$
 
     When this setting is `false`, the data source and dataset APIs aren't available, and a query on a dataset fails with `Unknown index [<dataset>]`. Existing data sources and datasets aren't deleted. They stay in the cluster state, and when you set it back to `true`, they're available again with their stored credentials.
 
-    {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [`Unknown index` error for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
+    {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [errors for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
 
-    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If you explicitly set this setting to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 

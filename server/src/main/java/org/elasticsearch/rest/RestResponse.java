@@ -164,6 +164,7 @@ public final class RestResponse implements Releasable {
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
+            ExceptionsHelper.logIfUnexpectedBug(e);
         }
         // if "error_trace" is turned on in the request, we want to render it in the rest response
         // for that the REST_EXCEPTION_SKIP_STACK_TRACE flag that if "true" omits the stack traces is

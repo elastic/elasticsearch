@@ -59,19 +59,19 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     private static final String TIME_FIELD = "ts";
     private static final String SUMMARY_COUNT_FIELD = "doc_count";
 
-    public void testValidateQueryGivenRequiredColumnsPresent() {
+    public void testRequiredColumnsPresentShouldPassValidation() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "long"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
         assertValidationSucceeds(harness.validator, ESQL_QUERY, null, TIME_FIELD, SUMMARY_COUNT_FIELD);
     }
 
-    public void testValidateQueryGivenNoSummaryCountFieldRequired() {
+    public void testNoSummaryCountFieldRequiredShouldPassValidation() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
         assertValidationSucceeds(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
     }
 
-    public void testValidateQueryGivenMissingTimeFieldFails() {
+    public void testMissingTimeFieldShouldFailValidation() {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -82,7 +82,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 
-    public void testValidateQueryGivenMissingSummaryCountFieldFails() {
+    public void testMissingSummaryCountFieldShouldFailValidation() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -94,12 +94,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.getMessage(), containsString("disable delayed-data checking"));
     }
 
-    public void testValidateQueryGivenIndexNotFoundSucceeds() {
+    public void testIndexNotFoundShouldSucceedValidation() {
         ValidatorHarness harness = new ValidatorHarness(new IndexNotFoundException("logs"));
         assertValidationSucceeds(harness.validator, ESQL_QUERY, null, TIME_FIELD, null);
     }
 
-    public void testValidateQueryGivenEsqlUnknownIndexVerificationExceptionSucceeds() {
+    public void testEsqlUnknownIndexVerificationExceptionShouldSucceedValidation() {
         ValidatorHarness harness = new ValidatorHarness(new VerificationException("Unknown index [logs]"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -118,7 +118,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateQueryGivenEsqlUnknownIndexInVerifierProblemListSucceeds() {
+    public void testEsqlUnknownIndexInVerifierProblemListShouldSucceedValidation() {
         ValidatorHarness harness = new ValidatorHarness(new VerificationException("Found 1 problem\nline 1:1: Unknown index [logs-new]"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -137,7 +137,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateQueryGivenEsqlUnknownColumnVerificationExceptionPropagates() {
+    public void testEsqlUnknownColumnVerificationExceptionShouldPropagate() {
         VerificationException unknownColumn = new VerificationException("Found 1 problem\nline 1:30: Unknown column [bucket]");
         ValidatorHarness harness = new ValidatorHarness(unknownColumn);
 
@@ -155,7 +155,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), equalTo(unknownColumn));
     }
 
-    public void testValidateQueryGivenNoMatchingProjectIsDeferred() {
+    public void testNoMatchingProjectShouldDeferValidation() {
         ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -174,7 +174,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateQueryGivenOtherExecutionFailurePropagates() {
+    public void testOtherExecutionFailureShouldPropagateFromValidation() {
         RuntimeException boom = new RuntimeException("query syntax error");
         ValidatorHarness harness = new ValidatorHarness(boom);
 
@@ -193,7 +193,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("query syntax error"));
     }
 
-    public void testValidateQueryAppendsLimitZeroWithoutInjectingCountColumn() {
+    public void testValidationQueryShouldAppendLimitZeroWithoutInjectingCountColumn() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "long"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -212,7 +212,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo(ESQL_QUERY + " | LIMIT 0"));
     }
 
-    public void testValidateQueryGivenTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
+    public void testTrailingLineCommentShouldAppendLimitZeroOnNewLineForValidation() {
         ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
 
         harness.validator.validateQuery(
@@ -230,7 +230,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("FROM logs | STATS c = COUNT(*) BY ts = BUCKET(@timestamp, 1h) // hourly\n | LIMIT 0"));
     }
 
-    public void testValidateQueryPassesProjectRouting() {
+    public void testProjectRoutingShouldReachValidationQuery() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -249,7 +249,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
     }
 
-    public void testValidateAccessForMintSucceeds() {
+    public void testMintAccessValidationShouldSucceed() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -269,7 +269,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedRouting, equalTo("_alias:_origin"));
     }
 
-    public void testValidateAccessForMintGivenTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
+    public void testMintAccessWithTrailingLineCommentShouldAppendLimitZeroOnNewLine() {
         ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn(TIME_FIELD, "date"))));
 
         harness.validator.validateAccessForMint(
@@ -285,7 +285,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("FROM logs | WHERE a > 1 // filter\n | LIMIT 0"));
     }
 
-    public void testValidateAccessForMintNoMatchingProjectIsDeferred() {
+    public void testMintAccessWithNoMatchingProjectShouldDefer() {
         ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -302,7 +302,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateAccessForMintIndexNotFoundIsDeferred() {
+    public void testMintAccessWithIndexNotFoundShouldDefer() {
         ValidatorHarness harness = new ValidatorHarness(new IndexNotFoundException("logs"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -319,7 +319,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateAccessForMintGivenEsqlUnknownIndexVerificationExceptionIsDeferred() {
+    public void testMintAccessWithEsqlUnknownIndexVerificationExceptionShouldDefer() {
         ValidatorHarness harness = new ValidatorHarness(new VerificationException("Unknown index [logs]"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -336,7 +336,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateAccessForMintOtherFailurePropagates() {
+    public void testMintAccessWithOtherFailureShouldPropagate() {
         RuntimeException securityFailure = new RuntimeException("auth failure");
         ValidatorHarness harness = new ValidatorHarness(securityFailure);
 
@@ -352,7 +352,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get(), equalTo(securityFailure));
     }
 
-    public void testValidateSourceTimeFieldGivenDateSucceeds() {
+    public void testDateSourceTimeFieldShouldPassValidation() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -385,7 +385,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
-    public void testValidateSourceTimeFieldGivenDateNanosSucceeds() {
+    public void testDateNanosSourceTimeFieldShouldPassValidation() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date_nanos"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -405,7 +405,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateSourceTimeFieldGivenWrongTypeFails() {
+    public void testWrongTypeSourceTimeFieldShouldFailValidation() {
         List<ColumnInfo> columns = List.of(mockColumn("bucket", "keyword"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -427,7 +427,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
     }
 
-    public void testValidateSourceTimeFieldGivenForbiddenFailureShouldPropagateStatus() {
+    public void testForbiddenSourceTimeFieldFailureShouldPropagateStatus() {
         ElasticsearchStatusException forbidden = new ElasticsearchStatusException("access denied", RestStatus.FORBIDDEN);
         ValidatorHarness harness = new ValidatorHarness(forbidden);
 
@@ -446,7 +446,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.FORBIDDEN));
     }
 
-    public void testValidateSourceTimeFieldGivenTooManyRequestsFailureShouldPropagateStatus() {
+    public void testTooManyRequestsSourceTimeFieldFailureShouldPropagateStatus() {
         ElasticsearchStatusException rateLimited = new ElasticsearchStatusException("rate limited", RestStatus.TOO_MANY_REQUESTS);
         ValidatorHarness harness = new ValidatorHarness(rateLimited);
 
@@ -465,12 +465,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
-    public void testIsDeferredExistenceFailureGivenLookupJoinUnknownIndexShouldDefer() {
+    public void testLookupJoinUnknownIndexShouldDeferExistenceFailure() {
         VerificationException lookupMissing = new VerificationException("Unknown index [fake-lookup]");
         assertTrue(EsqlDatafeedQueryValidator.isDeferredExistenceFailure(lookupMissing));
     }
 
-    public void testValidateSourceTimeFieldGivenUnknownColumnFails() {
+    public void testUnknownColumnSourceTimeFieldShouldFailValidation() {
         VerificationException unknownColumn = new VerificationException("Found 1 problem\nline 1:20: Unknown column [bucket]");
         ValidatorHarness harness = new ValidatorHarness(unknownColumn);
 
@@ -491,7 +491,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("STATS, BUCKET, or EVAL"));
     }
 
-    public void testValidateSourceTimeFieldGivenIndexNotFoundSucceeds() {
+    public void testIndexNotFoundSourceTimeFieldShouldSucceedValidation() {
         ValidatorHarness harness = new ValidatorHarness(new IndexNotFoundException("logs"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -510,7 +510,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateSourceTimeFieldGivenEsqlUnknownIndexVerificationExceptionSucceeds() {
+    public void testEsqlUnknownIndexSourceTimeFieldVerificationExceptionShouldSucceedValidation() {
         ValidatorHarness harness = new ValidatorHarness(new VerificationException("Found 1 problem\nline 1:1: Unknown index [logs]"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -529,7 +529,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateSourceTimeFieldGivenNoMatchingProjectIsDeferred() {
+    public void testNoMatchingProjectSourceTimeFieldShouldDeferValidation() {
         ValidatorHarness harness = new ValidatorHarness(new NoMatchingProjectException("_alias:*"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -548,7 +548,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(succeeded.get(), is(true));
     }
 
-    public void testValidateSourceTimeFieldProbesOnlyTheLeadingFromCommand() {
+    public void testSourceTimeFieldValidationShouldProbeOnlyLeadingFromCommand() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -567,7 +567,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("FROM logs | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
-    public void testValidateSourceTimeFieldGivenLeadingCommandEndingInLineCommentShouldAppendKeepOnNewLine() {
+    public void testLeadingCommandEndingInLineCommentShouldAppendKeepOnNewLineForSourceTimeField() {
         ValidatorHarness harness = new ValidatorHarness(buildResponse(List.of(mockColumn("@timestamp", "date"))));
 
         harness.validator.validateSourceTimeField(
@@ -585,7 +585,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("FROM logs // web tier\n | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
-    public void testValidateSourceTimeFieldGivenNonFromLeadingQuerySkips() {
+    public void testNonFromLeadingQueryShouldSkipSourceTimeFieldValidation() {
         ValidatorHarness harness = new ValidatorHarness(new RuntimeException("should not be invoked"));
 
         AtomicBoolean succeeded = new AtomicBoolean(false);
@@ -609,7 +609,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     // FROM-detection scan. extractLeadingCommand() returns the comment together with the FROM command (it
     // only skips comments while looking for the next top-level pipe, not when reporting the leading text),
     // so the probe-eligibility check must skip past the comment itself before comparing against "FROM".
-    public void testValidateSourceTimeFieldGivenLineCommentPrefixedQueryProbes() {
+    public void testLineCommentPrefixedQueryShouldProbeSourceTimeField() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -631,7 +631,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     // Same as above but for a leading block comment.
-    public void testValidateSourceTimeFieldGivenBlockCommentPrefixedQueryProbes() {
+    public void testBlockCommentPrefixedQueryShouldProbeSourceTimeField() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -656,7 +656,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     // and EsqlDataExtractor#fetchSourceRangeSummary already reuses extractLeadingCommand() generically (not
     // FROM-specific) at runtime, so a TS-leading datafeed query's runtime path already works. The PUT-time
     // validator must accept it too rather than silently skipping the source_time_field check.
-    public void testValidateSourceTimeFieldGivenTsLeadingQueryProbes() {
+    public void testTsLeadingQueryShouldProbeSourceTimeField() {
         List<ColumnInfo> columns = List.of(mockColumn("@timestamp", "date"));
         ValidatorHarness harness = new ValidatorHarness(buildResponse(columns));
 
@@ -677,7 +677,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(harness.capturedQuery, equalTo("TS metrics-* | KEEP ??sourceTimeField | LIMIT 0"));
     }
 
-    public void testValidateEmittedTimeValueInSourceWindowGivenNullShouldUseMessages() {
+    public void testNullEmittedTimeInSourceWindowShouldUseMessages() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> EsqlDatafeedQueryValidator.validateEmittedTimeValueInSourceWindow("job-1", TIME_FIELD, null, 100L, 200L)
@@ -688,7 +688,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
-    public void testCheckRequiredColumnsGivenAllPresentSucceeds() {
+    public void testAllRequiredColumnsPresentShouldSucceedCheck() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),
             mockColumn(SUMMARY_COUNT_FIELD, "long"),
@@ -697,12 +697,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null);
     }
 
-    public void testCheckRequiredColumnsGivenNoSummaryCountFieldRequiredSucceeds() {
+    public void testNoSummaryCountFieldRequiredShouldSucceedColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null);
     }
 
-    public void testCheckRequiredColumnsGivenMissingTimeFieldThrows() {
+    public void testMissingTimeFieldShouldThrowFromColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -712,7 +712,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 
-    public void testCheckRequiredColumnsGivenMissingTimeFieldAndDatafeedIdNamesTheDatafeed() {
+    public void testMissingTimeFieldWithDatafeedIdShouldNameDatafeedInColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -722,7 +722,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
 
-    public void testCheckRequiredColumnsGivenMissingSummaryCountFieldThrows() {
+    public void testMissingSummaryCountFieldShouldThrowFromColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -732,7 +732,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("numeric count column"));
     }
 
-    public void testCheckRequiredColumnsGivenBothMissingListsBothInError() {
+    public void testBothRequiredColumnsMissingShouldListBothInError() {
         List<ColumnInfo> columns = List.of(mockColumn("unrelated", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -744,7 +744,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("numeric count column"));
     }
 
-    public void testCheckRequiredColumnsGivenEmptyColumnsThrows() {
+    public void testEmptyColumnsShouldThrowFromColumnCheck() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> EsqlDatafeedQueryValidator.checkRequiredColumns(List.of(), TIME_FIELD, null, null)
@@ -803,28 +803,28 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testRequiredSummaryCountFieldWhenDelayedCheckEnabledAndFieldSet() {
+    public void testDelayedCheckEnabledWithFieldSetShouldReturnRequiredSummaryCountField() {
         Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
 
         assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), equalTo(SUMMARY_COUNT_FIELD));
     }
 
-    public void testRequiredSummaryCountFieldWhenDelayedCheckDisabledReturnsNull() {
+    public void testDelayedCheckDisabledShouldReturnNullRequiredSummaryCountField() {
         Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.disabledDelayedDataCheckConfig());
 
         assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
     }
 
-    public void testRequiredSummaryCountFieldWhenNoSummaryCountFieldSetReturnsNull() {
+    public void testNoSummaryCountFieldSetShouldReturnNullRequiredSummaryCountField() {
         Job job = buildJob("job-1", null);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig());
 
         assertThat(EsqlDatafeedQueryValidator.requiredSummaryCountField(datafeed, job), nullValue());
     }
 
-    public void testRequiredSummaryCountFieldWhenDelayedDataCheckConfigNullReturnsNull() {
+    public void testNullDelayedDataCheckConfigShouldReturnNullRequiredSummaryCountField() {
         Job job = buildJob("job-1", SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeedWithNullDelayedDataCheckConfig("datafeed-1", "job-1");
 
@@ -877,7 +877,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         return new TestEsqlQueryResponse(mockEsqlResponse(columns));
     }
 
-    public void testRejectRemoteClusterSourcesGivenRemoteIndexShouldFailWithBadRequest() {
+    public void testRemoteIndexShouldFailRemoteClusterSourceRejection() {
         ElasticsearchStatusException e = expectRejected("FROM remote:logs-* | STATS c = COUNT(*) BY BUCKET(@timestamp, 1h)");
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("do not support remote cluster sources"));
@@ -885,36 +885,36 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("query local indices only"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenRemoteIndexInCommaListShouldFail() {
+    public void testRemoteIndexInCommaListShouldFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("FROM a,remote:b").getMessage(), containsString("[remote:b]"));
         assertThat(expectRejected("FROM a , b , east:c METADATA _id").getMessage(), containsString("[east:c]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenWildcardClusterShouldFail() {
+    public void testWildcardClusterShouldFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("FROM *:logs-*").getMessage(), containsString("[*:logs-*]"));
         assertThat(expectRejected("FROM cl*:logs-*").getMessage(), containsString("[cl*:logs-*]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenQuotedClusterPrefixShouldFail() {
+    public void testQuotedClusterPrefixShouldFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("FROM \"east:logs-*\"").getMessage(), containsString("[east:logs-*]"));
         assertThat(expectRejected("FROM a, \"\"\"east:logs\"\"\"").getMessage(), containsString("[east:logs]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenTimeSeriesSourceShouldFail() {
+    public void testTimeSeriesSourceShouldFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("TS remote:metrics-* | STATS AVG(cpu)").getMessage(), containsString("[remote:metrics-*]"));
         assertThat(expectRejected("ts metrics-*,remote:metrics-*").getMessage(), containsString("[remote:metrics-*]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenExcludedRemoteIndexShouldFail() {
+    public void testExcludedRemoteIndexShouldFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("FROM logs-*,-remote:logs-old").getMessage(), containsString("[-remote:logs-old]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenLeadingCommentShouldStillFail() {
+    public void testLeadingCommentWithRemoteIndexShouldStillFailRemoteClusterSourceRejection() {
         assertThat(expectRejected("// source\nFROM /* inline */ remote:logs").getMessage(), containsString("[remote:logs]"));
         assertThat(expectRejected("FROM a, // next\n remote:b").getMessage(), containsString("[remote:b]"));
     }
 
-    public void testRejectRemoteClusterSourcesGivenLocalSourcesShouldAccept() {
+    public void testLocalSourcesShouldAcceptRemoteClusterSourceRejection() {
         for (String query : List.of(
             "FROM logs-*",
             "FROM logs-* METADATA _id",
@@ -929,13 +929,13 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         }
     }
 
-    public void testRejectRemoteClusterSourcesGivenSelectorSyntaxShouldAccept() {
+    public void testSelectorSyntaxShouldAcceptRemoteClusterSourceRejection() {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::failures", false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM idx::data, other::failures METADATA _id", false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM \"idx::failures\"", false);
     }
 
-    public void testRejectRemoteClusterSourcesGivenColonOutsideSourceListShouldAccept() {
+    public void testColonOutsideSourceListShouldAcceptRemoteClusterSourceRejection() {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("// remote:logs\nFROM logs-*", false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM /* east:logs */ logs-*", false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* // remote:logs", false);
@@ -943,17 +943,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-* METADATA _id | LOOKUP JOIN remote:lookup ON k", false);
     }
 
-    public void testRejectRemoteClusterSourcesGivenOriginQualifierShouldAccept() {
+    public void testOriginQualifierShouldAcceptRemoteClusterSourceRejection() {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM _origin:logs-*", false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM logs-*,-_origin:logs-old", false);
     }
 
-    public void testRejectRemoteClusterSourcesGivenCrossProjectEnabledShouldAcceptProjectQualifiedSources() {
+    public void testCrossProjectEnabledWithProjectQualifiedSourcesShouldAcceptRemoteClusterSourceRejection() {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM linked-project-1:logs-*", true);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("FROM *:logs-*", true);
     }
 
-    public void testRejectRemoteClusterSourcesGivenNoQueryOrNonSourceQueryShouldAccept() {
+    public void testNoQueryOrNonSourceQueryShouldAcceptRemoteClusterSourceRejection() {
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources(null, false);
         EsqlDatafeedQueryValidator.rejectRemoteClusterSources("ROW a = \"remote:idx\"", false);
     }

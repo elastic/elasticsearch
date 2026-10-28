@@ -23,42 +23,42 @@ import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryClauseScannerTests extends ESTestCase {
 
-    public void testHasAggregationGivenNoStatsCommandIsFalse() {
+    public void testNoStatsCommandShouldReportNoAggregation() {
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP @timestamp, bytes"), is(false));
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-*"), is(false));
     }
 
-    public void testHasAggregationGivenTopLevelStatsIsTrue() {
+    public void testTopLevelStatsShouldReportAggregation() {
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS COUNT(*)"), is(true));
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | STATS doc_count = COUNT(*) BY BUCKET(@timestamp, 1h)"), is(true));
     }
 
-    public void testHasAggregationGivenMixedCaseStatsIsTrue() {
+    public void testMixedCaseStatsShouldReportAggregation() {
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | stats COUNT(*)"), is(true));
     }
 
-    public void testHasAggregationGivenStatsOnlyInSubqueryIsFalse() {
+    public void testStatsOnlyInSubqueryShouldReportNoAggregation() {
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE id IN (FROM other | STATS COUNT(*))"), is(false));
     }
 
-    public void testHasAggregationGivenStatsSubstringIsFalse() {
+    public void testStatsSubstringShouldReportNoAggregation() {
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | KEEP statsField"), is(false));
         assertThat(EsqlQueryClauseScanner.hasAggregation("FROM logs-* | WHERE message == \"STATS COUNT(*)\""), is(false));
     }
 
-    public void testScanDetectsOuterLimitAtDepthZero() {
+    public void testOuterLimitAtDepthZeroShouldBeDetectedByScan() {
         EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan("FROM logs | LIMIT 5", "ts");
         assertThat(scan.hasOuterLimit(), is(true));
         assertThat(EsqlQueryClauseScanner.scan("FROM logs | WHERE x IN (FROM other | LIMIT 1)", "ts").hasOuterLimit(), is(false));
     }
 
-    public void testScanDetectsOuterTimeWhereAndSort() {
+    public void testOuterTimeWhereAndSortShouldBeDetectedByScan() {
         assertThat(EsqlQueryClauseScanner.scan("FROM logs | WHERE ts > 0", "ts").hasOuterTimeWhere(), is(true));
         assertThat(EsqlQueryClauseScanner.scan("FROM logs | SORT ts DESC", "ts").hasOuterTimeSort(), is(true));
         assertThat(EsqlQueryClauseScanner.scan("FROM logs | WHERE message == \"WHERE ts\"", "ts").hasOuterTimeWhere(), is(false));
     }
 
-    public void testScanIgnoresClausesInsideStringsCommentsAndBackticks() {
+    public void testClausesInsideStringsCommentsAndBackticksShouldBeIgnoredByScan() {
         String query = "FROM logs | KEEP `WHERE ts`, value /* WHERE ts | SORT ts | LIMIT 20 */ "
             + "| EVAL note = \"WHERE ts | SORT ts | LIMIT 20\" "
             + "| EVAL triple = \"\"\"WHERE ts | SORT ts | LIMIT 20\"\"\" "
@@ -74,7 +74,7 @@ public class EsqlQueryClauseScannerTests extends ESTestCase {
      * at build time). This pins it to the real parser on queries that hide LIMIT/STATS-like text in strings,
      * comments and quoted identifiers, so grammar drift shows up as a test failure.
      */
-    public void testScanAgreesWithEsqlParserOnOuterLimitAndStats() {
+    public void testOuterLimitAndStatsShouldAgreeBetweenScanAndEsqlParser() {
         EsqlParser parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
         List<String> queries = List.of(
             "FROM logs",
@@ -107,12 +107,12 @@ public class EsqlQueryClauseScannerTests extends ESTestCase {
         }
     }
 
-    public void testEndsInLineComment() {
+    public void testQueryEndingInLineCommentShouldBeDetected() {
         assertThat(EsqlQueryClauseScanner.endsInLineComment("FROM logs // note"), is(true));
         assertThat(EsqlQueryClauseScanner.endsInLineComment("FROM logs"), is(false));
     }
 
-    public void testExtractLeadingCommandStopsAtDepthZeroPipe() {
+    public void testLeadingCommandExtractionShouldStopAtDepthZeroPipe() {
         assertThat(EsqlQueryClauseScanner.extractLeadingCommand("FROM logs | STATS c = COUNT(*)"), equalTo("FROM logs "));
         assertThat(EsqlQueryClauseScanner.extractLeadingCommand("FROM logs | WHERE x IN (FROM o | LIMIT 1)"), equalTo("FROM logs "));
     }

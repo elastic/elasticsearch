@@ -19,7 +19,13 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
-// Each case must stay identical to the Project step of that node's own rule; only the bottom-up direction differs.
+/**
+ * Moves every {@link Project} up past the streaming nodes above it in a single bottom-up pass. The top-down rules each move a
+ * {@code Project} one node per batch iteration, so a long chain of {@code LOOKUP JOIN} blocks would otherwise need one
+ * iteration per block and can exceed the batch's rule execution limit.
+ * <p>
+ * Each case must stay identical to the {@code Project} step of that node's own rule; only the bottom-up direction differs.
+ */
 public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPlan> implements OptimizerRules.LocalAware<LogicalPlan> {
 
     private final PushDownJoinPastProject pushDownJoinPastProject = new PushDownJoinPastProject();

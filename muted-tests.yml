@@ -418,13 +418,23 @@ tests:
   - :x-pack:plugin:ccr:internalClusterTest
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/163486
-- class: org.elasticsearch.compute.operator.topn.ParallelTopNOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testConcurrentReleaseOfSharedDictionaryThroughRealOperator
-  issue: https://github.com/elastic/elasticsearch/issues/163491
 - class: org.elasticsearch.xpack.spatial.index.fielddata.LatLonGeometryRelationVisitorTests
   tasks:
   - :x-pack:plugin:spatial:test
   method: testPoint
   issue: https://github.com/elastic/elasticsearch/issues/163502
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  tasks:
+  - :x-pack:plugin:yamlRestCompatTest
+  method: test {yaml=data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API}
+  issue: https://github.com/elastic/elasticsearch/issues/163653
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  tasks:
+  - :x-pack:plugin:yamlRestCompatTest
+  method: test {yaml=deprecation/10_basic/Test Deprecations}
+  issue: https://github.com/elastic/elasticsearch/issues/163655
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658

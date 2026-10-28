@@ -36,6 +36,7 @@ artifacts {
 
 tasks.named('yamlRestTest') {
   usesDefaultDistribution("transform yaml rest tests require the default distribution")
+  usesBwcDistribution(buildParams.bwcVersions.minimumWireCompatibleVersion)
 }
 
 addQaCheckDependencies(project)

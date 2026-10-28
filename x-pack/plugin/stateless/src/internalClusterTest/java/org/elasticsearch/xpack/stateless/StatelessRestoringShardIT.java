@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.painless.PainlessPlugin;
@@ -56,12 +57,12 @@ public class StatelessRestoringShardIT extends AbstractStatelessPluginIntegTestC
     private static final String SNAPSHOT = "test-snapshot";
     private static final String RESTORED_INDEX = "restored-index";
 
-    private static final String PAINLESS_EXECUTE = """
+    private static final String PAINLESS_EXECUTE = Strings.format("""
         {
           "script": { "source": "true" },
           "context": "filter",
           "context_setup": { "index": "%s", "document": { "field": "value" } }
-        }""".formatted(RESTORED_INDEX);
+        }""", RESTORED_INDEX);
 
     /**
      * The REST tests need a real HTTP transport.

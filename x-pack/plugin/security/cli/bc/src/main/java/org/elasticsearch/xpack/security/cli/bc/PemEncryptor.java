@@ -39,8 +39,12 @@ public final class PemEncryptor {
      * @param algorithm the OpenSSL name of the encryption algorithm: {@code AES-128-CBC}, {@code AES-192-CBC}, {@code AES-256-CBC} or
      *                  {@code DES-EDE3-CBC}
      * @param password  the password from which the encryption key is derived
+     * @throws IllegalArgumentException if {@code password} is {@code null} or empty
      */
     public PemEncryptor(String algorithm, char[] password) {
+        if (password == null || password.length == 0) {
+            throw new IllegalArgumentException("password empty");
+        }
         record Params(String transformation, String keyAlgorithm, int keyLength, int ivLength) {}
         final Params params = switch (algorithm) {
             case "AES-128-CBC" -> new Params("AES/CBC/PKCS5Padding", "AES", 16, 16);

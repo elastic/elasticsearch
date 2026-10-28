@@ -69,6 +69,15 @@ public class PemEncryptorTests extends ESTestCase {
         }
     }
 
+    public void testEmptyPasswordIsRejected() {
+        for (char[] pwd : new char[][] { new char[0], null }) {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> new PemEncryptor("AES-128-CBC", pwd)).getMessage(),
+                equalTo("password empty")
+            );
+        }
+    }
+
     public void testUnsupportedAlgorithm() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

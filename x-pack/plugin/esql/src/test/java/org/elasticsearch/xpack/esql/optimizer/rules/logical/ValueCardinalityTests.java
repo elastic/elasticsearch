@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
 import java.util.Map;
 import java.util.Set;
@@ -104,6 +106,21 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     public void testKeepAfterEvalKeepsTheProof() {
         String query = "FROM test | EVAL k = MV_MIN(languages) | KEEP k | STATS c = COUNT(*) BY k";
         assertThat(cardinalityOfKey(query, "k"), equalTo(SINGLE));
+    }
+
+    /**
+     * The optimizer turns {@code SORT} followed by {@code LIMIT} into one {@code TopN}, which keeps the proof like the two nodes it
+     * replaces. The other tests run on analyzed plans, so this one runs on an optimized plan, where {@code TopN} is what the walk meets.
+     */
+    public void testTopNKeepsTheProofOnAnOptimizedPlan() {
+        LogicalPlan byReducer = optimizedPlan("FROM test | EVAL k = MV_MIN(languages) | SORT k | LIMIT 5 | STATS c = COUNT(*) BY k");
+        assertThat("the optimizer made a TopN", byReducer.collect(TopN.class), hasSize(1));
+        assertThat(cardinalityOfKey(byReducer, "k"), equalTo(SINGLE));
+
+        String query = "FROM test | SORT languages | LIMIT 10 | STATS c = COUNT(*) BY languages";
+        LogicalPlan byMapping = optimize(analyzerWithSingleValuedFields(Set.of("languages")).query(query));
+        assertThat("the optimizer made a TopN", byMapping.collect(TopN.class), hasSize(1));
+        assertThat(cardinalityOfKey(byMapping, "languages"), equalTo(SINGLE));
     }
 
     public void testRowLiteralIsSingle() {
@@ -213,7 +230,10 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     private ValueCardinality cardinalityOfKey(String query, String keyName, Set<String> singleValuedFields) {
-        var plan = analyzerWithSingleValuedFields(singleValuedFields).query(query);
+        return cardinalityOfKey(analyzerWithSingleValuedFields(singleValuedFields).query(query), keyName);
+    }
+
+    private ValueCardinality cardinalityOfKey(LogicalPlan plan, String keyName) {
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, hasSize(greaterThanOrEqualTo(1)));
         // The last STATS is the one whose key the query asks about; collect lists the outermost first.

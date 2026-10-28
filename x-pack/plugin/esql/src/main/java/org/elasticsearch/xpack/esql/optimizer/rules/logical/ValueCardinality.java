@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
 import java.util.Collection;
 import java.util.List;
@@ -142,8 +143,9 @@ enum ValueCardinality {
             // FROM test | STATS BY languages
             return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
-        if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy) {
-            // WHERE, LIMIT and SORT keep, drop or reorder rows and do not change columns, so the child is asked.
+        if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy || plan instanceof TopN) {
+            // WHERE, LIMIT and SORT keep, drop or reorder rows and do not change columns, so the child is asked. The optimizer turns
+            // SORT followed by LIMIT into one TopN, which does the same.
             // FROM test | EVAL k = MV_MIN(languages) | WHERE k > 1 | SORT k | LIMIT 5 | STATS BY k
             return ofAttribute(attribute, plan.children().get(0), depth + 1);
         }

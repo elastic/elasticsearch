@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAlloc
 import org.elasticsearch.xpack.stateless.allocation.StatelessIndexSettingProvider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactory;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
@@ -429,6 +430,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
+            res.add(StatelessCommitService.STATELESS_COMMIT_NOTIFICATION_INCLUDE_MERGE_PRODUCED_SEGMENTS);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
@@ -1228,7 +1230,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
                         NoopCircuitBreaker.INSTANCE,
                         StatelessReaderHeapMetrics.NOOP,
-                        new ReshardSearchFilters(Settings.EMPTY)
+                        new ReshardSearchFilters(Settings.EMPTY),
+                        SearchColdSegmentsMetrics.NOOP
                     );
                 }
             });

@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -278,21 +279,50 @@ public class IndexEngine extends InternalEngine {
     }
 
     /**
-     * Reads the value range for the field with the date mapping type {@param timestampFieldMappedType} from the underlying
-     * lucene directory {@code indexCommit#getDirectory}.
-     * It only considers a subset of the segments (i.e. {@param subsetSegmentNames}) among those reachable from the
-     * {@code indexCommit#getSegmentsFileName} commit file.
-     * Note that soft deletes, which are persisted in generational files, are not considered (unless all docs in a particular
-     * segment are deleted, which un-references the segment internally).
+     * Information read from a commit's additional (new) segments in a single pass over its {@link SegmentInfos}.
+     *
+     * @param timestampFieldValueRange   the {@code @timestamp} field value range across the new segments, or {@code null} if there is no
+     *                                   {@code @timestamp} field or no value was found
+     * @param newMergedSegmentsSizes  the new merge-produced segments mapped from segment name (the shared file prefix, e.g. {@code _5})
+     *                                   to size in bytes, or {@code null} when not computed
      */
-    public static @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossSegments(
+    public record AdditionalSegmentsInfos(
+        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampFieldValueRange,
+        @Nullable Map<String, Long> newMergedSegmentsSizes
+    ) {}
+
+    /**
+     * Reads, in a single pass over the commit's {@link SegmentInfos}, the {@code @timestamp} field value range and/or the merge-produced
+     * segment sizes for the commit's additional (new) segments. Reading both together avoids reading the segment infos twice.
+     * <p>
+     * The value range only considers a subset of the segments (i.e. {@param additionalSegmentNames}) among those reachable from the
+     * {@code indexCommit#getSegmentsFileName} commit file. Soft deletes, which are persisted in generational files, are not considered
+     * (unless all docs in a particular segment are deleted, which un-references the segment internally).
+     * <p>
+     * Merge-produced segments are those recorded in the Lucene diagnostics as {@link IndexWriter#SOURCE_MERGE}. A merge introduces no new
+     * documents, so these segments may be read "cold" from search (served from the indexing node before their BCC is uploaded); the sizes
+     * are propagated in the new-commit notification so the search node can measure cold merge segments.
+     *
+     * @param indexCommit                  the commit whose new segments are inspected
+     * @param additionalSegmentNames       the names of the segments newly added by this commit (the shared file prefixes, e.g. {@code _5})
+     * @param timestampFieldMappedType     the {@code @timestamp} field type, or {@code null} to skip the timestamp range computation
+     * @param includeMergeProducedSegments whether to also compute the merge-produced segment sizes; when {@code false} the returned
+     *                                     {@link AdditionalSegmentsInfos#newMergedSegmentsSizes()} is {@code null}
+     */
+    public static AdditionalSegmentsInfos readAdditionalSegmentsInfos(
         IndexCommit indexCommit,
-        Set<String> subsetSegmentNames,
-        @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType
+        Set<String> additionalSegmentNames,
+        @Nullable DateFieldMapper.DateFieldType timestampFieldMappedType,
+        boolean includeMergeProducedSegments
     ) throws IOException {
-        if (timestampFieldMappedType == null || subsetSegmentNames.isEmpty()) {
-            return null;
+        if (additionalSegmentNames.isEmpty()) {
+            return new AdditionalSegmentsInfos(null, includeMergeProducedSegments ? Map.of() : null);
         }
+        if (timestampFieldMappedType == null && includeMergeProducedSegments == false) {
+            return new AdditionalSegmentsInfos(null, null);
+        }
+        final boolean readTimestampRange = timestampFieldMappedType != null;
+        final Map<String, Long> newMergedSegmentsSizes = includeMergeProducedSegments ? new HashMap<>() : null;
         long minTimestampValue = Long.MAX_VALUE;
         long maxTimestampValue = Long.MIN_VALUE;
         boolean found = false;
@@ -301,7 +331,7 @@ public class IndexEngine extends InternalEngine {
             Set<String> allSegmentNames = StreamSupport.stream(segmentInfos.spliterator(), false)
                 .map(segmentCommitInfo -> segmentCommitInfo.info.name)
                 .collect(Collectors.toUnmodifiableSet());
-            for (var segmentName : subsetSegmentNames) {
+            for (var segmentName : additionalSegmentNames) {
                 assert IndexFileNames.getExtension(segmentName) == null
                     : "Expected a segment name not a lucene file name [" + segmentName + "]";
                 assert allSegmentNames.contains(segmentName)
@@ -317,7 +347,14 @@ public class IndexEngine extends InternalEngine {
             }
         }
         for (var segmentCommitInfo : segmentInfos) {
-            if (subsetSegmentNames.contains(segmentCommitInfo.info.name) == false) {
+            if (additionalSegmentNames.contains(segmentCommitInfo.info.name) == false) {
+                continue;
+            }
+            if (newMergedSegmentsSizes != null
+                && IndexWriter.SOURCE_MERGE.equals(segmentCommitInfo.info.getDiagnostics().get(IndexWriter.SOURCE))) {
+                newMergedSegmentsSizes.put(segmentCommitInfo.info.name, segmentCommitInfo.sizeInBytes());
+            }
+            if (readTimestampRange == false) {
                 continue;
             }
             var codec = segmentCommitInfo.info.getCodec();
@@ -380,20 +417,22 @@ public class IndexEngine extends InternalEngine {
                 }
             }
         }
+        final StatelessCompoundCommit.TimestampFieldValueRange timestampFieldValueRange;
         if (found) {
             if (timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
-                return new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
+                timestampFieldValueRange = new StatelessCompoundCommit.TimestampFieldValueRange(minTimestampValue, maxTimestampValue);
             } else {
                 // Resolution#roundDownToMillis doesn't handle negative values
                 assert timestampFieldMappedType.resolution() == DateFieldMapper.Resolution.NANOSECONDS;
-                return new StatelessCompoundCommit.TimestampFieldValueRange(
+                timestampFieldValueRange = new StatelessCompoundCommit.TimestampFieldValueRange(
                     Math.floorDiv(minTimestampValue, 1_000_000L),
                     Math.ceilDiv(maxTimestampValue, 1_000_000L)
                 );
             }
         } else {
-            return null;
+            timestampFieldValueRange = null;
         }
+        return new AdditionalSegmentsInfos(timestampFieldValueRange, newMergedSegmentsSizes);
     }
 
     @Override

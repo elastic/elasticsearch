@@ -135,10 +135,39 @@ public class SearchCommitPrefetcher {
         this.forcePrefetch = clusterSettings.get(FORCE_PREFETCH_SETTING);
     }
 
+    /**
+     * Outcome of handling a new commit notification, reflecting whether (and how) the commit's segments were prefetched. Used by the caller
+     * to tag observability signals (e.g. cold merge segments) once the commit is notified by the refresh.
+     */
+    public enum PrefetchResult {
+        /** Prefetching is disabled, so the commit's segments will not be warmed proactively. */
+        DISABLED("disabled"),
+        /** The shard is search-idle (no searcher acquired recently), so prefetching was skipped. */
+        IDLING("idling"),
+        /** The store is closing, so prefetching was skipped. */
+        CLOSING("closing"),
+        /** The commit's BCC is not uploaded and prefetching of non-uploaded commits is disabled, so prefetching was skipped. */
+        SKIPPED("skipped"),
+        /** Prefetching ran in the foreground: the refresh is held back until the segments are warmed. */
+        FOREGROUND("foreground"),
+        /** Prefetching was dispatched in the background: the refresh proceeds concurrently with the warming. */
+        BACKGROUND("background");
+
+        private final String value;
+
+        PrefetchResult(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
+        }
+    }
+
     public void maybePrefetchLatestCommit(
         NewCommitNotification notification,
         long timeSinceLastSearcherWasAcquiredInMillis,
-        ActionListener<Void> listener
+        ActionListener<PrefetchResult> listener
     ) {
         boolean enabled = prefetcherDynamicSettings.prefetchingEnabled();
         if (enabled == false
@@ -169,7 +198,7 @@ public class SearchCommitPrefetcher {
                 ),
                 (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
             );
-            listener.onResponse(null);
+            listener.onResponse(enabled == false ? PrefetchResult.DISABLED : PrefetchResult.IDLING);
             return;
         }
 
@@ -192,7 +221,7 @@ public class SearchCommitPrefetcher {
         // entire commit from the indexing node as it adds extra load to the indexing nodes.
         if (prefetchNonUploadedCommits == false && notification.latestUploadedBatchedCompoundCommitTermAndGen() == null) {
             logPrefetchCompleted(shardId, notification, 0L, 0L, totalPrefetchedBytes.get());
-            listener.onResponse(null);
+            listener.onResponse(PrefetchResult.SKIPPED);
             return;
         }
 
@@ -202,13 +231,28 @@ public class SearchCommitPrefetcher {
             // If we prefetch in the background the new commit notification would go through and the refresh
             // will be executed concurrently with the prefetching. Otherwise, the refresh won't be executed
             // until the prefetching finishes.
-            ActionListener<Void> prefetchListener = prefetchInBackground ? ActionListener.noop() : l;
-            prefetchLatestCommit(notification, prefetchListener);
-
             if (prefetchInBackground) {
-                l.onResponse(null);
+                prefetchLatestCommit(notification, ActionListener.noop());
+                l.onResponse(PrefetchResult.BACKGROUND);
+            } else {
+                prefetchLatestCommit(notification, l.map(unused -> PrefetchResult.FOREGROUND));
             }
         }));
+    }
+
+    /**
+     * Computes the total size in bytes of the segment files produced by merges.
+     */
+    public static long coldMergeBytes(NewCommitNotification notification) {
+        final Map<String, Long> newMergedSegmentsSizes = notification.newMergedSegmentsSizes();
+        assert newMergedSegmentsSizes != null : "caller must check newMergedSegmentsSizes() != null before calling this method";
+        long coldMergeBytes = 0L;
+        if (newMergedSegmentsSizes != null) {
+            for (Long segmentSizeInBytes : newMergedSegmentsSizes.values()) {
+                coldMergeBytes += segmentSizeInBytes;
+            }
+        }
+        return coldMergeBytes;
     }
 
     private void prefetchLatestCommit(NewCommitNotification notification, ActionListener<Void> listener) {

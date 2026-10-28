@@ -145,7 +145,8 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                                 request.getBatchedCompoundCommitGeneration(),
                                 request.getLatestUploadedBatchedCompoundCommitTermAndGen(),
                                 request.getClusterStateVersion(),
-                                request.getNodeId()
+                                request.getNodeId(),
+                                request.getNewMergedSegmentsSizes()
                             );
                             searchEngine.onCommitNotification(notification, l.map(v -> searchEngine));
                         }

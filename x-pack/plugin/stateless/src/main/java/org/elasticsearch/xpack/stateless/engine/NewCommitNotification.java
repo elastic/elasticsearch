@@ -11,6 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 
+import java.util.Map;
+
 /**
  * Notification of a newly created compound commit.
  *
@@ -21,13 +23,17 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
  * @param clusterStateVersion                               The cluster state version on the node at the time the new compound commit was
  *                                                          notified
  * @param nodeId                                            The id of the node that notified the new compound commit
+ * @param newMergedSegmentsSizes                         This commit's new merge-produced segments, mapped from segment name (the shared
+ *                                                          file prefix, e.g. {@code _5}) to size in bytes. {@code null} when not computed
+ *                                                          (feature disabled on the indexing node, or received from an older node).
  */
 public record NewCommitNotification(
     StatelessCompoundCommit compoundCommit,
     long batchedCompoundCommitGeneration,
     @Nullable PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen,
     long clusterStateVersion,
-    String nodeId
+    String nodeId,
+    @Nullable Map<String, Long> newMergedSegmentsSizes
 ) {
     public boolean isBatchedCompoundCommitUploaded() {
         return latestUploadedBatchedCompoundCommitTermAndGen != null

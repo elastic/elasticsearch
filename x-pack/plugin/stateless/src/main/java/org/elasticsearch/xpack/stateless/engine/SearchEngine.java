@@ -55,6 +55,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SearchColdSegmentsMetrics;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
@@ -122,6 +123,7 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    private final SearchColdSegmentsMetrics coldSegmentsMetrics;
     // Used for filtering unowned documents from a shard during resharding.
     private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
@@ -178,7 +180,8 @@ public class SearchEngine extends Engine {
         SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
         CircuitBreaker readerHeapBreaker,
         StatelessReaderHeapMetrics readerHeapMetrics,
-        ReshardSearchFilters reshardSearchFilters
+        ReshardSearchFilters reshardSearchFilters,
+        SearchColdSegmentsMetrics coldSegmentsMetrics
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -365,6 +368,7 @@ public class SearchEngine extends Engine {
                 }
             });
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
+            this.coldSegmentsMetrics = coldSegmentsMetrics;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
@@ -607,18 +611,30 @@ public class SearchEngine extends Engine {
         searchDirectory.updateLatestCommitInfo(ccTermAndGen, notification.nodeId());
 
         SubscribableListener
-            // Dispatch the pre-fetching if enabled right away and if there are multiple concurrent
-            // pre-fetching the cache would take care of only pre-fetching the missing gaps once.
-            // There's a small risk of a merge invalidating the background pre-fetching, and wasting
-            // cache space and requests.
-            .<Void>newForked(l -> maybePreFetchLatestCommit(notification, l))
-            .<Void>andThen(l -> {
+        // Dispatch the pre-fetching if enabled right away and if there are multiple concurrent
+        // pre-fetching the cache would take care of only pre-fetching the missing gaps once.
+        // There's a small risk of a merge invalidating the background pre-fetching, and wasting
+        // cache space and requests.
+        .<SearchCommitPrefetcher.PrefetchResult>newForked(l -> maybePreFetchLatestCommit(notification, l))
+            .<Void>andThen((l, prefetchResult) -> {
                 // Update the tracker only after the foreground prefetch completes so that
                 // isUploaded=true is never observable before the shared blob cache is populated.
                 // For background prefetch this andThen fires almost immediately (the prefetch is
                 // async), so the window is negligible; for foreground prefetch it closes entirely.
                 searchDirectory.updateLatestUploadedBcc(notification.latestUploadedBatchedCompoundCommitTermAndGen());
-                if (addOrExecuteSegmentGenerationListener(ccTermAndGen, l.map(g -> null))) {
+                // Only record cold segments when the indexing shard actually sent the segment sizes produces by merges (feature enabled
+                // and recent enough node). When present, record once the new segments are actually refreshed and therefore usabled for
+                // searches. The record is tagged with the prefetch outcome so we can tell apart cold segments that were prefetched or not.
+                final ActionListener<Long> refreshListener;
+                if (notification.newMergedSegmentsSizes() != null) {
+                    refreshListener = l.map(g -> {
+                        recordColdSegments(notification, prefetchResult);
+                        return null;
+                    });
+                } else {
+                    refreshListener = l.map(g -> null);
+                }
+                if (addOrExecuteSegmentGenerationListener(ccTermAndGen, refreshListener)) {
                     commitNotifications.add(notification);
                     if (pendingCommitNotifications.incrementAndGet() == 1) {
                         processCommitNotifications();
@@ -628,10 +644,29 @@ public class SearchEngine extends Engine {
             .addListener(listener);
     }
 
-    private void maybePreFetchLatestCommit(NewCommitNotification newCommitNotification, ActionListener<Void> listener) {
+    private void recordColdSegments(final NewCommitNotification notification, final SearchCommitPrefetcher.PrefetchResult prefetchResult) {
+        assert notification.newMergedSegmentsSizes() != null;
+        // Re-check against the latest uploaded BCC known now (after the refresh)
+        var bccTermAndGen = new PrimaryTermAndGeneration(
+            notification.compoundCommit().primaryTermAndGeneration().primaryTerm(),
+            notification.batchedCompoundCommitGeneration()
+        );
+        if (searchDirectory.isBccUploaded(bccTermAndGen) == false) {
+            coldSegmentsMetrics.recordColdSegments(
+                notification.compoundCommit().getInternalFilesSizeInBytes(),
+                SearchCommitPrefetcher.coldMergeBytes(notification),
+                prefetchResult.value()
+            );
+        }
+    }
+
+    private void maybePreFetchLatestCommit(
+        NewCommitNotification newCommitNotification,
+        ActionListener<SearchCommitPrefetcher.PrefetchResult> listener
+    ) {
         if (store.isClosing() || store.tryIncRef() == false) {
             // If the store is closed just skip prefetching
-            listener.onResponse(null);
+            listener.onResponse(SearchCommitPrefetcher.PrefetchResult.CLOSING);
             return;
         }
         long timeSinceLastSearcherWasAcquiredInMillis = lastSearcherAcquiredTime == 0L
@@ -641,9 +676,10 @@ public class SearchEngine extends Engine {
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
             listener.delegateResponse((l, e) -> {
-                // We don't want to prevent the new commit notification to make progress
+                // We don't want to prevent the new commit notification to make progress. The prefetch failed to warm the segments, so
+                // report it as skipped for observability purposes.
                 logger.warn(() -> "Unable to prefetch commit for notification " + newCommitNotification, e);
-                l.onResponse(null);
+                l.onResponse(SearchCommitPrefetcher.PrefetchResult.SKIPPED);
             })
         );
 

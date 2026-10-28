@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -271,7 +272,14 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
         );
         final ShardId shardId = commit.shardId();
         // Mark the BCC as uploaded so the prefetcher proceeds to populate the cache for the current generation.
-        final var notification = new NewCommitNotification(commit, generation, new PrimaryTermAndGeneration(1L, generation), 0L, "node");
+        final var notification = new NewCommitNotification(
+            commit,
+            generation,
+            new PrimaryTermAndGeneration(1L, generation),
+            0L,
+            "node",
+            Map.of()
+        );
 
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -359,7 +367,7 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 new SearchCommitPrefetcherDynamicSettings(clusterSettings)
             );
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<SearchCommitPrefetcher.PrefetchResult> future = new PlainActionFuture<>();
             prefetcher.maybePrefetchLatestCommit(notification, 0L, future);
             taskQueue.runAllRunnableTasks();
             safeGet(future);
@@ -378,6 +386,30 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 everyItem(equalTo(expectedTimestamp))
             );
         }
+    }
+
+    public void testColdMergeBytesSumsSegmentSizes() {
+        final Map<String, Long> mergeSizes = Map.of("_1", 100L, "_2", 50L, "_3", 7L);
+        assertThat(SearchCommitPrefetcher.coldMergeBytes(coldMergeNotification(mergeSizes, false)), is(157L));
+    }
+
+    public void testColdMergeBytesZeroWhenNoMergeSegments() {
+        // The commit is a flush (empty map): no merge-produced segments, so nothing is read cold.
+        assertThat(SearchCommitPrefetcher.coldMergeBytes(coldMergeNotification(Map.of(), false)), is(0L));
+    }
+
+    private NewCommitNotification coldMergeNotification(@Nullable Map<String, Long> newMergedSegmentsSizes, boolean uploaded) {
+        final long generation = 7L;
+        final StatelessCompoundCommit commit = compoundCommit(
+            generation,
+            Map.of("internal_1", new BlobLocation(blobFile(generation), 0, 10)),
+            Set.of("internal_1"),
+            null
+        );
+        final PrimaryTermAndGeneration latestUploaded = uploaded
+            ? new PrimaryTermAndGeneration(1L, generation)
+            : new PrimaryTermAndGeneration(1L, generation - 1);
+        return new NewCommitNotification(commit, generation, latestUploaded, 0L, "node", newMergedSegmentsSizes);
     }
 
     private Map<BlobFile, ByteRange> computeRangesToPrefetch(

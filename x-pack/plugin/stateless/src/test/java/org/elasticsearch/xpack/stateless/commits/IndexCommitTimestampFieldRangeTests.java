@@ -462,11 +462,12 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
             .filter(luceneFileName -> Objects.equals(LuceneFilesExtensions.fromFile(luceneFileName), LuceneFilesExtensions.SI))
             .map(IndexFileNames::stripExtension)
             .collect(Collectors.toUnmodifiableSet());
-        var timestampFieldValueRange = IndexEngine.readTimestampFieldValueRangeAcrossSegments(
+        var timestampFieldValueRange = IndexEngine.readAdditionalSegmentsInfos(
             currentIndexCommit,
             subsetSegmentNames,
-            timestampFieldType
-        );
+            timestampFieldType,
+            false
+        ).timestampFieldValueRange();
         if (subsetSegmentNames.isEmpty()) {
             assertNull(timestampFieldValueRange);
         } else {
@@ -488,11 +489,12 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
             .filter(luceneFileName -> Objects.equals(LuceneFilesExtensions.fromFile(luceneFileName), LuceneFilesExtensions.SI))
             .map(IndexFileNames::stripExtension)
             .collect(Collectors.toUnmodifiableSet());
-        return IndexEngine.readTimestampFieldValueRangeAcrossSegments(
+        return IndexEngine.readAdditionalSegmentsInfos(
             reference.getIndexCommit(),
             additionalSegmentNames,
-            mappingLookup.getTimestampFieldType()
-        );
+            mappingLookup.getTimestampFieldType(),
+            false
+        ).timestampFieldValueRange();
     }
 
     private void assertCFSSegments(IndexCommit indexCommit, boolean usesCFS) throws IOException {

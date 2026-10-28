@@ -682,7 +682,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             final var compoundCommit = buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen);
             searchEngine.onCommitNotification(
-                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGen, 1L, "_node_id"),
+                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGen, 1L, "_node_id", Map.of()),
                 new PlainActionFuture<>()
             );
             verify(objectStoreUploadTracker, times(1)).updateLatestUploadedBcc(latestUploadedTermAndGen);
@@ -695,7 +695,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             // 2nd notification for commit upload
             Mockito.clearInvocations(objectStoreUploadTracker);
             searchEngine.onCommitNotification(
-                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGenPlus1, 1L, "_node_id"),
+                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGenPlus1, 1L, "_node_id", Map.of()),
                 new PlainActionFuture<>()
             );
             verify(objectStoreUploadTracker, times(1)).updateLatestUploadedBcc(latestUploadedTermAndGenPlus1);
@@ -716,7 +716,8 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                     latestUploadedTermAndGenMinusN.generation(),
                     latestUploadedTermAndGenMinusN,
                     1L,
-                    "_node_id"
+                    "_node_id",
+                    Map.of()
                 ),
                 new PlainActionFuture<>()
             );

@@ -1,0 +1,4 @@
+FROM employees
+| SORT hire_date
+| LIMIT 10
+| KEEP first_name, last_name

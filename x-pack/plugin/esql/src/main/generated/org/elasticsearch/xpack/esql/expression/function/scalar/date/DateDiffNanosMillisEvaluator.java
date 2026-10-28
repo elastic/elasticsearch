@@ -93,21 +93,23 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (unitBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (unitBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (startTimestampNanosBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (startTimestampNanosBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -115,10 +117,11 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (endTimestampMillisBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (endTimestampMillisBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

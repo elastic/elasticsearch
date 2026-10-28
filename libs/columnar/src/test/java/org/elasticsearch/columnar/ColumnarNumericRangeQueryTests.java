@@ -10,25 +10,16 @@
 package org.elasticsearch.columnar;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.tests.search.FixedBitSetCollector;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
@@ -36,6 +27,9 @@ import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
+import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
 
 /**
  * Drives {@link ColumnarNumericRangeQuery} through a real {@link IndexSearcher} over a ColumNAR-coded
@@ -66,7 +60,7 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
             try (Directory dir = newDirectory()) {
                 indexColumnar(dir, values);
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
+                    IndexSearcher searcher = newSearcher(reader);
                     for (int q = 0; q < 6; q++) {
                         final long lo;
                         final long hi;
@@ -97,7 +91,7 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
                         }
 
                         final Query query = new ColumnarNumericRangeQuery(FIELD, lo, hi);
-                        final FixedBitSet actual = collect(searcher, query, reader.maxDoc());
+                        final FixedBitSet actual = searcher.search(query, FixedBitSetCollector.createManager(reader.maxDoc()));
                         final String msg = "numDocs=" + numDocs + " [" + lo + "," + hi + "]";
                         assertEquals(msg, expected, actual);
                         assertEquals(msg + " count", expected.cardinality(), searcher.count(query));
@@ -107,30 +101,66 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
         }
     }
 
-    private void indexColumnar(Directory dir, long[] values) throws IOException {
-        final DocValuesFormat columnar = new ColumNARDocValuesFormat();
-        final Codec base = TestUtil.getDefaultCodec();
-        final Codec codec = new FilterCodec(base.getName(), base) {
-            private final DocValuesFormat perField = new PerFieldDocValuesFormat() {
-                @Override
-                public DocValuesFormat getDocValuesFormatForField(String field) {
-                    return columnar;
-                }
-            };
+    /**
+     * The skip index lives in its own {@code .cns} file: a segment writes one of each file, and the
+     * skip file grows with the number of documents in the column.
+     */
+    public void testSkipIndexLivesInItsOwnFile() throws IOException {
+        final long[] small = new long[200];
+        final long[] large = new long[5_000];
+        for (int i = 0; i < small.length; i++) {
+            small[i] = i;
+        }
+        for (int i = 0; i < large.length; i++) {
+            large[i] = i;
+        }
 
-            @Override
-            public DocValuesFormat docValuesFormat() {
-                return perField;
+        try (Directory smallDir = newDirectory(); Directory largeDir = newDirectory()) {
+            indexColumnar(smallDir, small, false);
+            indexColumnar(largeDir, large, false);
+
+            assertEquals("one metadata file per segment", 1, countFiles(smallDir, ".cnm"));
+            assertEquals("one data file per segment", 1, countFiles(smallDir, ".cnd"));
+            assertEquals("one skip-index file per segment", 1, countFiles(smallDir, ".cns"));
+
+            final long smallSkip = totalSize(smallDir, ".cns");
+            final long largeSkip = totalSize(largeDir, ".cns");
+            assertTrue("the skip index must grow with the column, saw " + smallSkip + " then " + largeSkip, largeSkip > smallSkip);
+        }
+    }
+
+    private static int countFiles(Directory dir, String extension) throws IOException {
+        int count = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                count++;
             }
-        };
+        }
+        return count;
+    }
 
-        // A binary doc-values field tagged as a LONG column: the mapper's role, done by hand here.
-        final FieldType type = new FieldType();
-        type.setDocValuesType(DocValuesType.BINARY);
-        type.putAttribute(ColumNARDocValuesFormat.TYPE_ATTRIBUTE, ColumnarFieldType.LONG.name());
-        type.freeze();
+    private static long totalSize(Directory dir, String extension) throws IOException {
+        long total = 0;
+        for (String file : dir.listAll()) {
+            if (file.endsWith(extension)) {
+                total += dir.fileLength(file);
+            }
+        }
+        return total;
+    }
 
-        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec);
+    private void indexColumnar(Directory dir, long[] values) throws IOException {
+        indexColumnar(dir, values, true);
+    }
+
+    private void indexColumnar(Directory dir, long[] values, boolean compoundFile) throws IOException {
+        final Codec codec = columnarCodec(ColumnarFieldType.LONG);
+        final FieldType type = columnarBinaryFieldType();
+        final IndexWriterConfig iwc = new IndexWriterConfig().setCodec(codec).setUseCompoundFile(compoundFile);
+        if (compoundFile == false) {
+            // The per-file assertions need the codec's own files, not a packed .cfs.
+            iwc.getMergePolicy().setNoCFSRatio(0.0);
+        }
         final BytesRefBuilder builder = new BytesRefBuilder();
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (long value : values) {
@@ -141,30 +171,5 @@ public class ColumnarNumericRangeQueryTests extends ESTestCase {
             }
             writer.forceMerge(1);
         }
-    }
-
-    private static FixedBitSet collect(IndexSearcher searcher, Query query, int maxDoc) throws IOException {
-        final FixedBitSet matches = new FixedBitSet(maxDoc);
-        searcher.search(query, new Collector() {
-            @Override
-            public ScoreMode scoreMode() {
-                return ScoreMode.COMPLETE_NO_SCORES;
-            }
-
-            @Override
-            public LeafCollector getLeafCollector(LeafReaderContext context) {
-                final int base = context.docBase;
-                return new LeafCollector() {
-                    @Override
-                    public void setScorer(Scorable scorer) {}
-
-                    @Override
-                    public void collect(int doc) {
-                        matches.set(base + doc);
-                    }
-                };
-            }
-        });
-        return matches;
     }
 }

@@ -10,9 +10,12 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -690,6 +693,52 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Estimates the heap retained by the current request context: its request headers plus any transient header values that
+     * implement {@link Accountable}. Header strings are sized as Latin-1 compact strings, which holds for the ASCII headers
+     * Elasticsearch puts on the wire. Transient values that do not implement {@link Accountable} are not counted, and neither is
+     * one that fails to report its size.
+     */
+    public long estimatedRequestContextBytes() {
+        final ThreadContextStruct context = threadLocal.get();
+        long bytes = 0;
+        for (Map.Entry<String, String> header : context.requestHeaders.entrySet()) {
+            bytes += sizeOfLatin1String(header.getKey()) + sizeOfLatin1String(header.getValue());
+        }
+        for (Object value : context.transientHeaders.values()) {
+            if (value instanceof Accountable accountable) {
+                bytes += ramBytesUsedOrZero(accountable);
+            }
+        }
+        return bytes;
+    }
+
+    private static long ramBytesUsedOrZero(Accountable accountable) {
+        try {
+            return accountable.ramBytesUsed();
+        } catch (Exception e) {
+            // an estimate must never fail the request it is made for, and on a replica a failure would fail the shard copy
+            logger.debug(
+                () -> Strings.format(
+                    "failed to estimate the size of a request context value of type [%s], counting it as zero",
+                    accountable.getClass().getName()
+                ),
+                e
+            );
+            return 0;
+        }
+    }
+
+    private static final long STRING_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(String.class);
+
+    private static long sizeOfLatin1String(String string) {
+        if (string == null) {
+            // putHeader accepts null values, and an estimate must never fail the request it is made for
+            return 0;
+        }
+        return STRING_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + string.length());
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key}. Any duplicate {@code value} is ignored.
      *
      * @param key         the header name
@@ -709,6 +758,84 @@ public final class ThreadContext implements Writeable, TraceContext {
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
         threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+    }
+
+    /**
+     * Atomically removes all values for the specified response-header {@code key} from the current
+     * context and returns them. After this call, {@link #getResponseHeaders()} will not contain
+     * {@code key}. You can still add new values via {@link #addResponseHeader}.
+     *
+     * <p>
+     *     We use this in the transport protocol backwards compatibility branches to "take" warnings
+     *     out of the thread context and move them into non-spooky-action-at-a-distance variables.
+     *     Without this it's possible that the warnings would still be forwarded over the http response.
+     * </p>
+     *
+     * <h4>Stash / stored-context interactions — overwriting restores</h4>
+     * <p>
+     *     {@link #stashContext()} and friends store a <strong>copy</strong> the context then,
+     *     run some code, and then restore the copy. If you run {@code take} inside
+     * </p>
+     * <ol>
+     *     <li>Store a <strong>copy</strong> of the context</li>
+     *     <li>Run some code</li>
+     *     <li>Restore the copy</li>
+     * </ol>
+     * <p>
+     *     If you {@code take} in step 2, nothing changes in the copy. So:
+     * </p>
+     * {@snippet lang=java :
+     *      try (StoredContext snap = threadContext.stashContext()) {
+     *          threadContext.takeResponseHeaders("Warnings");
+     *          logger.warn("warnings are gone {}", threadContext.getResponseHeaders().get("Warnings"));
+     *      }
+     *      logger.warn("warnings are back! {}", threadContext.getResponseHeaders().get("Warnings"));
+     * }
+     *
+     * <h4>Stash / stored-context interactions — merging restores</h4>
+     * <p>
+     *     {@link #newStoredContextPreservingResponseHeaders()} and friends store a copy
+     *     as above but they also <strong>merge</strong> changes from the called code. So:
+     * </p>
+     * {@snippet lang=java :
+     *      try (StoredContext snap = threadContext.newStoredContextPreservingResponseHeaders()) {
+     *          threadContext.takeResponseHeaders("Warnings");
+     *          logger.warn("warnings are gone {}", threadContext.getResponseHeaders().get("Warnings"));
+     *          threadContext.addResponseHeader("Warnings", "some new ones");
+     *          logger.warn("just the new ones {}", threadContext.getResponseHeaders().get("Warnings"));
+     *      }
+     *      logger.warn("warnings contain both! {}", threadContext.getResponseHeaders().get("Warnings"));
+     * }
+     *
+     * <h4>{@code warningHeadersSize} accounting</h4>
+     * <p>
+     *     When {@code key} is {@code "Warning"}, the {@code warningHeadersSize} counter
+     *     is reset to zero, so the count/size throttle restarts.
+     * </p>
+     *
+     * @param key the response header name whose values should be removed and returned
+     * @return the values that were associated with {@code key}, preserving insertion order,
+     *         or an empty list if none were present
+     */
+    public List<String> takeResponseHeaders(String key) {
+        ThreadContextStruct current = threadLocal.get();
+        Set<String> existing = current.responseHeaders.get(key);
+        if (existing == null || existing.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Set<String>> newResponseHeaders = new HashMap<>(current.responseHeaders);
+        newResponseHeaders.remove(key);
+        long newWarningHeadersSize = key.equals("Warning") ? 0L : current.warningHeadersSize;
+        threadLocal.set(
+            new ThreadContextStruct(
+                current.requestHeaders,
+                newResponseHeaders,
+                current.transientHeaders,
+                current.isSystemContext,
+                newWarningHeadersSize
+            )
+        );
+        return List.copyOf(existing);
     }
 
     /**

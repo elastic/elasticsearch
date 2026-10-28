@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
@@ -1560,7 +1559,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         PutMappingRequest request = new PutMappingRequest("*");
-        request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
+        request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }");
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, TransportPutMappingAction.TYPE.name()),
@@ -1606,8 +1605,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Cannot retrieve privileges for API keys with assigned role descriptors. "
-                    + "Please use the Get API key information API https://ela.st/es-api-get-api-key"
+                "Cannot retrieve privileges for a subject whose effective privileges are constrained by limited-by roles. "
+                    + "For API keys, use the Get API key information API https://ela.st/es-api-get-api-key"
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));

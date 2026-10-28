@@ -16,8 +16,8 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfRowToXContent;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -178,6 +178,32 @@ public class EscfBatchBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mirrors the Jackson fallback after a failed SIMD parse: {@code beginRow()} without
+     * {@code finishRow()} leaves the row unstaged; a subsequent {@code beginRow()} resets scratch
+     * so the completed row does not inherit partial field values.
+     */
+    public void testBeginRowResetsUnfinishedRow() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.longField("a", 999L);
+            row.longField("b", 888L);
+            assertFalse(row.isStarted());
+            expectThrows(IllegalStateException.class, () -> builder.commit(0));
+
+            row = builder.beginRow();
+            row.longField("a", 1L);
+            row.longField("b", 2L);
+            row.finishRow();
+            builder.commit(0);
+
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(1, batch.docCount());
+                assertEquals(asMap("{\"a\":1,\"b\":2}"), reconstruct(batch, 0));
+            }
+        }
+    }
+
     private static EscfBatchBuilder newBuilder() {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         return new EscfBatchBuilder(recycler);
@@ -185,7 +211,7 @@ public class EscfBatchBuilderTests extends ESTestCase {
 
     private static Map<String, Object> reconstruct(EscfBatch batch, int row) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            EirfRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
     }

@@ -140,8 +140,11 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.Clone(recoveryListener)
                 );
-                onGoingSplits.put(indexShard, stateMachine);
-                stateMachine.run();
+                if (registerStateMachine(indexShard, stateMachine)) {
+                    stateMachine.run();
+                } else {
+                    recoveryListener.onFailure(new IndexShardClosedException(shardId));
+                }
             }
             case HANDOFF -> {
                 var stateMachine = new StateMachine(
@@ -152,9 +155,11 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInHandoff()
                 );
-                onGoingSplits.put(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
-                stateMachine.run();
+                if (registered) {
+                    stateMachine.run();
+                }
             }
             case SPLIT -> {
                 var stateMachine = new StateMachine(
@@ -165,12 +170,26 @@ public class SplitTargetService {
                     clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInSplit()
                 );
-                onGoingSplits.put(indexShard, stateMachine);
+                boolean registered = registerStateMachine(indexShard, stateMachine);
                 recoveryListener.onResponse(null);
-                stateMachine.run();
+                if (registered) {
+                    stateMachine.run();
+                }
             }
             case DONE -> recoveryListener.onResponse(null);
         }
+    }
+
+    /// Registers the state machine unless the shard is already closed. Returns whether it was registered.
+    ///
+    /// If this runs first and observes `CLOSED`, [#cancelSplits(IndexShard)] may or may not have been called, so we handle the case
+    /// where it already ran by not registering anything.
+    /// If we don't observe `CLOSED`, we can rely on `cancelSplits` running later and removing the entry.
+    private boolean registerStateMachine(IndexShard indexShard, StateMachine stateMachine) {
+        return onGoingSplits.compute(
+            indexShard,
+            (shard, existing) -> shard.state() == IndexShardState.CLOSED ? existing : stateMachine
+        ) == stateMachine;
     }
 
     public void acceptHandoff(IndexShard indexShard, TransportReshardSplitAction.Request handoffRequest, ActionListener<Void> listener) {
@@ -193,7 +212,7 @@ public class SplitTargetService {
     // only for tests
     void initializeSplitInCloneState(IndexShard indexShard, Split split) {
         assert Thread.currentThread().getName().startsWith("TEST-");
-        onGoingSplits.put(
+        registerStateMachine(
             indexShard,
             new StateMachine(
                 split,
@@ -206,11 +225,21 @@ public class SplitTargetService {
         );
     }
 
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
+    /// We rely on this fact in [#registerStateMachine(IndexShard, StateMachine)] to handle the possible race
+    /// of this function and adding a new state machine to the `onGoingSplits` map.
     public void cancelSplits(IndexShard indexShard) {
         var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
         }
+    }
+
+    // visible for testing: a split should leave this empty once it completes or is cancelled. A stale entry pins the IndexShard it
+    // is keyed by, so the shard is never collected even after it closes.
+    Set<ShardId> getShardsWithOngoingSplits() {
+        return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
     }
 
     record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
@@ -248,7 +277,9 @@ public class SplitTargetService {
         }
 
         void cancel() {
-            cancelled.set(true);
+            final boolean isFirstCancellation = cancelled.getAndSet(true) == false;
+            assert isFirstCancellation : "split for " + shard.shardId() + " cancelled twice";
+            reshardIndexService.failAndStopTrackingSplit(shard, new IndexShardClosedException(shard.shardId()));
         }
 
         private synchronized void advance(State newState) {
@@ -317,14 +348,14 @@ public class SplitTargetService {
                 }
                 case State.SplitApplied splitApplied -> {
                     logger.info("notifying of split completion for target shard {}", shard.shardId());
-                    reshardIndexService.notifySplitCompletion(shard.shardId());
+                    reshardIndexService.notifySplitCompletion(shard);
                     deleteUnownedData();
                 }
                 case State.UnownedDataDeleted ignored -> {
                     changeStateToDone();
                 }
                 case State.Done ignored -> {
-                    reshardIndexService.stopTrackingSplit(shard.shardId());
+                    reshardIndexService.stopTrackingSplit(shard);
                     onCompleted.run();
                 }
 
@@ -354,7 +385,7 @@ public class SplitTargetService {
                     logger.warn("Failed to complete split target shard sequence", failed.exception);
 
                     if (failed.destinationState instanceof State.Split) {
-                        reshardIndexService.notifySplitFailure(shard.shardId(), failed.exception);
+                        reshardIndexService.notifySplitFailure(shard, failed.exception);
                         /// Transition to SPLIT failed in some unexpected way and now we are failing all incoming refresh requests
                         /// due to the `notifySplitFailure` call above.
                         /// There is nothing we can really do at this point to recover so we hope we can figure this out on recovery.

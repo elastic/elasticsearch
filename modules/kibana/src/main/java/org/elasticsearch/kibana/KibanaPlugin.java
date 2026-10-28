@@ -54,6 +54,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final int CHANGE_HISTORY_MAPPINGS_VERSION = 3;
 
+    private static final int NOTIFICATION_CENTER_MAPPINGS_VERSION = 1;
+
     /** Data stream registered in {@link #changeHistorySystemDataStreamDescriptor()}. */
     public static final String CHANGE_HISTORY_DATA_STREAM_NAME = ".kibana_change_history";
 
@@ -82,17 +84,31 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     public static final String WORKFLOWS_EXECUTION_LOGS_MANAGED_INDEX_VERSION_VARIABLE =
         "kibana.workflows.execution.logs.managed.index.version";
 
+    /** Data stream registered in {@link #notificationCenterSystemDataStreamDescriptor()}. */
+    public static final String NOTIFICATION_CENTER_DATA_STREAM_NAME = ".kibana-notifications";
+
+    /** Composable index template resource for {@value #NOTIFICATION_CENTER_DATA_STREAM_NAME}. */
+    public static final String NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE = "kibana-notifications.json";
+
+    /** Substitution key for the stack version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String NOTIFICATION_CENTER_VERSION_VARIABLE = "kibana.notification.center.version";
+
+    /** Substitution key for managed index version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String NOTIFICATION_CENTER_MANAGED_INDEX_VERSION_VARIABLE = "kibana.notification.center.managed.index.version";
+
     /**
      * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
      * {@linkplain SystemDataStreamDescriptor system data streams} registered in {@link #getSystemDataStreamDescriptors()}
-     * ({@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME} and {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}).
+     * ({@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME} and {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}) or the
+     * queryable workflow execution indices.
      * <p>
      * A plain {@code .workflows-*} pattern is invalid here: it matches those data stream names, and
      * {@link org.elasticsearch.indices.SystemIndices} forbids overlap between a {@link SystemIndexDescriptor} pattern and
      * a {@link SystemDataStreamDescriptor} (see {@code checkForOverlappingPatterns}). Uses the same complement style as Fleet's
      * {@code .fleet-actions~(-results*)}; see {@link SystemIndexDescriptor} for pattern syntax.
      */
-    public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN = ".workflows~(-events*|-execution-data-stream-logs*)";
+    public static final String WORKFLOWS_SYSTEM_INDEX_PATTERN =
+        ".workflows~(-events*|-execution-data-stream-logs*|-executions*|-step-executions*)";
 
     /**
      * Matches Kibana system <strong>indices</strong> under {@code .kibana_}, but not the
@@ -178,7 +194,8 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         return List.of(
             workflowsEventsSystemDataStreamDescriptor(),
             workflowsExecutionDataStreamLogsSystemDataStreamDescriptor(),
-            changeHistorySystemDataStreamDescriptor()
+            changeHistorySystemDataStreamDescriptor(),
+            notificationCenterSystemDataStreamDescriptor()
         );
     }
 
@@ -191,6 +208,32 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             return new SystemDataStreamDescriptor(
                 CHANGE_HISTORY_DATA_STREAM_NAME,
                 "Kibana saved objects change history",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static SystemDataStreamDescriptor notificationCenterSystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
+                NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    NOTIFICATION_CENTER_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    NOTIFICATION_CENTER_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(NOTIFICATION_CENTER_MAPPINGS_VERSION)
+                )
+            );
+            return new SystemDataStreamDescriptor(
+                NOTIFICATION_CENTER_DATA_STREAM_NAME,
+                "Kibana Notification Center notifications",
                 SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),

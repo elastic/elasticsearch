@@ -34,10 +34,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -89,7 +91,8 @@ public final class ESNextRescoreOversampleTestFixture {
                 defaultFlatThreshold(vpc),
                 null,
                 flushConfig,
-                mergeResolver
+                mergeResolver,
+                false
             )
         );
     }
@@ -109,8 +112,18 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentA),
-            new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversampleSegmentB),
+            IvfSegmentConfig.of(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                false,
+                oversampleSegmentA
+            ),
+            IvfSegmentConfig.of(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                false,
+                oversampleSegmentB
+            ),
             mergeConfigResolver
         );
     }
@@ -168,7 +181,14 @@ public final class ESNextRescoreOversampleTestFixture {
                 return Optional.empty();
             }
             float oversample = flushSequence.getAndIncrement() == 0 ? oversampleSegmentA : oversampleSegmentB;
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, oversample));
+            return Optional.of(
+                IvfSegmentConfig.of(
+                    CentroidIndexFormat.FLAT,
+                    new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                    false,
+                    oversample
+                )
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, IvfMergeConfigResolver.useCodecDefault());
         IndexWriterConfig iwc = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -212,8 +232,16 @@ public final class ESNextRescoreOversampleTestFixture {
             dir,
             vectorDimensions,
             vectorsPerSegment,
-            IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false),
-            IvfSegmentConfig.fromCodecDefaults(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false),
+            IvfSegmentConfig.fromCodecDefaults(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                false
+            ),
+            IvfSegmentConfig.fromCodecDefaults(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                false
+            ),
             IvfMergeConfigResolver.useCodecDefault()
         );
     }
@@ -240,9 +268,9 @@ public final class ESNextRescoreOversampleTestFixture {
             int seq = flushSequence.getAndIncrement();
             boolean precondition = seq == 0 ? preconditionSegmentA : preconditionSegmentB;
             return Optional.of(
-                new IvfSegmentConfig(
+                IvfSegmentConfig.of(
                     CentroidIndexFormat.FLAT,
-                    QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
                     precondition,
                     DenseVectorFieldMapper.DEFAULT_OVERSAMPLE
                 )
@@ -287,11 +315,25 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY), false, 3f)
+            );
         };
-        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
+
+        // Use quality profile so that doc bits are uncapped
+        Codec codec = createDiskBbqCodec(
+            flushConfig,
+            IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster, IvfAutoCalibrationProfile.QUALITY)
+        );
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
         writeTwoCommits(vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
@@ -318,9 +360,18 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             int seq = flushSequence.getAndIncrement();
             if (seq == 0) {
-                return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+                return Optional.of(
+                    IvfSegmentConfig.of(
+                        CentroidIndexFormat.FLAT,
+                        new IvfSegmentConfig.OsqConfig(QuantEncoding.ONE_BIT_4BIT_QUERY),
+                        false,
+                        2f
+                    )
+                );
             }
-            return Optional.of(new IvfSegmentConfig(CentroidIndexFormat.FLAT, QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
+            return Optional.of(
+                IvfSegmentConfig.of(CentroidIndexFormat.FLAT, new IvfSegmentConfig.OsqConfig(QuantEncoding.TWO_BIT_4BIT_QUERY), false, 3f)
+            );
         };
         Codec codec = createDiskBbqCodec(flushConfig, calibration::resolve);
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
@@ -344,38 +395,23 @@ public final class ESNextRescoreOversampleTestFixture {
     }
 
     public static IvfSegmentConfig readPersistedSegmentConfig(LeafReader leaf) throws IOException {
-        QuantEncoding encoding = persistedQuantEncodingOnLeaf(leaf);
-        if (encoding == null) {
-            return null;
-        }
-        return new IvfSegmentConfig(CentroidIndexFormat.FLAT, encoding, persistedPreconditionOnLeaf(leaf), persistedOversampleOnLeaf(leaf));
-    }
-
-    public static QuantEncoding persistedQuantEncodingOnLeaf(LeafReader leaf) throws IOException {
         CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
         if (reader == null) {
             return null;
         }
         FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo == null ? null : reader.getQuantEncoding(fieldInfo);
-    }
-
-    public static boolean persistedPreconditionOnLeaf(LeafReader leaf) throws IOException {
-        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
-        if (reader == null) {
-            return false;
+        if (fieldInfo == null) {
+            return null;
         }
-        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo != null && reader.shouldPrecondition(fieldInfo);
-    }
-
-    public static float persistedOversampleOnLeaf(LeafReader leaf) throws IOException {
-        CalibrationAwareReader reader = calibrationAwareReaderOnLeaf(leaf);
-        if (reader == null) {
-            return Float.NaN;
-        }
-        FieldInfo fieldInfo = fieldInfoOnLeaf(leaf);
-        return fieldInfo == null ? Float.NaN : reader.getOversampleFactor(fieldInfo);
+        return switch (reader.getCalibrationParameters(fieldInfo)) {
+            case null -> null;
+            case SegmentCalibrationParameters.Osq osq -> IvfSegmentConfig.of(
+                CentroidIndexFormat.FLAT,
+                new IvfSegmentConfig.OsqConfig(osq.encoding()),
+                osq.precondition(),
+                osq.oversample()
+            );
+        };
     }
 
     private static FieldInfo fieldInfoOnLeaf(LeafReader leaf) throws IOException {
@@ -407,7 +443,8 @@ public final class ESNextRescoreOversampleTestFixture {
         assertThat(reader.leaves(), hasSize(2));
         Set<Float> found = new HashSet<>();
         for (LeafReaderContext leafCtx : reader.leaves()) {
-            float v = persistedOversampleOnLeaf(leafCtx.reader());
+            IvfSegmentConfig cfg = readPersistedSegmentConfig(leafCtx.reader());
+            float v = cfg != null ? cfg.rescoreOversample() : Float.NaN;
             found.add(v);
             assertThat("unexpected persisted oversample on leaf " + leafCtx.docBase, expected, hasItem(v));
         }

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -312,6 +313,7 @@ public class ClusterPrivilegeResolver {
             ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
+            QueryServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
             ActionTypes.QUERY_USER_ACTION.name(),

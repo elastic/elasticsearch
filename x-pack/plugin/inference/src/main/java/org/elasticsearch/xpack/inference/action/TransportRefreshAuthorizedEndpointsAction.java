@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -22,8 +20,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -91,7 +92,8 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         }
 
         if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
-            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
@@ -131,7 +133,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             InternalDeleteInferenceEndpointsAction.INSTANCE,
             deleteRequest,
             ActionListener.wrap(response -> listener.onResponse(authModel), e -> {
-                logger.atWarn().withThrowable(e).log("Failed to delete removed EIS inference endpoints: {}", toDelete);
+                logger.warn(() -> Strings.format("Failed to delete removed EIS inference endpoints: %s", toDelete), e);
                 listener.onResponse(authModel);
             })
         );
@@ -140,7 +142,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
-        var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES));
+        var scopedAuthModel = scopeAuthModel(authModel);
         logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
         List<Model> endpoints = scopedAuthModel.getEndpoints(scopedAuthModel.getEndpointIds());
@@ -156,6 +158,18 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             .collect(Collectors.toList());
     }
 
+    /**
+     * Limits the authorization to the task types the service implements, which excludes the ones the cluster can't read yet.
+     */
+    private ElasticInferenceServiceAuthorizationModel scopeAuthModel(ElasticInferenceServiceAuthorizationModel authModel) {
+        var taskTypes = EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES);
+        // Nodes that are not upgraded yet can't read decision endpoints, a later poll persists them once the cluster is upgraded
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.DECISION_TASK_TYPE) == false) {
+            taskTypes.remove(TaskType.DECISION);
+        }
+        return authModel.newLimitedToTaskTypes(taskTypes);
+    }
+
     private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable EndpointClusterState existingEndpoint) {
         if (existingEndpoint == null) {
             logger.debug(
@@ -167,8 +181,9 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             return true;
         }
 
-        EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
+        var existingMetadata = existingEndpoint.endpointMetadata();
+        var updatedMetadata = EndpointMetadataClusterState.from(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty());
+        if (existingMetadata.fingerprintMatches(updatedMetadata) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -177,7 +192,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
+        if (updatedMetadata.isNewerThan(existingMetadata)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );
@@ -207,15 +222,18 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
 
             for (var response : responses.getResults()) {
                 if (response.failed()) {
-                    logger.atWarn()
-                        .withThrowable(response.failureCause())
-                        .log("Failed to store new EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
+                    logger.warn(
+                        () -> Strings.format(
+                            "Failed to store new EIS preconfigured inference endpoint with inference ID [%s]",
+                            response.inferenceId()
+                        ),
+                        response.failureCause()
+                    );
                 } else {
-                    logger.atInfo()
-                        .log("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
+                    logger.info("Successfully stored EIS preconfigured inference endpoint with inference ID [{}]", response.inferenceId());
                 }
             }
-        }, e -> logger.atWarn().withThrowable(e).log("Failed to store new EIS preconfigured inference endpoints [{}]", newEndpoints));
+        }, e -> logger.warn(() -> Strings.format("Failed to store new EIS preconfigured inference endpoints [%s]", newEndpoints), e));
 
         client.execute(
             StoreInferenceEndpointsAction.INSTANCE,

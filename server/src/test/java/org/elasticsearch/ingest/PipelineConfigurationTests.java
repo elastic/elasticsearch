@@ -81,6 +81,36 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         assertThat(serialized.getConfig(), anEmptyMap());
     }
 
+    public void testSerializedSizeInBytes() throws IOException {
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray("""
+                {"description": "blah", "processors": [{"set": {"field": "f", "value": "v"}}]}""".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+        // The reported size matches the number of bytes writeTo actually produces...
+        BytesStreamOutput out = new BytesStreamOutput();
+        configuration.writeTo(out);
+        assertThat(configuration.serializedSizeInBytes(), equalTo((long) out.bytes().length()));
+    }
+
+    /**
+     * The put path measures a pipeline off the raw map it parsed from the request, rather than building a {@link PipelineConfiguration}
+     * just to size it. That shortcut is only sound if both routes report the same number, which this pins down: the raw map is a
+     * {@code HashMap} of {@code HashMap}s while the configuration holds unmodifiable {@code LinkedHashMap}s, and the generic stream
+     * writer distinguishes the two (type byte 9 vs 10) -- but only by a marker byte, so the totals must still agree.
+     */
+    public void testSerializedSizeInBytesOfRawConfigMatchesPipelineConfiguration() throws IOException {
+        String configJson = """
+            {"description": "blah", "_meta": {"foo": "bar", "n": 3}, "processors": [{"set": {"field": "f", "value": "v"}}]}""";
+        BytesArray source = new BytesArray(configJson.getBytes(StandardCharsets.UTF_8));
+
+        PipelineConfiguration configuration = new PipelineConfiguration("1", source, XContentType.JSON);
+        Map<String, Object> rawConfig = XContentHelper.convertToMap(source, randomBoolean(), XContentType.JSON).v2();
+
+        assertThat(PipelineConfiguration.serializedSizeInBytes("1", rawConfig), equalTo(configuration.serializedSizeInBytes()));
+    }
+
     public void testMetaSerialization() throws IOException {
         String configJson = """
             {"description": "blah", "_meta" : {"foo": "bar"}}""";

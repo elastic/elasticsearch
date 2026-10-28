@@ -98,8 +98,9 @@ public class BufferingMetricExporter implements MetricExporter {
             .setMaxFolderSize((int) maxDiskBytes)
             .setMaxFileAgeForReadMillis(ttlMillis)
             .setMaxFileAgeForWriteMillis(writeWindowMillis)
-            // drainFiles() removes items only after a successful replay.
+            // drainFiles() removes items itself, after attempting their replay.
             .setDeleteItemsOnIteration(false)
+            .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
         this.storage = createStorage(diskDir, config);
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
@@ -109,6 +110,8 @@ public class BufferingMetricExporter implements MetricExporter {
             EsExecutors.daemonThreadFactory(settings, "metrics_buffer_disk"),
             new EsAbortPolicy()
         );
+
+        // calculate cachedFileCount so files present at startup are accounted for
         refreshDiskStats();
     }
 
@@ -211,11 +214,12 @@ public class BufferingMetricExporter implements MetricExporter {
             while (it.hasNext()) {
                 Collection<MetricData> batch = it.next();
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
+                it.remove();
                 if (result.isSuccess()) {
-                    it.remove();
                     bufferingMetrics.replays().add(1);
                 } else {
-                    logger.warn("delegate failed replay of disk-buffered metrics; deferring drain");
+                    doWrite(batch, new CompletableResultCode());
+                    logger.debug("delegate failed replay of disk-buffered metrics; deferring drain");
                     return;
                 }
             }
@@ -260,6 +264,8 @@ public class BufferingMetricExporter implements MetricExporter {
 
         private static final String METRIC_PREFIX = "es.apm.metrics.disk_buffer.";
 
+        private static final LongGauge NOOP_LONG_GAUGE = MeterProvider.noop().get("noop").gaugeBuilder("noop").ofLongs().build();
+
         private final Supplier<MeterProvider> meterProviderSupplier;
 
         @Nullable
@@ -300,7 +306,7 @@ public class BufferingMetricExporter implements MetricExporter {
             if (counter == null) {
                 counter = longCounter(
                     "drops_full",
-                    "Failed batches dropped because the disk buffer is at its size cap or disk write failed"
+                    "Metric batches lost from the disk buffer: write failed, size or age limit reached, or corrupted file"
                 );
                 this.fullDrops = counter;
             }
@@ -311,7 +317,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedFiles;
             if (gauge == null) {
                 gauge = longGauge("files", "Metric batches currently pending replay on disk", "1");
-                this.cachedFiles = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedFiles = gauge;
+                }
             }
             return gauge;
         }
@@ -320,7 +328,9 @@ public class BufferingMetricExporter implements MetricExporter {
             var gauge = this.cachedBytes;
             if (gauge == null) {
                 gauge = longGauge("bytes", "Total bytes currently used by the on-disk metric buffer", "By");
-                this.cachedBytes = gauge;
+                if (gauge != NOOP_LONG_GAUGE) {
+                    this.cachedBytes = gauge;
+                }
             }
             return gauge;
         }
@@ -335,8 +345,11 @@ public class BufferingMetricExporter implements MetricExporter {
         }
 
         private LongGauge longGauge(String suffix, String description, String unit) {
-            return meterProviderSupplier.get()
-                .get("elasticsearch")
+            MeterProvider provider = meterProviderSupplier.get();
+            if (provider == MeterProvider.noop()) {
+                return NOOP_LONG_GAUGE;
+            }
+            return provider.get("elasticsearch")
                 .gaugeBuilder(METRIC_PREFIX + suffix)
                 .ofLongs()
                 .setDescription(description)

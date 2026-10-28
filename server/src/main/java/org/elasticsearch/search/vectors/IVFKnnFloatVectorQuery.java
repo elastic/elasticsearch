@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
@@ -56,12 +57,34 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, queryConfigResolver);
+        this(field, query, k, numCands, filter, visitRatio, queryConfigResolver, false);
+    }
+
+    IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        IvfQueryConfigResolver queryConfigResolver,
+        boolean postFilterDelegate
+    ) {
+        super(field, visitRatio, k, numCands, filter, queryConfigResolver, postFilterDelegate);
         this.query = query;
     }
 
     public float[] getQuery() {
         return query;
+    }
+
+    /**
+     * FLOAT32 only. This subtree serves {@code ElementType.FLOAT} and {@code BFLOAT16}, which both index as
+     * {@link org.apache.lucene.index.VectorEncoding#FLOAT32}; byte IVF counts its own encoding.
+     */
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        return KnnQueryUtils.countFloatVectors(field, leaves);
     }
 
     @Override
@@ -192,8 +215,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
-        Query topDocsQuery = new KnnScoreDocQuery(topOversampled.scoreDocs, indexSearcher.getIndexReader());
-        return RescoreKnnVectorQuery.fromInnerQuery(field, query, k, effectiveK, topDocsQuery);
+    Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
+        return RescoreKnnVectorQuery.fromInnerQuery(field, query, finalK, rescoreK, approxTopN);
     }
 }

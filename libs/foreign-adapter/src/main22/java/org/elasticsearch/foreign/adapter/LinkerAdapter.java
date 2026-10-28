@@ -15,11 +15,14 @@ import java.lang.invoke.MethodHandles.Lookup;
 
 public final class LinkerAdapter {
 
-    static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
-
-    /** Returns a linker option used to mark a foreign function as critical. */
-    public static Linker.Option[] critical() {
-        return ALLOW_HEAP_ACCESS;
+    /**
+     * Prepends {@code Linker.Option.critical(true)} to {@code extra} and returns the combined array.
+     */
+    public static Linker.Option[] criticalWith(Linker.Option[] extra) {
+        Linker.Option[] combined = new Linker.Option[extra.length + 1];
+        combined[0] = Linker.Option.critical(true);
+        System.arraycopy(extra, 0, combined, 1, extra.length);
+        return combined;
     }
 
     /**

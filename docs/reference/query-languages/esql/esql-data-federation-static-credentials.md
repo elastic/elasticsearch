@@ -2,7 +2,7 @@
 navigation_title: "AWS static credentials"
 description: "Set up Amazon S3 static credentials for ES|QL Data Federation so Elasticsearch can read your private bucket with an access key and secret key."
 applies_to:
-  stack: experimental =9.5
+  stack: experimental 9.5+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -39,7 +39,7 @@ Follow these steps to create and use dedicated credentials for use with Data Fed
 ::::::{step} Create a read-only IAM policy
 {{es}} reads your objects through an IAM identity, so first create an IAM policy that grants read-only access to only the objects you want to query in AWS. This policy is the part specific to this integration.
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
+The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
 
 ```json
 {
@@ -52,7 +52,7 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::<bucket-name>" ] <2>
     }
   ]
@@ -136,7 +136,6 @@ PUT /_query/data_source/prod_s3_static
 {
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>", <1>
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
@@ -155,7 +154,6 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_static" \
   -d '{
   "type": "s3",
   "settings": {
-    "region": "eu-north-1",
     "auth": "static_credentials",
     "access_key": "<AWS_ACCESS_KEY_ID>",
     "secret_key": "<AWS_SECRET_ACCESS_KEY>"
@@ -166,7 +164,7 @@ curl -X PUT "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_static" \
 
 ::::
 
-**Step 2.** [Create a dataset](esql-data-federation-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
+**Step 2.** [Create a dataset](esql-data-federation-manage-datasets.md) that points at your files, for example `s3://amzn-s3-demo-bucket/some/sample.parquet` in **Parquet** format.
 
 You can now query the remote data with {{esql}}.
 ::::::
@@ -205,7 +203,7 @@ POLICY_ARN=$(aws iam create-policy \
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
     }
   ]
@@ -238,6 +236,8 @@ aws iam create-access-key --user-name "${IAM_USER}"
 
 ## Next steps
 
+Continue with the following dataset and security tasks:
+
 - [Query your data](esql-data-federation-querying.md) with `FROM`, including metadata columns and current limitations.
-- [Create and manage datasets](esql-data-federation-datasets.md) to add more datasets over this data source, and configure file formats and settings.
+- [Create and manage datasets](esql-data-federation-manage-datasets.md) over this data source, then review [file formats](esql-data-federation-file-formats.md) and [dataset settings](esql-data-federation-dataset-settings.md).
 - [Manage credentials and privileges](esql-data-federation-security.md) to control who can access your data sources and datasets.

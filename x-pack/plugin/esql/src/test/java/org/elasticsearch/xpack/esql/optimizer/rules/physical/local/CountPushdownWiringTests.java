@@ -179,7 +179,9 @@ public class CountPushdownWiringTests extends ESTestCase {
 
     /**
      * A pure ungrouped COUNT(*) over ExternalRelation with complete sourceMetadata stats
-     * qualifies for skipping split discovery.
+     * qualifies for skipping split discovery. {@code ComputeService.executePlan} consults this
+     * predicate before scheduling Phase-2: a true result means no footer/probe work and
+     * {@code splitDiscoveryNanos} stays 0.
      */
     public void testCanSkipSplitDiscoveryForCountStar() {
         Aggregate agg = countStarAggregate();

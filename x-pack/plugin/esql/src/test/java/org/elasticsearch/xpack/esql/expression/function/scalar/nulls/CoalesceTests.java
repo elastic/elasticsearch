@@ -180,10 +180,6 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             );
         }));
         noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE_RANGE, DataType.DOUBLE_RANGE), () -> {
-            assumeTrue(
-                "Requires DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10 capability",
-                EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled()
-            );
             DoubleRangeBlockBuilder.DoubleRange first = randomBoolean() ? null : TestCaseSupplier.randomDoubleRange();
             DoubleRangeBlockBuilder.DoubleRange second = TestCaseSupplier.randomDoubleRange();
             return new TestCaseSupplier.TestCase(
@@ -263,7 +259,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "first"),
                         new TestCaseSupplier.TypedData(null, DataType.NULL, "second")
                     ),
-                    "ConstantNull",
+                    "LiteralsEvaluator[lit=null]",
                     DataType.NULL,
                     nullValue()
                 )
@@ -272,14 +268,10 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
-        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
-            }
-            if (type == DataType.DOUBLE_RANGE) {
-                return typedData.withAppliesTo(doubleRangeAppliesTo);
             }
             return typedData;
         }).toList()));
@@ -389,8 +381,8 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    public void testCoalesceNullabilityIsUnknown() {
-        assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.UNKNOWN));
+    public void testCoalesceNullabilityIsTrue() {
+        assertThat(buildFieldExpression(testCase).nullable(), equalTo(Nullability.TRUE));
     }
 
     public void testCoalesceKnownNullable() {
@@ -398,7 +390,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         sub.add(between(0, sub.size()), new Literal(Source.EMPTY, null, sub.get(0).dataType()));
         Coalesce exp = build(Source.EMPTY, testCase.getDataAsFields());
         // Still UNKNOWN - if it were TRUE then an optimizer would replace it with null
-        assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+        assertThat(exp.nullable(), equalTo(Nullability.TRUE));
     }
 
     public void testCoalesceNotNullable() {
@@ -407,7 +399,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Coalesce exp = build(Source.EMPTY, sub);
         // Known not to be nullable because it contains a non-null literal
         if (testCase.expectedType() == DataType.NULL) {
-            assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+            assertThat(exp.nullable(), equalTo(Nullability.TRUE));
         } else {
             assertThat(exp.nullable(), equalTo(Nullability.FALSE));
         }

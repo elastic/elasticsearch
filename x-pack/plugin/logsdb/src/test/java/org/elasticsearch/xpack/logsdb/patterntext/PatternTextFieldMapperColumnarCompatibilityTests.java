@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 
@@ -29,10 +28,7 @@ public class PatternTextFieldMapperColumnarCompatibilityTests extends AbstractCo
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleValueWithArgs() throws IOException {
@@ -254,6 +250,27 @@ public class PatternTextFieldMapperColumnarCompatibilityTests extends AbstractCo
                 doc("d5", 5L, "{\"f\":\"  leading 789  \"}"),
                 doc("d6", 6L, "{\"f\":\"" + longValue.trim() + "\"}"),
                 doc("d7", 7L, "{\"f\":\"Ошибка 42\"}")
+            )
+        );
+    }
+
+    /**
+     * A {@code pattern_text} field carrying a keyword multi-field. Parity here covers the removal of this mapper's multi-field
+     * gate: the sub-mapper is driven from the parent's own source column, alongside pattern_text's own template/args columns.
+     */
+    public void testKeywordSubField() throws IOException {
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject(FIELD).field("type", "pattern_text");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }),
+            columnarSettings(),
+            batch(
+                "pattern_text parent, keyword sub-field",
+                1L,
+                doc("d1", 1L, "{\"f\":\"Error 123 at line 456\"}"),
+                doc("d2", 2L, "{\"f\":\"No numbers here\"}"),
+                doc("d3", 3L, "{}")
             )
         );
     }

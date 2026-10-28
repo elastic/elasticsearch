@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -48,8 +50,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
@@ -58,13 +64,17 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -107,6 +117,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -136,7 +147,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzer;
+import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzerAt;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -362,8 +373,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * Keyword MV field: detectSingleValue has a false positive when terms.size() == terms.getDocCount().
-     * See SearchContextStats.detectSingleValue(IndexReader, MappedFieldType, String) where this check was wrong for KeywordFieldType.
+     * Keyword MV field: isSingleValueLeaf has a false positive when terms.size() == terms.getDocCount().
+     * See SearchContextStats.isSingleValueLeaf(MappedFieldType, LeafReader, String) where this check was wrong for KeywordFieldType.
      *
      * doc1: first_name=["A","B"]
      * doc2: first_name=["A"]
@@ -634,35 +645,59 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * NOT mv_in_range over a numeric field pushes must_not(range) and drops the FilterExec (YES) — sound because the
-     * pushed range is exact, so negating it in Lucene is exact too.
+     * NOT mv_in_range over an exact type (integral, keyword, ip, version) pushes must_not(range) and drops the
+     * FilterExec (YES) — sound because the pushed range is exact, so negating it in Lucene is exact too.
      */
     public void testMvInRangeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
         var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_in_range(keyword, \"a\", \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(kw).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        );
+
+        var ip = plannerOptimizer.plan("from test | where not mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(ip).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true))).toString())
+        );
+
+        var version = plannerOptimizer.plan(
+            "from test | where not mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true))).toString())
+        );
     }
 
     /**
-     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): byte-encoded
-     * types are held conservatively out of the exact-YES set, so the range surfaces candidate documents and the retained
-     * evaluator re-checks them. Contrast the numeric YES cases above, which drop the FilterExec.
+     * mv_in_range over a keyword field pushes an exact range and drops the FilterExec (YES): keyword's UTF-8
+     * BytesRef order matches TermRangeQuery, so the pushed range is faithful and the filter can go.
      */
-    public void testMvInRangeKeywordRecheck() {
+    public void testMvInRangeKeywordPushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("a", true).to("m", true)));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("first_name").from("a", true).to("m", true));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
     /**
-     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
-     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a whole-string comparison. {@code job}
+     * has a {@code .raw} keyword subfield, so it is otherwise pushable — only the TEXT gate stops it. If text were
+     * classified YES, FilterExec would drop and a token range would push (this assertion fails).
      */
     public void testMvInRangeTextNotPushed() {
-        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
-        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
         var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(pushedQuery(plan), nullValue());
@@ -731,62 +766,53 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testMvInRangeDoubleRecheck() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        for (var field : List.of("double", "float", "scaled_float")) {
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
             var plan = plannerOptimizer.plan("from test | where mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
             assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("field " + field + " must still push a range pre-filter", pushedQuery(plan), is(not(nullValue())));
         }
     }
 
-    /** ip and version are byte-encoded, so like keyword they push the range but stay RECHECK (retain the FilterExec). */
-    public void testMvInRangeIpVersionRecheck() {
+    /** ip and version push an exact range and drop the FilterExec (YES) — same byte-faithful encoding as keyword. */
+    public void testMvInRangeIpVersionPushdown() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var ip = plannerOptimizer.plan("from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
-        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(ip), is(not(nullValue())));
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true)).toString()));
+
         var version = plannerOptimizer.plan(
             "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
             IS_SV_STATS,
             analyzer
         );
-        assertThat(version.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(version), is(not(nullValue())));
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true)).toString())
+        );
     }
 
     /**
-     * NOT of a RECHECK-typed mv_in_range (double / keyword / ip / version) is not pushed at all. The range is a superset,
-     * so must_not(range) would drop true matches and the retained recheck can't restore them — the whole predicate stays
-     * a filter (NO). Contrast the integral YES types, whose NOT pushes an exact must_not(range) (testMvInRangeNotPushdown).
+     * NOT of a DOUBLE-family mv_in_range (double / float / half_float / scaled_float) is not pushed at all. The range is
+     * a superset (reduced-precision mappers round bounds outward), so must_not(range) would drop true matches and the
+     * retained recheck can't restore them — the whole predicate stays a filter (NO). Contrast the exact YES types
+     * (integral, keyword, ip, version), whose NOT pushes must_not(range) (testMvInRangeNotPushdown).
      */
     public void testMvInRangeNotRecheckTypeNotPushed() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        var bounds = Map.of(
-            "double",
-            "1.0, 2.0",
-            "keyword",
-            "\"a\", \"m\"",
-            "ip",
-            "\"1.1.1.1\"::ip, \"2.2.2.2\"::ip",
-            "version",
-            "\"1.0.0\"::version, \"2.0.0\"::version"
-        );
-        for (var field : bounds.keySet()) {
-            var plan = plannerOptimizer.plan(
-                "from test | where not mv_in_range(" + field + ", " + bounds.get(field) + ")",
-                IS_SV_STATS,
-                analyzer
-            );
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
             assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
         }
     }
 
     /**
-     * Exclusive bounds via the options map. For an integral field the pushed range carries the exact exclusive endpoints
-     * (gt/lt) and the FilterExec is still dropped (YES). For a RECHECK field (double/keyword/…) the range is only a
-     * pre-filter, so the exclusive flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward
-     * rounding a reduced-precision mapper would apply to an exclusive bound) and the retained evaluator applies the
-     * exclusivity. (A zero double lower bound is widened outward to -0.0 to keep both signed zeros in the superset.)
+     * Exclusive bounds via the options map. For an exact type the pushed range carries the exact exclusive endpoints
+     * (gt/lt) and the FilterExec is still dropped (YES). For DOUBLE the range is only a pre-filter, so the exclusive
+     * flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward rounding a reduced-precision
+     * mapper would apply to an exclusive bound) and the retained evaluator applies the exclusivity. (A zero double lower
+     * bound is widened outward to -0.0 to keep both signed zeros in the superset.)
      */
     public void testMvInRangeExclusivePushdown() {
         var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
@@ -799,28 +825,249 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(pushedQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
 
-        // RECHECK type: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
+        // DOUBLE RECHECK: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
         var dbl = plannerOptimizer.plan(
             "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false, \"include_upper\": false})",
             IS_SV_STATS,
             makeAnalyzer("mapping-all-types.json")
         );
         assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(
-            pushedQuery(dbl).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
-        );
+        assertThat(pushedQuery(dbl).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true)).toString()));
 
+        // Keyword is YES: exclusive endpoints push exactly and the FilterExec drops.
         var kw = plannerOptimizer.plan(
             "from test | where mv_in_range(keyword, \"a\", \"m\", {\"include_lower\": false})",
             IS_SV_STATS,
             makeAnalyzer("mapping-all-types.json")
         );
-        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(
-            pushedQuery(kw).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(unscore(rangeQuery("keyword").from("a", false).to("m", true)).toString()));
+
+        // ip and version exclusive bounds push exactly too.
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan(
+            "from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip, {\"include_upper\": false})",
+            IS_SV_STATS,
+            analyzer
         );
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", false)).toString()));
+
+        var version = plannerOptimizer.plan(
+            "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version, {\"include_lower\": false})",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(unscore(rangeQuery("version").from("1.0.0", false).to("2.0.0", true)).toString())
+        );
+    }
+
+    /**
+     * Pins why the double family cannot be promoted with ip/version/keyword: a float-mapped field with a double bound
+     * that is not exactly representable as float. The float mapper rounds the bound when building the Lucene range, so
+     * the pushed query over-matches relative to the evaluator's full-double comparison — the FilterExec (recheck) stays,
+     * and NOT cannot be pushed.
+     */
+    public void testMvInRangeFloatBoundaryRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        // 1.0000001 lies between 1.0f and Math.nextUp(1.0f); the float mapper rounds the lower bound, over-matching.
+        String bound = "1.0000001";
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(float, " + bound + ", 2.0)", IS_SV_STATS, analyzer);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), is(not(nullValue())));
+
+        var notPlan = plannerOptimizer.plan("from test | where not mv_in_range(float, " + bound + ", 2.0)", IS_SV_STATS, analyzer);
+        assertThat(notPlan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(notPlan), is(nullValue()));
+    }
+
+    /**
+     * mv_greater over an indexed numeric field pushes a bare one-sided range and drops the FilterExec (YES). The bare
+     * form is exclusive ({@code gt}); {@code include_bound: true} pushes {@code gte}.
+     */
+    public void testMvGreaterPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(salary, 25000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false)).toString()));
+
+        var inclusive = plannerOptimizer.plan("from test | where mv_greater(salary, 25000, {\"include_bound\": true})");
+        assertThat(inclusive.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(inclusive).toString(), equalTo(unscore(rangeQuery("salary").from(25000, true)).toString()));
+    }
+
+    /** NOT mv_greater over a numeric field pushes must_not(range) and drops the FilterExec (YES). */
+    public void testMvGreaterNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_greater(salary, 25000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, false)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** mv_greater over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvGreaterKeywordIpVersionPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(first_name, \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").from("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_greater(version, \"1.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").from("1.0.0", false)).toString()));
+    }
+
+    /** A text field is never pushed for mv_greater. */
+    public void testMvGreaterTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(job, \"a\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** A multivalued literal bound is never pushed for mv_greater. */
+    public void testMvGreaterMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(salary, [25000, 26000])");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** mv_greater over a date field is YES and pins the date formatting path. */
+    public void testMvGreaterDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(hire_date, \"2020-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("hire_date").from("2020-01-01T00:00:00.000Z", false).format("strict_date_optional_time"));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * mv_less over an indexed numeric field pushes a bare one-sided upper range and drops the FilterExec (YES).
+     */
+    public void testMvLessPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(salary, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("salary").to(30000, false)).toString()));
+
+        var inclusive = plannerOptimizer.plan("from test | where mv_less(salary, 30000, {\"include_bound\": true})");
+        assertThat(inclusive.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(inclusive).toString(), equalTo(unscore(rangeQuery("salary").to(30000, true)).toString()));
+    }
+
+    /** NOT mv_less over a numeric field pushes must_not(range) and drops the FilterExec (YES). */
+    public void testMvLessNotPushdown() {
+        var plan = plannerOptimizer.plan("from test | where not mv_less(salary, 30000)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").to(30000, false)));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /** mv_less over keyword/ip/version is YES: drop FilterExec and push the real exclusivity. */
+    public void testMvLessKeywordIpVersionPushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(first_name, \"m\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("first_name").to("m", false)).toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan("from test | where mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").to("2.2.2.2", false)).toString()));
+
+        var version = plannerOptimizer.plan("from test | where mv_less(version, \"2.0.0\"::version)", IS_SV_STATS, analyzer);
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(version).toString(), equalTo(unscore(rangeQuery("version").to("2.0.0", false)).toString()));
+    }
+
+    /** A text field is never pushed for mv_less. */
+    public void testMvLessTextNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(job, \"a\")");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** A multivalued literal bound is never pushed for mv_less. */
+    public void testMvLessMultivaluedBoundNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(salary, [25000, 26000])");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), nullValue());
+    }
+
+    /** mv_less over a date field is YES and pins the date formatting path. */
+    public void testMvLessDatePushdown() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(hire_date, \"2021-01-01\"::datetime)");
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("hire_date").to("2021-01-01T00:00:00.000Z", false).format("strict_date_optional_time"));
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * NOT over exact byte-encoded types pushes must_not(range). Keyword/ip/version share the YES path with
+     * integral types (see testMvGreaterNotPushdown); only the double family stays RECHECK and unpushed under NOT.
+     */
+    public void testMvGreaterNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_greater(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_greater is not pushed at all. */
+    public void testMvGreaterNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_greater(" + field + ", 1.0)", IS_SV_STATS, analyzer);
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
+        }
+    }
+
+    /** NOT over exact byte-encoded types for mv_less pushes must_not(range). */
+    public void testMvLessNotExactBytesRefPushdown() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_less(keyword, \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").to("m", false))).toString()));
+
+        var ip = plannerOptimizer.plan("from test | where not mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").to("2.2.2.2", false))).toString()));
+    }
+
+    /** NOT of a RECHECK-typed (double-family) mv_less is not pushed at all. */
+    public void testMvLessNotRecheckTypeNotPushed() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_less(" + field + ", 1.0)", IS_SV_STATS, analyzer);
+            assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
+            assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
+        }
+    }
+
+    /**
+     * Exclusive vs inclusive push for RECHECK doubles: exclusivity stays in the evaluator; the pushed range is the
+     * inclusive superset, and a zero lower bound is widened outward to -0.0.
+     */
+    public void testMvGreaterDoubleRecheckInclusiveSuperset() {
+        var plan = plannerOptimizer.plan("from test | where mv_greater(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true)).toString()));
+    }
+
+    /**
+     * RECHECK doubles for mv_less: exclusivity stays in the evaluator; the pushed range is the inclusive
+     * superset, and a zero upper bound stays +0.0 (widened outward on the less side).
+     */
+    public void testMvLessDoubleRecheckInclusiveSuperset() {
+        var plan = plannerOptimizer.plan("from test | where mv_less(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").to(0.0, true)).toString()));
     }
 
     /**
@@ -940,6 +1187,90 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(pushedQuery(plan), instanceOf(RegexpQueryBuilder.class));
         assertThat(pushedQuery(plan).toString(), equalTo(unscore(regexpQuery("first_name", "")).toString()));
+    }
+
+    /**
+     * A {@code text} field whose index holds no exact form of its value is pushable where its own values answer the
+     * query. {@code gender} is such a field: text with no keyword sub-field.
+     */
+    public void testLikeOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        var plan = plannerOptimizer.plan("from test | where gender like \"F*\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var query = pushedQuery(plan);
+        assertThat(query, instanceOf(SingleValueQuery.Builder.class));
+        var inner = ((SingleValueQuery.Builder) query).next();
+        assertThat(inner, instanceOf(WildcardQueryBuilder.class));
+        // Named as it stands - there is no exact sub-field to name - and asking for the value, not its tokens.
+        assertThat(((WildcardQueryBuilder) inner).fieldName(), equalTo("gender"));
+    }
+
+    /** The same field keeping no values has nothing to answer with, so the filter stays where it was. */
+    public void testLikeWithoutValuesIsNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where gender like \"F*\"", new TestConfigurableSearchStats());
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+    }
+
+    /** A field with an exact sub-field names that sub-field. */
+    public void testLikeStillPrefersAnExactSubfield() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "job");
+        var plan = plannerOptimizer.plan("from test | where job like \"Ann*\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+        assertThat(((WildcardQueryBuilder) inner).fieldName(), equalTo("job.raw"));
+    }
+
+    /** STARTS_WITH, ENDS_WITH and CONTAINS ask the same question of the value, so they travel the same way. */
+    public void testTheOtherPatternsOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        for (String where : List.of("starts_with(gender, \"F\")", "ends_with(gender, \"e\")", "contains(gender, \"em\")")) {
+            var plan = plannerOptimizer.plan("from test | where " + where, stats);
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(false));
+            var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+            assertThat(where, inner, instanceOf(WildcardQueryBuilder.class));
+            assertThat(where, ((WildcardQueryBuilder) inner).fieldName(), equalTo("gender"));
+        }
+    }
+
+    /**
+     * RLIKE, equality, IN and the string comparisons answer over the value too, and travel as the expression that
+     * builds the query on the shard - the field type says there how its values are framed.
+     */
+    public void testTheRestOfTheFamilyOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        for (String where : List.of(
+            "gender rlike \"F.*\"",
+            "gender == \"F\"",
+            "gender in (\"F\", \"M\")",
+            "gender > \"F\"",
+            "gender <= \"M\""
+        )) {
+            var plan = plannerOptimizer.plan("from test | where " + where, stats);
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(false));
+            var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+            assertThat(where, inner, instanceOf(ExpressionQueryBuilder.class));
+            assertThat(where, ((ExpressionQueryBuilder) inner).fieldName(), equalTo("gender"));
+        }
+    }
+
+    /** An inequality is the same query, negated by the one that wraps it. */
+    public void testNotEqualsOverAFieldsOwnValues() {
+        var stats = new TestConfigurableSearchStats().include(TestConfigurableSearchStats.Config.VALUE_QUERIES, "gender");
+        var plan = plannerOptimizer.plan("from test | where gender != \"F\"", stats);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var inner = ((SingleValueQuery.Builder) pushedQuery(plan)).next();
+        assertThat(inner, instanceOf(BoolQueryBuilder.class));
+        var mustNot = ((BoolQueryBuilder) inner).mustNot();
+        assertThat(mustNot, hasSize(1));
+        assertThat(mustNot.get(0), instanceOf(ExpressionQueryBuilder.class));
+    }
+
+    /** Without values none of them is pushed. */
+    public void testTheRestOfTheFamilyWithoutValuesIsNotPushed() {
+        for (String where : List.of("gender rlike \"F.*\"", "gender == \"F\"", "gender in (\"F\", \"M\")", "gender > \"F\"")) {
+            var plan = plannerOptimizer.plan("from test | where " + where, new TestConfigurableSearchStats());
+            assertThat(where, plan.anyMatch(FilterExec.class::isInstance), is(true));
+        }
     }
 
     private static QueryBuilder pushedQuery(PhysicalPlan plan) {
@@ -1150,10 +1481,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                         QueryBuilder expectedInnerQuery = unscore(termQuery(testCase.fieldName, Double.parseDouble(value)));
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
-                        QueryBuilder expectedInnerQuery = unscore(
-                            boolQuery().mustNot(unscore(termQuery(testCase.fieldName, Double.parseDouble(value))))
-                        );
-                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                        double parsed = Double.parseDouble(value);
+                        var bool = as(actualInnerLuceneQuery, BoolQueryBuilder.class);
+                        assertThat(bool.should(), hasSize(2));
+                        var lt = as(bool.should().get(0), RangeQueryBuilder.class);
+                        assertThat(lt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(lt.to(), equalTo(parsed));
+                        assertThat(lt.includeUpper(), equalTo(false));
+                        var gt = as(bool.should().get(1), RangeQueryBuilder.class);
+                        assertThat(gt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(gt.from(), equalTo(parsed));
+                        assertThat(gt.includeLower(), equalTo(false));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
                         assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
@@ -2616,6 +2954,44 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertNull(esQuery.query());
     }
 
+    /**
+     * A conjunction of a runtime match and an indexed match splits: the indexed leg is pushed to Lucene while the runtime
+     * leg stays behind in a {@link FilterExec}.
+     */
+    public void testRuntimeMatchAndIndexedMatchSplit() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") and match(last_name, \"Smith\")");
+
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+        assertThat(runtimeFilterCondition(plan), instanceOf(Match.class));
+    }
+
+    /**
+     * A disjunction with a runtime match cannot be split: pushing only the indexed leg would drop rows matched by the
+     * runtime leg, so the whole condition stays in the {@link FilterExec}.
+     */
+    public void testRuntimeMatchOrIndexedMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where match(to_text(first_name), \"anna\") or match(last_name, \"Smith\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        assertThat(runtimeFilterCondition(plan), instanceOf(Or.class));
+    }
+
+    public void testNegatedRuntimeMatchNotPushed() {
+        var plan = plannerOptimizer.plan("from test | where not match(to_text(first_name), \"anna\")");
+
+        assertThat(pushedQuery(plan), nullValue());
+        var not = as(runtimeFilterCondition(plan), Not.class);
+        assertThat(not.field(), instanceOf(Match.class));
+    }
+
+    private static Expression runtimeFilterCondition(PhysicalPlan plan) {
+        List<FilterExec> filters = new ArrayList<>();
+        plan.forEachDown(FilterExec.class, filters::add);
+        assertThat(filters, hasSize(1));
+        return filters.get(0).condition();
+    }
+
     public void testToDateNanosPushDown() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
@@ -2849,7 +3225,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
         var project = as(plan, ProjectExec.class);
         var limit = as(project.child(), LimitExec.class);
         var unpack = as(limit.child(), UnpackDimsExec.class);
@@ -2872,6 +3252,208 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             containsInAnyOrder("_tsid", "@timestamp", "network.total_bytes_in", TemporalityAttribute.NAME)
         );
         as(readMetrics.child(), EsQueryExec.class);
+    }
+
+    /**
+     * A window that is not an exact multiple of the time bucket ({@code 7m = 5m + 2m}) is decomposed by
+     * {@code InsertPartialWindowAggregates} into the full windowed aggregate plus a partial sibling with no window,
+     * filtered to the trailing remainder. Both execute as ordinary aggregates on the data node (INITIAL) and are
+     * paired only on the coordinator (FINAL); the sibling's state crosses the exchange as ordinary intermediate
+     * attributes.
+     */
+    public void testNonMultipleWindowInsertsPartialAggregate() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 7 minute)) BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        assertThat(tsAggs.get(0).getMode(), equalTo(AggregatorMode.FINAL));
+        assertThat(tsAggs.get(1).getMode(), equalTo(AggregatorMode.INITIAL));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            Rate full = null;
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate && rate.hasWindow()) {
+                    full = rate;
+                }
+            }
+            assertNotNull("expected the windowed rate in " + agg.getMode(), full);
+            assertThat(full.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
+            assertFalse(full.hasFilter());
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull("expected a partial sibling for the 7m window over 5m buckets in " + agg.getMode(), sibling);
+            assertThat(sibling, instanceOf(Rate.class));
+            assertFalse(sibling.hasWindow());
+            assertThat(sibling.filter(), instanceOf(WindowFilter.class));
+        }
+        TimeSeriesAggregateExec finalAgg = tsAggs.get(0);
+        assertTrue(
+            "expected the sibling's state in the intermediate attributes",
+            finalAgg.intermediateAttributes().stream().anyMatch(a -> a.name().contains("$partial"))
+        );
+        var exchange = as(finalAgg.child(), ExchangeExec.class);
+        assertThat(exchange.output(), equalTo(finalAgg.intermediateAttributes()));
+    }
+
+    /**
+     * Windows leaving the same remainder over the same input share one partial sibling: {@code 7m} and {@code 12m}
+     * over 5-minute buckets both need the trailing {@code 2m}, so only one sibling is planted.
+     */
+    public void testNonMultipleWindowsShareOnePartialAggregate() {
+        var query = "TS k8s"
+            + " | STATS sum(rate(network.total_bytes_in, 7 minute)), avg(rate(network.total_bytes_in, 12 minute))"
+            + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Rate> rates = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate) {
+                    rates.add(rate);
+                }
+            }
+            // the 7m and 12m windows plus one shared sibling
+            assertThat(rates, hasSize(3));
+            Rate full7m = rates.stream().filter(r -> windowOf(r).equals(Duration.ofMinutes(7))).findFirst().orElseThrow();
+            Rate full12m = rates.stream().filter(r -> windowOf(r).equals(Duration.ofMinutes(12))).findFirst().orElseThrow();
+            AggregateFunction sibling7m = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full7m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            AggregateFunction sibling12m = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full12m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull(sibling7m);
+            assertSame("both windows must share the one planted sibling", sibling7m, sibling12m);
+        }
+    }
+
+    /**
+     * A pre-existing aggregate with the sibling's exact shape is reused instead of planting a duplicate: a window
+     * smaller than the bucket is rewritten by the analyzer to the same filtered, windowless form, so the {@code 2m}
+     * aggregate below doubles as the partial sibling of the {@code 7m} window.
+     */
+    public void testNonMultipleWindowReusesSmallWindowAggregate() {
+        var query = "TS k8s"
+            + " | STATS min(max_over_time(network.bytes_in, 2 minute)), avg(max_over_time(network.bytes_in, 7 minute))"
+            + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Max> maxes = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Max max) {
+                    maxes.add(max);
+                }
+            }
+            // no third aggregate is planted: the rewritten 2m window is the sibling
+            assertThat(maxes, hasSize(2));
+            Max full7m = maxes.stream().filter(AggregateFunction::hasWindow).findFirst().orElseThrow();
+            Max smallWindow = maxes.stream().filter(m -> m.hasWindow() == false).findFirst().orElseThrow();
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full7m,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertSame("the 7m window must reuse the rewritten 2m aggregate as its sibling", smallWindow, sibling);
+        }
+    }
+
+    /**
+     * A filtered aggregate with a non-multiple window gets a sibling whose filter is the aggregate's own filter
+     * extended by the {@link WindowFilter} over the remainder, and the sibling is still found by its structural
+     * signature.
+     */
+    public void testNonMultipleWindowWithFilteredAggregate() {
+        var query = "TS k8s" + " | STATS sum(rate(network.total_bytes_in, 7 minute)) WHERE pod == \"one\"" + " BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            Rate full = null;
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate && rate.hasWindow()) {
+                    full = rate;
+                }
+            }
+            assertNotNull(full);
+            assertTrue("the inline filter must stay on the windowed aggregate", full.hasFilter());
+            AggregateFunction sibling = InsertPartialWindowAggregates.findPartialSibling(
+                agg.aggregates(),
+                full,
+                Duration.ofMinutes(2),
+                FoldContext.small()
+            );
+            assertNotNull("expected a partial sibling despite the aggregate's own filter", sibling);
+            List<Expression> conjuncts = Predicates.splitAnd(sibling.filter());
+            assertThat(conjuncts, hasSize(2));
+            assertTrue("the sibling keeps the aggregate's own filter as a conjunct", conjuncts.stream().anyMatch(full.filter()::equals));
+            assertTrue("the sibling adds the remainder filter", conjuncts.stream().anyMatch(c -> c instanceof WindowFilter));
+        }
+    }
+
+    /**
+     * An exact multiple needs no partial state: the final phase merges whole buckets, so no sibling is planted and
+     * the plan is unchanged.
+     */
+    public void testExactMultipleWindowPlansNoPartialAggregate() {
+        var query = "TS k8s | STATS sum(rate(network.total_bytes_in, 10 minute)) BY TBUCKET(5 minute)";
+        var plan = plannerOptimizerTimeSeries.plan(
+            query,
+            EsqlTestUtils.TEST_SEARCH_STATS,
+            metricsAnalyzerAt(DimensionValues.DIMENSION_VALUES_VERSION).buildAnalyzer()
+        );
+        List<TimeSeriesAggregateExec> tsAggs = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregateExec.class, tsAggs::add);
+        assertThat(tsAggs, hasSize(2));
+        for (TimeSeriesAggregateExec agg : tsAggs) {
+            List<Rate> rates = new ArrayList<>();
+            for (NamedExpression ne : agg.aggregates()) {
+                if (Alias.unwrap(ne) instanceof Rate rate) {
+                    rates.add(rate);
+                }
+            }
+            assertThat(rates, hasSize(1));
+            assertThat(windowOf(rates.get(0)), equalTo(Duration.ofMinutes(10)));
+            assertFalse(rates.get(0).hasFilter());
+        }
+        TimeSeriesAggregateExec finalAgg = tsAggs.get(0);
+        assertFalse(finalAgg.intermediateAttributes().stream().anyMatch(a -> a.name().contains("$partial")));
+    }
+
+    private static Duration windowOf(AggregateFunction af) {
+        return af.hasWindow() ? (Duration) af.window().fold(FoldContext.small()) : Duration.ZERO;
     }
 
     /**
@@ -3175,14 +3757,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("within")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("within")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3205,12 +3784,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3233,13 +3810,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3262,13 +3837,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3291,13 +3864,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
-                    .to("1965-06-01T00:00:00.000Z", true)
-                    .format("strict_date_optional_time")
-                    .relation("contains")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                .to("1965-06-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+                .relation("contains")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }

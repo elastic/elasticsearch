@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -57,12 +56,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends IbmWatsonxServiceSettin
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
-            Builder::new
-        );
-        IbmWatsonxServiceSettings.declareCommonFields(parser);
+        var parser = IbmWatsonxServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
@@ -245,15 +239,16 @@ public class IbmWatsonxEmbeddingsServiceSettings extends IbmWatsonxServiceSettin
      */
     private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            IbmWatsonxServiceSettings.declareCommonUpdatableFields(PARSER);
-            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = IbmWatsonxServiceSettings.buildCommonUpdateParser(Update::new);
+            StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
                 Integer value = p.intValue();
                 validatePositiveInteger(value, MAX_INPUT_TOKENS);
                 return value;
             }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+            return parser;
         }
 
         private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();

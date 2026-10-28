@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Reproduces the multi-stripe FOLD path that the small-fixture pushdown ITs never exercise: those use files
  * smaller than the default stripe size, so the reader takes the whole-chunk emit path (one authoritative
- * whole-file summary, no fold). Here {@code esql.source.cache.stripe.size} is pinned to 64 KB so a ~12 MB
+ * whole-file summary, no fold). Here {@code esql.external.cache.stripe.size} is pinned to 64 KB so a ~12 MB
  * NDJSON file (300K rows) spans ~190 canonical stripes across multiple read chunks, forcing the per-stripe emit + the coordinator's
  * {@code 0..K + EOF} interval-cover fold — the path that must complete for a warm aggregate to short-circuit
  * at 100M-row scale. A warm aggregate that re-scans (documentsFound != 0) here is the fold failing to reach
@@ -50,13 +50,13 @@ public class ExternalNdJsonMultiStripeFoldIT extends AbstractExternalDataSourceI
             // Smallest legal stripe grid (64kb floor): a ~12 MB file spans ~190 stripes AND multiple read
             // chunks -> the per-stripe fold across chunks is exercised instead of the whole-chunk shortcut.
             // NodeScope/restart-only, so it must be a static node setting, not a dynamic cluster update.
-            .put("esql.source.cache.stripe.size", "64kb")
+            .put("esql.external.cache.stripe.size", "64kb")
             .build();
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     @Override

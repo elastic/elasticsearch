@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
@@ -28,17 +30,24 @@ public class ExternalDistributedClusters {
     private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
 
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
+        return testCluster(s3EndpointSupplier, spec -> {});
+    }
+
+    /**
+     * As {@link #testCluster(Supplier)}, with {@code extra} applied last so one suite can add or override a
+     * setting without changing the configuration the other suites on this cluster share.
+     */
+    static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider extra) {
         return Clusters.testCluster(spec -> {
             // This suite force-enables every storage backend / format flag so its external tests run even in
             // release builds: file:// and http(s):// scheme registration depends on their sub-flags (otherwise
-            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC/parquet-rs must
+            // those reads hit "No storage provider registered for scheme: …"), and GCS/Azure/ORC must
             // be on to exercise every backend in release builds too.
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_LOCAL);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES_HTTP);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
-            spec.feature(FeatureFlag.ESQL_EXTERNAL_PARQUET_RS);
             // Federation is only on by default in snapshot builds; this suite reads external sources. It is set here
             // rather than relying on Clusters, which serverless substitutes with a builder that only defines node
             // shape.
@@ -50,10 +59,11 @@ public class ExternalDistributedClusters {
             spec.setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class));
             // file:// fixtures live under the iceberg-fixtures root (not csvDataPath), so the allowlist must point here.
             spec.setting(
-                "esql.datasource.local_allowed_paths",
+                "esql.external.local_allowed_paths",
                 FixtureUtils.pathRepoRootForIcebergFixtures(ExternalDistributedClusters.class)
             );
             spec.setting("s3.client.default.endpoint", s3EndpointSupplier);
+            spec.setting(S3FixtureUtils.ALLOWED_ENDPOINT_HOSTS_SETTING, S3FixtureUtils.LOOPBACK_ENDPOINT_HOSTS);
             spec.keystore("s3.client.default.access_key", ACCESS_KEY);
             spec.keystore("s3.client.default.secret_key", SECRET_KEY);
             spec.setting("s3.client.default.protocol", "http");
@@ -66,6 +76,7 @@ public class ExternalDistributedClusters {
             spec.keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID);
             spec.jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED");
             spec.jvmArg("-Darrow.allocation.manager.type=Unsafe");
+            extra.apply(spec);
         });
     }
 }

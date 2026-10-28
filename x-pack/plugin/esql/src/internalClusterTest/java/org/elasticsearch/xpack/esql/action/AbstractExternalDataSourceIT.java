@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
+import com.github.luben.zstd.ZstdOutputStream;
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -26,7 +31,9 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -34,9 +41,12 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -98,6 +108,13 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
 
     /** Default data-source name used by the {@link #registerDataset(String, String, Map)} convenience. */
     private static final String SHARED_TEST_DATA_SOURCE = "test_ds";
+
+    /**
+     * Data-source name used by {@link #registerLocalFileDataset}. Type {@code local} goes through
+     * {@code FileDataSourceValidator}, so an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}.
+     */
+    private static final String SHARED_LOCAL_FILE_DATA_SOURCE = "file_ds";
 
     private final Set<String> registeredDatasets = new LinkedHashSet<>();
     private final Set<String> registeredDataSources = new LinkedHashSet<>();
@@ -223,6 +240,26 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     }
 
     /**
+     * Registers {@code name} against a {@code local} data source so PUT goes through
+     * {@code FileDataSourceValidator} and an omitted {@code schema_resolution} stores
+     * {@code first_file_wins}. {@link #registerDataset(String, String, Map)} uses the pass-through
+     * {@code test} validator and stores a missing key (legacy hydrate).
+     */
+    protected String registerLocalFileDataset(String name, String resourceUri, Map<String, Object> settings) {
+        if (registeredDataSources.contains(SHARED_LOCAL_FILE_DATA_SOURCE) == false) {
+            assertAcked(
+                client().execute(
+                    PutDataSourceAction.INSTANCE,
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, SHARED_LOCAL_FILE_DATA_SOURCE, "local", null, new HashMap<>())
+                )
+            );
+            registeredDataSources.add(SHARED_LOCAL_FILE_DATA_SOURCE);
+        }
+        registerDataset(name, SHARED_LOCAL_FILE_DATA_SOURCE, resourceUri, settings);
+        return name;
+    }
+
+    /**
      * Registers a STRICT ({@code dynamic:false}) dataset with a declared mapping against the shared data source,
      * creating it on first use, and records it for teardown. The declared columns are the entire schema — strict
      * resolution reads no file to infer it. Used by the strict declared-schema tests.
@@ -296,7 +333,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         for (String dataset : registeredDatasets) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { dataset }))
-                    .get(30, TimeUnit.SECONDS);
+                    .actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {
@@ -308,7 +345,7 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
                 client().execute(
                     DeleteDataSourceAction.INSTANCE,
                     new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { dataSource })
-                ).get(30, TimeUnit.SECONDS);
+                ).actionGet(30, TimeUnit.SECONDS);
             } catch (ResourceNotFoundException ignored) {
                 // already deleted
             } catch (Exception e) {
@@ -317,6 +354,42 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
         }
         registeredDatasets.clear();
         registeredDataSources.clear();
+        assertAdmissionIdle();
+    }
+
+    /**
+     * After each test method (dataset/data-source DELETE, then idle). Not after every query.
+     * File:// tests have no node limiter, so permit snapshots are empty there. Request-breaker
+     * windows use {@code parquet sliding window}, which {@link #ensureBlocksReleased} does not
+     * cover — only mock compute blocks.
+     */
+    private void assertAdmissionIdle() {
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            DataSourceModule module = planExecutor.dataSourceModule();
+            if (module == null) {
+                continue;
+            }
+            try {
+                assertBusy(() -> {
+                    NodeByteBudget budget = module.nodeByteBudget();
+                    if (budget != null) {
+                        assertEquals("used on " + node, 0L, budget.used());
+                        assertEquals("untracked on " + node, 0L, budget.untracked());
+                        if (budget instanceof NodeByteBudgetService service) {
+                            assertEquals("waiters on " + node, 0, service.waiterCount());
+                            assertNull("owner on " + node, service.overshootOwner());
+                        }
+                    }
+                    for (Map.Entry<String, int[]> entry : module.permitSnapshots().entrySet()) {
+                        assertEquals("permits " + entry.getKey() + " on " + node, entry.getValue()[1], entry.getValue()[0]);
+                    }
+                });
+            } catch (Exception e) {
+                throw new AssertionError("admission not idle on " + node, e);
+            }
+        }
+        ensureBlocksReleased();
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -375,6 +448,33 @@ public abstract class AbstractExternalDataSourceIT extends AbstractEsqlIntegTest
     /** Writes {@code content} to {@code target} through a {@link GZIPOutputStream}. */
     protected static Path writeGzipped(Path target, String content) throws IOException {
         try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /**
+     * Writes {@code content} to {@code target} as a bzip2-compressed file. The compressor writes its sink a byte at a
+     * time, so the file stream is buffered.
+     */
+    protected static Path writeBzip2(Path target, String content) throws IOException {
+        try (OutputStream out = new BZip2CompressorOutputStream(new BufferedOutputStream(Files.newOutputStream(target)))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as a zstd-compressed file. */
+    protected static Path writeZstd(Path target, String content) throws IOException {
+        try (OutputStream out = new ZstdOutputStream(Files.newOutputStream(target))) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+        return target;
+    }
+
+    /** Writes {@code content} to {@code target} as an LZ4-framed compressed file. */
+    protected static Path writeLz4(Path target, String content) throws IOException {
+        try (OutputStream out = new LZ4FrameOutputStream(Files.newOutputStream(target))) {
             out.write(content.getBytes(StandardCharsets.UTF_8));
         }
         return target;

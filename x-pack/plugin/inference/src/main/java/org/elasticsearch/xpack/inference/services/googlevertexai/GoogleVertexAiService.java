@@ -24,6 +24,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -58,6 +59,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
@@ -175,7 +177,15 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             inputs.getRequest()
         );
         try {
-            var manager = createRequestManager(updatedChatCompletionModel);
+            // Reasoning is translated to Gemini's thinkingConfig and thought signatures, which only apply to Google's
+            // own models. The other Model Garden providers have their own request entities and would ignore the reasoning. When we've
+            // implemented the translation for those providers we can remove this check
+            if (updatedChatCompletionModel.getServiceSettings().provider() != GoogleModelGardenProvider.GOOGLE
+                && inputs.getRequest().containsChatCompletionReasoning()) {
+                throwUnsupportedReasoningUnifiedCompletionOperation(name());
+            }
+
+            var manager = createRequestManager(updatedChatCompletionModel, inputs.getRequest().excludeReasoning());
             var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
             var action = new SenderExecutableAction(getSender(), manager, errorMessage);
             action.execute(inputs, timeout, listener);
@@ -185,15 +195,29 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
     }
 
     /**
+     * Gemini exposes reasoning through {@code generationConfig.thinkingConfig} and thought signatures, both of which
+     * this service translates. Model Garden providers other than {@link GoogleModelGardenProvider#GOOGLE} are rejected
+     * in {@link #doUnifiedCompletionInfer} instead, since this hook cannot see the model.
+     */
+    @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    /**
      * Helper method to create a GenericRequestManager with a specified response handler.
      * @param model The GoogleVertexAiChatCompletionModel to be used for requests.
+     * @param excludeReasoning whether to suppress reasoning blocks in the response.
      * @return A GenericRequestManager configured with the provided response handler.
      */
-    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(
+        GoogleVertexAiChatCompletionModel model,
+        boolean excludeReasoning
+    ) {
         return new GenericRequestManager<>(
             getServiceComponents().threadPool(),
             model,
-            model.getServiceSettings().provider().getChatCompletionResponseHandler(),
+            model.getServiceSettings().provider().getChatCompletionResponseHandler(excludeReasoning),
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );
@@ -228,6 +252,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             serviceSettings.maxBatchSize() == null ? EMBEDDING_MAX_BATCH_SIZE : serviceSettings.maxBatchSize(),
+            getRegexReadLimitFactor(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -246,6 +271,8 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
         if (model instanceof GoogleVertexAiEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
 
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = SimilarityMeasure.similarityOrDefault(similarityFromModel);
             var updatedServiceSettings = new GoogleVertexAiEmbeddingsServiceSettings(
                 serviceSettings.location(),
                 serviceSettings.projectId(),
@@ -254,7 +281,7 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
                 serviceSettings.maxInputTokens(),
                 embeddingSize,
                 serviceSettings.maxBatchSize(),
-                serviceSettings.similarity(),
+                similarityToUse,
                 serviceSettings.rateLimitSettings()
             );
 

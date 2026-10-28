@@ -31,13 +31,19 @@ Accepted window values are currently limited to multiples of the time bucket
 interval in the BY clause. If no window is specified, the time bucket interval
 is implicitly used as a window.
 :::
-:::{applies-item} stack: ga 9.4+
+:::{applies-item} stack: ga 9.4-9.5
 All window values are accepted, though there are performance optimizations for
 the cases where the window is a multiple of the time bucket interval.
 
 It's currently not allowed to mix windows that are smaller than the time bucket
 for one metrics and larger than the time bucket for another metrics, in the same
 query.
+:::
+:::{applies-item} stack: ga 9.6+
+All window values are accepted, though there are performance optimizations for
+the cases where the window is a multiple of the time bucket interval. Each
+aggregation function applies its own window independently, so windows of
+different sizes can be combined in the same query.
 :::
 ::::
 
@@ -73,8 +79,9 @@ mapping:
   regular aggregation such as `SUM`, `AVG`, or `PERCENTILE` directly to the field, and
   `TS` implicitly merges the histograms per time series. Fields with the type `histogram` must first
   be cast using `::exponential_histogram` or `::tdigest`. Refer to
-  [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
-  for examples and guidance on mixed field types.
+  [](/reference/query-languages/esql/esql-histogram-fields.md)
+  for full details, or [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
+  for `TS`-specific examples.
 
 For the conceptual context behind the counter/gauge split, refer to
 [When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).

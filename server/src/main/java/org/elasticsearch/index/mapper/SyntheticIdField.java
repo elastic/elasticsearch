@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
@@ -29,6 +30,9 @@ public final class SyntheticIdField extends Field {
     private static final String ENABLED_ATTRIBUTE_VALUE = Boolean.TRUE.toString();
 
     private static final FieldType TYPE;
+
+    static final FieldType COLUMNAR_DV_ONLY_TYPE;
+    static final FieldType COLUMNAR_INDEXED_TYPE;
 
     static {
         TYPE = new FieldType();
@@ -48,6 +52,21 @@ public final class SyntheticIdField extends Field {
         TYPE.setStored(false);
         TYPE.setDocValuesType(DocValuesType.BINARY);
         TYPE.freeze();
+
+        COLUMNAR_DV_ONLY_TYPE = new FieldType();
+        COLUMNAR_DV_ONLY_TYPE.setDocValuesType(DocValuesType.BINARY);
+        COLUMNAR_DV_ONLY_TYPE.setIndexOptions(IndexOptions.NONE);
+        COLUMNAR_DV_ONLY_TYPE.freeze();
+
+        COLUMNAR_INDEXED_TYPE = new FieldType();
+        COLUMNAR_INDEXED_TYPE.putAttribute(ENABLED_ATTRIBUTE_KEY, ENABLED_ATTRIBUTE_VALUE);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_FORMAT_KEY, TSDBSyntheticIdPostingsFormat.FORMAT_NAME);
+        COLUMNAR_INDEXED_TYPE.putAttribute(PerFieldPostingsFormat.PER_FIELD_SUFFIX_KEY, TSDBSyntheticIdPostingsFormat.SUFFIX);
+        COLUMNAR_INDEXED_TYPE.setIndexOptions(IndexOptions.DOCS);
+        COLUMNAR_INDEXED_TYPE.setTokenized(true);
+        COLUMNAR_INDEXED_TYPE.setOmitNorms(true);
+        COLUMNAR_INDEXED_TYPE.setStored(false);
+        COLUMNAR_INDEXED_TYPE.freeze();
     }
 
     public SyntheticIdField(BytesRef bytes) {
@@ -67,6 +86,12 @@ public final class SyntheticIdField extends Field {
     public void setTokenStream(TokenStream tokenStream) {
         assert false : "this should never be called";
         throw new UnsupportedOperationException();
+    }
+
+    /** Whether {@code fieldInfos} says the segment holds a synthetic id, which is what the formats keyed on it check for. */
+    public static boolean hasSyntheticId(FieldInfos fieldInfos) {
+        var fieldInfo = fieldInfos.fieldInfo(NAME);
+        return fieldInfo != null && hasSyntheticIdAttributes(fieldInfo.attributes());
     }
 
     public static boolean hasSyntheticIdAttributes(Map<String, String> attributes) {

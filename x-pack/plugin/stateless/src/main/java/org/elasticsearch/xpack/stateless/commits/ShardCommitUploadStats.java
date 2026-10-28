@@ -15,5 +15,5 @@ import org.elasticsearch.index.shard.ShardId;
 public interface ShardCommitUploadStats {
     ShardId shardId();
 
-    long pendingUploadBytes();
+    Long oldestCommitUploadStartTimeRelativeMillis();
 }

@@ -534,10 +534,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             SearchRequest searchRequest = new SearchRequest().searchSlice("slice-1")
                 .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
+            assertNull(searchRequest.validate());
         }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
@@ -564,16 +561,12 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertTrue(request.isRoutingFromSlice());
     }
 
-    public void testClearingSearchSliceClearsDerivedRouting() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        SearchRequest request = new SearchRequest().searchSlice("s1");
-        request.searchSlice(null);
+    public void testSearchSliceRejectsNull() {
+        SearchRequest request = new SearchRequest();
+        expectThrows(NullPointerException.class, () -> request.searchSlice(null));
         assertNull(request.searchSlice());
         assertFalse(request.isRoutingFromSlice());
         assertNull(request.routing());
-
-        request.routing("manual");
-        assertEquals("manual", request.routing());
     }
 
     public void testCopyConstructor() throws IOException {

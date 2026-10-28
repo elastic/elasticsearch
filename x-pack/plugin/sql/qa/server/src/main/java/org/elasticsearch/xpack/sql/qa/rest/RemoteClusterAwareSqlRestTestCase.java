@@ -30,7 +30,7 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
-    // gradle defines when using legacy-java-rest-test
+    // Gradle defines these when using internal-java-rest-test.
     public static final String AUTH_USER = System.getProperty("tests.rest.cluster.multi.user");
     public static final String AUTH_PASS = System.getProperty("tests.rest.cluster.multi.password");
 
@@ -78,7 +78,7 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     }
 
     /**
-     * Use this when using the {@code legacy-java-rest-test} plugin.
+     * Use this when using the {@code internal-java-rest-test} plugin.
      * @return a client to the remote cluster if it exists, otherwise a client to the local cluster
      */
     public static RestClient defaultProvisioningClient() {
@@ -86,7 +86,7 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
     }
 
     /**
-     * Override if the test data must be provisioned on a remote cluster while not using the {@code legacy-java-rest-test} plugin.
+     * Override if the test data must be provisioned on a remote cluster while not using the {@code internal-java-rest-test} plugin.
      * @return client to use for loading test data
      */
     protected RestClient provisioningClient() {

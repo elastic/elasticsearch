@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -45,8 +46,16 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         .filter(t -> t != DataType.DOC_DATA_TYPE)
         .filter(t -> t != DataType.TSID_DATA_TYPE)
         .filter(t -> t != DataType.DATE_RANGE || EsqlCapabilities.Cap.CASE_DATE_RANGE.isEnabled())
-        .filter(t -> t != DataType.DOUBLE_RANGE || EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled())
         .toList();
+
+    /**
+     * The warnings a multivalued condition raises. They name the CASE rather than the condition,
+     * and this harness builds the expression with {@link Source#EMPTY}, so the text is empty.
+     */
+    private static final List<String> MULTIVALUE_CONDITION_WARNINGS = List.of(
+        "Line -1:-1: evaluation of [] failed, treating result as false. Only first 20 failures recorded.",
+        "Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+    );
 
     /**
      * Generate the test cases for this test
@@ -58,16 +67,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             twoAndThreeArgs(suppliers, true, true, returnType, List.of());
             twoAndThreeArgs(suppliers, false, false, returnType, List.of());
             twoAndThreeArgs(suppliers, null, false, returnType, List.of());
-            twoAndThreeArgs(
-                suppliers,
-                randomMultivaluedCondition(),
-                false,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
-                )
-            );
+            twoAndThreeArgs(suppliers, randomMultivaluedCondition(), false, returnType, MULTIVALUE_CONDITION_WARNINGS);
         }
 
         for (DataType returnType : RETURN_TYPES) {
@@ -76,39 +76,15 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             fourAndFiveArgs(suppliers, false, false, 2, returnType, List.of());
             fourAndFiveArgs(suppliers, null, true, 1, returnType, List.of());
             fourAndFiveArgs(suppliers, null, false, 2, returnType, List.of());
-            fourAndFiveArgs(
-                suppliers,
-                randomMultivaluedCondition(),
-                true,
-                1,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond1] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
-                )
-            );
-            fourAndFiveArgs(
-                suppliers,
-                false,
-                randomMultivaluedCondition(),
-                2,
-                returnType,
-                List.of(
-                    "Line -1:-1: evaluation of [cond2] failed, treating result as false. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
-                )
-            );
+            fourAndFiveArgs(suppliers, randomMultivaluedCondition(), true, 1, returnType, MULTIVALUE_CONDITION_WARNINGS);
+            fourAndFiveArgs(suppliers, false, randomMultivaluedCondition(), 2, returnType, MULTIVALUE_CONDITION_WARNINGS);
         }
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
-        FunctionAppliesTo doubleRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
         suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
             DataType type = typedData.type();
             if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
                 return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
-            }
-            if (type == DataType.DOUBLE_RANGE) {
-                return typedData.withAppliesTo(doubleRangeAppliesTo);
             }
             return typedData;
         }).toList()));
@@ -745,11 +721,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (returnType == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        return decorate.apply(
-            new TestCaseSupplier.TestCase(typedData, evaluatorToString, returnType, equalTo(result)).withExtra(
+        if (returnType == DataType.NULL) {
+            // With only null-typed values, FoldNull folds the CASE to null before its conditions run, so no warnings are emitted.
+            return new TestCaseSupplier.TestCase(typedData, equalTo("LiteralsEvaluator[lit=null]"), returnType, equalTo(result)).withExtra(
                 new Extra(foldable, partialFold)
-            )
-        );
+            );
+        } else {
+            return decorate.apply(
+                new TestCaseSupplier.TestCase(typedData, evaluatorToString, returnType, equalTo(result)).withExtra(
+                    new Extra(foldable, partialFold)
+                )
+            );
+        }
     }
 
     public CaseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -790,6 +773,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testFancyFolding() {
+        if (testCase.expectedType() == DataType.NULL) {
+            // The all-null CASE is never folded directly: FoldNull replaces it first.
+            return;
+        }
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
@@ -810,6 +797,10 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
+        if (testCase.expectedType() == DataType.NULL) {
+            // The all-null CASE is never partially folded: FoldNull replaces it first.
+            return;
+        }
         if (extra().foldable()) {
             // Nothing to do
             return;
@@ -821,6 +812,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         if (extra().expectedPartialFold.size() == 1) {
             assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(extra().expectedPartialFold.get(0).asField()));
+            assertPartialFoldWarnings(c);
             return;
         }
         Case expected = build(
@@ -828,6 +820,26 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             extra().expectedPartialFold.stream().map(TestCaseSupplier.TypedData::asField).toList()
         );
         assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(expected));
+        assertPartialFoldWarnings(c);
+    }
+
+    /**
+     * Dropping a multivalued condition raises the same warnings the evaluator would have. Only a
+     * condition that is already a multivalued literal gets dropped that way; a field condition is
+     * not foldable, so it is kept and partially folding warns about nothing.
+     */
+    private void assertPartialFoldWarnings(Case c) {
+        List<Expression> children = c.children();
+        for (int i = 0; i + 1 < children.size(); i += 2) {
+            if (children.get(i) instanceof Literal l && l.value() instanceof List<?> values && values.size() > 1) {
+                if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
+                    assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
+                } else if (testCase.getExpectedWarnings() != null) {
+                    assertWarnings(testCase.getExpectedWarnings());
+                }
+                return;
+            }
+        }
     }
 
     private static Function<TestCaseSupplier.TestCase, TestCaseSupplier.TestCase> addWarnings(List<String> warnings) {

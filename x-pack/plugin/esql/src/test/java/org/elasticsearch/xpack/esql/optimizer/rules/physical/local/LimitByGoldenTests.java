@@ -33,8 +33,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
         Stage.ANALYSIS,
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
-        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
-        Stage.NODE_REDUCE
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION
     );
 
     public void testLimitByWithoutSort() {

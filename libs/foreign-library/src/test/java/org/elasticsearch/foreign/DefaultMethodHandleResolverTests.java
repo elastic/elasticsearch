@@ -11,8 +11,10 @@ package org.elasticsearch.foreign;
 
 import junit.framework.TestCase;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.Locale;
@@ -33,12 +35,19 @@ public class DefaultMethodHandleResolverTests extends TestCase {
      */
     public void testDefaultResolverBuildsWorkingMethodHandle() throws Throwable {
         Linker linker = Linker.nativeLinker();
-        String symName = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")
-            ? "GetCurrentProcessId"
-            : "getpid";
-        var addr = linker.defaultLookup()
-            .find(symName)
-            .orElseThrow(() -> new AssertionError(symName + " not found in default linker lookup"));
+        boolean isWindows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
+
+        SymbolLookup lookup;
+        String symName;
+        if (isWindows) {
+            symName = "GetCurrentProcessId";
+            lookup = SymbolLookup.libraryLookup("kernel32", Arena.global());
+        } else {
+            symName = "getpid";
+            lookup = linker.defaultLookup();
+        }
+
+        var addr = lookup.find(symName).orElseThrow(() -> new AssertionError(symName + " not found in default linker lookup"));
 
         ResolvedSymbol symbol = new ResolvedSymbol(symName, addr);
         FunctionDescriptor descriptor = FunctionDescriptor.of(ValueLayout.JAVA_INT);

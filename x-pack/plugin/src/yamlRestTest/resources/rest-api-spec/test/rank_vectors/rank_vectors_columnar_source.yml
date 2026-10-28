@@ -1,0 +1,86 @@
+setup:
+  - requires:
+      reason: 'columnar index mode and rank_vectors are required'
+      cluster_features: [ "rank_vectors" ]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_all_layouts ]
+  - skip:
+      features: "headers"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: rank_vectors
+                dims: 3
+
+              nested:
+                type: nested
+                properties:
+                  paragraph_id:
+                    type: keyword
+                  vector:
+                    type: rank_vectors
+                    dims: 3
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [[1, 2, 3], [4, 5, 6]]
+          nested:
+          - paragraph_id: "0"
+            vector: [[7, 8, 9]]
+          - paragraph_id: "1"
+
+  - do:
+      indices.refresh: {}
+
+---
+"vectors are excluded from the columnar source":
+  - do:
+      search:
+        index: test
+
+  - match:      { hits.hits.0._source.name: "cow.jpg" }
+  - not_exists:   hits.hits.0._source.vector
+  - length:     { hits.hits.0._source.nested: 2 }
+  - match:      { hits.hits.0._source.nested.0.paragraph_id: "0" }
+  - not_exists:   hits.hits.0._source.nested.0.vector
+  - match:      { hits.hits.0._source.nested.1.paragraph_id: "1" }
+
+---
+"vectors are restored when requested":
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the embeddings as doubles
+        Content-Type: application/json
+      search:
+        index: test
+        body:
+          _source:
+            exclude_vectors: false
+
+  - match: { hits.hits.0._source.name: "cow.jpg" }
+  - match: { hits.hits.0._source.vector: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]] }
+  - length: { hits.hits.0._source.nested: 2 }
+  - match: { hits.hits.0._source.nested.0.paragraph_id: "0" }
+  - match: { hits.hits.0._source.nested.0.vector: [[7.0, 8.0, 9.0]] }
+  - match: { hits.hits.0._source.nested.1.paragraph_id: "1" }
+  - not_exists: hits.hits.0._source.nested.1.vector

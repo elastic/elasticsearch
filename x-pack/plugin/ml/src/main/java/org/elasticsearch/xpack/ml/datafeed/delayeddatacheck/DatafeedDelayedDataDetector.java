@@ -77,6 +77,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         this.client = client;
     }
 
+    // visible for testing
+    IndicesOptions getIndicesOptions() {
+        return indicesOptions;
+    }
+
     /**
      * This method looks at the {@link DatafeedDelayedDataDetector#datafeedIndices}
      * from {@code latestFinalizedBucket - window} to {@code latestFinalizedBucket} and compares the document counts with the

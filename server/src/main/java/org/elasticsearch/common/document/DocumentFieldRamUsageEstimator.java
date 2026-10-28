@@ -10,6 +10,7 @@
 package org.elasticsearch.common.document;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -157,11 +158,13 @@ public final class DocumentFieldRamUsageEstimator {
             long capacity = Math.max(16L, Long.highestOneBit((long) n * 2L - 1L) << 1);
             size += ARRAY_HEADER_BYTES + capacity * REF_BYTES;
         } else if (collection instanceof HashSet<?> || collection instanceof LinkedHashSet<?>) {
-            size += RamUsageEstimator.shallowSizeOfInstance(collection instanceof LinkedHashSet<?> ? LinkedHashMap.class : HashMap.class);
+            size += collection instanceof LinkedHashSet<?>
+                ? RamUsageEstimates.LINKED_HASH_MAP_SHALLOW_SIZE
+                : RamUsageEstimates.HASH_MAP_SHALLOW_SIZE;
             size += ARRAY_HEADER_BYTES + hashTableCapacity(n) * (long) REF_BYTES;
             size += n * (collection instanceof LinkedHashSet<?> ? LINKED_HASH_MAP_ENTRY_BYTES : HASH_MAP_ENTRY_BYTES);
         } else if (collection instanceof TreeSet<?>) {
-            size += RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
+            size += RamUsageEstimates.TREE_MAP_SHALLOW_SIZE;
             size += n * TREE_MAP_ENTRY_BYTES;
         } else if (n > 0) {
             long capacity = Math.max(10L, (long) Math.ceil(n * 1.5));

@@ -401,14 +401,14 @@ public class CompletionFieldMapper extends FieldMapper {
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
         Map<String, CompletionInputMetadataContainer> inputMap = Maps.newMapWithExpectedSize(1);
 
         if (token == Token.VALUE_NULL) { // ignore null values
-            return;
+            return ParseResult.INDEXED;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 parse(context, token, parser, inputMap);
@@ -461,6 +461,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 );
             }
         }
+        return ParseResult.INDEXED;
     }
 
     /**

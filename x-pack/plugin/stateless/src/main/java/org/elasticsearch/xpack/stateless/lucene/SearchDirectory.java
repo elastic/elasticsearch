@@ -23,6 +23,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
@@ -40,25 +42,34 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
     private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
+
+    /// IndexVersion that guarantees the writing node recorded a `@timestamp` field value range in the compound
+    /// commit header. Indices created before this can additionally contain compound commits with no recorded range purely
+    /// because the field did not exist yet, rather than because the commit lacks `@timestamp` data.
+    public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.NESTED_PATH_LIMIT;
+
+    /// Fallback `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
+    public static final long PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
 
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
@@ -68,46 +79,76 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
 
     /**
+     * Exclusive end ({@code offset + fileLength}) of the furthest file observed for each blob, keyed by the blob's primary
+     * term and generation. The value only grows, because an uploaded blob is immutable and a virtual batched compound
+     * commit only grows. A generational file copy extends the blob that carried it even when the directory keeps an earlier
+     * location for that file. Removing a file does not shrink the length. The entry is dropped once no retained file
+     * references the blob.
+     */
+    private volatile Map<PrimaryTermAndGeneration, Long> blobLengths = Map.of();
+
+    /**
      * Map of terms/generations that are currently in use by opened Lucene generational files.
      */
     private final Map<PrimaryTermAndGeneration, RefCounted> generationalFilesTermAndGens;
 
     /**
-     * Term/generation of the latest updated commit if it contained at least one generational file.
+     * Holds the pin(s) for the BCC term/generation(s) referenced by the generational files of the latest updated commit, or
+     * {@code null} if that commit contained no generational file. It can now hold every first-seen BCC of the live generational
+     * files (see {@link #mergeMetadata}), not just a single one, and releases them all exactly once on the next commit update or
+     * on directory close.
      */
     private volatile Releasable lastAcquiredGenerationalFilesTermAndGen = null;
 
-    /**
-     * Tracks the number of obsolete regions eviction requests that have not yet been processed
-     */
-    private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
-
     private final boolean hasTimestampField;
+    private final long fallbackRegionTimestampMillis;
+    private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId,
-        boolean hasTimestampField
+        boolean hasTimestampField,
+        IndexVersion creationVersion
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
+        this.fallbackRegionTimestampMillis = resolveFallbackRegionTimestampMillis(hasTimestampField, creationVersion);
     }
 
-    /**
-     * Whether this shard is time-based, i.e. its index has a {@code @timestamp} field.
-     */
-    public boolean hasTimestampField() {
-        return hasTimestampField;
+    @Override
+    protected Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit fetched from the object store
+        return currentDataSetSizeInBytes;
+    }
+
+    private static long resolveFallbackRegionTimestampMillis(boolean hasTimestampField, IndexVersion creationVersion) {
+        if (hasTimestampField == false) {
+            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        }
+        // For a time-based index created after the introduction of timestamp range field, we treat all CCs without timestamp as having
+        // a minimal timestamp. This should be a rare case, e.g. a soft-delete only commit.
+        // For indices created before that, CCs can lack a timestamp range purely because the field did not exist yet. We conservatively
+        // assign a fallback timestamp to them. Note that recent CCs on pre-field indices (e.g. soft-delete only) will also receive this
+        // fallback, which is a known over-estimation but should be negligible in practice.
+        return creationVersion.before(TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
+            ? PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS
+            : SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
     }
 
     /**
      * Whether BCC metadata reads on this shard should stamp {@link SharedBlobCacheService#BACKFILL_IN_PROGRESS_TIMESTAMP} and be backfilled
-     * after parsing. Requires a time-based index and the metadata-read timestamp backfill setting to be enabled.
+     * after parsing. Requires a time-based index and the eviction policy to consider timestamps.
      */
     public boolean timestampBackfillEnabled() {
         return hasTimestampField && cacheService.isMetadataTimestampBackfillEnabled();
@@ -115,7 +156,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public long fallbackRegionTimestampMillis() {
-        return hasTimestampField ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        return fallbackRegionTimestampMillis;
     }
 
     /**
@@ -316,19 +357,51 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
+     * The exclusive end ({@code offset + fileLength}) of the furthest file observed for the blob.
+     * Empty when that primary term and generation are not tracked.
+     * <p>
+     * The value grows as a virtual batched compound commit is appended, including when a generational file is carried
+     * in a later blob whose location this directory does not store. It is kept while any file still references the blob,
+     * because an uploaded blob is immutable and a virtual one only grows, so it can stay past the end of the files that
+     * remain after a later file is removed.
+     */
+    public OptionalLong blobLength(PrimaryTermAndGeneration termAndGeneration) {
+        final Long length = blobLengths.get(termAndGeneration);
+        return length == null ? OptionalLong.empty() : OptionalLong.of(length);
+    }
+
+    /**
      * Removes superfluous files
      * @param filesToRetain the files to retain
      */
     public void retainFiles(Set<String> filesToRetain) {
-        if (filesToRetain.containsAll(currentMetadata.keySet()) == false) {
+        final var current = currentMetadata;
+        if (filesToRetain.containsAll(current.keySet()) == false) {
             assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
             try {
-                final var updated = new HashMap<>(currentMetadata);
-                final var filesRemoved = updated.keySet().retainAll(filesToRetain);
+                final var currentLengths = blobLengths;
+                final var termGensRetained = new HashSet<PrimaryTermAndGeneration>(currentLengths.size());
+                final var updated = new HashMap<String, BlobFileRanges>(current.size());
+
+                for (var entry : current.entrySet()) {
+                    if (filesToRetain.contains(entry.getKey())) {
+                        updated.put(entry.getKey(), entry.getValue());
+                        termGensRetained.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+                    }
+                }
                 assert updated.keySet().containsAll(filesToRetain)
                     : "missing files [" + Sets.difference(filesToRetain, updated.keySet()) + "]";
-                currentMetadata = Map.copyOf(updated);
+                final boolean filesRemoved = updated.size() < current.size();
                 assert filesRemoved;
+
+                // A removed file does not drop its blob while another retained file still references it.
+                if (termGensRetained.size() != currentLengths.size()) {
+                    final var lengths = new HashMap<>(currentLengths);
+                    lengths.keySet().retainAll(termGensRetained);
+                    blobLengths = Map.copyOf(lengths);
+                }
+                currentMetadata = Map.copyOf(updated);
+                assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
 
                 if (filesRemoved && cacheService.isEvictObsoleteRegionsEnabled()) {
                     maybeScheduleObsoleteRegionsEviction();
@@ -340,101 +413,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     /**
-     * Schedules an async eviction of cache regions that are no longer referenced by the current metadata,
-     * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
-     */
-    private void maybeScheduleObsoleteRegionsEviction() {
-        if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
-            submitObsoleteRegionsEviction();
-        }
-    }
-
-    private void submitObsoleteRegionsEviction() {
-        cacheService.submitAsyncEviction(() -> {
-            final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
-            assert regionsEvictionTasks > 0 : regionsEvictionTasks;
-
-            final Map<String, BlobFileRanges> metadata = currentMetadata;
-
-            final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
-            long maxBccGeneration = -1L;
-
-            for (var file : metadata.values()) {
-                long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
-                int startRegion = cacheService.getRegion(file.fileOffset());
-                int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
-                activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet()).set(startRegion, endRegion + 1);
-                maxBccGeneration = Math.max(maxBccGeneration, bccGen);
-
-                if (file.hasReplicatedRanges()) {
-                    file.forEachReplicatedRange(
-                        (offset, length) -> activeRegionsByBccGen.computeIfAbsent(bccGen, k -> new BitSet())
-                            .set(cacheService.getRegion(offset), cacheService.getEndingRegion(offset + length) + 1)
-                    );
-                }
-            }
-
-            final long maxBccGen = maxBccGeneration;
-            cacheService.forceEvict(shardId, (key, region) -> {
-                final String blobName = key.fileName();
-                final long bccGeneration = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
-
-                BitSet activeRegions = activeRegionsByBccGen.get(bccGeneration);
-                if (activeRegions != null && activeRegions.get(region)) {
-                    return false; // Region is active, keep it
-                }
-
-                if (bccGeneration < maxBccGen) {
-                    logger.debug(
-                        "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}] < max [{}])",
-                        shardId,
-                        region,
-                        blobName,
-                        bccGeneration,
-                        maxBccGen
-                    );
-                    return true; // BCC is older and region is not active, evict
-                }
-                if (bccGeneration == maxBccGen) {
-                    assert activeRegions != null : "activeRegions should not be null for maxBccGen";
-                    int maxKnownRegion = activeRegions.length() - 1;
-                    if (region <= maxKnownRegion) {
-                        logger.debug(
-                            "{} evicting obsolete region [{}] of blob [{}] (bcc gen [{}], max known region [{}])",
-                            shardId,
-                            region,
-                            blobName,
-                            bccGeneration,
-                            maxKnownRegion
-                        );
-                        return true;
-                    }
-                    return false;
-                }
-                return false;
-            });
-
-            final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
-            assert remainingTasks >= 0 : remainingTasks;
-            if (remainingTasks > 0) {
-                submitObsoleteRegionsEviction();
-            }
-        });
-    }
-
-    /**
      * For test usage only.
      */
     @Override
     StatelessSharedBlobCacheService getCacheService() {
         return super.getCacheService();
-    }
-
-    /// For test usage only. Returns the number of obsolete-region eviction tasks scheduled by [#retainFiles] that have not yet
-    /// completed. Draining this to zero lets a test wait out any in-flight [#submitObsoleteRegionsEviction] instead of racing it,
-    /// so a "nothing was evicted" assertion can be made deterministically rather than against a not-yet-run async task.
-    long pendingObsoleteRegionsEvictionTasks() {
-        return submittedObsoleteRegionsEvictionTasks.get();
     }
 
     // TODO this method works because we never prune old commits files
@@ -495,6 +478,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             fileName,
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
             cacheService.getShardReadThreadPoolExecutor(),
             false
@@ -507,6 +491,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.Warming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -528,6 +513,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            objectStoreUploadTracker,
             BlobCacheMetrics.CachePopulationReason.OnlinePrewarming,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -542,13 +528,18 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * We allow creating this reader from any thread but the actual downloading of
      * bytes will happen on the stateless_prewarm pool.
      *
-     * @param blobFile blob file
+     * @param blobFile   blob file
+     * @param isUploaded when {@code true} the file's BCC generation is known to be uploaded (from the notification), so the blob-store
+     *                   reader is used directly rather than relying on the upload tracker — which may not yet reflect the upload because
+     *                   {@code updateLatestUploadedBcc} is deferred until after prefetch completes
      * @return a CacheBlobReader for reading the specified file
      */
-    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile) {
+    public CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded) {
+        var tracker = isUploaded ? MutableObjectStoreUploadTracker.ALWAYS_UPLOADED : objectStoreUploadTracker;
         return getCacheBlobReader(
             blobFile.blobName(),
             blobFile,
+            tracker,
             BlobCacheMetrics.CachePopulationReason.PreFetchingNewCommit,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true
@@ -558,6 +549,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private CacheBlobReader getCacheBlobReader(
         String fileName,
         BlobFile blobFile,
+        MutableObjectStoreUploadTracker tracker,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         Executor executor,
         boolean speculativeFill
@@ -566,7 +558,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             shardId,
             this::getBlobContainer,
             blobFile,
-            objectStoreUploadTracker,
+            tracker,
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
             cachePopulationReason,
@@ -585,20 +577,24 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /// Creates a metadata-read directory that stamps regions according to `timestampBackfillEnabled`.
     /// Caller should ensure that `backfillMetadataReadTimestamps` is called after the reads are done if backfill was enabled.
     public BlobStoreCacheDirectory createMetadataReadDirectory(boolean timestampBackfillEnabled) {
-        return createNewInstance(blobContainer.get(), timestampBackfillEnabled);
+        return createNewInstance(blobContainer.get(), timestampBackfillEnabled, Map.of(), 0L);
     }
 
     /// Default implementation with timestamp backfill disabled. For timestamp enabled metadata reads an intermediate directory should be
     /// created with [#createMetadataReadDirectory(boolean)] and then another directory via [#createPerBccMetadataReadDirectory].
     @Override
-    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-        return createMetadataReadDirectory(false);
+    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        return createNewInstance(blobContainer.get(), false, metadata, dataSetSizeInBytes);
     }
 
-    private BlobStoreCacheDirectory createNewInstance(
+    // package private for testing
+    BlobStoreCacheDirectory createNewInstance(
         @Nullable LongFunction<BlobContainer> blobContainerFunction,
-        boolean timestampBackfillEnabled
+        boolean timestampBackfillEnabled,
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
     ) {
+        final Map<String, BlobFileRanges> installedMetadata = Map.copyOf(metadata);
         return new BlobStoreCacheDirectory(
             cacheService,
             shardId,
@@ -606,6 +602,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromObjectStore,
             blobContainerFunction
         ) {
+            @Override
+            protected Map<String, BlobFileRanges> getCurrentMetadata() {
+                return installedMetadata;
+            }
+
+            @Override
+            public long estimateDataSetSizeInBytes() {
+                return dataSetSizeInBytes;
+            }
+
             @Override
             protected long fallbackRegionTimestampMillis() {
                 return timestampBackfillEnabled
@@ -620,6 +626,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     fileName,
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
                     false
@@ -631,6 +638,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 return SearchDirectory.this.getCacheBlobReader(
                     blobFile.blobName(),
                     blobFile,
+                    objectStoreUploadTracker,
                     BlobCacheMetrics.CachePopulationReason.Warming,
                     getCacheService().getShardReadThreadPoolExecutor(),
                     true
@@ -646,8 +654,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             /// @return the [BlobStoreCacheDirectory] for a single BCC metadata read through cache that inherits parent's
             /// fallbackRegionTimestampMillis value.
             @Override
-            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-                return SearchDirectory.this.createNewInstance(this::getBlobContainer, timestampBackfillEnabled);
+            public BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+                Map<String, BlobFileRanges> childMetadata,
+                long childDataSetSizeInBytes
+            ) {
+                return SearchDirectory.this.createNewInstance(
+                    this::getBlobContainer,
+                    timestampBackfillEnabled,
+                    childMetadata,
+                    childDataSetSizeInBytes
+                );
             }
         };
     }
@@ -768,48 +784,86 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         mergeMetadata(incomingFileRanges, true);
     }
 
-    private void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
+    // package private for testing
+    void mergeMetadata(final Map<String, BlobFileRanges> incomingFileRanges, final boolean pitContextRelocationTransfer) {
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
 
         var previousGenerationalFilesTermAndGen = this.lastAcquiredGenerationalFilesTermAndGen;
         try {
             final var reconciledMetadata = new HashMap<>(currentMetadata);
-            PrimaryTermAndGeneration generationalFilesTermAndGen = null;
+            final var lengths = new HashMap<>(blobLengths);
+            //
+            // Distinct BCC term/generations referenced by the generational files in this incoming metadata.
+            //
+            // A fresh commit notification always references a single BCC since generation files are carried-over between BCC. But PIT
+            // relocation metadata (see mergePITReaderMetadata) carries generational files accumulated across many BCCs over the PIT's
+            // lifetime. We pin every one of them so that opening the relocated commit (which re-opens these files and acquires each file's
+            // BCC term/generation, see acquireGenerationalFileTermAndGeneration) always finds them present in generationalFilesTermAndGens.
+            // Re-pinning BCCs that happen to be already held is intentional: it keeps them alive even if the only reader referencing them
+            // is closed concurrently while we open the relocated commit.
+            assert pitContextRelocationTransfer || assertGenerationalFilesShareSingleBcc(incomingFileRanges);
+            final Set<PrimaryTermAndGeneration> incomingGenerationalFilesTermAndGens = new HashSet<>();
             long commitSize = 0L;
             for (var entry : incomingFileRanges.entrySet()) {
                 final String fileName = entry.getKey();
                 final var reconciledRanges = reconcileBlobFileRanges(fileName, reconciledMetadata.get(fileName), entry.getValue());
                 if (isGenerationalFile(fileName)) {
-                    // blob locations for generational files are not updated: we pin the file to the first blob location that we know about.
-                    // we expect generational files to be opened when the reader is refreshed and picks up the generational files for the
-                    // first time and never reopened them after that (as segment core readers are handed over between refreshed reader
-                    // instances).
-                    reconciledMetadata.putIfAbsent(fileName, reconciledRanges);
-                    if (generationalFilesTermAndGen == null) {
-                        generationalFilesTermAndGen = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    // Generational files are carried over into every subsequent BCC, so a fresh commit notification
+                    // references all the generational files it needs from a single (latest) BCC. Their blob locations are
+                    // not updated here: we keep the first location we see for each file (putIfAbsent below) and pin its BCC.
+                    // On the normal refresh path this is the location the reader opens as soon as the file is first picked
+                    // up, and it never reopens it afterwards (segment core readers are handed over between refreshed reader
+                    // instances), so the first-seen BCC is exactly the one kept alive by the reader.
+                    //
+                    // A deferred refresh (see lastRefreshDeferred usages) breaks that "opened immediately and kept open"
+                    // assumption: the metadata is updated but the refresh can be postponed, so a later commit may supersede
+                    // the first-seen BCC before the reader finally opens the file. We therefore pin every BCC referenced by
+                    // an active generational file, not just the latest one, so the deferred open can still acquire the
+                    // first-seen BCC.
+                    //
+                    // Likewise, a relocated PIT accumulates generational files across several BCCs over its lifetime. When
+                    // the PIT's own BCC is not yet uploaded, the handoff builds the PIT metadata from those multiple BCCs
+                    // (an uploaded BCC would instead carry the latest copy), and the target re-acquires each of them when
+                    // opening the PIT, which again requires all referenced BCCs to be pinned.
+                    //
+                    // TODO: a PIT is anchored on a single commit and should ideally reference each generational file from
+                    // one (latest) BCC like recovery does. That needs the search node to know the latest unuploaded copies
+                    // (read the unuploaded VBCC from the indexing shard, or track unuploaded StatelessCompoundCommits) to
+                    // override the blob-file-ranges timestamp.
+                    var incoming = reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration();
+                    if (reconciledMetadata.putIfAbsent(fileName, reconciledRanges) != null) {
+                        // read the first known location
+                        incoming = reconciledMetadata.get(fileName).blobLocation().getBatchedCompoundCommitTermAndGeneration();
                     }
-                    assert reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration().equals(generationalFilesTermAndGen)
-                        : "All generational files in an incoming commit batch must belong to the same BCC, but "
-                            + fileName
-                            + " belongs to BCC "
-                            + reconciledRanges.blobLocation().getBatchedCompoundCommitTermAndGeneration()
-                            + " which differs from "
-                            + generationalFilesTermAndGen
-                            + " (established by a preceding generational file in this batch)";
+                    // The commit carried this file at reconciledRanges. When the directory keeps an earlier location,
+                    // that value is the copy, which is not stored, but the copy still occupies bytes in its blob.
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
+                    // Pin the BCC of the location we actually keep, which is what doOpenInput will use.
+                    incomingGenerationalFilesTermAndGens.add(incoming);
                 } else {
                     reconciledMetadata.put(fileName, reconciledRanges);
+                    extendBlobLength(lengths, reconciledRanges.blobLocation());
                 }
                 commitSize += reconciledRanges.blobLocation().fileLength();
             }
-            // If we have generational file(s) in the new commit, we create a ref counted instance that holds the term/generation of the
-            // batched compound commit so that it can be reported as used to the indexing shard in new commit responses. The ref counted
-            // instance will be decRef on the next commit update or when the directory is closed. Any generational file opened between two
-            // commits update should incRef the instance to indicate that the BCC term/generation is in use and decRef it once the file is
-            // closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
-            if (generationalFilesTermAndGen != null) {
-                var releasable = addGenerationalFileTermAndGeneration(generationalFilesTermAndGen);
+            // If we have generational file(s) in the new commit, we create ref counted instances that hold the term/generation of each
+            // referenced batched compound commit so that they can be reported as used to the indexing shard in new commit responses. The
+            // ref counted instances will be decRef on the next commit update or when the directory is closed. Any generational file opened
+            // between two commit updates should incRef the matching instance to indicate that the BCC term/generation is in use and decRef
+            // it once the file is closed. When fully decRefed, the BCC term/gen is removed from the set of used generations.
+            if (incomingGenerationalFilesTermAndGens.isEmpty() == false) {
+                final List<Releasable> releasables = new ArrayList<>(incomingGenerationalFilesTermAndGens.size());
+                try {
+                    for (final var termAndGen : incomingGenerationalFilesTermAndGens) {
+                        releasables.add(addGenerationalFileTermAndGeneration(termAndGen));
+                    }
+                } catch (Exception e) {
+                    // release any pin acquired so far to avoid leaking BCC references if acquiring a later one fails
+                    Releasables.close(releasables);
+                    throw e;
+                }
                 // use releaseOnce to decRef only once, either on commit update or directory close
-                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(releasable);
+                this.lastAcquiredGenerationalFilesTermAndGen = Releasables.releaseOnce(Releasables.wrap(releasables));
             } else if (pitContextRelocationTransfer) {
                 // commit has no generational files, and we're opening a PIT reader during relocation,
                 // in that case we don't want to decRef the current generational files term/gen until a
@@ -819,7 +873,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 // commit has no generational files, and we're not opening a PIT reader during relocation
                 this.lastAcquiredGenerationalFilesTermAndGen = null;
             }
+            blobLengths = Map.copyOf(lengths);
             currentMetadata = Map.copyOf(reconciledMetadata);
+            assert assertBlobLengthsMatchMetadata(currentMetadata, blobLengths);
             if (pitContextRelocationTransfer == false) {
                 currentDataSetSizeInBytes = commitSize;
             }
@@ -830,6 +886,23 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
             }
         }
+    }
+
+    /**
+     * Asserts that all generational files in a new commit notification reference a single BCC. Generational files are carried over into
+     * the latest BCC, so a normal commit notification never spans several BCCs, unlike relocated PIT metadata (see
+     * {@link #mergePITReaderMetadata}) which accumulates generational files across many BCCs over the PIT's lifetime.
+     */
+    private static boolean assertGenerationalFilesShareSingleBcc(Map<String, BlobFileRanges> incomingFileRanges) {
+        final var bccs = new HashSet<PrimaryTermAndGeneration>();
+        for (var entry : incomingFileRanges.entrySet()) {
+            if (isGenerationalFile(entry.getKey())) {
+                bccs.add(entry.getValue().blobLocation().getBatchedCompoundCommitTermAndGeneration());
+            }
+        }
+        final boolean result = bccs.size() <= 1;
+        assert result : "a new commit notification must reference a single BCC for its generational files but referenced " + bccs;
+        return result;
     }
 
     private static BlobFileRanges reconcileBlobFileRanges(String fileName, BlobFileRanges existingRanges, BlobFileRanges incomingRanges) {
@@ -847,5 +920,31 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             return incomingRanges;
         }
         return existingRanges.reconcileWith(incomingRanges);
+    }
+
+    /**
+     * Move the blob's stored length forward when {@code location} ends past it. A file that ends at or before the stored
+     * length leaves it unchanged.
+     */
+    private static void extendBlobLength(Map<PrimaryTermAndGeneration, Long> lengths, BlobLocation location) {
+        final long end = Math.addExact(location.offset(), location.fileLength());
+        lengths.merge(location.getBatchedCompoundCommitTermAndGeneration(), end, Math::max);
+    }
+
+    /**
+     * {@code blobLengths} is keyed by exactly the primary term and generation pairs referenced by {@code metadata}.
+     * Length values are not checked: a generational file copy can extend a blob past every file that remains stored,
+     * and removing a file does not shrink a length.
+     */
+    private static boolean assertBlobLengthsMatchMetadata(
+        Map<String, BlobFileRanges> metadata,
+        Map<PrimaryTermAndGeneration, Long> blobLengths
+    ) {
+        final Set<PrimaryTermAndGeneration> referenced = metadata.values()
+            .stream()
+            .map(ranges -> ranges.blobLocation().getBatchedCompoundCommitTermAndGeneration())
+            .collect(Collectors.toSet());
+        assert blobLengths.keySet().equals(referenced) : "blob lengths " + blobLengths.keySet() + " must contain only " + referenced;
+        return true;
     }
 }

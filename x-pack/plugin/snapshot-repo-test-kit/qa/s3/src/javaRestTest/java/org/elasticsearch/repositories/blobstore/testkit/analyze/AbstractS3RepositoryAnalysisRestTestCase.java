@@ -14,6 +14,7 @@ import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,8 +39,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             super(
                 USE_FIXTURE,
                 null,
-                "bucket",
-                "base_path_integration_tests",
+                () -> "bucket",
+                () -> "base_path_integration_tests",
                 () -> consistencyModel,
                 fixedAccessKey("s3_test_access_key", regionSupplier, "s3")
             );
@@ -139,8 +140,25 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     }
 
     @Override
+    protected boolean checkDeprecations(Settings repositorySettings) {
+        // Opting into the deprecated conditional-writes setting is critically deprecated and would fail analysis. Skip that check so
+        // these tests can still exercise the MPU-based implementation.
+        return repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes") == false;
+    }
+
+    @Override
     protected String repositoryType() {
         return "s3";
+    }
+
+    @Override
+    protected RequestOptions repositoryRegistrationRequestOptions(Settings repositorySettings) {
+        if (repositorySettings.hasValue("unsafely_incompatible_with_s3_conditional_writes")) {
+            return expectWarnings("""
+                [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed \
+                in a future release. See the breaking changes documentation for the next major version.""");
+        }
+        return RequestOptions.DEFAULT;
     }
 
 }

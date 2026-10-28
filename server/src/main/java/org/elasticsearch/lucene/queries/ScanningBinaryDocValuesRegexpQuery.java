@@ -9,9 +9,11 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 
 import java.util.Objects;
 
@@ -23,7 +25,6 @@ import java.util.Objects;
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
 public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
-
     private final String pattern;
     private final int syntaxFlags;
     private final int matchFlags;
@@ -43,7 +44,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
         int syntaxFlags,
         int matchFlags,
         int maxDeterminizedStates,
-        boolean arrayOrderInlineNull,
+        BinaryDocValuesFormat binaryFormat,
         @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
@@ -56,7 +57,7 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
                 maxDeterminizedStates,
                 circuitBreaker
             ),
-            arrayOrderInlineNull
+            binaryFormat
         );
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
@@ -90,11 +91,17 @@ public final class ScanningBinaryDocValuesRegexpQuery extends AbstractBinaryDocV
             && Objects.equals(pattern, that.pattern)
             && syntaxFlags == that.syntaxFlags
             && matchFlags == that.matchFlags
-            && maxDeterminizedStates == that.maxDeterminizedStates;
+            && maxDeterminizedStates == that.maxDeterminizedStates
+            && binaryFormat == that.binaryFormat;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), fieldName, pattern, syntaxFlags, matchFlags, maxDeterminizedStates);
+        return Objects.hash(classHash(), fieldName, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, binaryFormat);
+    }
+
+    @Override
+    protected long ownMemoryUsage() {
+        return RamUsageEstimator.sizeOf(pattern);
     }
 }

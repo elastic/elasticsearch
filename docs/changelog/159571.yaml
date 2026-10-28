@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 159571
+summary: "[Native] Accumulate BBQ popcounts with UDOT on NEON"
+type: enhancement

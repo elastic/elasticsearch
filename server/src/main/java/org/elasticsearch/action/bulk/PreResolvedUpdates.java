@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -22,6 +24,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
+import java.io.IOException;
+import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
@@ -75,6 +79,9 @@ public final class PreResolvedUpdates implements Releasable {
         UpdateHelper.PreResolvedUpdate[] slots = null;
         try {
             Set<String> seenIds = Sets.newHashSetWithExpectedSize(items.length);
+            // Shared per segment so Lucene's CompressingStoredFieldsReader can reuse its
+            // per-chunk decompression state across docs in the same leaf.
+            IdentityHashMap<LeafReader, StoredFields> storedFieldsCache = null;
             for (int i = 0; i < items.length; i++) {
                 final DocWriteRequest<?> itemRequest = items[i].request();
                 // ops without an id (not yet auto-generated) cannot clash with an update's target, and aborted
@@ -99,6 +106,14 @@ public final class PreResolvedUpdates implements Releasable {
                         slots = new UpdateHelper.PreResolvedUpdate[items.length];
                     }
                     slots[i] = preResolved;
+                    if (storedFieldsCache == null) {
+                        storedFieldsCache = new IdentityHashMap<>();
+                    }
+                    try {
+                        preResolved.prefetch(storedFieldsCache);
+                    } catch (IOException e) {
+                        logger.debug("prefetch stored fields failed for [{}]", preResolved.id(), e);
+                    }
                 }
             }
         } catch (Exception e) {

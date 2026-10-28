@@ -24,6 +24,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -57,15 +58,25 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         bulkItemResponses.remove(2);
         assertFirstException(bulkItemResponses.values(), IllegalArgumentException.class, "illegal argument error");
         bulkItemResponses.remove(3);
-        assertFirstException(bulkItemResponses.values(), ElasticsearchSecurityException.class, "Authentication required");
-        bulkItemResponses.remove(6);
-        assertFirstException(
-            bulkItemResponses.values(),
-            ElasticsearchSecurityException.class,
-            "current license is non-compliant for [transform]"
-        );
-        bulkItemResponses.remove(7);
+        // The remaining failures are all recoverable. In particular ElasticsearchSecurityException (auth/authz
+        // denials, e.g. the UNAUTHORIZED and the FORBIDDEN license failure above) is treated as retryable, because
+        // such denials can be transient during cluster-membership churn in serverless (the .security index is
+        // briefly unresolvable, so role resolution returns empty and the write is denied with a 403).
+        assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
+    }
 
+    /**
+     * A bulk failure because a shard is being restored is temporary, so a permanent failure later in the same response is the one
+     * reported, rather than being hidden behind the restore until it ends.
+     */
+    public void testGetFirstIrrecoverableExceptionFromBulkResponsesSkipsShardRestoring() {
+        Map<Integer, BulkItemResponse> bulkItemResponses = bulkItemResponses(
+            new ShardRestoringException("the_index", randomUUID()),
+            new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error")
+        );
+
+        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
+        bulkItemResponses.remove(2);
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
@@ -90,6 +101,24 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
                 new CircuitBreakingException("circuit broken", CircuitBreaker.Durability.TRANSIENT)
             )
         );
+        // Authorization (403) and authentication (401) failures are retryable: they can be transient during
+        // cluster-membership churn in serverless, where the .security index is briefly unresolvable and role
+        // resolution returns empty. A genuinely persistent auth failure still fails once the retry limit is hit.
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new ElasticsearchSecurityException(
+                    "action [indices:data/write/bulk] is unauthorized ... with effective roles []",
+                    RestStatus.FORBIDDEN
+                )
+            )
+        );
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED)
+            )
+        );
+        // A shard that is being restored from a snapshot fails with a 403, but the restore is temporary.
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new ShardRestoringException("index", randomUUID())));
         assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexClosedException(new Index("index", "1234"))));
         assertTrue(
             ExceptionRootCauseFinder.isExceptionIrrecoverable(new DocumentParsingException(new XContentLocation(1, 2), "parse error"))

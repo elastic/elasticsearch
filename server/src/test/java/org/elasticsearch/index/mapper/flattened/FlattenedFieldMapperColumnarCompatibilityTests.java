@@ -9,11 +9,13 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -24,10 +26,7 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     private static final String FIELD = "flat";
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleKey() throws IOException {
@@ -266,15 +265,34 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     }
 
     /**
-     * Values over {@code ignore_above} belong in the {@code _keyed._ignored} channel, which the columnar path does not yet write, so
-     * it bails to make the production driver fall back to the row path.
+     * {@code ignore_above} is a no-op in strictly columnar index modes for indices created at or after
+     * {@link org.elasticsearch.index.IndexVersions#IGNORE_ABOVE_NO_OP_IN_COLUMNAR}: values are stored
+     * as doc values only, so nothing may be dropped. A value exceeding the configured limit is indexed
+     * normally and the batch-columnar path succeeds without falling back to the row path.
+     * <p>
+     * The old behaviour (throwing {@link UnsupportedOperationException} to trigger row-path fallback) is
+     * retained for pre-gate columnar indices where the {@code _keyed._ignored} channel may already contain data.
      */
-    public void testIgnoreAboveIsRejected() {
+    public void testIgnoreAboveIsNoOpInColumnar() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
+            columnarSettings(),
+            batch("ignore_above is no-op", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
+        );
+    }
+
+    /**
+     * Pre-gate: a value exceeding {@code ignore_above} must throw {@link UnsupportedOperationException}
+     * so {@code ShardBatchMapper} falls back to the row path for {@code _keyed._ignored} handling.
+     */
+    public void testIgnoreAboveIsRejectedPreGate() {
+        Settings preGateSettings = columnarSettings();
         UnsupportedOperationException e = expectThrows(
             UnsupportedOperationException.class,
             () -> assertColumnarMatchesXContent(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORE_ABOVE_NO_OP_IN_COLUMNAR),
                 mapping(b -> b.startObject(FIELD).field("type", "flattened").field("ignore_above", 4).endObject()),
-                columnarSettings(),
+                preGateSettings,
                 batch("ignore_above exceeded", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"too long\"}}"))
             )
         );
@@ -382,5 +400,46 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
                 doc("d2", 2L, "{\"flat\":{\"a.b\":\"only\"}}")
             )
         );
+    }
+
+    public void testKeyedValueLongerThanMaxTermLengthMatchesRowPath() throws IOException {
+        // Strict columnar mode does not index the field by default, so only binary doc values are written.
+        String longValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "keyed value longer than max term length",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"k\":\"" + longValue + "\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"k\":\"short\"}}")
+            )
+        );
+    }
+
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejectedOnBatchPath() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        // The keyed encoding "k\0" + value adds 2 bytes to the value.
+        String valueAtLimit = "v".repeat(64 * 1024 - 2);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            settings,
+            batch("keyed value at the limit", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + valueAtLimit + "\"}}"))
+        );
+
+        String immenseValue = valueAtLimit + "v";
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> assertColumnarMatchesXContent(
+                mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+                settings,
+                batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
+            )
+        );
+        assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
+        assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 }

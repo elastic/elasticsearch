@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.anthropic;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
@@ -54,7 +54,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
         var anthropicProcessor = new AnthropicStreamingProcessor();
         sseProcessor.subscribe(anthropicProcessor);
         flow.subscribe(sseProcessor);
-        return new StreamingChatCompletionResults(anthropicProcessor);
+        return new StreamingCompletionResults(anthropicProcessor);
     }
 
     /**
@@ -69,7 +69,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 529) {

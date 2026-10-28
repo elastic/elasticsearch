@@ -169,6 +169,7 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
                 context.isSourceSynthetic(),
+                context.isSourceColumnarStored(),
                 context.isDataStream(),
                 context.parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -199,6 +200,8 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
+            // Check nested limit early, before any expensive parsing, so we fail fast.
+            parserContext.checkNestedFieldCount();
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
@@ -237,6 +240,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedMapperBuilderContext(
             String path,
             boolean isSourceSynthetic,
+            boolean isSourceColumnarStored,
             boolean isDataStream,
             boolean parentObjectContainsDimensions,
             Query nestedTypeFilter,
@@ -244,7 +248,17 @@ public class NestedObjectMapper extends ObjectMapper {
             Dynamic dynamic,
             MapperService.MergeReason mergeReason
         ) {
-            super(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, true);
+            super(
+                path,
+                isSourceSynthetic,
+                isDataStream,
+                parentObjectContainsDimensions,
+                dynamic,
+                mergeReason,
+                true,
+                false,
+                isSourceColumnarStored
+            );
             this.parentIncludedInRoot = parentIncludedInRoot;
             this.nestedTypeFilter = nestedTypeFilter;
         }
@@ -254,6 +268,7 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedMapperBuilderContext(
                 buildFullName(name),
                 isSourceSynthetic(),
+                isSourceColumnarStored(),
                 isDataStream(),
                 parentObjectContainsDimensions(),
                 nestedTypeFilter,
@@ -398,12 +413,8 @@ public class NestedObjectMapper extends ObjectMapper {
         return builder.endObject();
     }
 
-    @Override
-    protected SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
-        var patchLoader = super.syntheticVectorsLoader(sourceFilter);
-        if (patchLoader == null) {
-            return null;
-        }
+    /** Groups the patches {@code patchLoader} produces per nested document, reported against this object's path. */
+    SourceLoader.SyntheticVectorsLoader wrapSyntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader patchLoader) {
         return context -> {
             var leaf = patchLoader.leaf(context);
             if (leaf == null) {
@@ -442,19 +453,9 @@ public class NestedObjectMapper extends ObjectMapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(
-            filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
-            NOOP,
-            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
-        );
-        // Some synthetic source use cases require using _ignored_source field
-        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
-        // force sequential access since nested fields are indexed per block
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
         return new NestedSyntheticFieldLoader(
-            storedFieldLoader,
-            sourceLoader,
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
+            filter,
             () -> bitsetProducer.apply(parentTypeFilter),
             nestedTypeFilter
         );
@@ -465,6 +466,10 @@ public class NestedObjectMapper extends ObjectMapper {
         private final SourceLoader sourceLoader;
         private final Supplier<BitSetProducer> parentBitSetProducer;
         private final Query childFilter;
+
+        // The loader of the fields inside the nested object, behind the leaf currently in use (read-time or columnar). The leaf
+        // is reused across parent documents, so a reset of this loader has to reach it too.
+        private SourceLoader.SyntheticFieldLoader innerLoader;
 
         // Read-time (real segment) reconstruction state: children are doc-ids found via a child scorer.
         private LeafStoredFieldLoader leafStoredFieldLoader;
@@ -479,13 +484,23 @@ public class NestedObjectMapper extends ObjectMapper {
         private final List<LuceneDocument> columnarChildren = new ArrayList<>();
 
         private NestedSyntheticFieldLoader(
-            org.elasticsearch.index.fieldvisitor.StoredFieldLoader storedFieldLoader,
-            SourceLoader sourceLoader,
+            Supplier<SourceLoader.SyntheticFieldLoader> innerLoaderSupplier,
+            SourceFilter filter,
             Supplier<BitSetProducer> parentBitSetProducer,
             Query childFilter
         ) {
-            this.storedFieldLoader = storedFieldLoader;
-            this.sourceLoader = sourceLoader;
+            // The supplier is called once here, for the required stored fields, and once per leaf; the last loader it produced
+            // is the one the leaf uses.
+            this.sourceLoader = new SourceLoader.Synthetic(
+                filter,
+                () -> innerLoader = innerLoaderSupplier.get(),
+                NOOP,
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+            );
+            // Some synthetic source use cases require using _ignored_source field
+            var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+            // force sequential access since nested fields are indexed per block
+            this.storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
             this.parentBitSetProducer = parentBitSetProducer;
             this.childFilter = childFilter;
         }
@@ -500,7 +515,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 this.columnar = true;
                 this.columnarChildren.clear();
                 this.columnarChildReader = new ColumnarSourceWriter.ReusableColumnarStoredLeafReader();
-                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader, ColumnarSourceWriter.DOC_IDS);
+                this.columnarChildLeaf = sourceLoader.leaf(columnarChildReader.getContext(), ColumnarSourceWriter.DOC_IDS);
                 return parentDoc -> {
                     columnarChildren.clear();
                     LuceneDocument parent = parentReader.currentDoc();
@@ -522,7 +537,7 @@ public class NestedObjectMapper extends ObjectMapper {
             this.columnar = false;
             this.children.clear();
             this.leafStoredFieldLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-            this.leafSourceLoader = sourceLoader.leaf(leafReader, null);
+            this.leafSourceLoader = sourceLoader.leaf(leafReader.getContext(), null);
 
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);
@@ -614,6 +629,9 @@ public class NestedObjectMapper extends ObjectMapper {
         public void reset() {
             children.clear();
             columnarChildren.clear();
+            if (innerLoader != null) {
+                innerLoader.reset();
+            }
         }
     }
 

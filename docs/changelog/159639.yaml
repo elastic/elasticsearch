@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 159499
+pr: 159639
+summary: "ES|QL|DS: Fix S3 cross-region redirect `IllegalStateException`"
+type: bug

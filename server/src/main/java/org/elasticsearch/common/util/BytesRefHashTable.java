@@ -48,6 +48,11 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     /** Returns the size (number of key/value pairs) in the table.*/
     long size();
 
+    /**
+     * Removes all entries, keeping the allocated structures for reuse. The hash will be empty after this call returns.
+     */
+    void clear();
+
     /** Gets the backing bytes ref array. */
     BytesRefArray getBytesRefs();
 }

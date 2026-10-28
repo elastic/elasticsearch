@@ -1,0 +1,6 @@
+area: Infra/Circuit Breakers
+issues:
+- 160449
+pr: 160450
+summary: Limit humongous allocations in the G1 breaker GC trigger to reduce evacuation failures
+type: enhancement

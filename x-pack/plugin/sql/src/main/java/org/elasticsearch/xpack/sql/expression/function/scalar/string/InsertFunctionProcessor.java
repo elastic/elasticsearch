@@ -63,19 +63,24 @@ public class InsertFunctionProcessor implements Processor {
         Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
         Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
+        String str = input.toString();
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;
 
-        if (startInt > input.toString().length()) {
+        if (startInt > str.length()) {
             return input;
         }
 
-        StringBuilder sb = new StringBuilder(input.toString());
-        String replString = (replacement.toString());
-
+        String replString = replacement.toString();
         int cutLength = ((Number) length).intValue();
-        checkResultLength(sb.length() - cutLength + replString.length());
-        return sb.replace(realStart, realStart + cutLength, replString).toString();
+        int deleted = Math.min(cutLength, str.length() - realStart);
+        long resultLen = (long) str.length() - deleted + replString.length();
+        checkResultLength(resultLen);
+        StringBuilder sb = new StringBuilder((int) resultLen);
+        sb.append(str, 0, realStart);
+        sb.append(replString);
+        sb.append(str, realStart + deleted, str.length());
+        return sb.toString();
     }
 
     @Override

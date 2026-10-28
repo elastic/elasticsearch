@@ -19,26 +19,33 @@ export interface OutcomeInput {
   // minus the never-fail grace) so it tracks config changes; see
   // entrypoints/analyze.ts.
   timeoutThresholdSec: number;
-  // True when the never-fail wrapper found a JVM heap dump (`*/build/heapdump/*.hprof`)
-  // after the run - the signal for a JVM-heap `OutOfMemoryError` in a test worker,
-  // which exits via Gradle with rc=1 (not the SIGKILL rc=137 the kernel OOM-killer
-  // produces). Without this the two OOM shapes are indistinguishable from a plain
-  // build failure, since the analyze step does not read the job log (a choice we
-  // may revisit).
+  // True when the never-fail wrapper found a heap dump (`*/build/heapdump/*.hprof`) after
+  // the run, meaning a test JVM ran out of heap. That JVM either fails the Gradle run
+  // (rc 1, unlike the rc 137 of a kernel OOM-kill) or gets stuck until the wrapper's timeout.
+  // Without the dump, both look like a plain failure or a slow run, because the analyze
+  // step does not read the job log. Only test JVMs write dumps there; a testclusters
+  // node writes to its logs dir, so its OOMs are not detected.
   oomDetected?: boolean;
+  // True when every Test task this batch asked for came back SKIPPED in gradle-runner's
+  // task-status.json. Gradle reports a task rejected by `onlyIf` (bwc's `bwc_tests_enabled`,
+  // the distro architecture check) and a task with no source that way: zero tests, exit 0.
+  // Without this signal that is indistinguishable from a hang, so a target the resolver
+  // could not have known was unrunnable reads as a flakiness-pipeline defect.
+  taskSkipped?: boolean;
 }
 
 export interface DerivedOutcome {
   outcome: FlakinessOutcome;
-  // True when the step hit a wall-clock timeout (rc 124, or rc 137 kill-after).
-  // Orthogonal to `outcome`: a job can be `flaky_detected` AND `timedOut`, which
-  // distinguishes "timed out but flakiness already proven" from a clean
-  // `timeout` where no run failed.
+  // True when the job hit the wrapper's wall-clock timeout (rc 124, or rc 137 from the kill-after).
+  // Set independently of `outcome`, which can be:
+  // - `timeout`: no test failed, so this is a false positive.
+  // - `flaky_detected`: a test failed before the timeout, so flakiness is already proven.
+  // - `infra_fail`/`oom`: a test JVM ran out of heap and got stuck until the timeout.
   timedOut: boolean;
-  // "oom_killed" = kernel OOM-killer SIGKILL (rc 137 + short run). "oom" =
-  // JVM-heap OutOfMemoryError detected from a heap-dump file (rc != 0,
-  // non-SIGKILL). Every other infra subtype would need the job log, which we
-  // currently choose not to read, so it is left unset here.
+  // "oom_killed": the kernel OOM-killer sent SIGKILL (rc 137 on a short run).
+  // "oom": a heap dump shows a test JVM ran out of heap; the run either failed
+  // (rc != 0) or got stuck until the wrapper's timeout (then `timedOut` is true).
+  // Other infra causes would need the job log, which we do not read, so they get no subtype.
   infraSubtype?: "oom_killed" | "oom";
 }
 
@@ -48,12 +55,25 @@ export interface DerivedOutcome {
  * failure outranks everything, including a concurrent timeout, because that is
  * what matters for the false-positive metric.
  */
-export function deriveOutcome({ rc, durationSec, realFailures, totalCases, timeoutThresholdSec, oomDetected }: OutcomeInput): DerivedOutcome {
+export function deriveOutcome({
+  rc,
+  durationSec,
+  realFailures,
+  totalCases,
+  timeoutThresholdSec,
+  oomDetected,
+  taskSkipped,
+}: OutcomeInput): DerivedOutcome {
   const threshold = timeoutThresholdSec;
   const timedOut = rc === 124 || (rc === 137 && durationSec >= threshold);
 
   if (realFailures > 0) {
     return { outcome: "flaky_detected", timedOut };
+  }
+  if (timedOut && oomDetected) {
+    // A test JVM that runs out of heap often gets stuck instead of exiting, so the job only ends at the
+    // wrapper's timeout. The heap dump shows the OOM is the root cause; `timedOut` keeps the timeout visible.
+    return { outcome: "infra_fail", timedOut: true, infraSubtype: "oom" };
   }
   if (rc === 124) {
     return { outcome: "timeout", timedOut: true };
@@ -70,5 +90,13 @@ export function deriveOutcome({ rc, durationSec, realFailures, totalCases, timeo
       ? { outcome: "infra_fail", timedOut: false, infraSubtype: "oom" }
       : { outcome: "infra_fail", timedOut: false };
   }
-  return totalCases === 0 ? { outcome: "hang", timedOut: false } : { outcome: "clean_pass", timedOut: false };
+  if (totalCases !== 0) {
+    return { outcome: "clean_pass", timedOut: false };
+  }
+  // Zero tests on a clean exit. If Gradle itself reports that every task we asked for was SKIPPED, the
+  // target was never runnable in this environment - an `onlyIf` we cannot introspect at resolve time - so
+  // it is `not_applicable`, not a pipeline defect. Anything else with zero tests stays a hang.
+  return taskSkipped
+    ? { outcome: "not_applicable", timedOut: false }
+    : { outcome: "hang", timedOut: false };
 }

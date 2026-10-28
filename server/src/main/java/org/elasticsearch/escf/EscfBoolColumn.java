@@ -39,7 +39,7 @@ final class EscfBoolColumn extends EscfColumn {
     }
 
     @Override
-    boolean getBooleanValue(int row) {
+    public boolean getBooleanValue(int row) {
         return bitSet(row);
     }
 

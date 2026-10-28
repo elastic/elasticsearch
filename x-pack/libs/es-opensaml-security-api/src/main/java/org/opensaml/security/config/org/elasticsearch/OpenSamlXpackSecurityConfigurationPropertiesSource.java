@@ -19,15 +19,17 @@
 
 package org.opensaml.security.config.org.elasticsearch;
 
+import org.opensaml.core.config.ConfigurationProperties;
 import org.opensaml.core.config.ConfigurationPropertiesSource;
+import org.opensaml.core.config.provider.PropertiesAdapter;
 
 import java.util.Properties;
 
 public class OpenSamlXpackSecurityConfigurationPropertiesSource implements ConfigurationPropertiesSource {
     @Override
-    public Properties getProperties() {
+    public ConfigurationProperties getProperties() {
         Properties properties = new Properties();
         properties.setProperty("opensaml.config.ecdh.defaultKDF", "PBKDF2");
-        return properties;
+        return new PropertiesAdapter(properties);
     }
 }

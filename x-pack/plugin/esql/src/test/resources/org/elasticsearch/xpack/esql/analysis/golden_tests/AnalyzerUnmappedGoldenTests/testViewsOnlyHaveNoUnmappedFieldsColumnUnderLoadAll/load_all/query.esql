@@ -1,0 +1,1 @@
+SET unmapped_fields="LOAD_ALL"; FROM scaled_emp_view, emp_view

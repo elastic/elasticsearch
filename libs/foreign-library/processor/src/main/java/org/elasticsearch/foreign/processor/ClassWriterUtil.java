@@ -23,6 +23,7 @@ final class ClassWriterUtil {
     // Standard Java types
     static final ClassDesc CD_void = ClassDesc.ofDescriptor("V");
     static final ClassDesc CD_Object = ClassDesc.of("java.lang.Object");
+    static final ClassDesc CD_Reference = ClassDesc.of("java.lang.ref.Reference");
     static final ClassDesc CD_String = ClassDesc.of("java.lang.String");
     static final ClassDesc CD_long = ClassDesc.ofDescriptor("J");
     static final ClassDesc CD_boolean = ClassDesc.ofDescriptor("Z");
@@ -43,6 +44,10 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemorySegmentAdapter = ClassDesc.of(org.elasticsearch.foreign.adapter.MemorySegmentAdapter.class.getName());
     static final ClassDesc CD_ArenaAdapter = ClassDesc.of(org.elasticsearch.foreign.adapter.ArenaAdapter.class.getName());
     static final ClassDesc CD_Addressable = ClassDesc.of(org.elasticsearch.foreign.Addressable.class.getName());
+
+    // java.nio.charset types, used for @WideString / @InlineStringField(wide = true) codegen
+    static final ClassDesc CD_Charset = ClassDesc.of("java.nio.charset.Charset");
+    static final ClassDesc CD_StandardCharsets = ClassDesc.of("java.nio.charset.StandardCharsets");
 
     // Widely-used java.lang.foreign method type descriptors
     static final MethodTypeDesc MTD_structLayout = MethodTypeDesc.of(CD_StructLayout, CD_MemoryLayoutArray);
@@ -98,7 +103,7 @@ final class ClassWriterUtil {
             case BOOLEAN -> ClassDesc.ofDescriptor("Z");
             case FLOAT -> ClassDesc.ofDescriptor("F");
             case DOUBLE -> ClassDesc.ofDescriptor("D");
-            case VOID, ADDRESS, STRING, ADDRESSABLE -> throw new AssertionError("not a primitive type: " + type);
+            case VOID, ADDRESS, STRING, ADDRESSABLE, UPCALL -> throw new AssertionError("not a primitive type: " + type);
         };
     }
 
@@ -115,6 +120,7 @@ final class ClassWriterUtil {
             case DOUBLE -> new VLField("JAVA_DOUBLE", ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;"));
             case ADDRESS, STRING -> new VLField("ADDRESS", ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;"));
             case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE resolves through layoutType() before emitValueLayout");
+            case UPCALL -> throw new AssertionError("UPCALL resolves through layoutType() before emitValueLayout");
             case VOID -> throw new AssertionError("void has no ValueLayout");
         };
         cb.getstatic(CD_ValueLayout, vl.name(), vl.type());
@@ -129,6 +135,11 @@ final class ClassWriterUtil {
         };
     }
 
+    /** Pushes {@code StandardCharsets.UTF_16LE} onto the operand stack. */
+    static void emitPushUtf16LEConstant(CodeBuilder cb) {
+        cb.getstatic(CD_StandardCharsets, "UTF_16LE", CD_Charset);
+    }
+
     /** Returns the specific {@code ValueLayout} subtype {@link ClassDesc} for a struct field's type. */
     static ClassDesc valueLayoutClassDesc(NativeType type) {
         return switch (type) {
@@ -141,6 +152,7 @@ final class ClassWriterUtil {
             case DOUBLE -> ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;");
             case ADDRESS, STRING -> ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;");
             case ADDRESSABLE -> throw new AssertionError("ADDRESSABLE cannot be a struct field type");
+            case UPCALL -> throw new AssertionError("UPCALL cannot be a struct field type");
             case VOID -> throw new AssertionError("void cannot be a field type");
         };
     }

@@ -21,6 +21,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
  */
 public class RewriteSumOfExpressionPlusConstantTests extends AbstractLogicalPlanOptimizerTests {
 
+    public RewriteSumOfExpressionPlusConstantTests(VersionMode versionMode) {
+        super(versionMode);
+    }
+
     public void testDuplicateAliasNotRewritten() {
         var plan = plan("""
             from test

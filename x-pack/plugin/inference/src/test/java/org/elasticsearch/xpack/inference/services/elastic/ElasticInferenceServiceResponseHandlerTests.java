@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -86,6 +85,14 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                         RestStatus.REQUEST_ENTITY_TOO_LARGE,
                         "Received a content too large status code for request from inference entity id [id] status [413]",
                         true,
+                        Map.of()
+                    ) },
+                {
+                    new FailureTestCase(
+                        422,
+                        RestStatus.UNPROCESSABLE_ENTITY,
+                        "Received an input validation error response for request from inference entity id [id] status [422]",
+                        false,
                         Map.of()
                     ) },
                 {
@@ -165,10 +172,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         String modelId,
         Map<String, String> headers
     ) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = new BasicHttpResponse(statusLine);
+        var httpResponse = new BasicHttpResponse(statusCode);
         givenResponseHasHeaders(httpResponse, headers);
 
         String responseJson = Strings.format("""

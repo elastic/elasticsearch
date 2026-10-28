@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 
@@ -62,6 +63,11 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
 
     @Override
     public void writeGenericString(String value) throws IOException {
+        // no-op
+    }
+
+    @Override
+    public void writeText(Text text) throws IOException {
         // no-op
     }
 

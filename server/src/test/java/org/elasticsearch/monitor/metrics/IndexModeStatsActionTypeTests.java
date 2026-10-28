@@ -41,7 +41,8 @@ public class IndexModeStatsActionTypeTests extends ESTestCase {
     public void testNodeResponseStatsFilteredByTransportVersion() throws IOException {
         final List<TransportVersion> boundaries = List.of(
             TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED, true),
-            TransportVersionUtils.getPreviousVersion(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE, true)
+            TransportVersionUtils.getPreviousVersion(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE, true),
+            TransportVersionUtils.getPreviousVersion(IndexMode.VECTORDB_COLUMNAR_INDEX_MODE, true)
         );
         for (TransportVersion boundary : boundaries) {
             final Map<IndexMode, IndexStats> stats = serializeAndReadStats(IndexMode.values(), boundary);

@@ -186,10 +186,17 @@ public class CacheBlobReaderService {
         CachePopulationSource cachePopulationSource,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
     ) {
-        return (bytesRead, readTimeNanos) -> {
-            bytesReadCounter.accept(bytesRead);
-            cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(fileName, bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
+        return new MeteringCacheBlobReader.ReadCompleteCallback() {
+            @Override
+            public void onBytesRead(int bytesRead) {
+                bytesReadCounter.accept(bytesRead);
+            }
+
+            @Override
+            public void onReadCompleted(int totalBytesRead, long timeNanos) {
+                cacheService.getBlobCacheMetrics()
+                    .recordCachePopulationMetrics(fileName, totalBytesRead, timeNanos, cachePopulationReason, cachePopulationSource);
+            }
         };
     }
 }

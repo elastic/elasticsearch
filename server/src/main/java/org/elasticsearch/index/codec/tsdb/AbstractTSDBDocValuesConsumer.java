@@ -347,7 +347,31 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
                     binaryWriter = new CompressedBinaryBlockWriter(formatConfig.binaryCompressionMode());
                 }
 
+                // Gate: only probe for raw blocks if the field can contain an oversized value and
+                // the writer is a CompressedBinaryBlockWriter. mergeStats.maxLength() is the max
+                // over all source segments' BinaryEntry.maxLength, so this is exact — no probe on
+                // fields that never produce single-doc blocks. The MergedBinaryDocValues wrapper
+                // exposes the current sub; Lucene's view (fallback branch) does not.
+                final int blockBytesThreshold = formatConfig.blockBytesThreshold();
+                final MergedBinaryDocValues mergedView = values instanceof MergedBinaryDocValues mv ? mv : null;
+                final boolean mayCopyVerbatim = mergedView != null
+                    && binaryWriter instanceof CompressedBinaryBlockWriter
+                    && maxLength >= blockBytesThreshold;
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    if (mayCopyVerbatim) {
+                        AbstractTSDBDocValuesProducer.TSDBBinaryDocValues sub = mergedView.currentValues();
+                        if (sub != null) {
+                            RawBinaryBlock raw = sub.rawSingleValueBlock(blockBytesThreshold);
+                            if (raw != null && binaryWriter.addRawBlock(raw)) {
+                                // Block copied verbatim — no decompression on the read side, no
+                                // re-compression here, and neither side materializes the value.
+                                if (disiAccumulator != null) {
+                                    disiAccumulator.addDocId(doc);
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     BytesRef v = values.binaryValue();
                     binaryWriter.addDoc(v);
                     if (disiAccumulator != null) {
@@ -450,6 +474,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         default void writeAddressMetadata(int minLength, int maxLength, int numDocsWithField) throws IOException {}
 
+        /**
+         * Attempts to copy a raw compressed block from a source segment verbatim into the target,
+         * bypassing decompression and re-compression. Returns {@code true} when the block was
+         * copied; {@code false} when it was rejected (caller must fall back to {@link #addDoc}).
+         */
+        default boolean addRawBlock(RawBinaryBlock raw) throws IOException {
+            return false;
+        }
+
         @Override
         default void close() throws IOException {}
     }
@@ -507,8 +540,13 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
+        final BinaryDVCompressionMode compressionMode;
 
         final int[] docOffsets = new int[formatConfig.blockCountThreshold() + 1];
+
+        // Two-element scratch used by addRawBlock to re-encode offsets for a single-doc block.
+        // Must not reuse docOffsets because DocOffsetsCodec encoders delta-mutate the array in place.
+        final int[] rawBlockOffsets = new int[2];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -521,6 +559,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final BlockMetadataAccumulator blockMetaAcc;
 
         CompressedBinaryBlockWriter(final BinaryDVCompressionMode compressionMode) throws IOException {
+            this.compressionMode = compressionMode;
             this.compressor = compressionMode.compressionMode().newCompressor();
             long blockAddressesStart = data.getFilePointer();
             this.blockMetaAcc = new BlockMetadataAccumulator(
@@ -536,6 +575,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
         @Override
         public void addDoc(final BytesRef v) throws IOException {
+            // If this value is already above the byte threshold, flush whatever is pending first so
+            // the oversized value lands in a block of its own. Block boundaries carry no format
+            // meaning — per-block doc counts and byte lengths are monotonic deltas — so this is a
+            // layout change only: no new metadata, no version bump, readable by every existing
+            // reader. Benefit: (1) merges of such segments can copy the single-doc block verbatim;
+            // (2) reading a neighbour value no longer decompresses the outlier alongside it.
+            if (numDocsInCurrentBlock > 0 && v.length >= formatConfig.blockBytesThreshold()) {
+                flushData();
+            }
             block = ArrayUtil.grow(block, uncompressedBlockLength + v.length);
             System.arraycopy(v.bytes, v.offset, block, uncompressedBlockLength, v.length);
             uncompressedBlockLength += v.length;
@@ -578,6 +626,70 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
             numDocsInCurrentBlock = uncompressedBlockLength = 0;
+        }
+
+        /**
+         * Copies a compressed block from a source segment verbatim into the target, without
+         * decompressing it. Only legal for a block that held exactly one document in the source,
+         * because block boundaries carry no doc-order meaning in this format — per-block doc counts
+         * and byte lengths are both recorded as monotonic deltas by {@link BlockMetadataAccumulator},
+         * so a single-doc block may be inserted at any point in the target's block stream.
+         *
+         * <p>The doc offsets are re-encoded with this writer's {@link DocOffsetsCodec}, not copied,
+         * so the copy is independent of whichever codec the source segment used (ES819 v2 uses
+         * {@code GROUPED_VINT}, ES819-v3 and ES95 use {@code BITPACKING}).
+         *
+         * @return {@code true} if the block was copied verbatim; {@code false} if the source and
+         *         target compression modes or per-block flags differ and the caller must fall back
+         *         to {@link #addDoc}
+         */
+        @Override
+        public boolean addRawBlock(RawBinaryBlock raw) throws IOException {
+            // The payload is only interchangeable if the target would hand it to the same
+            // decompressor. Vacuous today (COMPRESSED_ZSTD_LEVEL_1 is the only compressed mode, and
+            // NO_COMPRESS sources route through getUncompressedBinary, which never produces a raw
+            // block), but the algorithm identity lives in the per-field meta byte, not in the
+            // per-block header, so this check keeps the copy honest when a second mode lands.
+            //
+            // This if statement is a policy gate, not a correctness one — the reader dispatches per-block,
+            // so a mixed stream is readable. Requiring equality means the verbatim-copied block is
+            // byte-identical to what re-compression would have produced, and avoids silently
+            // re-introducing (or removing) compression the operator configured.
+            assert raw.compression() != BinaryDVCompressionMode.NO_COMPRESS;
+            if (raw.compression() != compressionMode || raw.compressed() != formatConfig.enablePerBlockCompression()) {
+                return false;
+            }
+
+            // Flush any pending partial block so the verbatim copy starts cleanly on a boundary.
+            flushData();
+
+            totalChunks++;
+            long thisBlockStartPointer = data.getFilePointer();
+
+            data.writeByte(new BinaryDVCompressionMode.BlockHeader(raw.compressed()).toByte());
+            data.writeVInt(raw.uncompressedLength());
+
+            maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, raw.uncompressedLength());
+            maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, 1);
+
+            // Re-encode the two doc offsets with this writer's codec. rawBlockOffsets[0] stays 0;
+            // the encoder's delta loop only touches indices 1..numDocs.
+            rawBlockOffsets[0] = 0;
+            rawBlockOffsets[1] = raw.uncompressedLength();
+            docOffsetsEncoder.encode(rawBlockOffsets, 1, data);
+
+            // Stream the compressed payload through DataOutput's 16 KB copy buffer. This is two
+            // memcpys, not zero-copy, but neither side allocates an outlier-sized buffer — the saving
+            // is the zstd CPU and the two big heap allocations, not the byte movement.
+            data.copyBytes(raw.payload(), raw.payloadLength());
+
+            long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
+            blockMetaAcc.addDoc(1, blockLenBytes);
+
+            if (state.infoStream.isEnabled("TS_DV")) {
+                state.infoStream.message("TS_DV", "copied binary block of [" + raw.uncompressedLength() + "] uncompressed bytes verbatim");
+            }
+            return true;
         }
 
         void compress(final byte[] data, int uncompressedLength, final DataOutput output) throws IOException {

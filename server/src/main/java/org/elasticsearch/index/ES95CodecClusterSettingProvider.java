@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
+import java.util.Set;
 
 /**
  * Cluster wide opt-out for the ES95 TSDB doc values codec, complementing the per-index
@@ -43,6 +43,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Set<String> AFFECTED_SETTINGS = Set.of(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING.getKey());
 
     private volatile boolean enabled;
 
@@ -56,6 +57,7 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
         final String indexName,
         final String dataStreamName,
         final IndexMode templateIndexMode,
+        final boolean registryInstalledTemplate,
         final ProjectMetadata projectMetadata,
         final Instant resolvedAt,
         final Settings indexTemplateAndCreateRequestSettings,
@@ -76,7 +78,12 @@ public final class ES95CodecClusterSettingProvider implements IndexSettingProvid
             return templateIndexMode;
         }
         final String modeName = settings.get(IndexSettings.MODE.getKey());
-        return modeName == null ? null : IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+        return modeName == null ? null : IndexMode.fromString(modeName);
+    }
+
+    @Override
+    public Set<String> affectedSettings() {
+        return enabled ? Set.of() : AFFECTED_SETTINGS;
     }
 
     @Override

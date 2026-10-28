@@ -94,7 +94,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     public static final String NAME = "shards_availability";
 
     /// Grace period during which an inactive primary may not cause the health indicator to turn RED.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
+    /// See [#isProvisionallyInactive] for eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
     /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
     /// window applies to non-active shards in either unassigned or initializing state.
@@ -108,7 +108,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
     );
 
     /// Grace period during which an inactive replica may not cause the health indicator to turn YELLOW.
-    /// See [#isInactiveWithinGracePeriod] for eligibility criteria on [UnassignedInfo.Reason] and timing.
+    /// See [#isProvisionallyInactive] for eligibility criteria on [UnassignedInfo.Reason] and timing.
     ///
     /// Note: The setting key keeps the `unassigned` naming for backward compatibility, but the grace
     /// window applies to non-active shards in either unassigned or initializing state.
@@ -330,7 +330,9 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         int relocating;
         public final Set<ProjectIndexName> indicesWithUnavailableShards;
         public final Set<ProjectIndexName> indicesWithProvisionallyUnavailableShards;
-        public final Set<ProjectIndexName> indicesWithAllShardsUnassigned;
+        /// Indices where, for the primaries `ShardAllocationCounts`, a primary is inactive; or, for the replicas counts, all replica copies
+        /// of the same shard are inactive. Provisionally inactive shards are excluded.
+        public final Set<ProjectIndexName> indicesWithAnyShardWithNoActiveCopy;
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
         public SearchableSnapshotsState searchableSnapshotsState;
@@ -346,7 +348,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             relocating = 0;
             indicesWithUnavailableShards = new HashSet<>();
             indicesWithProvisionallyUnavailableShards = new HashSet<>();
-            indicesWithAllShardsUnassigned = new HashSet<>();
+            indicesWithAnyShardWithNoActiveCopy = new HashSet<>();
             searchableSnapshotsState = new SearchableSnapshotsState();
             diagnosisDefinitions = new HashMap<>();
         }
@@ -361,17 +363,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         ) {
             ProjectIndexName projectIndex = new ProjectIndexName(projectId, routing.getIndexName());
             Settings indexSettings = state.metadata().getProject(projectId).index(routing.index()).getSettings();
-            long gracePeriodCutoffTime = Instant.now().toEpochMilli() - inactiveBufferTime.millis();
-
-            boolean isNew = isUnassignedDueToNewInitialization(projectId, routing, state);
-            boolean isWithinGracePeriod = inactiveBufferTime.millis() > 0 && isInactiveWithinGracePeriod(routing, gracePeriodCutoffTime);
-            boolean isProvisionallyInactive = isNew || isWithinGracePeriod;
-
-            boolean allUnassigned = areAllShardsOfThisTypeUnassigned(projectId, routing, state);
+            boolean isProvisionallyInactive = isProvisionallyInactive(projectId, routing, state, inactiveBufferTime, Instant.now());
+            boolean shardHasNoActiveCopyOfThisType = hasNoActiveCopyOfThisType(projectId, routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
 
-            if (allUnassigned && isProvisionallyInactive == false) {
-                indicesWithAllShardsUnassigned.add(projectIndex);
+            if (shardHasNoActiveCopyOfThisType && isProvisionallyInactive == false) {
+                indicesWithAnyShardWithNoActiveCopy.add(projectIndex);
             }
             if (isProvisionallyInactive) {
                 indicesWithProvisionallyUnavailableShards.add(projectIndex);
@@ -425,8 +422,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             return indicesWithUnavailableShards.isEmpty();
         }
 
-        public boolean doAnyIndicesHaveAllUnassigned() {
-            return indicesWithAllShardsUnassigned.isEmpty() == false;
+        public boolean doAnyIndicesHaveShardWithNoActiveCopy() {
+            return indicesWithAnyShardWithNoActiveCopy.isEmpty() == false;
         }
 
         private void addDefinition(Diagnosis.Definition diagnosisDefinition, ProjectIndexName projectIndexName) {
@@ -434,49 +431,51 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
     }
 
-    /**
-     * Returns true if all the shards of the same type (primary or replica) are unassigned. For
-     * example: if a replica is passed then this will return true if ALL replicas are unassigned,
-     * but if at least one is assigned, it will return false.
-     */
-    boolean areAllShardsOfThisTypeUnassigned(ProjectId projectId, ShardRouting routing, ClusterState state) {
-        return state.routingTable(projectId)
-            .allActiveShardsGrouped(new String[] { routing.getIndexName() }, true)
-            .stream()
-            .flatMap(shardIter -> shardIter.getShardRoutings().stream())
-            .filter(sr -> sr.shardId().equals(routing.shardId()))
-            .filter(sr -> sr.primary() == routing.primary())
-            .allMatch(ShardRouting::unassigned);
+    /// Returns true if all the copies of the shard specified in `routing` and of the same type (primary or replica) are inactive (i.e.
+    /// `UNASSIGNED` or `INITIALIZING`). For example: if a replica is passed then this will return true if and only if there are no active
+    /// (i.e. `STARTED` or `RELOCATING`) replicas of this shard. It is required that `routing` must belong to the routing table for
+    /// `projectId` in `state`.
+    boolean hasNoActiveCopyOfThisType(ProjectId projectId, ShardRouting routing, ClusterState state) {
+        IndexShardRoutingTable shardCopies = state.routingTable(projectId).index(routing.getIndexName()).shard(routing.id());
+        assert shardCopies != null;
+        return shardCopies.activeShards().stream().noneMatch(activeShard -> activeShard.primary() == routing.primary());
     }
 
-    /// Returns whether an inactive shard ([ShardRouting#active()] is `false`) should be treated as within the grace
-    /// window for shard-availability health. The shard must have non-null [ShardRouting#unassignedInfo()]. Eligibility
-    /// depends on allocation status, failure count, how recently the shard became unassigned, and whether
-    /// [UnassignedInfo.Reason#isExpectedTransient()] applies.
-    ///
-    /// @param routing the shard routing to inspect
-    /// @param gracePeriodCutoffTime inclusive lower bound on [UnassignedInfo#unassignedTimeMillis()] for treating
-    /// the shard as still within the grace window (typically `Instant.now().toEpochMilli() - bufferMillis`).
-    /// Unassignment timestamps strictly less than this value are older than the buffer and are outside the grace window.
-    ///
-    private static boolean isInactiveWithinGracePeriod(ShardRouting routing, long gracePeriodCutoffTime) {
+    private static boolean isProvisionallyInactive(
+        ProjectId projectId,
+        ShardRouting routing,
+        ClusterState state,
+        TimeValue inactiveBufferTime,
+        Instant now
+    ) {
         if (routing.active()) {
             return false;
         }
-        var unassignedInfo = routing.unassignedInfo();
-        if (unassignedInfo == null) {
-            return false;
+        // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the replica are considered
+        // provisionally inactive:
+        if (routing.primary()) {
+            if (getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW) {
+                return true;
+            }
+        } else {
+            ShardRouting primary = state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
+            if (!primary.active() && getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW) {
+                return true;
+            }
         }
-        // TODO: Decide whether RECOVERY_CANCELLED should skip the inactive grace window. Direct recovery cancellation is still disabled by
-        // default via indices.recovery.enable_direct_cancellations.
-        if (unassignedInfo.failedAllocations() > 0
-            || unassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
-            return false;
-        }
-        if (unassignedInfo.unassignedTimeMillis() < gracePeriodCutoffTime) {
-            return false;
-        }
-        return unassignedInfo.reason().isExpectedTransient();
+        // If this shard is inactive for unexceptional events and within the allowed grace period (aka buffer time) then it is considered
+        // provisionally inactive:
+        // Note that the class of events considered "unexceptional" here is not the same as that implemented by getInactivePrimaryHealth and
+        // used above. Currently, getInactivePrimaryHealth() takes RecoverySource.Type into consideration (RESHARD_SPLITs are always
+        // unexceptional, incompleted PEER and EXISTING_STORE recoveries always exceptional), which this does not; and this takes
+        // UnassignedInfo.Reason.isExpectedTransient() into consideration, which getInactivePrimaryHealth().
+        UnassignedInfo unassignedInfo = routing.unassignedInfo();
+        return unassignedInfo != null
+            && unassignedInfo.failedAllocations() == 0
+            && unassignedInfo.lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO
+            && unassignedInfo.reason().isExpectedTransient()
+            && (inactiveBufferTime.millis() > 0)
+            && (now.toEpochMilli() - unassignedInfo.unassignedTimeMillis() <= inactiveBufferTime.millis());
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
@@ -491,18 +490,6 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         var now = System.nanoTime();
         var restartingAllocationDelayExpiration = info.unassignedTimeNanos() + shutdown.getAllocationDelay().nanos();
         return now - restartingAllocationDelayExpiration <= 0;
-    }
-
-    private static boolean isUnassignedDueToNewInitialization(ProjectId projectId, ShardRouting routing, ClusterState state) {
-        if (routing.active()) {
-            return false;
-        }
-        // If the primary is inactive for unexceptional events in the cluster lifecycle, both the primary and the
-        // replica are considered new initializations.
-        ShardRouting primary = routing.primary()
-            ? routing
-            : state.routingTable(projectId).shardRoutingTable(routing.shardId()).primaryShard();
-        return primary.active() == false && getInactivePrimaryHealth(primary) == ClusterHealthStatus.YELLOW;
     }
 
     /**

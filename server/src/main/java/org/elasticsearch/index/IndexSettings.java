@@ -10,9 +10,11 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -54,6 +57,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.engine.EngineConfig.INDEX_CODEC_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -186,6 +190,20 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_TOKEN_COUNT_SETTING = Setting.intSetting(
         "index.analyze.max_token_count",
         10000,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * The maximum number of characters a single {@code _analyze} request may produce while applying character
+     * filters. A character-filter chain (each filter's output feeds the next) can expand its input far beyond the
+     * original text; this setting bounds that expansion and rejects the request once the limit is exceeded. The
+     * default of 1M is well above any realistic analysis input.
+     */
+    public static final Setting<Integer> MAX_ANALYZE_CHAR_COUNT_SETTING = Setting.intSetting(
+        "index.analyze.max_char_count",
+        1000000,
         1,
         Property.Dynamic,
         Property.IndexScope
@@ -676,10 +694,58 @@ public final class IndexSettings {
     );
 
     /**
+     * Per-index opt-in for batch indexing. When set to {@code true} on a TSDB backing index,
+     * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
+     * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
+     * setting and its feature flag are also active.
+     *
+     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default.
+     */
+    @Deprecated
+    public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
+        "index.time_series.batch_indexing",
+        false,
+        Property.Final,
+        Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+
+    /**
+     * Patterns of the dimensions that are hashed into the second and third bytes of the tsid of time series indices created on or
+     * after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}: full dimension paths, or wildcard patterns like those of
+     * {@link IndexMetadata#INDEX_ROUTING_PATH}, e.g. {@code resource.attributes.*} for OTel metrics and
+     * {@code labels.job,labels.instance} for Prometheus metrics. Since the tsid is the primary index sort key and its first byte is
+     * derived from the metric name, this clusters the time series of one metric by the resource or target they come from. Empty by
+     * default, which keeps those bytes from the hash over all dimensions; the OTel and Prometheus index templates set it. Final
+     * because changing it would change the tsids of existing time series. See {@link org.elasticsearch.cluster.routing.TsidBuilder}.
+     */
+    public static final Setting<List<String>> TIME_SERIES_TSID_PREFIXED_DIMENSIONS = Setting.stringListSetting(
+        "index.time_series.tsid_prefixed_dimensions",
+        patterns -> {
+            for (String pattern : patterns) {
+                if (pattern.isBlank()) {
+                    throw new IllegalArgumentException("[index.time_series.tsid_prefixed_dimensions] must not contain empty patterns");
+                }
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
     public boolean isES87TSDBCodecEnabled() {
         return es87TSDBCodecEnabled;
+    }
+
+    /**
+     * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
+     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     */
+    public boolean isBatchIndexingEnabled() {
+        return batchIndexingEnabled;
     }
 
     public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
@@ -920,6 +986,30 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Whether a mapping this index has, or had, can keep a field it does not declare: see
+     * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
+     * the documents indexed under that mapping stay. Only set on an index created on or after
+     * {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}. It is left out of the settings an API returns, so that they
+     * can be used to create another index.
+     */
+    public static final Setting<Boolean> RETAINS_UNMAPPED_FIELDS_SETTING = Setting.boolSetting(
+        "index.mapping.retains_unmapped_fields",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final,
+        Property.Filtered
+    );
+
+    /**
+     * Whether an index with these settings has, or had, a mapping that can keep a field it does not declare. Always
+     * {@code true} for an index created before {@link IndexVersions#TRACKS_UNMAPPED_FIELD_RETENTION}, which does not record it.
+     */
+    public static boolean retainsUnmappedFields(IndexVersion indexVersionCreated, Settings settings) {
+        return indexVersionCreated.before(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION) || RETAINS_UNMAPPED_FIELDS_SETTING.get(settings);
+    }
+
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
@@ -1059,6 +1149,39 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Per-index switch for batch indexing. Defaults to the value of the deprecated
+     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
+     * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
+     * explicit {@code true} when the feature flag is off.
+     */
+    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            return Boolean.FALSE.toString();
+        }
+        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
+            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
+        }
+        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+    }, value -> {
+        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
+            );
+        }
+    }, Property.Final, Property.IndexScope);
+
+    /**
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
+     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
+     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
+     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     */
+    public static boolean isBatchIndexingEnabled(Settings indexSettings) {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+    }
+
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1160,6 +1283,51 @@ public final class IndexSettings {
         false,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Largest value, in bytes, of a non-indexed keyword or flattened field in a columnar index mode. Lucene imposes no limit on
+     * such values, so this bounds storage and scan cost. Fields that feed the inverted index or sorted-set doc values, and all
+     * fields outside columnar index modes, keep Lucene's {@link IndexWriter#MAX_TERM_LENGTH} instead.
+     */
+    public static final Setting<ByteSizeValue> NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING = new Setting<>(
+        "index.mapping.non_indexed_field.max_value_length",
+        ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            "index.mapping.non_indexed_field.max_value_length"
+        ),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
@@ -1311,12 +1479,29 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Whether a dynamically mapped string that becomes a {@code text} field also gets an automatic {@code .keyword}
+     * multi-field. Only consulted when {@link #DYNAMIC_STRINGS_AUTO_TEXT} is enabled, since otherwise the string is
+     * mapped as a keyword to begin with.
+     * <p>
+     * Strict columnar modes default to {@code false}: the text field already has its own doc-values column there, which
+     * serves value retrieval, aggregations and sorting, so the keyword multi-field would store a second copy of every
+     * dynamic string. Exact, case-sensitive term filtering still requires mapping such a field explicitly.
+     */
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_keyword_subfield",
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar() == false),
+        value -> {},
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
-    private final int numberOfShards;
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1351,6 +1536,7 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean batchIndexingEnabled;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
@@ -1378,6 +1564,7 @@ public final class IndexSettings {
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
     private volatile int maxTokenCount;
+    private volatile int maxAnalyzeCharCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
@@ -1397,6 +1584,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile boolean ignoreDynamicFieldNamesBeyondLimit;
+    private volatile boolean combineDynamicMappingUpdates;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -1404,9 +1592,12 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private volatile boolean dynamicStringsAutoText;
+    private volatile boolean dynamicStringsAutoKeywordSubfield;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
+    private final int ignoreAbove;
+    private final int nonIndexedFieldMaxValueLength;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1502,6 +1693,13 @@ public final class IndexSettings {
         return sliceEnabled;
     }
 
+    /**
+     * @see #retainsUnmappedFields(IndexVersion, Settings)
+     */
+    public boolean retainsUnmappedFields() {
+        return retainsUnmappedFields(version, settings);
+    }
+
     public boolean isFlattenedUnmappedFieldsEnabled() {
         return flattenedUnmappedFieldsEnabled;
     }
@@ -1540,7 +1738,6 @@ public final class IndexSettings {
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
-        numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
         if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
             && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
@@ -1590,6 +1787,7 @@ public final class IndexSettings {
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
+        maxAnalyzeCharCount = scopedSettings.get(MAX_ANALYZE_CHAR_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
@@ -1612,12 +1810,14 @@ public final class IndexSettings {
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         ignoreDynamicFieldNamesBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING);
+        combineDynamicMappingUpdates = scopedSettings.get(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && scopedSettings.get(BATCH_INDEXING);
         requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
@@ -1631,6 +1831,8 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
+        nonIndexedFieldMaxValueLength = Math.toIntExact(scopedSettings.get(NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING).getBytes());
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -1680,6 +1882,7 @@ public final class IndexSettings {
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
+        dynamicStringsAutoKeywordSubfield = DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1732,6 +1935,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_TOKEN_COUNT_SETTING, this::setMaxTokenCount);
+        scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZE_CHAR_COUNT_SETTING, this::setMaxAnalyzeCharCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_NGRAM_DIFF_SETTING, this::setMaxNgramDiff);
         scopedSettings.addSettingsUpdateConsumer(MAX_SHINGLE_DIFF_SETTING, this::setMaxShingleDiff);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
@@ -1762,6 +1966,7 @@ public final class IndexSettings {
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
             this::setIgnoreDynamicFieldsBeyondLimit
         );
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING, this::setCombineDynamicMappingUpdates);
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
             this::setIgnoreDynamicFieldNamesBeyondLimit
@@ -1778,8 +1983,13 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(
+            DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
+            this::setPostFilterSelectivityThreshold
+        );
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1872,7 +2082,7 @@ public final class IndexSettings {
      * Returns the number of shards this index has.
      */
     public int getNumberOfShards() {
-        return numberOfShards;
+        return indexMetadata.getNumberOfShards();
     }
 
     /**
@@ -2124,6 +2334,15 @@ public final class IndexSettings {
         this.maxTokenCount = maxTokenCount;
     }
 
+    /** Returns the {@code index.analyze.max_char_count} limit for this index. */
+    public int getMaxAnalyzeCharCount() {
+        return maxAnalyzeCharCount;
+    }
+
+    private void setMaxAnalyzeCharCount(int maxAnalyzeCharCount) {
+        this.maxAnalyzeCharCount = maxAnalyzeCharCount;
+    }
+
     /**
      * Returns the maximum allowed difference between max and min length of ngram
      */
@@ -2360,6 +2579,14 @@ public final class IndexSettings {
         return ignoreDynamicFieldsBeyondLimit;
     }
 
+    private void setCombineDynamicMappingUpdates(boolean combineDynamicMappingUpdates) {
+        this.combineDynamicMappingUpdates = combineDynamicMappingUpdates;
+    }
+
+    public boolean isCombineDynamicMappingUpdates() {
+        return combineDynamicMappingUpdates;
+    }
+
     public boolean isIgnoreDynamicFieldNamesBeyondLimit() {
         return ignoreDynamicFieldNamesBeyondLimit;
     }
@@ -2429,6 +2656,23 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceSyntheticEnabled() {
         return recoverySourceSyntheticEnabled;
+    }
+
+    public int getIgnoreAbove() {
+        return ignoreAbove;
+    }
+
+    public int getNonIndexedFieldMaxValueLength() {
+        return nonIndexedFieldMaxValueLength;
+    }
+
+    /**
+     * Byte limit for one keyword or flattened value. Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted
+     * index and in sorted-set doc values. Other values get {@link #NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING} in columnar index
+     * modes, and {@link IndexWriter#MAX_TERM_LENGTH} in all other index modes.
+     */
+    public int maxValueLength(boolean useLuceneMaxTermLength) {
+        return useLuceneMaxTermLength || mode.isStrictColumnar() == false ? IndexWriter.MAX_TERM_LENGTH : nonIndexedFieldMaxValueLength;
     }
 
     public boolean useDocValuesSkipper() {
@@ -2584,5 +2828,17 @@ public final class IndexSettings {
      */
     public boolean getDynamicStringsAutoText() {
         return dynamicStringsAutoText;
+    }
+
+    private void setDynamicStringsAutoKeywordSubfield(boolean enabled) {
+        this.dynamicStringsAutoKeywordSubfield = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if a dynamically mapped {@code text} field should get an automatic {@code .keyword}
+     * multi-field. Only meaningful when {@link #getDynamicStringsAutoText()} is enabled.
+     */
+    public boolean getDynamicStringsAutoKeywordSubfield() {
+        return dynamicStringsAutoKeywordSubfield;
     }
 }

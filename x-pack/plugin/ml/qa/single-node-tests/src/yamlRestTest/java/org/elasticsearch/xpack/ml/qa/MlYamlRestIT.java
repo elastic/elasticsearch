@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.qa;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -81,7 +82,7 @@ public class MlYamlRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static final TestRule ruleChain = RuleChain.outerRule(ML_MODEL_SERVER).around(cluster);
 
-    public MlYamlRestIT(ClientYamlTestCandidate testCandidate) {
+    public MlYamlRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

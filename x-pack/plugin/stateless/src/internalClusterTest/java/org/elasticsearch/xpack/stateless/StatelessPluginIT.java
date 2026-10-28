@@ -38,13 +38,10 @@ public class StatelessPluginIT extends AbstractStatelessPluginIntegTestCase {
 
         // StatelessCommitService must be present on index nodes
         assertThat(internalCluster().getInstance(StatelessCommitService.class, indexNode), notNullValue());
-        assertThat(internalCluster().getInstance(StatelessCommitServiceProvider.class, indexNode).commitService(), notNullValue());
+        assertThat(internalCluster().getInstance(StatelessCommitServiceProvider.class, indexNode).get(), notNullValue());
 
         // StatelessCommitService must be absent on search nodes
-        assertThrows(
-            AssertionError.class,
-            () -> internalCluster().getInstance(StatelessCommitServiceProvider.class, searchNode).commitService()
-        );
+        assertThrows(AssertionError.class, () -> internalCluster().getInstance(StatelessCommitServiceProvider.class, searchNode).get());
         expectThrows(ConfigurationException.class, () -> internalCluster().getInstance(StatelessCommitService.class, searchNode));
     }
 

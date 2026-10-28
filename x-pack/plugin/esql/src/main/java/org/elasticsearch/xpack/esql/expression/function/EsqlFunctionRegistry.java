@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
@@ -123,7 +124,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Day;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Hour;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Month;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
@@ -133,6 +137,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.ToRange;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.Year;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
@@ -175,10 +180,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -230,6 +237,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -484,6 +492,7 @@ public class EsqlFunctionRegistry {
                 FieldExtract.DEFINITION,
                 Hash.DEFINITION,
                 JsonExtract.DEFINITION,
+                JsonString.DEFINITION,
                 LTrim.DEFINITION,
                 Left.DEFINITION,
                 Length.DEFINITION,
@@ -514,8 +523,12 @@ public class EsqlFunctionRegistry {
                 DateParse.DEFINITION,
                 DateTrunc.DEFINITION,
                 DateUnitCount.DEFINITION,
+                Day.DEFINITION,
                 DayName.DEFINITION,
+                Hour.DEFINITION,
+                Month.DEFINITION,
                 MonthName.DEFINITION,
+                Year.DEFINITION,
                 Now.DEFINITION,
                 RangeContains.DEFINITION,
                 RangeIntersects.DEFINITION,
@@ -575,6 +588,7 @@ public class EsqlFunctionRegistry {
                 ToDegrees.DEFINITION,
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
+                ToDoubleRange.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
                 ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
@@ -603,9 +617,11 @@ public class EsqlFunctionRegistry {
                 MvDedupe.DEFINITION,
                 MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
+                MvGreater.DEFINITION,
                 MvInRange.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
+                MvLess.DEFINITION,
                 MvLike.DEFINITION,
                 MvMax.DEFINITION,
                 MvMedian.DEFINITION,
@@ -633,6 +649,7 @@ public class EsqlFunctionRegistry {
                 TopSnippets.DEFINITION },
             // time-series functions
             new FunctionDefinition[] {
+                Changes.DEFINITION,
                 Rate.DEFINITION,
                 Irate.DEFINITION,
                 Idelta.DEFINITION,
@@ -671,9 +688,7 @@ public class EsqlFunctionRegistry {
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions
-                Magnitude.DEFINITION,
-                // double_range is under construction; release TO_DOUBLE_RANGE together with the type.
-                ToDoubleRange.DEFINITION } };
+                Magnitude.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

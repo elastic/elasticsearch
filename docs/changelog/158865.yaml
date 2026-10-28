@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 158865
+summary: "[Native] Fix bf16 squared distance for near-duplicate vectors"
+type: bug

@@ -27,6 +27,15 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
     private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
     // Warnings ship as part of the same per-driver warnings feature as the DriverCompletionInfo warnings field.
     private static final TransportVersion ESQL_DRIVER_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
+    /**
+     * Nodes on this version send a slot for a profile of the server driver. Only the removed remote fetch prototype ever
+     * asked for that profile, so this node always leaves the slot empty and skips a profile it receives.
+     */
+    static final TransportVersion ESQL_BATCH_EXCHANGE_PROFILE = TransportVersion.fromName("esql_batch_exchange_profile");
+    /**
+     * Adds four fields to the profile of {@link #ESQL_BATCH_EXCHANGE_PROFILE}.
+     */
+    static final TransportVersion ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE = TransportVersion.fromName("esql_batch_exchange_granular_profile");
 
     @Nullable
     private final Exception failure;
@@ -61,11 +70,23 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
             // them into the current thread's context before this constructor is called.
             // Parse the RFC 7234 warning format (e.g. "299 Elasticsearch-9.5.0 \"message\"") to extract the
             // plain warning text, so the strings are in the same format as those sent by new nodes.
-            this.warnings = threadContext.getResponseHeaders()
-                .getOrDefault("Warning", List.of())
+            this.warnings = threadContext.takeResponseHeaders("Warning")
                 .stream()
-                .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false))
+                .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
                 .toList();
+        }
+        if (in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_PROFILE) && in.readBoolean()) {
+            skipProfile(in);
+        }
+    }
+
+    /**
+     * Reads past the profile of the server driver: seven numbers, plus four since {@link #ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE}.
+     */
+    private static void skipProfile(StreamInput in) throws IOException {
+        int fields = in.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_GRANULAR_PROFILE) ? 11 : 7;
+        for (int i = 0; i < fields; i++) {
+            in.readVLong();
         }
     }
 
@@ -77,6 +98,9 @@ public final class BatchExchangeStatusResponse extends TransportResponse {
         }
         if (out.getTransportVersion().supports(ESQL_DRIVER_WARNINGS)) {
             out.writeStringCollection(warnings);
+        }
+        if (out.getTransportVersion().supports(ESQL_BATCH_EXCHANGE_PROFILE)) {
+            out.writeBoolean(false); // no profile
         }
     }
 

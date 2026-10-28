@@ -12,7 +12,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -28,9 +28,10 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -40,14 +41,13 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -62,6 +62,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -76,8 +77,9 @@ import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
@@ -94,22 +96,23 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
+import java.util.function.Supplier;
 
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -128,11 +131,14 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
-import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -200,7 +206,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             if (bccInfo.uploadedBcc().primaryTermAndGeneration().generation() == generationToBlock) {
                 logger.info("--> block object store repository");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -265,7 +271,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
             var transportService = MockTransportService.getInstance(indexNodeB);
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -443,7 +449,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 logger.info("--> fail object store repository after warming");
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 long generationToBlock = randomLongBetween(2, generation);
-                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+                mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
                 mockRepository.setRandomControlIOExceptionRate(1.0);
                 mockRepository.setRandomDataFileIOExceptionRate(1.0);
                 mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -597,6 +603,253 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureSearchHits(indexName, totalDocs);
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
+    public void testSearchRecoveryWarmingTimeoutReevaluationWhenSourceStartsShuttingDown() throws Exception {
+        final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
+        final var gracePeriodCap = TimeValue.timeValueSeconds(4);
+        // Bounds the accumulated timeout while the relocation source is not shutting down. Deliberately larger than the grace period cap
+        // so that the shutdown deadline, not this budget, decides when the warming finally times out.
+        final var totalTimeoutCap = TimeValue.timeValueSeconds(10);
+        final int numberOfShards = randomIntBetween(1, 5);
+
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // the timeout race only exists on the internal replicated-files path, where recovery computes end targets to warm
+            .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+            // Warm the whole of each compound commit, so recovery is really waiting on bytes coming off the object store rather than on
+            // an empty warming run
+            .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getKey(), relocationTimeoutSlice)
+            // Purely to pace the test: a quarter share keeps each slice short enough that several re-evaluations fit inside the short
+            // grace window below.
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING.getKey(), 0.25d)
+            // well below the slice size, so a re-evaluated slice is always large enough to be worth rescheduling
+            .put(
+                SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING.getKey(),
+                TimeValue.timeValueMillis(50)
+            )
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), gracePeriodCap)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING.getKey(), totalTimeoutCap)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+
+        // A single search node to begin with, so every search copy has nowhere to go but sourceSearchNode.
+        final var sourceSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        // Recovery reads the BCC headers through the cache, filling the first region of each blob, before warming.
+        // Index enough docs per shard that each blob spans several regions, otherwise a small shard is fully cached by
+        // that read and the warming that later times out reports zero bytes warmed.
+        indexDocs(indexName, numberOfShards * randomIntBetween(500, 1_000));
+        flushAndRefresh(indexName);
+        ensureGreen(indexName);
+        for (int i = 0; i < numberOfShards; i++) {
+            assertThat(findSearchShard(resolveIndex(indexName), i).routingEntry().currentNodeId(), equalTo(getNodeId(sourceSearchNode)));
+        }
+
+        final var targetSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var warmingServiceOnTargetNode = getSharedBlobCacheWarmingService(targetSearchNode);
+        warmingServiceOnTargetNode.holdSearchWarmingCompletion();
+        try (var mockLog = MockLog.capture(SharedBlobCacheWarmingService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "timeout extended while the relocation source is still healthy",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*cache warming timeout extended by ["
+                        + relocationTimeoutSlice.getStringRep()
+                        + "] (relocation source not shutting down, no cluster shutdown -> "
+                        + "relocation source not shutting down, no cluster shutdown)*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "timeout extended after the relocation source started shutting down",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*cache warming timeout extended by*-> relocation source shutting down*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "timed out under the shutdown plan, having warmed real bytes",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*cache warming timed out after.*\\(relocation source shutting down.*"
+                        + "bytes to warm \\[[1-9][^]]*\\], bytes warmed \\[[1-9][^]]*\\].*"
+                )
+            );
+
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceSearchNode), indexName);
+
+            // Let the first slice expire and be re-evaluated at least once before anything changes in the cluster state. Counting
+            // evaluations per shard matters here: several shards relocate at once, so a plain total above one would also be reached by
+            // two shards each evaluated only once, and the shutdown below would then land before any slice had expired.
+            assertBusy(() -> assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(1L))));
+            for (var evaluation : warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()) {
+                assertThat(
+                    evaluation.plan().timeoutContext(),
+                    equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN)
+                );
+                assertThat(evaluation.plan().timeout(), equalTo(relocationTimeoutSlice));
+                // Each plan is computed for a shard that genuinely has data to pull from the object store.
+                assertThat(evaluation.totalBytesToWarm(), greaterThan(0L));
+            }
+
+            // Only now does the source start shutting down, so a re-evaluation can only see it by re-reading the cluster state.
+            markNodeForSigtermShutdown(sourceSearchNode);
+
+            ensureGreen(indexName);
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
+        }
+
+        final String targetNodeId = getNodeId(targetSearchNode);
+        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
+            final String nodeId = findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId();
+            assertThat("shard " + shardIndex + " should have relocated to the target node", nodeId, equalTo(targetNodeId));
+        }
+
+        final var plansAfterShutdown = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations()
+            .stream()
+            .filter(evaluation -> evaluation.plan().timeoutContext().description().startsWith("relocation source shutting down"))
+            .toList();
+        assertThat(
+            "a re-evaluation must have picked up the shutdown registered after recovery had already started waiting",
+            plansAfterShutdown,
+            hasSize(greaterThan(0))
+        );
+
+        // Several shards do get re-evaluated repeatedly inside the window rather than being handed one slice and timing out.
+        assertThat(evaluationsPerShard(warmingServiceOnTargetNode).values(), hasItem(greaterThan(2L)));
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService:DEBUG",
+        reason = "the timeout extension is logged at DEBUG"
+    )
+    public void testSearchRecoveryWarmingTimeoutIsNotReevaluatedWhenDisabled() {
+        final var relocationTimeoutSlice = TimeValue.timeValueMillis(200);
+        final int numberOfShards = randomIntBetween(1, 3);
+
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
+            .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 1.0d)
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING.getKey(), relocationTimeoutSlice)
+            .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), false)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+
+        // A single search node to begin with, so every search copy has nowhere to go but sourceSearchNode.
+        final var sourceSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(2);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        indexDocs(indexName, randomIntBetween(100, 1_000));
+        flushAndRefresh(indexName);
+        ensureGreen(indexName);
+
+        final var targetSearchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var warmingServiceOnTargetNode = getSharedBlobCacheWarmingService(targetSearchNode);
+        warmingServiceOnTargetNode.holdSearchWarmingCompletion();
+        try (var mockLog = MockLog.capture(SharedBlobCacheWarmingService.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "timed out after the initial slice",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.WARN,
+                    ".*cache warming timed out after \\[[^]]+\\] \\(relocation source not shutting down, no cluster shutdown\\).*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "timeout never extended",
+                    SharedBlobCacheWarmingService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*cache warming timeout extended*"
+                )
+            );
+
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceSearchNode), indexName);
+
+            ensureGreen(indexName);
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            warmingServiceOnTargetNode.releaseSearchWarmingCompletion();
+        }
+
+        final String targetNodeId = getNodeId(targetSearchNode);
+        for (int shardIndex = 0; shardIndex < numberOfShards; shardIndex++) {
+            final String nodeId = findSearchShard(resolveIndex(indexName), shardIndex).routingEntry().currentNodeId();
+            assertThat("shard " + shardIndex + " should have relocated to the target node", nodeId, equalTo(targetNodeId));
+        }
+
+        // Only the initial plan is computed for each recovering shard, expiry of its slice ends the wait without another calculation.
+        final var evaluationsPerShard = evaluationsPerShard(warmingServiceOnTargetNode).values();
+        assertThat(evaluationsPerShard, hasSize(greaterThan(0)));
+        assertThat(evaluationsPerShard, everyItem(equalTo(1L)));
+    }
+
+    /// How many times [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] has been called for each shard recovering on a node.
+    private static Map<ShardId, Long> evaluationsPerShard(ObservableSharedBlobCacheWarmingService warmingService) {
+        return warmingService.searchRecoveryTimeoutEvaluations().stream().collect(groupingBy(TimeoutEvaluation::shardId, counting()));
+    }
+
+    private static void markNodeForSigtermShutdown(String nodeName) {
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    getNodeId(nodeName),
+                    SingleNodeShutdownMetadata.Type.SIGTERM,
+                    "shutdown for cache warming test",
+                    null,
+                    null,
+                    TimeValue.timeValueMinutes(5)
+                )
+            )
+        );
+    }
+
     public void testCacheIsWarmedOnUnhollowing() throws Exception {
         startMasterOnlyNode();
         // We need to have a regionSize as small as possible to avoid blob store request to fully load the BCCs in a single region
@@ -688,7 +941,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
     }
 
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
-        var nodeSettings = Settings.builder()
+        // When true, the VBCC is released immediately after upload (pre-recentlyUploadedVbccs behaviour): the first chunk
+        // request from the search node receives a ResourceAlreadyUploadedException and warming falls back to the object store.
+        // When false, the default timeout keeps the VBCC alive so chunk requests succeed and warming can use the indexing node.
+        final boolean immediateVbccRelease = randomBoolean();
+        var nodeSettingsBuilder = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
@@ -697,8 +954,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // Match the VBCC transport chunk size with the pre-warm range so that each warming range is fetched with a single
             // transport request, reducing the interleaving window where a mid-range flush can surface RAUE on a sibling gap.
             .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings());
+        if (immediateVbccRelease) {
+            nodeSettingsBuilder.put(
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                TimeValue.ZERO
+            );
+        }
+        var nodeSettings = nodeSettingsBuilder.build();
         final var indexNode = startMasterAndIndexNode(nodeSettings);
 
         var searchNode = startSearchNode(nodeSettings);
@@ -758,8 +1021,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 handler.messageReceived(alteredRequest, channel, task);
             });
 
-        // Upload VBCC on first message to get a chunk from the indexing node. This will return a ResourceAlreadyUploadedException and will
-        // make the warming service to fetch from the object store.
+        // Upload VBCC on first message to get a chunk from the indexing node. With immediateVbccRelease the VBCC is already gone
+        // by then and the handler returns ResourceAlreadyUploadedException, making the warming service fall back to the object store.
+        // With the default timeout the VBCC is still alive so the chunk request succeeds and warming can proceed via the indexing node.
         final var flushed = new AtomicBoolean(false);
         final var flushCountdown = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
@@ -802,7 +1066,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
                     @Override
                     public void sendResponse(TransportResponse response) {
-                        assert false : "unexpectedly trying to send response " + response;
+                        // With immediateVbccRelease the VBCC is gone before the first chunk request arrives, so the handler
+                        // must never reach a success response. With the default timeout the VBCC is still alive, so it can.
+                        assert immediateVbccRelease == false : "unexpectedly trying to send response " + response;
+                        channel.sendResponse(response);
                     }
                 }, task)
             );
@@ -967,11 +1234,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var stoppedLatch = new CountDownLatch(1);
         final var restartLatch = new CountDownLatch(1);
+        // We want to stall the getConnection for GetVBCCChunk request which is right after a successful registerCommitForRecovery
+        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
         final var restartIndexNodeThread = new Thread(() -> {
             try {
                 internalCluster().restartNode(indexNode, new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
+                        shouldDelayGetConnection.set(false);
                         stoppedLatch.countDown();
                         // The node is stopped. Wait for the search shard warming to fail before restarting it. We don't want it
                         // to restart too soon which might interfere the failure path of the search shard recovery.
@@ -988,22 +1258,40 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        // We want to stall the getConnection for GetVBCCChunk request which is right after registerCommitForRecovery
-        final AtomicBoolean shouldDelayGetConnection = new AtomicBoolean(false);
-        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
-        searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (TransportRegisterCommitForRecoveryAction.NAME.equals(action)) {
-                shouldDelayGetConnection.set(true);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        // Only arm the stall once the commit registration succeeds. A registration can fail with a retryable error,
+        // in which case the search node retries it, and we must not stall the retry's getConnection.
+        // Note that ShardNotFoundException is a valid (and retriable) response to the RegisterCommitForRecovery call,
+        // because the clusterStateVersion in the request comes from a clusterService.state() call,
+        // which might observe the previous cluster state, because RegisterCommitForRecovery is triggered for shard recoveries
+        // (on the generic thread pool), which are triggered from cluster state appliers,
+        // which themselves see the applied state before it's exposed to clusterService.state().
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                handler.messageReceived(
+                    request,
+                    new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                        if (stoppedLatch.getCount() > 0) {
+                            shouldDelayGetConnection.set(true);
+                        }
+                        l.onResponse(response);
+                    }).delegateResponse((l, exception) -> {
+                        logger.error("--> encountered unexpected exception during recovery commit registration", exception);
+                    })),
+                    task
+                );
+            });
 
+        final MockTransportService searchNodeTransportService = MockTransportService.getInstance(searchNode);
         final AtomicBoolean restartOnce = new AtomicBoolean(false);
         final IndicesService searchNodeIndicesService = internalCluster().getInstance(IndicesService.class, searchNode);
         searchNodeTransportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
-            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get() && restartOnce.compareAndSet(false, true)) {
-                logger.info("--> stalling getConnection and restart");
-                restartIndexNodeThread.start();
+            if (indexNode.equals(discoveryNode.getName()) && shouldDelayGetConnection.get()) {
+                if (restartOnce.compareAndSet(false, true)) {
+                    logger.info("--> stalling getConnection and restart");
+                    restartIndexNodeThread.start();
+                }
+                // SearchEngine initialization can happen concurrently with warming and also call getConnection
+                // Since it can happen first and trigger the restart, wait here to ensure warming fails with NodeNotConnectedException
                 try {
                     // Wait for the search shard to be removed (due to primary failure) to ensure no retry
                     assertBusy(() -> {
@@ -1135,79 +1423,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
     }
 
-    public void testPreWarmingBasedOnIdLookupOnIndexShardRelocation() throws Exception {
-        var nodeSettings = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
-            // use smaller region and range size to decrease the chance of incidental prewarming
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "4kb")
-            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "4kb")
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
-            .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), true)
-            .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), 1.0)  // make sure we always hit the cache
-            .build();
-        var node1 = startMasterAndIndexNode(nodeSettings);
-        var node2 = startMasterAndIndexNode(nodeSettings);
-        var indexName = "index1";
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put("index.routing.allocation.require._name", node1)
-                .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
-                .build()
-        );
-        ensureGreen(indexName);
-        final var bulkResponse = indexDocs(
-            indexName,
-            randomIntBetween(100, 1000),
-            UnaryOperator.identity(),
-            ESTestCase::randomUUID,
-            () -> Map.of("field-1", randomInt(), "field-2", randomAlphaOfLength(5))
-        );
-        flush(indexName);
-        final var returnedIds = new LinkedList<>(Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList());
-
-        // wait for INDEXING_EARLY and INDEXING to be completed before blocking access to the latest BCC.
-        final var indexingEarlyWarmingCompleted = new SubscribableListener<CompletedWarmingDetails>();
-        final var indexingWarmingCompleted = new SubscribableListener<CompletedWarmingDetails>();
-        runOnWarmingComplete(node2, Type.INDEXING_EARLY, indexingEarlyWarmingCompleted);
-        runOnWarmingComplete(node2, Type.INDEXING, indexingWarmingCompleted);
-
-        IndexShard indexShardOnNode1 = findIndexShard(indexName);
-        IndexEngine shardEngineOnNode1 = getShardEngine(indexShardOnNode1, IndexEngine.class);
-        assertTrue(shardEngineOnNode1.hasRecentIdLookup(ID_LOOKUP_RECENCY_THRESHOLD_SETTING.getDefault(nodeSettings)));
-
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
-        ensureGreen(indexName);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(node2)));
-        safeAwait(indexingEarlyWarmingCompleted);
-        safeAwait(indexingWarmingCompleted);
-        logger.info("--> fail object store repository after access to commits after warming");
-        var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node2));
-        var transportService = MockTransportService.getInstance(node2);
-        mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.PREFIX + ".*");
-        mockRepository.setRandomControlIOExceptionRate(1.0);
-        mockRepository.setRandomDataFileIOExceptionRate(1.0);
-        mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        var indicesService = internalCluster().getInstance(IndicesService.class, node2);
-        var indexService = indicesService.indexService(resolveIndex(indexName));
-        var indexShard = indexService.getShardOrNull(0);
-        assertNotNull(indexShard);
-        Collections.shuffle(returnedIds, random());
-        final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
-        try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
-            for (var id : idsToLookup) {
-                assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
-            }
-        }
-    }
-
     public void testBccIsPrewarmedForHollowShardRelocation() throws Exception {
         startMasterOnlyNode();
 
@@ -1291,7 +1506,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         );
 
         // The prewarm's readIndexingShardState reads the BCC through the cache directory, populating the cache. Wait for those cache writes
-        // to appear before letting recovery proceed. The warming service itself is not invoked for hollow commits.
+        // to appear before letting recovery proceed. The files of a hollow commit are not warmed, only region 0 of its root blob is
+        // prewarmed (see below).
         assertBusy(() -> {
             plugin.collect();
             long warmingBytes = plugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
@@ -1305,6 +1521,22 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         ensureGreen(indexName);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
+
+        // The hollow target prewarms region 0 of the root blob, the latest BCC blob of the shard, before reading the BCC header.
+        final var bccHeaderReadWarmedBlobs = getSharedBlobCacheWarmingService(indexNodeC).bccHeaderReadWarmedBlobs();
+        assertThat(bccHeaderReadWarmedBlobs, hasSize(1));
+        assertThat(bccHeaderReadWarmedBlobs.getFirst(), hasSize(1));
+        final BlobFile warmedBlob = bccHeaderReadWarmedBlobs.getFirst().iterator().next();
+        final var shardBlobs = getObjectStoreService(indexNodeC).getProjectBlobContainer(
+            findIndexShard(resolveIndex(indexName), 0).shardId(),
+            warmedBlob.primaryTerm()
+        ).listBlobs(OperationPurpose.INDICES).keySet();
+        final long latestBccGeneration = shardBlobs.stream()
+            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+            .mapToLong(BatchedCompoundCommit::parseGenerationFromBlobName)
+            .max()
+            .orElseThrow();
+        assertThat(warmedBlob.blobName(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(latestBccGeneration)));
     }
 
     public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
@@ -1350,10 +1582,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     .stream()
                     .filter(m -> Type.INDEXING_BCC_HEADER_PREWARM.name().equals(m.attributes().get("prewarming_type")))
                     .count(),
-                // When hollow shards are enabled and the shard is hollowed during relocations,
-                // the target shard won't prewarm the BCC header regions since they're not read
-                // when the shard is hollow.
-                equalTo(hollowShardEnabled ? 0L : 1L)
+                // When hollow shards are enabled and the shard is hollowed during relocations, only the root blob is prewarmed.
+                equalTo(1L)
             )
         );
     }
@@ -1403,7 +1633,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         getSharedBlobCacheWarmingService(node).addBeforeWarmingStartsListener(warmingType -> {
             logger.info("Disabling object store access to generation {}", generationToBlock);
             if (Type.INDEXING == warmingType) {
-                String pattern = ".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
+                String pattern = ".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*";
                 final var mockRepositoryB = getObjectStoreMockRepository(getObjectStoreService(node));
                 // set exception filename pattern FIRST, before toggling IO exceptions for the repo
                 mockRepositoryB.setRandomIOExceptionPattern(pattern);
@@ -1421,7 +1651,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         runOnWarmingComplete(node, type, ActionListener.running(() -> {
             logger.info("--> fail object store repository after warming");
             // set exception filename pattern FIRST, before toggling IO exceptions for the repo
-            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            mockRepository.setRandomIOExceptionPattern(".*" + BatchedCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
             mockRepository.setRandomControlIOExceptionRate(1.0);
             mockRepository.setRandomDataFileIOExceptionRate(1.0);
             mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
@@ -1456,8 +1686,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
 
+        private final Settings nodeSettings;
+
         public TestStatelessPlugin(Settings settings) {
             super(settings);
+            this.nodeSettings = settings;
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            final var settings = new ArrayList<>(super.getSettings());
+            // Not registered by StatelessPlugin itself, and it defaults to 0, i.e. nothing is warmed. Tests that need search recovery
+            // warming to actually fetch anything have to register it and then set it, see DefaultWarmingRatioProviderFactory.
+            settings.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
+            return List.copyOf(settings);
         }
 
         @Override
@@ -1466,14 +1708,21 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
+            // The base service is replaced by one that records every timeout calculation, since that is not observable otherwise.
             return new ObservableSharedBlobCacheWarmingService(
                 cacheService,
                 threadPool,
                 telemetryProvider,
                 clusterSettings,
-                warmingRatioProvider
+                new RecordingSearchRecoveryTimeoutCalculationService(
+                    cacheService,
+                    threadPool,
+                    clusterSettings,
+                    nodeSettings,
+                    JvmInfo.jvmInfo().getMem().getHeapMax()
+                )
             );
         }
 
@@ -1524,16 +1773,48 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }
+
+    /** A {@link TimeoutEvaluation} is recorded for every {@code searchRecoveryTimeout} call: the initial plan and each re-evaluation. */
+    private static class RecordingSearchRecoveryTimeoutCalculationService extends SearchRecoveryTimeoutCalculationService {
+
+        private final List<TimeoutEvaluation> evaluations = new CopyOnWriteArrayList<>();
+
+        RecordingSearchRecoveryTimeoutCalculationService(
+            StatelessSharedBlobCacheService cacheService,
+            ThreadPool threadPool,
+            ClusterSettings clusterSettings,
+            Settings nodeSettings,
+            ByteSizeValue maxHeap
+        ) {
+            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
+        }
+
+        @Override
+        public SearchRecoveryTimeout searchRecoveryTimeout(
+            ClusterState state,
+            IndexShard indexShard,
+            long bytesToWarm,
+            @Nullable SearchRecoveryTimeout previous
+        ) {
+            final var plan = super.searchRecoveryTimeout(state, indexShard, bytesToWarm, previous);
+            evaluations.add(new TimeoutEvaluation(indexShard.shardId(), bytesToWarm, plan));
+            return plan;
+        }
+    }
+
+    /** A single {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} call, tagged with the shard and data volume. */
+    private record TimeoutEvaluation(ShardId shardId, long totalBytesToWarm, SearchRecoveryTimeout plan) {}
 
     /**
      * The details of the warming that just completed
@@ -1566,8 +1847,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
 
+        private final CopyOnWriteArrayList<Set<BlobFile>> bccHeaderReadWarmedBlobs = new CopyOnWriteArrayList<>();
+
         private volatile boolean awaitWarmingForSearchRecovery = false;
         private volatile boolean awaitWarmingForIndexingRecovery = false;
+
+        private final RecordingSearchRecoveryTimeoutCalculationService recordingTimeoutCalculationService;
+
+        /** Non-null while the completion signal of search recovery warming is withheld from the timeout race. */
+        private final AtomicReference<SubscribableListener<Void>> searchWarmingCompletionGate = new AtomicReference<>();
 
         /** When set, captures warming tasks instead of scheduling them. */
         private volatile Consumer<ActionListener<Releasable>> scheduleWarmingTaskInterceptor = null;
@@ -1588,10 +1876,27 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             TelemetryProvider telemetryProvider,
             ClusterSettings clusterSettings,
-            WarmingRatioProvider warmingRatioProvider
+            RecordingSearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
         ) {
-            super(cacheService, threadPool, telemetryProvider, clusterSettings, warmingRatioProvider);
+            super(cacheService, threadPool, telemetryProvider, clusterSettings, searchRecoveryTimeoutCalculationService);
             this.threadPool = threadPool;
+            this.recordingTimeoutCalculationService = searchRecoveryTimeoutCalculationService;
+        }
+
+        /** The blobs whose region 0 was prewarmed before reading BCC headers, one entry per prewarm. */
+        List<Set<BlobFile>> bccHeaderReadWarmedBlobs() {
+            return List.copyOf(bccHeaderReadWarmedBlobs);
+        }
+
+        @Override
+        public void warmCacheForBCCHeadersRead(
+            IndexShard indexShard,
+            BlobStoreCacheDirectory directory,
+            Set<BlobFile> lastCommitBlobs,
+            ActionListener<Void> listener
+        ) {
+            bccHeaderReadWarmedBlobs.add(lastCommitBlobs);
+            super.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobs, listener);
         }
 
         void setAwaitWarmingForSearchRecovery(boolean await) {
@@ -1602,12 +1907,70 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             this.awaitWarmingForIndexingRecovery = await;
         }
 
+        List<TimeoutEvaluation> searchRecoveryTimeoutEvaluations() {
+            return List.copyOf(recordingTimeoutCalculationService.evaluations);
+        }
+
+        /**
+         * Withholds the completion signal of search recovery warming so that the timeout side of the race in
+         * {@link #searchRecoveryWarmingListener} wins deterministically, without having to slow warming down. Warming itself still runs
+         * for real; only the notification that it finished is deferred until {@link #releaseSearchWarmingCompletion()}.
+         */
+        void holdSearchWarmingCompletion() {
+            assertTrue(searchWarmingCompletionGate.compareAndSet(null, new SubscribableListener<>()));
+        }
+
+        /** Idempotent, so tests can also release the gate from a {@code finally} block. */
+        void releaseSearchWarmingCompletion() {
+            final var gate = searchWarmingCompletionGate.getAndSet(null);
+            if (gate != null) {
+                gate.onResponse(null);
+            }
+        }
+
         @Override
-        public void warmCacheForSearchShardRecovery(
-            ClusterState clusterState,
+        protected void warmCacheAndTimeIt(
+            Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
+            @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+            boolean preWarmForIdLookup,
+            ActionListener<Void> listener
+        ) {
+            final var gate = searchWarmingCompletionGate.get();
+            final var effectiveListener = gate != null && type == Type.SEARCH && endTargetsToWarm != null ? new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    gate.addListener(listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // warming is not expected to fail here; propagate at once so a test fails fast rather than hanging on the gate
+                    listener.onFailure(e);
+                }
+            } : listener;
+            super.warmCacheAndTimeIt(
+                type,
+                indexShard,
+                commit,
+                directory,
+                warmingRatioProvider,
+                endTargetsToWarm,
+                preWarmForIdLookup,
+                effectiveListener
+            );
+        }
+
+        @Override
+        public void warmCacheForSearchShardRecovery(
+            Supplier<ClusterState> clusterStateSupplier,
+            IndexShard indexShard,
+            StatelessCompoundCommit commit,
+            BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             ActionListener<Void> resumeRecoveryListener
         ) {
@@ -1620,21 +1983,25 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     indexShard,
                     commit,
                     directory,
+                    warmingRatioProvider,
                     endTargetsToWarm,
                     false,
                     searchRecoveryWarmingListener(
-                        TimeValue.timeValueMinutes(1),
-                        "test: awaiting warming",
+                        new SearchRecoveryTimeout(TimeValue.timeValueMinutes(1), TimeoutContext.RESHARD_SPLIT_TARGET),
+                        clusterStateSupplier,
                         indexShard,
+                        directory,
+                        totalBytesToWarm(endTargetsToWarm),
                         resumeRecoveryListener
                     )
                 );
             } else {
                 super.warmCacheForSearchShardRecovery(
-                    clusterState,
+                    clusterStateSupplier,
                     indexShard,
                     commit,
                     directory,
+                    warmingRatioProvider,
                     endTargetsToWarm,
                     resumeRecoveryListener
                 );
@@ -1715,6 +2082,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             IndexShard indexShard,
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
+            WarmingRatioProvider warmingRatioProvider,
             @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
@@ -1728,7 +2096,16 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endTargetsToWarm, preWarmForIdLookup, wrappedListener);
+            super.warmCache(
+                type,
+                indexShard,
+                commit,
+                directory,
+                warmingRatioProvider,
+                endTargetsToWarm,
+                preWarmForIdLookup,
+                wrappedListener
+            );
             var callback = warmCacheReturnedCallback;
             if (callback != null) {
                 callback.run();

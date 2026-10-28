@@ -11,11 +11,13 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -236,6 +239,126 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             if (resp != null) {
                 resp.decRef();
             }
+        }
+    }
+
+    public void testChargedHitsChargeLookupValues() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, breaker);
+        long hitsBytes = 1024L;
+        DocumentField lookedUp = new DocumentField("field_a", List.of("x".repeat(4096)), List.of());
+        try {
+            runLookup(searchPhaseContext, breaker, hitsBytes, lookedUp);
+            searchPhaseContext.assertNoFailure();
+            // Both outer hits look up the same value, which is charged once.
+            assertThat(breaker.getUsed(), equalTo(hitsBytes + lookedUp.ramBytesUsedEstimate()));
+        } finally {
+            searchPhaseContext.results.close();
+            var resp = searchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testLookupValuesChargedWithoutBreaking() {
+        // The values go over the limit, but the lookup multi-search has already admitted them, so they must not trip.
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("2kb");
+        MockSearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, breaker);
+        long hitsBytes = 1024L;
+        DocumentField lookedUp = new DocumentField("field_a", List.of("x".repeat(4096)), List.of());
+        try {
+            runLookup(searchPhaseContext, breaker, hitsBytes, lookedUp);
+            searchPhaseContext.assertNoFailure();
+            assertThat(breaker.getUsed(), equalTo(hitsBytes + lookedUp.ramBytesUsedEstimate()));
+            assertThat(breaker.getUsed(), greaterThan(breaker.getLimit()));
+        } finally {
+            searchPhaseContext.results.close();
+            var resp = searchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testUnchargedHitsDoNotChargeLookupValues() {
+        CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+        MockSearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, breaker);
+        try {
+            runLookup(searchPhaseContext, breaker, 0L, new DocumentField("field_a", List.of("x".repeat(4096)), List.of()));
+            searchPhaseContext.assertNoFailure();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        } finally {
+            searchPhaseContext.results.close();
+            var resp = searchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    /**
+     * Runs the phase over two outer hits that look up the same value. The outer hits are charged {@code hitsBytes},
+     * or not charged at all if it is zero.
+     */
+    private static void runLookup(
+        MockSearchPhaseContext searchPhaseContext,
+        CircuitBreaker breaker,
+        long hitsBytes,
+        DocumentField lookedUp
+    ) {
+        searchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                SearchHit hit = new SearchHit(randomInt(1000));
+                hit.setDocumentField(lookedUp);
+                SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                try {
+                    ActionListener.respondAndRelease(
+                        listener,
+                        new MultiSearchResponse(
+                            new MultiSearchResponse.Item[] {
+                                new MultiSearchResponse.Item(SearchResponseUtils.successfulResponse(hits), null) },
+                            1
+                        )
+                    );
+                } finally {
+                    hits.decRef();
+                }
+            }
+        };
+        List<FieldAndFormat> fetchFields = List.of(new FieldAndFormat("field_a", null));
+        SearchHit[] outerHits = new SearchHit[2];
+        for (int i = 0; i < outerHits.length; i++) {
+            outerHits[i] = new SearchHit(i);
+            outerHits[i].setDocumentField(
+                new DocumentField(
+                    "lookup_field",
+                    List.of(),
+                    List.of(),
+                    List.of(new LookupField("test_index", new TermQueryBuilder("test_field", "term"), fetchFields, 1))
+                )
+            );
+        }
+        try (
+            var sections = new SearchResponseSections(
+                new SearchHits(outerHits, new TotalHits(outerHits.length, TotalHits.Relation.EQUAL_TO), 1.0f),
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null
+            )
+        ) {
+            if (hitsBytes > 0L) {
+                breaker.addWithoutBreaking(hitsBytes);
+                sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-hitsBytes));
+            }
+            new FetchLookupFieldsPhase(searchPhaseContext, sections, null).run();
         }
     }
 

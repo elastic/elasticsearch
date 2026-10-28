@@ -128,6 +128,12 @@ public class DotPrefixValidatorTests extends ESTestCase {
         assertIgnored(Set.of(".entities.v1.latest.noop"));
         assertIgnored(Set.of(".entities.v92.latest.eggplant.potato"));
         assertIgnored(Set.of("<.entities.v12.latest.eggplant-{M{yyyy-MM-dd|UTC}}>"));
+        assertIgnored(Set.of(".ai-index-idx-puggles"));
+        assertIgnored(Set.of(".ai-index-ds-puggles"));
+        assertIgnored(Set.of(".ai-index-puggles.pugs-000001"));
+        assertIgnored(Set.of("<.ai-index-foo-{M{yyyy-MM-dd|UTC}}>"));
+        assertFails(Set.of(".ai-index"));
+        assertFails(Set.of(".ai-indexes"));
         assertIgnored(Set.of(".monitoring-es-8-thing"));
         assertIgnored(Set.of("<.monitoring-es-8-thing>"));
         assertIgnored(Set.of(".monitoring-logstash-8-thing"));

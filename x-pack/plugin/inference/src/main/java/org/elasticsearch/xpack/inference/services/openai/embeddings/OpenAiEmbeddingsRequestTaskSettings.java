@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
@@ -40,7 +40,7 @@ public record OpenAiEmbeddingsRequestTaskSettings(@Nullable String user) {
 
         ValidationException validationException = new ValidationException();
 
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

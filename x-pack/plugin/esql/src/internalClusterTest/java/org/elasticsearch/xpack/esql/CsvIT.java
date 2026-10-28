@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -14,17 +15,23 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -70,12 +77,14 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
@@ -90,6 +99,7 @@ import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.elasticsearch.xpack.wildcard.Wildcard;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -105,6 +115,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -141,7 +152,15 @@ public class CsvIT extends ESTestCase {
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
-    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load");
+    private static final String ML_ANOMALIES_DATASET = ".ml-anomalies-shared";
+    private static final Set<String> GROUPS_WITH_VIEWS = Set.of(
+        "views",
+        "approximation",
+        "unmapped-load",
+        "unmapped-load-all",
+        "metadata-views-and-subqueries",
+        "named_subquery"
+    );
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -195,9 +214,34 @@ public class CsvIT extends ESTestCase {
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
 
         /**
+         * Normalizes a single warning string before warnings are compared. The <em>same</em>
+         * function is applied to both the expected warnings declared in the csv-spec entry (via
+         * {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings(java.util.function.Function)}) and
+         * to each actual warning returned by the cluster, so a variant that mechanically rewrites
+         * the query can reconcile warnings whose expression text or source position differs purely
+         * as a side effect of the rewrite &mdash; without weakening the assertion for the parts of
+         * the warning that still carry meaning. The default is identity, so the unmodified corpus
+         * keeps asserting warnings verbatim.
+         */
+        default String normalizeWarning(String warning) {
+            return warning;
+        }
+
+        /**
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
+
+        /**
+         * When {@code true}, multi-value fields in the result rows are compared as unordered
+         * sets rather than ordered lists. Use this for index modes (e.g. columnar) where the
+         * storage layer returns multi-valued fields in source insertion order rather than the
+         * doc-values order that the standard mode uses, causing spurious ordering differences
+         * that are not behavioural regressions. The default is {@code false} (ordered comparison).
+         */
+        default boolean ignoreValueOrder() {
+            return false;
+        }
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -266,9 +310,9 @@ public class CsvIT extends ESTestCase {
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        var seed = Optional.ofNullable(System.getProperty("tests.seed")).map(SeedUtils::parseSeed).orElseGet(System::nanoTime);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not essential here.
-        Collections.shuffle(specs, new Random(0));
+        Collections.shuffle(specs, new Random(seed));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }
@@ -317,6 +361,7 @@ public class CsvIT extends ESTestCase {
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
                 ConstantKeywordMapperPlugin.class,
+                DataStreamsPlugin.class,
                 EnrichPlugin.class,
                 IngestCommonPlugin.class,
                 LocalStateInferencePlugin.class,
@@ -342,6 +387,11 @@ public class CsvIT extends ESTestCase {
         cluster.close();
     }
 
+    @After
+    public void resetNameIndexThreshold() {
+        Analyzer.ResolveRefs.resetNameIndexThreshold();
+    }
+
     public final void test() throws Throwable {
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         assumeFalseLogging(
@@ -364,6 +414,8 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
+
+        Analyzer.ResolveRefs.setNameIndexThresholdForTests(randomBoolean() ? 0 : Integer.MAX_VALUE);
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -407,21 +459,28 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
+            var assertionLogger = logResults() ? logger : null;
+            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
+                indexLoadStrategy.ignoreValueOrder(),
                 false,
-                false,
-                logResults() ? logger : null
+                assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .map(indexLoadStrategy::normalizeWarning)
                 .toList();
+            // Apply the same normalization to the expected warnings so a variant that rewrites the
+            // query can reconcile warnings whose expression text or source position shifted purely
+            // as a side effect of the rewrite. For the identity strategy this is a no-op.
+            testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
+            CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
@@ -518,6 +577,14 @@ public class CsvIT extends ESTestCase {
     }
 
     private static void loadViews() {
+        if ("ml-anomalies".equals(currentGroupName)) {
+            // The reserved .ml-anomalies view is created asynchronously by the master once a .ml-anomalies-* index exists.
+            // Indices are otherwise loaded lazily when resolving fields, which is too late for a view: the query would
+            // already have been resolved as an unknown index.
+            var dataset = CSV_DATASET.get(ML_ANOMALIES_DATASET);
+            indices.maybeLoad(dataset.indexName(), dataset);
+            awaitView(".ml-anomalies");
+        }
         // TODO We should instead load views once and never unload them
         if (GROUPS_WITH_VIEWS.contains(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
@@ -527,6 +594,18 @@ public class CsvIT extends ESTestCase {
             });
         } else {
             views.unloadAll();
+        }
+    }
+
+    private static void awaitView(String name) {
+        try {
+            assertBusy(() -> {
+                var request = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+                request.indices(name);
+                assertThat(cluster.client().execute(GetViewAction.INSTANCE, request).actionGet().getViews(), hasSize(1));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("view [" + name + "] was not created", e);
         }
     }
 
@@ -609,7 +688,34 @@ public class CsvIT extends ESTestCase {
             }
             String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
             Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
-            assertAcked(cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings));
+            if (dataset.dataStream()) {
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            TransportPutComposableIndexTemplateAction.TYPE,
+                            new TransportPutComposableIndexTemplateAction.Request(
+                                CsvTestsDataLoader.DATA_STREAM_TEMPLATE_PREFIX + dataset.indexName()
+                            ).indexTemplate(
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(dataset.indexName()))
+                                    .template(Template.builder().settings(settings).mappings(new CompressedXContent(mapping)).build())
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build()
+                            )
+                        )
+                );
+                assertAcked(
+                    cluster.client()
+                        .execute(
+                            CreateDataStreamAction.INSTANCE,
+                            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataset.indexName())
+                        )
+                );
+            } else {
+                assertAcked(
+                    cluster.client().admin().indices().prepareCreate(dataset.indexName()).setMapping(mapping).setSettings(settings)
+                );
+            }
             if (dataset.dataFileName() != null) {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -619,6 +725,9 @@ public class CsvIT extends ESTestCase {
                         .prepareIndex(dataset.indexName())
                         .setId(document.id())
                         .setSource(source, XContentType.JSON);
+                    if (dataset.dataStream()) {
+                        indexRequestBuilder.setCreate(true);
+                    }
                     if (document.slice() != null) {
                         indexRequestBuilder.setRouting(document.slice());
                         indexRequestBuilder.setRoutingFromSlice(true);

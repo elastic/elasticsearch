@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -63,6 +66,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -111,6 +115,7 @@ public class IndexEngine extends InternalEngine {
     public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
         "stateless.merge.force_refresh_size",
         ByteSizeValue.ofMb(64),
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     /**
@@ -122,10 +127,12 @@ public class IndexEngine extends InternalEngine {
         "stateless.merge.backlog_throttle_factor",
         10,
         1,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
+    private static final String HOLLOW_FLUSH_REFRESH_SOURCE = "hollow_flush";
 
     private final TranslogReplicator translogReplicator;
     private final StatelessCommitService statelessCommitService;
@@ -133,8 +140,9 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final RefreshManager refreshManager;
     private final ReshardIndexService reshardIndexService;
-    private final long mergeForceRefreshSize;
+    private final IndexEngineDynamicSettings indexEngineDynamicSettings;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
@@ -148,7 +156,6 @@ public class IndexEngine extends InternalEngine {
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
-    private final int mergeBacklogThrottleFactor;
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
 
     @SuppressWarnings("this-escape")
@@ -164,6 +171,7 @@ public class IndexEngine extends InternalEngine {
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
+        IndexEngineDynamicSettings indexEngineDynamicSettings,
         ShardLocalReadersTracker shardLocalReadersTracker
     ) {
         this(
@@ -178,6 +186,7 @@ public class IndexEngine extends InternalEngine {
             commitBCCResolver,
             documentParsingProvider,
             metrics,
+            indexEngineDynamicSettings,
             (shardId) -> false,
             shardLocalReadersTracker
         );
@@ -196,6 +205,7 @@ public class IndexEngine extends InternalEngine {
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
+        IndexEngineDynamicSettings indexEngineDynamicSettings,
         Predicate<ShardId> shouldSkipMerges,
         ShardLocalReadersTracker shardLocalReadersTracker
     ) {
@@ -208,8 +218,9 @@ public class IndexEngine extends InternalEngine {
         this.cacheWarmingService = cacheWarmingService;
         this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
         this.reshardIndexService = reshardIndexService;
-        this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
+        this.indexEngineDynamicSettings = indexEngineDynamicSettings;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
             shardId.getIndex(),
@@ -217,7 +228,6 @@ public class IndexEngine extends InternalEngine {
             documentSizeAccumulator
         );
         this.shouldSkipMerges = shouldSkipMerges;
-        this.mergeBacklogThrottleFactor = MERGE_BACKLOG_THROTTLE_FACTOR.get(engineConfig.getIndexSettings().getNodeSettings());
         this.localReadersTracker = shardLocalReadersTracker;
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
@@ -234,6 +244,37 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Prefetches the min/max {@code _id} .tim blocks in the last {@code maxSegments} segments so the first id
+     * lookups after a primary relocation do not block on a cold read from the object store. Best-effort: only boundary blocks of
+     * the most recent segments are prefetched; other lookups will still cold-read on first access. Segments without {@code _id}
+     * terms still count towards {@code maxSegments}, as the bound limits how far back the leaves are visited.
+     */
+    public void prewarmIdLookups(int maxSegments) {
+        performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            prewarmIdLookups(reader.leaves(), maxSegments);
+            return null;
+        });
+    }
+
+    static void prewarmIdLookups(List<LeafReaderContext> leaves, int maxSegments) throws IOException {
+        final int lowestLeaf = Math.max(0, leaves.size() - maxSegments);
+        for (int i = leaves.size() - 1; i >= lowestLeaf; i--) {
+            var terms = leaves.get(i).reader().terms(IdFieldMapper.NAME);
+            if (terms == null) {
+                continue; // no-op segment
+            }
+            BytesRef min = terms.getMin();
+            if (min != null) {
+                terms.iterator().prepareSeekExact(min);
+            }
+            BytesRef max = terms.getMax();
+            if (max != null) {
+                terms.iterator().prepareSeekExact(max);
+            }
+        }
     }
 
     /**
@@ -477,10 +518,18 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+        assert isFlushLockIsHeldByCurrentThread();
         // We must fetch the max uploaded translog file BEFORE performing the commit. Since all of those operations were written to
         // Lucene at this point, it is safe to start with the next file. The flush thread synchronously kicks of the commit upload
         // process, so for now we just store the start file as a thread local.
         translogStartFileForNextCommit = translogReplicator.getMaxUploadedFile() + 1;
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && getProcessedLocalCheckpoint() == hollowMaxSeqNo) {
+            // If the commit we'll write is hollow, getCommitExtraUserData() will calculate DOC_STATS and SHARD_FIELD_STATS when Lucene
+            // visits the live commit data. Those stats are read from the internal searcher inside IndexWriter#commit. Refresh before the
+            // commit so documents indexed since the last internal refresh are included in the stats. Note that the refresh may grab
+            // Lucene's full-flush lock, but that should not be held by anyone else since we already hold the flushLock here.
+            refreshInternalSearcher(HOLLOW_FLUSH_REFRESH_SOURCE, true);
+        }
         super.commitIndexWriter(writer, translog);
     }
 
@@ -516,9 +565,14 @@ public class IndexEngine extends InternalEngine {
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(parsedDocument);
+            documentParsingReporter.onIndexingCompleted(parsedDocument, index.origin());
         }
         return result;
+    }
+
+    @Override
+    public XContentMeteringParserDecorator newMeteringParserDecorator() {
+        return documentParsingProvider.newMeteringParserDecorator();
     }
 
     @Override
@@ -531,7 +585,8 @@ public class IndexEngine extends InternalEngine {
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
-                documentParsingReporter.onIndexingCompleted(operations.get(i).parsedDoc());
+                Index operation = operations.get(i);
+                documentParsingReporter.onIndexingCompleted(operation.parsedDoc(), operation.origin());
             }
         }
         return results;
@@ -666,10 +721,13 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected RefreshResult refreshInternalSearcher(String source, boolean block) throws EngineException {
-        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE) || source.equals(UNSAFE_VERSION_MAP_REFRESH_SOURCE)) {
+        if (source.equals(REAL_TIME_GET_REFRESH_SOURCE)) {
             try {
                 IS_FLUSH_BY_REFRESH.set(true);
                 // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+                /// Note that we don't wait for the durability of the commit produced by this flush
+                /// since we set `IS_FLUSH_BY_REFRESH`.
+                /// See [IndexEngine#waitForCommitDurability(long, ActionListener)].
                 flush(true, true);
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);
@@ -882,6 +940,12 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    public void waitForCurrentCommitDurability(ActionListener<Void> listener) {
+        // The current Lucene generation may have been produced by a flush-by-refresh, which is never queued for BCC upload.
+        long genToWaitFor = Math.min(getCurrentGeneration(), statelessCommitService.getMaxPendingOrUploadedGeneration(shardId));
+        waitForCommitDurability(genToWaitFor, listener);
+    }
+
     @Override
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
         try {
@@ -951,7 +1015,7 @@ public class IndexEngine extends InternalEngine {
     private void onAfterMerge(OnGoingMerge merge) {
         // A merge can occupy a lot of disk space that can't be reused until it has been pushed into the object store, so it
         // can be worth refreshing immediately to allow that space to be reclaimed faster.
-        if (merge.getTotalBytesSize() >= mergeForceRefreshSize) {
+        if (merge.getTotalBytesSize() >= indexEngineDynamicSettings.mergeForceRefreshSizeBytes()) {
             try {
                 maybeRefresh("large merge", ActionListener.noop());
             } catch (AlreadyClosedException e) {
@@ -1134,7 +1198,8 @@ public class IndexEngine extends InternalEngine {
         @Override
         protected int getMaxMergeCount() {
             return (int) Math.min(
-                (long) mergeBacklogThrottleFactor * getThreadPoolMergeExecutorService().getMaxConcurrentMerges(),
+                (long) IndexEngine.this.indexEngineDynamicSettings.mergeBacklogThrottleFactor() * getThreadPoolMergeExecutorService()
+                    .getMaxConcurrentMerges(),
                 Integer.MAX_VALUE
             );
         }

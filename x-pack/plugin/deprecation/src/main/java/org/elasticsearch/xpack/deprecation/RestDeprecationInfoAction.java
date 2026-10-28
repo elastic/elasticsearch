@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
 
-    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("data_streams", "ilm_policies", "templates");
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("data_streams", "ilm_policies", "repositories", "templates");
 
     @Override
     public List<Route> routes() {

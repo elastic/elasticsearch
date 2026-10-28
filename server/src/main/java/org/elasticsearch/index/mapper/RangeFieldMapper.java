@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -24,10 +26,12 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.plain.BinaryDVLeafFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DateRangeDocValuesLoader;
@@ -47,6 +51,7 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,12 +65,11 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
-    public static final NodeFeature DATE_RANGE_INDEXING_FIX = new NodeFeature("mapper.range.date_range_indexing_fix");
-
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static final TransportVersion ESQL_LONG_RANGES = TransportVersion.fromName("esql_long_ranges");
+    public static final TransportVersion ESQL_DOUBLE_RANGES = TransportVersion.fromName("esql_double_ranges");
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -235,6 +239,16 @@ public class RangeFieldMapper extends FieldMapper {
                 @Override
                 public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
                     return new BinaryIndexFieldData(name(), CoreValuesSourceType.RANGE) {
+                        @Override
+                        public BinaryDVLeafFieldData load(LeafReaderContext context) {
+                            return new BinaryDVLeafFieldData(context.reader(), getFieldName()) {
+                                @Override
+                                public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                                    return new RangeFormattedDocValues(getBytesValues(), rangeType, format);
+                                }
+                            };
+                        }
+
                         @Override
                         public SortField sortField(
                             @Nullable Object missingValue,
@@ -530,6 +544,51 @@ public class RangeFieldMapper extends FieldMapper {
         return super.syntheticSourceSupport();
     }
 
+    /**
+     * Formats the binary encoded ranges of a document as one {@code {"gte": ..., "lte": ...}} map per range, which is what
+     * {@code docvalue_fields} returns for range fields.
+     */
+    private static final class RangeFormattedDocValues implements FormattedDocValues {
+        private final SortableBinaryDocValues values;
+        private final RangeType rangeType;
+        private final DocValueFormat format;
+        private List<Range> ranges = List.of();
+        private int index;
+
+        RangeFormattedDocValues(SortableBinaryDocValues values, RangeType rangeType, DocValueFormat format) {
+            this.values = values;
+            this.rangeType = rangeType;
+            this.format = format;
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            if (values.advanceExact(docId) == false) {
+                return false;
+            }
+            // Range fields store all ranges of a document in a single binary doc value.
+            assert values.docValueCount() == 1 : "expected a single binary doc value per document";
+            ranges = rangeType.decodeRanges(values.nextValue());
+            index = 0;
+            return true;
+        }
+
+        @Override
+        public int docValueCount() {
+            return ranges.size();
+        }
+
+        @Override
+        public Object nextValue() {
+            return ranges.get(index++).toDocValueMap(format);
+        }
+
+        @Override
+        public DocIdSetIterator docIdIterator() {
+            return values.docIdIterator();
+        }
+    }
+
     /** Class defining a range */
     public static class Range {
         RangeType type;
@@ -586,6 +645,28 @@ public class RangeFieldMapper extends FieldMapper {
 
         public Object getTo() {
             return to;
+        }
+
+        /**
+         * Renders this range as returned by {@code docvalue_fields}: a map with {@code gte} and {@code lte} keys, matching the object
+         * form used in {@code _source} and synthetic source. An unbounded side is rendered as {@code null}, like {@link #toXContent}.
+         * Ranges decoded from doc values are always inclusive on both sides, which is why only {@code gte} and {@code lte} are used.
+         * Bound values go through {@link RangeType#formatValue} so they have the same types as the {@code fields} API returns; dates
+         * are formatted with the {@link DocValueFormat} so that the {@code format} of a {@code docvalue_fields} request is honoured.
+         */
+        public Map<String, Object> toDocValueMap(DocValueFormat format) {
+            assert includeFrom && includeTo : "ranges decoded from doc values are always inclusive";
+            Map<String, Object> map = new LinkedHashMap<>(2);
+            map.put("gte", from.equals(type.minValue()) ? null : formatDocValueBound(from, format));
+            map.put("lte", to.equals(type.maxValue()) ? null : formatDocValueBound(to, format));
+            return map;
+        }
+
+        private Object formatDocValueBound(Object value, DocValueFormat format) {
+            if (type == RangeType.DATE) {
+                return format.format((long) value);
+            }
+            return type.formatValue(value, null);
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, DateFormatter dateFormatter) throws IOException {

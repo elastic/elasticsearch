@@ -90,7 +90,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
-        this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
+        this.syntheticVectorPatchLoader = mapperService.mappingLookup().syntheticVectorsLoader(null);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
         this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;
@@ -206,8 +206,12 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         parallelArray.routingOrdinals[index] = -1;
                     }
                 }
-                if (idDocValues != null && idDocValues.advanceExact(segmentDocID)) {
-                    parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
+                if (idDocValues != null) {
+                    if (idDocValues.advanceExact(segmentDocID)) {
+                        parallelArray.columnarIds[index] = BytesRef.deepCopyOf(idDocValues.binaryValue());
+                    } else {
+                        parallelArray.columnarIds[index] = null;
+                    }
                 }
             }
             // now sort back based on the shardIndex. we use this to store the previous index

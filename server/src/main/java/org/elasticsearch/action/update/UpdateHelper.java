@@ -11,6 +11,8 @@ package org.elasticsearch.action.update;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -152,6 +154,19 @@ public class UpdateHelper {
                 .getForUpdate(this, request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext, splitShardCountSummary);
             assert isReleased() : "expected the pre-resolved get to be consumed";
             return prepare(indexShard, request, getResult, nowInMillis);
+        }
+
+        public void prefetch(Map<LeafReader, StoredFields> storedFieldsCache) throws IOException {
+            final var dav = preResolvedGet.docIdAndVersion();
+            // Reuse the StoredFields instance per leaf reader: instantiation is cheap but Lucene's
+            // CompressingStoredFieldsReader caches per-chunk decompression state inside the instance,
+            // so sharing it across docs in the same segment avoids redundant work.
+            StoredFields sf = storedFieldsCache.get(dav.reader);
+            if (sf == null) {
+                sf = dav.reader.storedFields();
+                storedFieldsCache.put(dav.reader, sf);
+            }
+            sf.prefetch(dav.docId);
         }
 
         @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -85,6 +86,38 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
         );
     }
 
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = new Ai21ChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_ExplicitNullRateLimit_RevertsToDefault() {
+        var originalServiceSettings = new Ai21ChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(RateLimitSettings.FIELD_NAME, null);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+
+        assertThat(
+            updatedServiceSettings,
+            is(
+                new Ai21ChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(Ai21ChatCompletionServiceSettings.DEFAULT_REQUESTS_PER_MINUTE)
+                )
+            )
+        );
+    }
+
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var serviceSettings = new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
 
@@ -98,6 +131,16 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
                 endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
             );
         }
+    }
+
+    public void testFromMap_RequestContext_IgnoresApiKey() {
+        var map = getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings, is(new Ai21ChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_AllFields_Success() {

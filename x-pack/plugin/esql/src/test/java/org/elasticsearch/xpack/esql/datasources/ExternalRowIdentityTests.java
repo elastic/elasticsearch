@@ -20,11 +20,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Unit tests for {@link ExternalRowIdentity}, the per-page composer of the {@code _id}
- * metadata column for external rows. The contract under test: ids are opaque (no component —
- * least of all the storage path — is recoverable by inspection), fixed-length base64url,
- * deterministic for the same {@code (location, mtime, rowPosition)} triple, and distinct
- * whenever any component of the triple differs.
+ * Unit tests for {@link ExternalRowIdentity}, a per-page composer of opaque row keys that no
+ * query reaches — a dataset answers {@code METADATA _id} as SQL NULL. These pin the composition
+ * for the next surface that needs one: keys are opaque (no component — least of all the storage
+ * path — is recoverable by inspection), fixed-length base64url, deterministic for the same
+ * {@code (location, mtime, rowPosition)} triple, and distinct whenever any component differs.
  */
 public class ExternalRowIdentityTests extends ESTestCase {
 

@@ -41,6 +41,12 @@ public class ModelSizeStatsTests extends AbstractXContentSerializingTestCase<Mod
         assertEquals(CategorizationStatus.OK, stats.getCategorizationStatus());
     }
 
+    public void testDistinctDeadAndFailedCategoryCountsShouldBeReportedIndependently() {
+        ModelSizeStats stats = new ModelSizeStats.Builder("foo").setDeadCategoryCount(7).setFailedCategoryCount(3).build();
+        assertEquals(7, stats.getDeadCategoryCount());
+        assertEquals(3, stats.getFailedCategoryCount());
+    }
+
     public void testSetMemoryStatus_GivenNull() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
 

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.TestStatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -296,19 +297,19 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
         final var testTelemetryPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
         testTelemetryPlugin.collect();
-        long readsBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long missesBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long readsBeforeSnapshot = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long missesBeforeSnapshot = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
 
         final var snapshotName = randomSnapshotName();
         createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
         // Assert snapshot does not lead to any cache activities
         testTelemetryPlugin.collect();
         assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
             equalTo(readsBeforeSnapshot)
         );
         assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
             equalTo(missesBeforeSnapshot)
         );
     }
@@ -1707,7 +1708,8 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
             RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
+            IndexEngine.EngineMetrics engineMetrics,
+            IndexEngineDynamicSettings indexEngineDynamicSettings
         ) {
             final var shardId = engineConfig.getShardId();
             return new IndexEngine(
@@ -1722,6 +1724,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
                 statelessCommitService.getCommitBCCResolverForShard(shardId),
                 documentParsingProvider,
                 engineMetrics,
+                indexEngineDynamicSettings,
                 statelessCommitService.getShardLocalCommitsTracker(shardId).shardLocalReadersTracker()
             ) {
                 @Override

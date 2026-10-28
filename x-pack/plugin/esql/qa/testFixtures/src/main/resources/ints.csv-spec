@@ -20,7 +20,9 @@ emp_no:integer |languages.short:short|languages.byte:byte
 ;
 
 inCast
+required_capability: warn_null_misuse
 from employees | keep emp_no, languages.byte, avg_worked_seconds, height | where languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height) and emp_no < 10010;
+warning:Line 1:82: NULL in the IN list of [languages.byte in (4, -1, avg_worked_seconds, 1000000000000, null, height)] never matches, add [OR languages.byte IS NULL] to also match NULL values.
 ignoreOrder:true
 
 emp_no:integer |languages.byte:byte |avg_worked_seconds:long |height:double
@@ -296,7 +298,6 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -354,8 +355,8 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
+required_capability: fn_to_long_fix_double_to_long_overflow
 
   FROM  base_conversion
 | WHERE group == 5
@@ -368,6 +369,7 @@ warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, tre
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[7fffffff\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775807\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
@@ -386,7 +388,7 @@ string:keyword       | base:integer | to_long:long         | to_integer:integer
 2147483647           | 10           | 2147483647	   | 2147483647
 2147483648           | 10           | 2147483648	   | null
 9223372036854775807  | 10           | 9223372036854775807  | null
-9223372036854775808  | 10           | 9223372036854775807  | null
+9223372036854775808  | 10           | null                 | null
 7fffffff             | 16           | 2147483647	   | 2147483647
 7fffffffffffffff     | 16           | 9223372036854775807  | null
 80000000             | 16           | 2147483648	   | null
@@ -421,7 +423,6 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -793,6 +794,7 @@ a:integer | a1:integer
 
 mvSliceKeywordField
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 FROM employees
@@ -817,6 +819,7 @@ a:integer    | a1:integer | a2:integer | a3:integer
 
 mvSliceEmpInt
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -835,6 +838,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntSingle
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -853,6 +857,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntEndOutOfBound
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -871,6 +876,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBound
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -889,6 +895,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntStartOutOfBoundNegative
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -907,6 +914,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpIntOutOfBoundNegative
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -925,6 +933,7 @@ emp_no:integer | salary_change.int:integer | a1:integer
 
 mvSliceEmpLong
 required_capability: mv_sort
+skip_columnar: MV_SLICE uses positional indexing; columnar mode returns MV values in source order rather than sorted doc-values order
 request_stored: skip
 
 from employees
@@ -1670,6 +1679,27 @@ ROW words = ["apple", "cherry"]
 words:keyword       | in_range:boolean
 [apple, cherry]     | true
 // end::mv_in_range_keyword-result[]
+;
+
+mvInRangeTextNotExactRow
+required_capability: fn_mv_in_range
+required_capability: fn_to_text
+ROW t = TO_TEXT("Connected to 10.1.0.1")
+| EVAL in_range = mv_in_range(t, "a", "u")
+;
+
+t:text                | in_range:boolean
+Connected to 10.1.0.1 | false
+;
+
+mvInRangeTextNotExactFrom
+required_capability: fn_mv_in_range
+FROM mv_text
+| WHERE mv_in_range(message, "a", "u")
+| KEEP message
+;
+
+message:text
 ;
 
 mvInRangeHalfOpen

@@ -57,6 +57,11 @@
         "type": "boolean",
         "default": false,
         "description": "Return all relevant default configurations for the index template (default: false)"
+      },
+      "include_managed_fields": {
+        "type": "boolean",
+        "default": false,
+        "description": "Include internally managed fields (default: false)"
       }
     }
   }

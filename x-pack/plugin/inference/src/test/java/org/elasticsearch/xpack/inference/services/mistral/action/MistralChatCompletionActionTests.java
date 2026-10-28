@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -28,7 +27,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -52,7 +51,7 @@ public class MistralChatCompletionActionTests extends ChatCompletionActionTests 
             var action = createAction(getUrl(webServer), sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+            action.execute(new CompletionInput(List.of("abc")), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -62,7 +61,7 @@ public class MistralChatCompletionActionTests extends ChatCompletionActionTests 
             MockRequest request = webServer.requests().get(0);
 
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(request.getBody());
@@ -82,7 +81,7 @@ public class MistralChatCompletionActionTests extends ChatCompletionActionTests 
             model,
             COMPLETION_HANDLER,
             inputs -> new MistralChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
-            ChatCompletionInput.class
+            CompletionInput.class
         );
         var errorMessage = constructFailedToSendRequestMessage("mistral chat completions");
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, "mistral chat completions");

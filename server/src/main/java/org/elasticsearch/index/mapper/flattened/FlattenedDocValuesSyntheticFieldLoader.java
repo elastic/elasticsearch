@@ -15,22 +15,20 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.MultiValuedSortableBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -134,7 +132,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         } else if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
+                SortableBinaryDocValues dv = MultiValuedSortableBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
                 docValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(docValues);
             } else {
@@ -144,7 +142,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             {
                 var offsetsBinaryDv = reader.getBinaryDocValues(offsetsFieldName);
                 if (offsetsBinaryDv != null) {
-                    SortedBinaryDocValues offsetsDv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName);
+                    SortableBinaryDocValues offsetsDv = MultiValuedSortableBinaryDocValues.from(reader, offsetsFieldName);
                     offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(offsetsDv);
                     allLoaders.add(offsetsDocValues);
                 } else {
@@ -162,7 +160,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             {
                 var binaryDv = reader.getBinaryDocValues(offsetsFieldName);
                 if (binaryDv != null) {
-                    SortedBinaryDocValues offsetsDv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName);
+                    SortableBinaryDocValues offsetsDv = MultiValuedSortableBinaryDocValues.from(reader, offsetsFieldName);
                     offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(offsetsDv);
                     allLoaders.add(offsetsDocValues);
                 } else {
@@ -182,7 +180,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (storeIgnoredFieldsInBinaryDocValues && keyedIgnoredValuesFieldFullPath != null) {
             var binaryDv = reader.getBinaryDocValues(keyedIgnoredValuesFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(
+                SortableBinaryDocValues dv = MultiValuedSortableBinaryDocValues.fromMultiValued(
                     reader,
                     keyedIgnoredValuesFieldFullPath,
                     binaryDv
@@ -244,7 +242,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return new FlattenedFieldSyntheticWriterHelper(getKeyedValueProducer(), sortedSubFieldEntries);
     }
 
-    private FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
+    FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
         List<BytesRef> rawIgnored = collectIgnoredValues();
 
         if (usesArrayOrderBinaryDocValues) {
@@ -324,9 +322,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     /**
-     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and {@link SortedBinaryDocValues}) that provides
-     * a uniform way to position on a document and read its keyed values. This allows the rest of the loader to work with keyed doc values
-     * without caring about the underlying storage format.
+     * An abstraction over different Lucene doc values formats ({@link SortedSetDocValues} and
+     * {@link SortableBinaryDocValues}) that provides a uniform way to position on a document and read its keyed
+     * values. This allows the rest of the loader to work with keyed doc values without caring about the underlying
+     * storage format.
      */
     interface FlattenedDocValues extends DocValuesLoader {
         boolean advanceToDoc(int docId) throws IOException;
@@ -396,10 +395,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     private static final class MultiValuedBinaryFlattenedDocValues implements SortedKeyedFlattenedDocValues {
-        private final SortedBinaryDocValues docValues;
+        private final SortableBinaryDocValues docValues;
         private boolean hasValue = false;
 
-        MultiValuedBinaryFlattenedDocValues(SortedBinaryDocValues docValues) {
+        MultiValuedBinaryFlattenedDocValues(SortableBinaryDocValues docValues) {
             this.docValues = docValues;
         }
 
@@ -441,7 +440,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
         private final BinaryDocValues binary;
         private final NumericDocValues counts;
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        /** The keys whose slots are decoded. */
+        private final Predicate<String> keys;
+        private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader slots =
+            new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
 
         /**
          * Slots grouped by key in document order; a {@code null} element represents a null slot.
@@ -451,8 +453,16 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         private int totalSlotCount;
 
         DocumentOrderKeyedFlattenedDocValues(BinaryDocValues binary, NumericDocValues counts) {
-            this.binary = binary;
-            this.counts = counts;
+            // Skip the slots of the keys a reader must not see while decoding, rather than reading a copy without them
+            if (binary instanceof KeyFilteredSlots filtered) {
+                this.binary = filtered.storedSlots();
+                this.counts = filtered.storedCounts();
+                this.keys = filtered::grants;
+            } else {
+                this.binary = binary;
+                this.counts = counts;
+                this.keys = key -> true;
+            }
         }
 
         @Override
@@ -470,32 +480,22 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             }
             BytesRef bytes = binary.binaryValue();
 
-            decodeSlots(bytes, slotCount);
-            totalSlotCount = slotCount;
-            return slotCount > 0;
+            totalSlotCount = decodeSlots(bytes, slotCount);
+            return totalSlotCount > 0;
         }
 
-        private void decodeSlots(BytesRef bytes, int slotCount) throws IOException {
-            in.reset(bytes.bytes, bytes.offset, bytes.length);
-            for (int i = 0; i < slotCount; i++) {
-                int prefix = in.readVInt();
-                int slotKeyStart = in.getPosition();
-                int remaining = bytes.length - (slotKeyStart - bytes.offset);
-                int keyLen = ESVectorUtil.indexOf(bytes.bytes, slotKeyStart, remaining, (byte) 0);
-                String key = new String(bytes.bytes, slotKeyStart, keyLen, StandardCharsets.UTF_8);
-                if (prefix == 0) {
-                    // Null slot: [0]key\0
-                    in.setPosition(slotKeyStart + keyLen + 1);
-                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(null);
-                } else {
-                    // Non-null slot: [valueLen+1]key\0value
-                    int valueLen = prefix - 1;
-                    int valueStart = slotKeyStart + keyLen + 1;
-                    in.setPosition(valueStart + valueLen);
-                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>())
-                        .add(new BytesRef(bytes.bytes, valueStart, valueLen).utf8ToString());
+        /** Decodes the {@code slotCount} slots of {@code bytes} whose key {@link #keys} accepts, and returns how many it decoded. */
+        private int decodeSlots(BytesRef bytes, int slotCount) throws IOException {
+            int decoded = 0;
+            slots.reset(bytes, slotCount);
+            while (slots.next()) {
+                String key = slots.key();
+                if (keys.test(key)) {
+                    decoded++;
+                    slotsByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(slots.isNull() ? null : slots.value().utf8ToString());
                 }
             }
+            return decoded;
         }
 
         @Override

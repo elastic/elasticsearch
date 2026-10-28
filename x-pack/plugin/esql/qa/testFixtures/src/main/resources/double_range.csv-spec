@@ -1,5 +1,5 @@
 doubleRangeBlockLoader
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -15,8 +15,60 @@ height_range:double_range | description:keyword
 2.0..5.0                  | Very Tall
 ;
 
+statsByDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| STATS count = COUNT(*) BY height_range
+| SORT count, RANGE_MIN(height_range)
+;
+
+count:long | height_range:double_range
+1          | 0.0..1.5
+1          | 1.5..1.6
+1          | 1.6..1.8
+1          | 1.8..2.0
+1          | 2.0..5.0
+;
+
+statsByMultivaluedDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| STATS ranges = VALUES(height_range)
+| STATS count = COUNT(*) BY ranges
+| SORT RANGE_MIN(ranges)
+;
+
+count:long | ranges:double_range
+1          | 0.0..1.5
+1          | 1.5..1.6
+1          | 1.6..1.8
+1          | 1.8..2.0
+1          | 2.0..5.0
+;
+
+limitByDoubleRange
+required_capability: double_range_tech_preview
+required_capability: group_by_double_range
+
+FROM heights
+| LIMIT 1 BY height_range
+| SORT description
+;
+
+description:keyword | height_range:double_range
+Medium Height       | 1.6..1.8
+Short               | 1.5..1.6
+Tall                | 1.8..2.0
+Very Short          | 0.0..1.5
+Very Tall           | 2.0..5.0
+;
+
 toRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 ROW from = 1.5, to = 2.5
 | EVAL height_range = TO_RANGE(from, to)
@@ -28,31 +80,35 @@ height_range:double_range
 ;
 
 toRangeNullLeft
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW to = 1.5
 | EVAL height_range = TO_RANGE(null, to)
 | KEEP height_range
 ;
+warning:Line 2:23: Expression [TO_RANGE(null, to)] always evaluates to NULL.
 
 height_range:double_range
 null
 ;
 
 toRangeNullRight
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW from = 1.5
 | EVAL height_range = TO_RANGE(from, null)
 | KEEP height_range
 ;
+warning:Line 2:23: Expression [TO_RANGE(from, null)] always evaluates to NULL.
 
 height_range:double_range
 null
 ;
 
 toRangeInvalidBounds
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 ROW from = 2.5, to = 1.5
 | EVAL height_range = TO_RANGE(from, to)
@@ -66,7 +122,7 @@ null
 ;
 
 toString
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -84,7 +140,7 @@ height_range_string:keyword | description:keyword
 ;
 
 rangeMinMax
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -102,7 +158,7 @@ height_range:double_range | min_bound:double | max_bound:double | description:ke
 ;
 
 rangeMinMaxRoundTrip
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -115,8 +171,7 @@ height_range:double_range | new_range:double_range
 ;
 
 doubleRangeEquality
-required_capability: double_range_field_type_development_v10
-required_capability: equality_double_range
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range == TO_RANGE(1.5, 1.6)
@@ -128,8 +183,7 @@ Short
 ;
 
 doubleRangeNotEquals
-required_capability: double_range_field_type_development_v10
-required_capability: equality_double_range
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range != TO_RANGE(1.5, 1.6)
@@ -145,8 +199,7 @@ Very Tall
 ;
 
 doubleRangeSelfEquality
-required_capability: double_range_field_type_development_v10
-required_capability: equality_double_range
+required_capability: double_range_tech_preview
 
 FROM heights
 | EVAL equal = height_range == height_range
@@ -164,8 +217,7 @@ Very Tall
 ;
 
 doubleRangeIn
-required_capability: double_range_field_type_development_v10
-required_capability: equality_double_range
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IN (TO_RANGE(1.5, 1.6), TO_RANGE(1.8, 2.0))
@@ -179,7 +231,7 @@ Tall
 ;
 
 mvFirstLastDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -193,7 +245,7 @@ first_range:double_range | last_range:double_range
 ;
 
 mvCountDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -207,7 +259,7 @@ count:integer
 ;
 
 valuesDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -221,7 +273,7 @@ strings:keyword
 ;
 
 valuesDoubleRangeGrouped
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -238,7 +290,7 @@ strings:keyword                  | short:boolean
 ;
 
 mvExpandValuesDoubleRangeGrouped
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE height_range IS NOT NULL
@@ -260,7 +312,7 @@ ranges:double_range | short:boolean | count:integer
 ;
 
 coalesceDoubleRangeField
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -273,7 +325,8 @@ result:double_range
 ;
 
 coalesceDoubleRangeNullFirst
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 FROM heights
 | WHERE description == "Short"
@@ -281,13 +334,15 @@ FROM heights
 | EVAL result = COALESCE(missing, TO_RANGE(10.0, 20.0))
 | KEEP result
 ;
+warning:Line 3:18: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 result:double_range
 10.0..20.0
 ;
 
 coalesceDoubleRangeMultipleArgs
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 FROM heights
 | WHERE description == "Short"
@@ -295,13 +350,14 @@ FROM heights
 | EVAL result = COALESCE(missing, height_range, TO_RANGE(10.0, 20.0))
 | KEEP result
 ;
+warning:Line 3:18: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 result:double_range
 1.5..1.6
 ;
 
 caseDoubleRangeTrueBranch
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -314,7 +370,7 @@ result:double_range
 ;
 
 caseDoubleRangeFalseBranch
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -327,7 +383,7 @@ result:double_range
 ;
 
 caseDoubleRangeNoElse
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description == "Short"
@@ -340,7 +396,7 @@ null
 ;
 
 rangeWithinDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE RANGE_WITHIN(height_range, TO_RANGE(1.4, 1.9))
@@ -354,7 +410,7 @@ Short
 ;
 
 rangeContainsDouble
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE RANGE_CONTAINS(height_range, 1.55)
@@ -366,7 +422,7 @@ Short
 ;
 
 rangeIntersectsDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE RANGE_INTERSECTS(height_range, TO_RANGE(1.55, 1.85))
@@ -381,7 +437,7 @@ Tall
 ;
 
 caseDoubleRangeSelectByDescription
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | WHERE description IN ("Short", "Tall")
@@ -396,7 +452,7 @@ Tall                | 10.0..20.0
 ;
 
 countDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | STATS count = COUNT(height_range)
@@ -407,7 +463,7 @@ count:long
 ;
 
 countDoubleRangeWithFilter
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | STATS count = COUNT(height_range) WHERE description LIKE "*Short*"
@@ -418,7 +474,7 @@ count:long
 ;
 
 countDoubleRangeGrouped
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | EVAL short = description LIKE "*Short*"
@@ -432,7 +488,7 @@ count:long | short:boolean
 ;
 
 presentDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | STATS present = PRESENT(height_range)
@@ -443,18 +499,20 @@ true
 ;
 
 presentDoubleRangeAllNull
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW height_range = TO_RANGE(null, 1.0)
 | STATS present = PRESENT(height_range)
 ;
+warning:Line 1:20: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 present:boolean
 false
 ;
 
 absentDoubleRange
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 
 FROM heights
 | STATS absent = ABSENT(height_range)
@@ -465,11 +523,13 @@ false
 ;
 
 absentDoubleRangeAllNull
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
+required_capability: warn_null_misuse
 
 ROW height_range = TO_RANGE(null, 1.0)
 | STATS absent = ABSENT(height_range)
 ;
+warning:Line 1:20: Expression [TO_RANGE(null, 1.0)] always evaluates to NULL.
 
 absent:boolean
 true
@@ -480,7 +540,7 @@ true
 ###############################################
 
 toDoubleRangeFromString
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 // tag::to_double_range-str[]
@@ -495,8 +555,20 @@ str:keyword | range:double_range
 // end::to_double_range-str-result[]
 ;
 
+toDoubleRangeFromKeywordField
+required_capability: double_range_tech_preview
+
+FROM conv_from_keyword
+| EVAL range = TO_DOUBLE_RANGE(double_range_str)
+| KEEP double_range_str, range
+;
+
+double_range_str:keyword | range:double_range
+1.5..2.5                 | 1.5..2.5
+;
+
 toDoubleRangeIdentity
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 FROM heights
@@ -510,9 +582,8 @@ same:double_range
 ;
 
 toDoubleRangeToStringRoundTrip
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
-required_capability: equality_double_range
 
 FROM heights
 | WHERE height_range == TO_DOUBLE_RANGE(TO_STRING(height_range))
@@ -530,7 +601,7 @@ Very Tall
 
 // TO_DOUBLE_RANGE(keyword) converts each element of a multi-value string.
 toDoubleRangeFromMvString
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW s = ["1.5..2.5", "3.5..4.5"]
@@ -542,7 +613,7 @@ s:keyword            | r:keyword
 ;
 
 toDoubleRangeNoSeparator
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW s = "not-a-range"
@@ -557,7 +628,7 @@ null
 ;
 
 toDoubleRangeInvalidBounds
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW s = "2.5..1.5"
@@ -572,7 +643,7 @@ null
 ;
 
 toDoubleRangeUnparseableBound
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW s = "abc..1.5"
@@ -587,7 +658,7 @@ null
 ;
 
 toDoubleRangeNaNBound
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW s = "NaN..1.0"
@@ -603,7 +674,7 @@ null
 
 // Open bounds are represented as infinities.
 toDoubleRangeOpenLowerBound
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW r = TO_DOUBLE_RANGE("-Infinity..0.0")
@@ -615,7 +686,7 @@ r:double_range  | min:double | max:double
 ;
 
 toDoubleRangeOpenUpperBound
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW r = TO_DOUBLE_RANGE("2.0..Infinity")
@@ -627,7 +698,7 @@ r:double_range | min:double | max:double
 ;
 
 toDoubleRangeFullyOpen
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 ROW r = TO_DOUBLE_RANGE("-Infinity..Infinity")
@@ -642,7 +713,7 @@ true                   | true
 // Pushdown of an infinite-bound literal: the infinities must translate to unbounded query
 // sides instead of concrete bounds, which range queries on double fields reject.
 rangeWithinOpenBounds
-required_capability: double_range_field_type_development_v10
+required_capability: double_range_tech_preview
 required_capability: fn_to_double_range
 
 FROM heights

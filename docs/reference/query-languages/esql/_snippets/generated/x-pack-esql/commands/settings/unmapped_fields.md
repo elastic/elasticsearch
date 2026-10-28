@@ -9,21 +9,35 @@ Determines how unmapped fields are treated.
 For a conceptual overview and use cases, including performance considerations, refer to
 [Unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md).
 
+An unmapped field is present in documents but not defined in the index mapping. Across the queried indices, a field is:
+
+- *fully unmapped* if none of the queried indices map it.
+- *partially mapped* (also called *partially unmapped*) if some of the queried indices map it and others don't.
+  In the indices that don't map it, its values are `null` unless they are loaded with `LOAD`.
+
 Possible values are:
 
-- `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
+- `DEFAULT` : Standard ESQL queries fail when referencing fully unmapped fields.
 - `NULLIFY` : Treats referenced unmapped fields as null values. Fully unmapped fields that are never mentioned do not
   appear in the output.
 - `LOAD` : Loads referenced fully unmapped fields from the stored
   [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) with type `keyword`. Or nullifies them if
-  absent from `_source`. Also loads partially mapped fields from `_source` where they are unmapped.
+  absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
+  even if the query doesn't reference them.
 {applies_to}`stack: preview =9.4, ga 9.5+`
+- `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+  single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
+  Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
+  {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 
 [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
-Special notes about the `LOAD` option:
-- [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD`.
+Special notes about the `LOAD` and `LOAD_ALL` options:
+- [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
 - Referencing subfields of `flattened` parents is not supported.
+- `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+  Other commands fail with an error that lists the supported ones.
+  {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
   although unmapped fields cannot be loaded without an explicit invocation of `to_text`.
   {applies_to}`stack: ga 9.5+`
@@ -35,6 +49,11 @@ Special notes about the `LOAD` option:
   {applies_to}`stack: ga 9.5+`
   - Partially unmapped non-`keyword` fields must be referenced inside a cast or conversion function (e.g. `::TYPE` or
     `TO_TYPE`), unless referenced in `KEEP` or `DROP`. {applies_to}`stack: preview =9.4`
+
+The default itself is configurable. If a query does not specify a value, the
+`esql.query.settings.unmapped_fields` cluster setting supplies it. If that cluster setting is not configured
+either, the value is `DEFAULT`.
+{applies_to}`{"stack": "ga 9.6+", "serverless": "unavailable"}`
 
 
 **Type**: `keyword`

@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -143,6 +144,8 @@ public final class IndexModule {
             // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
             // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
             // a circular static initialization that results in a NullPointerException at boot time.
+            // vectordb_columnar is intentionally excluded from the columnar family here: unlike the other columnar
+            // modes it keeps the query cache enabled, since filtered vector search relies on it to cache the filter bitset.
             String mode = settings.get("index.mode");
             return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
         },
@@ -506,6 +509,7 @@ public final class IndexModule {
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
@@ -559,6 +563,7 @@ public final class IndexModule {
                 threadPoolMergeExecutorService,
                 scriptService,
                 clusterService,
+                featureService,
                 client,
                 queryCache,
                 directoryFactory,
@@ -677,6 +682,7 @@ public final class IndexModule {
      */
     public MapperService newIndexMapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService,
@@ -684,6 +690,7 @@ public final class IndexModule {
     ) throws IOException {
         return new MapperService(
             clusterService,
+            featureService,
             indexSettings,
             analysisRegistry.build(IndexCreationContext.METADATA_VERIFICATION, indexSettings),
             parserConfiguration,

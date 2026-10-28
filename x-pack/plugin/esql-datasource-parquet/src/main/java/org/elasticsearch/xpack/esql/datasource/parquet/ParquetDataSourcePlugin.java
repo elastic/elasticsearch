@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.List;
 import java.util.Map;
@@ -42,28 +45,37 @@ import java.util.Set;
 public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     /**
-     * Per-dataset configuration keys accepted by the Parquet format reader.
-     * Must stay in sync with {@code ParquetFormatReader.RECOGNIZED_KEYS}; verified
-     * by {@code ParquetFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
-     */
-    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("optimized_reader", "late_materialization");
-
-    /**
      * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register
      * eagerly at module construction; reader-declared ones register lazily, inside the supplier that instantiates
      * the reader. An extension declared only there is therefore unclaimable until something forces that reader
-     * into existence, and invisible to {@code DataSourceCapabilities} throughout.
+     * into existence, and invisible to {@code DataSourceCapabilities} throughout. Parquet claims one per-dataset
+     * configuration key, {@code schema_max_fields}.
      */
     @Override
     public Set<FormatSpec> formatSpecs() {
         return Set.of(
-            new FormatSpec(FormatNameResolver.FORMAT_PARQUET, Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS), FORMAT_CONFIG_KEYS)
+            new FormatSpec(
+                FormatNameResolver.FORMAT_PARQUET,
+                Set.copyOf(ParquetFormatReader.FILE_EXTENSIONS),
+                ParquetFormatReader.RECOGNIZED_KEYS,
+                ParquetFormatReader::validateConfig
+            )
         );
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, new FormatReaderFactory() {
+            @Override
+            public FormatReader create(Settings s, BlockFactory blockFactory) {
+                return new ParquetFormatReader(s, blockFactory);
+            }
+
+            @Override
+            public FormatReader create(Settings s, BlockFactory blockFactory, NodeByteBudget nodeByteBudget) {
+                return new ParquetFormatReader(s, blockFactory, nodeByteBudget);
+            }
+        });
     }
 
     @Override

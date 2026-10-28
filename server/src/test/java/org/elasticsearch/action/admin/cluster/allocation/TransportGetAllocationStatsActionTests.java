@@ -93,7 +93,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             transportService,
             clusterService,
             threadPool,
-            new ActionFilters(Set.of()),
+            ActionFilters.EMPTY,
             allocationStatsService
         );
     }

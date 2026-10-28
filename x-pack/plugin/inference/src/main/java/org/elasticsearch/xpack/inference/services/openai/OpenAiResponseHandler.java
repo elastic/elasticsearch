@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -21,6 +25,7 @@ import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseE
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
+import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
@@ -40,9 +45,8 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
-
     private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    static final String TOKEN_OVERFLOW_ERROR_TYPE = "content_too_large";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
@@ -69,7 +73,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     @Override
     public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 500) {
             return new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 503) {
@@ -88,7 +92,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode == 422) {
             // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
             // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
-            return new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {
             return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 404) {
@@ -113,7 +117,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * @return true if the content is too large, false otherwise
      */
     public boolean isContentTooLarge(HttpResult result) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
 
         if (statusCode == 413) {
             return true;
@@ -125,6 +129,29 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
 
+        return false;
+    }
+
+    /**
+     * Returns true when the 429 response indicates that the request exceeded the model's context
+     * window (a token-overflow condition), rather than a transient rate-limit that can be retried.
+     * OpenAI and Azure OpenAI signal this with {@code "error.type": "content_too_large"} in the
+     * response body.
+     */
+    protected static boolean isTokenLimitExceeded(HttpResult result) {
+        try (
+            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(XContentParserConfiguration.EMPTY, result.body())
+        ) {
+            var responseMap = jsonParser.map();
+            @SuppressWarnings("unchecked")
+            var error = (Map<String, Object>) responseMap.get("error");
+            if (error != null) {
+                return TOKEN_OVERFLOW_ERROR_TYPE.equals(error.get("type"));
+            }
+        } catch (Exception e) {
+            // swallow — fall through to retry
+        }
         return false;
     }
 
@@ -153,6 +180,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
-        return new StreamingChatCompletionResults(openAiProcessor);
+        return new StreamingCompletionResults(openAiProcessor);
     }
 }

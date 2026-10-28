@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_CONTROL_TTL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CACHE_CONTROL_TYPE_FIELD;
@@ -30,8 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents the cache configuration for a chat completion request.
  */
-// TODO: implement Accountable
-public final class CacheControl implements ToXContentObject, Writeable {
+public final class CacheControl implements Accountable, ToXContentObject, Writeable {
 
     /**
      * Strict parser that rejects unknown fields. Use this for user-facing request parsing (e.g. the
@@ -47,6 +49,10 @@ public final class CacheControl implements ToXContentObject, Writeable {
      * use {@link #PARSER} instead so client mistakes are surfaced as errors.
      */
     public static final ConstructingObjectParser<CacheControl, Void> LENIENT_PARSER = createParser(true);
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CacheControl.class);
+    private static final long SHALLOW_SIZE_TIME_VALUE = RamUsageEstimator.shallowSizeOfInstance(TimeValue.class);
+    private static final long SHALLOW_SIZE_TIME_UNIT = RamUsageEstimator.shallowSizeOfInstance(TimeUnit.class);
 
     private static ConstructingObjectParser<CacheControl, Void> createParser(boolean ignoreUnknownFields) {
         var parser = new ConstructingObjectParser<CacheControl, Void>(CacheControl.class.getSimpleName(), ignoreUnknownFields, args -> {
@@ -126,5 +132,11 @@ public final class CacheControl implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(type, ttl);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var ttlRamBytesUsed = ttl() == null ? 0L : SHALLOW_SIZE_TIME_VALUE + SHALLOW_SIZE_TIME_UNIT;
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(type()) + ttlRamBytesUsed;
     }
 }

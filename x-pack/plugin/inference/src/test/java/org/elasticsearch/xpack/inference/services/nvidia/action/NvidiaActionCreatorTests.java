@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -23,12 +23,11 @@ import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -44,7 +43,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.core.inference.results.CompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
@@ -470,7 +469,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -501,7 +500,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
@@ -528,7 +527,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
@@ -574,7 +573,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
+            action.execute(new CompletionInput(INPUT_VALUE), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -840,7 +839,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
     }
 
     private static void assertContentTypeAndAuthorization(MockRequest request) {
-        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
         assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), is(Strings.format("Bearer %s", API_KEY_VALUE)));
     }
 

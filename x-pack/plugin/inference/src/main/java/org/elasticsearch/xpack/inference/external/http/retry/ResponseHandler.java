@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;

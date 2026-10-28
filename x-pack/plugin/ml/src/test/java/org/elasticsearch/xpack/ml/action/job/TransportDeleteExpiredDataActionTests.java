@@ -27,7 +27,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,7 +68,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
             threadPool,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             mock(TransportService.class),
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             client,
             clusterService,
             mock(JobConfigProvider.class),

@@ -17,6 +17,7 @@ import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetMetricsCallback;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -79,7 +80,10 @@ public final class PlainParquetReadOptions {
         // never assigned, existing only to fill the positional signature of the constructor in build().
         // Note that usePageChecksumVerification and useOffHeapDecryptBuffer gate the parquet-mr paths
         // that consume this allocator's buffers natively, so wiring either up means revisiting the heap
-        // allocator choice in ParquetFormatReader#readOptionsBuilder.
+        // allocator choice in ParquetFormatReader#readOptionsBuilder — and, since that allocator is a
+        // node-wide pool handing out dirty (un-zeroed) arrays, re-auditing that every newly enabled
+        // consumer fully overwrites [0, limit) before reading and never reads array()/capacity() past
+        // limit(); a parquet-mr upgrade warrants the same audit. Verified for the 1.18.1 consumers.
         private boolean useSignedStringMinMax = false;
         private boolean useStatsFilter = true;
         private boolean useDictionaryFilter = true;
@@ -93,7 +97,9 @@ public final class PlainParquetReadOptions {
         private ParquetMetadataConverter.MetadataFilter metadataFilter = ParquetMetadataConverter.NO_FILTER;
         private final CompressionCodecFactory codecFactory;
         private ByteBufferAllocator allocator = new HeapByteBufferAllocator();
-        private int maxAllocationSize = 8 * 1024 * 1024;
+        // Just under 8 MiB so a chunk slab, header included, fills two 4 MiB G1 regions instead of spilling into a
+        // third; must match a PoolingHeapByteBufferAllocator size class, or every slab lands in the next class up.
+        private int maxAllocationSize = HeapFootprint.regionFriendlyLength(8 * 1024 * 1024);
         private final Map<String, String> properties = new HashMap<>();
         private FileDecryptionProperties fileDecryptionProperties = null;
 

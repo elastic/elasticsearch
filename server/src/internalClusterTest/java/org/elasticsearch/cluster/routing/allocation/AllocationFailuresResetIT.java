@@ -53,7 +53,7 @@ public class AllocationFailuresResetIT extends ESIntegTestCase {
     }
 
     private void removeAllocationFailuresInjection(String node) {
-        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(new IndexEventListener() {});
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(IndexEventListener.NOOP);
     }
 
     private void awaitShardAllocMaxRetries() {

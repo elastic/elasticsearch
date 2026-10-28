@@ -104,6 +104,12 @@ The following settings are supported:
     ::::
 
 
+`resumable_upload_size_threshold` {applies_to}`stack: ga 9.6`
+:   The maximum size of a write that {{es}} uploads in a single request. Writes larger than this threshold are uploaded using [GCS resumable uploads](https://cloud.google.com/storage/docs/resumable-uploads). Blob uploads use concurrent multipart uploads instead (see `multipart_upload_chunk_size`). Defaults to `5mb`. The minimum allowed value is `5mb`.
+
+`multipart_upload_chunk_size` {applies_to}`stack: ga 9.6`
+:   ([byte value](/reference/elasticsearch/rest-apis/api-conventions.md#byte-units)) Minimum threshold below which a blob is uploaded using a single request. Beyond this threshold, the GCS repository will use the [GCS XML API multipart upload](https://cloud.google.com/storage/docs/multipart-uploads) to split the blob into several parts, each of `multipart_upload_chunk_size` length, and to upload each part in its own request. Note that setting a chunk size lower than `5mb` is not allowed since it is the minimum part size supported by the GCS XML API multipart upload. Defaults to `100mb` or `5%` of JVM heap, whichever is smaller.
+
 `chunk_size`
 :   Big files can be broken down into multiple smaller blobs in the blob store during snapshotting. It is not recommended to change this value from its default unless there is an explicit reason for limiting the size of blobs in the repository. Setting a value lower than the default can result in an increased number of API calls to the Google Cloud Storage Service during snapshot create as well as restore operations compared to using the default value and thus make both operations slower as well as more costly. Specify the chunk size as a value and unit, for example: `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Google Cloud Storage Service which is `5TB`.
 

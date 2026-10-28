@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.RetentionPolicyToDeleteByQueryRequestConverter.RetentionPolicyException;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformSchedulingUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -103,6 +104,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private final boolean supportsMultipleProjects;
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
+    // the same clock the checkpoint providers use to stamp checkpoint timestamps
+    private final Clock clock;
     protected final TransformFailureHandler failureHandler;
     private final IndicesOptions strictIndicesOptions;
     private volatile float docsPerSecond = -1;
@@ -163,14 +166,19 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = transformServices.auditor();
+        this.clock = transformServices.clock();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
         ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
+        // Only enable cross-project resolution when the transform holds a minted cloud credential.
+        // Without one, the stored identity carries no cloud token, so cross-project resolution would
+        // fail closed; keeping the request local-only makes the auth layer skip it.
         this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getCredentialId() != null
                 ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS
                 : SearchRequest.DEFAULT_INDICES_OPTIONS;
         // give runState a default
@@ -263,6 +271,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
         checkpointProvider.createNextCheckpoint(
             getLastCheckpoint(),
+            CheckpointProvider.getIndexCheckpointsTimeout(
+                getConfig().getSettings() == null ? null : getConfig().getSettings().getIndexerRequestTimeout(),
+                context.getFailureCount()
+            ),
             ActionListener.wrap(
                 checkpoint -> transformsConfigManager.putTransformCheckpoint(
                     checkpoint,
@@ -345,7 +357,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
-                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && strictIndicesOptions.resolveCrossProjectIndexExpression()) {
                         request.setProjectRouting(transformConfig.getSource().getProjectRouting());
                     }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
@@ -1044,8 +1056,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      *
      * @param listener listener to call after done
      */
-    private void cleanupOldCheckpoints(ActionListener<Void> listener) {
-        long now = getTimeNanos() * 1000;
+    void cleanupOldCheckpoints(ActionListener<Void> listener) {
+        long now = clock.millis();
         long checkpointLowerBound = context.getCheckpoint() - NUMBER_OF_CHECKPOINTS_TO_KEEP;
         long lowerBoundEpochMs = now - RETENTION_OF_CHECKPOINTS_MS;
 
@@ -1177,12 +1189,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && getConfig().getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(getConfig().getSource().getProjectRouting());
         }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1208,7 +1221,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && config.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(config.getSource().getProjectRouting());
         }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
@@ -1248,7 +1261,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(getConfig().getSource().indicesOptions());
+            .indicesOptions(getConfig().getScopedIndicesOptions());
     }
 
     /**

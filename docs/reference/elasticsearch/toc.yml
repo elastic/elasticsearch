@@ -8,6 +8,8 @@ toc:
       - file: configuration-reference/cluster-level-shard-allocation-routing-settings.md
       - file: configuration-reference/miscellaneous-cluster-settings.md
       - file: configuration-reference/cross-cluster-replication-settings.md
+      - title: "ES|QL Data Federation settings"
+        crosslink: elasticsearch://reference/query-languages/esql/esql-data-federation-cluster-settings.md
       - file: configuration-reference/discovery-cluster-formation-settings.md
       - file: configuration-reference/field-data-cache-settings.md
       - file: configuration-reference/health-diagnostic-settings.md
@@ -17,9 +19,11 @@ toc:
       - file: configuration-reference/index-recovery-settings.md
       - file: configuration-reference/indexing-buffer-settings.md
       - file: configuration-reference/indexing-pressure-settings.md
+      - file: configuration-reference/ingest-settings.md
       - file: configuration-reference/license-settings.md
       - file: configuration-reference/local-gateway.md
       - file: configuration-reference/machine-learning-settings.md
+      - file: configuration-reference/merge-settings.md
       - file: configuration-reference/inference-settings.md
       - file: configuration-reference/monitoring-settings.md
       - file: configuration-reference/node-settings.md
@@ -162,8 +166,6 @@ toc:
           - file: mapping-reference/date.md
           - file: mapping-reference/date_nanos.md
           - file: mapping-reference/dense-vector.md
-            children:
-              - file: mapping-reference/gpu-vector-indexing.md
           - file: mapping-reference/flattened.md
           - file: mapping-reference/geo-point.md
           - file: mapping-reference/geo-shape.md
@@ -244,6 +246,7 @@ toc:
       - file: command-line-tools/elasticsearch-croneval.md
       - file: command-line-tools/elasticsearch-keystore.md
       - file: command-line-tools/node-tool.md
+      - file: command-line-tools/elasticsearch-plugin.md
       - file: command-line-tools/reconfigure-node.md
       - file: command-line-tools/reset-password.md
       - file: command-line-tools/saml-metadata.md

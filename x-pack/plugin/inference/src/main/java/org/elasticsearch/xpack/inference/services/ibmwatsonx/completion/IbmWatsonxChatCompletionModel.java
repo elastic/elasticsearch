@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
@@ -66,7 +66,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
      * @param request The UnifiedCompletionRequest containing the model override.
      * @return A new IbmWatsonxChatCompletionModel with the overridden model ID.
      */
-    public static IbmWatsonxChatCompletionModel of(IbmWatsonxChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static IbmWatsonxChatCompletionModel of(IbmWatsonxChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null) {
             // If no model is specified in the request, return the original model
             return model;
@@ -109,7 +109,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
         String service,
         IbmWatsonxChatCompletionServiceSettings serviceSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
@@ -126,7 +126,7 @@ public class IbmWatsonxChatCompletionModel extends IbmWatsonxModel {
     public IbmWatsonxChatCompletionModel(
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
-        BiConsumer<HttpPost, IbmWatsonxModel> authHeaderDecorator
+        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
     ) {
         super(modelConfigurations, modelSecrets, authHeaderDecorator);
     }

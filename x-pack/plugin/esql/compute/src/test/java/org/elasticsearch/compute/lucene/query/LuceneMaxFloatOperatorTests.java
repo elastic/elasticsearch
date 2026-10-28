@@ -52,7 +52,7 @@ public class LuceneMaxFloatOperatorTests extends LuceneMaxOperatorTestCase {
 
             @Override
             public IndexableField newDocValuesField() {
-                return new SortedNumericDocValuesField(FIELD_NAME, NumericUtils.floatToSortableInt(newValue()));
+                return SortedNumericDocValuesField.indexedField(FIELD_NAME, NumericUtils.floatToSortableInt(newValue()));
             }
 
             @Override

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.authorization;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +17,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
@@ -173,7 +173,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                         retrieveAuthorizationInformation(countdownListener, sender, overridePreferences);
                     }
                 }, e -> {
-                    logger.atWarn().withThrowable(e).log("Failed to determine if CCM is enabled, returning unauthorized");
+                    logger.warn("Failed to determine if CCM is enabled, returning unauthorized", e);
                     countdownListener.onResponse(ElasticInferenceServiceAuthorizationModel.unauthorized());
                 });
 
@@ -182,7 +182,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
                 retrieveAuthorizationInformation(countdownListener, sender, overridePreferences);
             }
         } catch (Exception e) {
-            logger.atWarn().withThrowable(e).log("Retrieving the authorization information encountered an exception");
+            logger.warn("Retrieving the authorization information encountered an exception", e);
             countdownListener.onFailure(e);
         }
     }

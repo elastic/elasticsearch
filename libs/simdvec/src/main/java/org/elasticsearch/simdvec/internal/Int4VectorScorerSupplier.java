@@ -36,7 +36,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
     private final int vectorPitch;
     private final Int4VectorScorer.ScorerImpl scorerImpl;
     private final MemorySegment unpackedQuerySegment;
-    private final FixedSizeScratch scratch;
+    private final FixedSizeSegmentScratch scratch;
 
     public Int4VectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, VectorSimilarityType similarityType) {
         IndexInputUtils.checkInputType(input);
@@ -48,7 +48,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         this.packedDims = dims / 2;
         this.vectorPitch = packedDims + Int4VectorScorer.CORRECTIONS_BYTES;
         this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
-        this.scratch = new FixedSizeScratch(vectorPitch);
+        this.scratch = new FixedSizeSegmentScratch(vectorPitch);
         float centroidDP;
         try {
             centroidDP = values.getCentroidDP();
@@ -73,7 +73,7 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         // are unpacked straight from the slice, and the corrections are read from its trailing bytes.
         long offset = (long) ord * vectorPitch;
         input.seek(offset);
-        return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+        return IndexInputUtils.withSlice(input, vectorPitch, scratch, seg -> {
             unpackNibbles(seg);
             // The corrections trailer starts at byte offset packedDims within the record; read the
             // 3 floats + 1 int directly from the slice rather than materializing a short-lived sub-slice.

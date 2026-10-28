@@ -121,7 +121,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet())
+            ActionFilters.EMPTY
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {

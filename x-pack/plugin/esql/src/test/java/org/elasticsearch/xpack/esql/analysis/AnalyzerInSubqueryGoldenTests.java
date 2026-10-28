@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
-import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -55,22 +54,8 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
     private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
 
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    private static void requireInSubqueryViewSupport() {
-        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
-    }
-
     private static void requireExternalDatasetSupport() {
         assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-    }
-
-    private static void requireInSubqueryWithTSSupport() {
-        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires where in subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
     }
 
     // -- basic IN subqueries --
@@ -560,7 +545,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM high_earners)
@@ -568,7 +552,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryReferencingView() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM high_earners)
@@ -576,7 +559,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithInSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM employees
@@ -588,7 +570,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryReferencingViewWithInSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM employeesInEmployees)
@@ -596,7 +577,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithInSubqueryAndPredicate() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE salary > 50000 AND emp_no IN (FROM in_sub_view)
@@ -604,7 +584,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleInSubqueriesWithViewAndFromSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM high_earners)
@@ -613,7 +592,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInViewAndNotInFromSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM high_earners)
@@ -622,7 +600,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleInSubqueriesReferencingViewsWithInSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM employees
@@ -639,7 +616,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingViewWithNestedInSubqueryInDefinition() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM nested_in_view | KEEP emp_no)
@@ -657,7 +633,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryReferencingConjunctionViewWithTwoInSubqueriesInDefinition() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM conj_in_view | KEEP emp_no)
@@ -670,7 +645,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testThreeInSubqueriesIntersectingViewsEachWithInnerInSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
@@ -700,7 +674,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryInSubqueryNotInSubqueryReferencingViewsWithInnerInSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM v_nested | KEEP emp_no)
@@ -725,7 +698,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInNestedInDisjunctionNotInConjunctionViews() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM v_nested | KEEP emp_no)
@@ -752,7 +724,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // -- IN subquery with UnionAll (FROM view, (FROM subquery)) --
 
     public void testInSubqueryWithUnionAllOfViewAndFromSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM employees_view, (FROM employees | WHERE salary > 70000) | KEEP emp_no)
@@ -760,7 +731,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryWithUnionAllOfViewAndFromSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no NOT IN (FROM employees_view, (FROM employees | KEEP emp_no) | KEEP emp_no)
@@ -768,7 +738,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleInSubqueriesWithUnionAllViewAndFromSubquery() {
-        requireInSubqueryViewSupport();
         runGoldenTest("""
             FROM employees
             | WHERE emp_no IN (FROM view_a, (FROM employees | KEEP emp_no) | KEEP emp_no)
@@ -777,7 +746,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryUnionAllAndNotInSubqueryView() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM employees
@@ -790,7 +758,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMainFromAndInSubqueryEachReferenceMultipleViewSubqueries() {
-        requireInSubqueryViewSupport();
         runGoldenTest(
             """
                 FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
@@ -819,7 +786,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     // [before_pack_dims_agg].
 
     public void testTsRateInsideInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
@@ -830,7 +796,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsRateInsideNotInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
@@ -841,7 +806,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryMainTimeSeriesSubqueryIndex() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster IN (FROM employees | KEEP first_name)
@@ -850,7 +814,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryMainTimeSeriesSubqueryIndex() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM employees | KEEP first_name)
@@ -859,7 +822,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testInSubqueryMainIndexSubqueryTimeSeries() {
-        requireInSubqueryWithTSSupport();
         builder("""
             FROM employees
             | WHERE first_name IN (TS k8s
@@ -869,7 +831,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testNotInSubqueryMainIndexSubqueryTimeSeries() {
-        requireInSubqueryWithTSSupport();
         builder("""
             FROM employees
             | WHERE first_name NOT IN (TS k8s
@@ -879,7 +840,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsWithoutAndRateInsideInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster IN (TS k8s
@@ -890,7 +850,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testTsWithoutAndRateInsideNotInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster NOT IN (TS k8s
@@ -901,7 +860,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleTsSubqueriesInsideInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster IN (FROM
@@ -920,7 +878,6 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testMultipleTsSubqueriesInsideNotInSubquery() {
-        requireInSubqueryWithTSSupport();
         builder("""
             TS k8s
             | WHERE cluster NOT IN (FROM
@@ -1008,6 +965,301 @@ public class AnalyzerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | WHERE COALESCE(emp_no NOT IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: mixed with single-column IN subquery connected by AND/OR/NOT --
+
+    public void testMultiColumnInSubqueryAndSingleColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryOrSingleColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+               OR languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnNotInSubqueryAndSingleColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP emp_no, salary)
+              AND languages IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryAndSingleColumnNotInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+              AND languages NOT IN (FROM employees | KEEP languages)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: constant left-hand side --
+
+    public void testConstantsInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (10001, 60000) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testMixedConstantAndFieldInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, 60000) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    /**
+     * Repeated equal constants in a multi-column tuple hash identically, so both synthetic constant aliases land in the same Eval;
+     * their names must stay distinct (via the per-rewrite ordinal in {@code InSubqueryResolver#syntheticConstName}) or the Eval's
+     * output merging would silently drop the first field and orphan the join key referencing it. The golden plan pins down the two
+     * distinctly-named Eval fields and the SemiJoin keys bound to them. Mirrors
+     * {@code InSubqueryResolverTests#testRepeatedConstantsInMultiColumnInSubqueryGetDistinctNames}.
+     */
+    public void testRepeatedConstantsInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (1, 1) IN (FROM employees | KEEP emp_no, languages)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: implicit date cast --
+
+    public void testMultiColumnInSubqueryWithImplicitDateCast() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, hire_date) IN (
+                FROM employees
+                | WHERE hire_date >= "1989-01-01T00:00:00.000Z"
+                | KEEP emp_no, hire_date
+              )
+            | KEEP emp_no, hire_date
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: FROM subquery combinations --
+
+    public void testFromSubqueryInsideMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees, (FROM employees | KEEP emp_no, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testFromSubqueryBeforeMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees | WHERE salary > 50000 | KEEP emp_no, salary)
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryInsideFromSubquery() {
+        runGoldenTest("""
+            FROM employees,
+                 (FROM employees
+                  | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+                  | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    // -- nested multi-column IN subquery --
+
+    public void testNestedMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE (languages, salary) IN (FROM employees | KEEP languages, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testNestedNotInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) NOT IN (
+                FROM employees
+                | WHERE (languages, salary) NOT IN (FROM employees | KEEP languages, salary)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    public void testNestedSingleColumnInSubqueryInsideMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (
+                FROM employees
+                | WHERE languages IN (FROM employees | KEEP languages)
+                | KEEP emp_no, salary
+              )
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: union-typed field resolved by an explicit cast --
+
+    public void testFromSubqueryUnionTypeLeftFieldWithCastInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
+            | EVAL id = emp_no::long, sal = salary::long
+            | WHERE (id, sal) IN (FROM employees_incompatible | KEEP emp_no, salary)
+            | KEEP id, sal
+            """, STAGES);
+    }
+
+    public void testUnionTypeFieldWithCastInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees, employees_incompatible
+            | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+            | WHERE (id_kw, sal_kw) IN (FROM employees | EVAL e = emp_no::keyword, s = salary::keyword | KEEP e, s)
+            | KEEP id_kw, sal_kw
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    public void testUnionTypeRightFieldWithCastInMultiColumnInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (first_name, last_name) IN (
+                FROM employees, employees_incompatible
+                | EVAL id_kw = emp_no::keyword, sal_kw = salary::keyword
+                | KEEP id_kw, sal_kw
+              )
+            | KEEP first_name, last_name
+            """, STAGES, CompactMultiTypeEsField.CompactMultiTypeEsField);
+    }
+
+    // -- multi-column IN subquery: ROW as main source or subquery source --
+
+    public void testMultiColumnInSubqueryWithRowSource() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
+            """, STAGES);
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithIndexSource() {
+        runGoldenTest("""
+            ROW emp_no = 10001, salary = 60000
+            | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+            """, STAGES);
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithRowSource() {
+        runGoldenTest("""
+            ROW emp_no = 10001, salary = 60000
+            | WHERE (emp_no, salary) IN (ROW emp_no = 10001, salary = 60000)
+            """, STAGES);
+    }
+
+    // -- multi-column IN subquery: TS as main source or subquery source --
+
+    public void testMultiColumnInSubqueryWithTsSource() {
+        builder("""
+            FROM employees
+            | WHERE (first_name, last_name) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            | KEEP first_name, last_name
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithIndexSource() {
+        builder("""
+            TS k8s
+            | WHERE (cluster, pod) IN (FROM employees | KEEP first_name, last_name)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithRowSource() {
+        builder("""
+            TS k8s
+            | WHERE (cluster, pod) IN (ROW cluster = "my-cluster", pod = "my-pod")
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testTsMainMultiColumnInSubqueryWithTsSource() {
+        builder("""
+            TS k8s
+            | WHERE (cluster, pod) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            | STATS total_bytes = sum(to_long(network.total_bytes_in)) BY cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testRowMainMultiColumnInSubqueryWithTsSource() {
+        builder("""
+            ROW cluster = "my-cluster", pod = "my-pod"
+            | WHERE (cluster, pod) IN (
+                TS k8s
+                | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod
+                | KEEP cluster, pod
+              )
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    /**
+     * The same constant IN predicate repeated across conjuncts of one WHERE materializes two synthetic constant aliases in the same
+     * Eval; their names must stay distinct (via the per-rewrite ordinal in {@code InSubqueryResolver#syntheticConstName}) or the
+     * Eval's output merging would silently drop the first field and orphan the join key referencing it. Mirrors
+     * {@code InSubqueryResolverTests#testRepeatedConstantInSubqueriesGetDistinctNames}.
+     */
+    public void testRepeatedConstantInSubqueriesInOneWhere() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE 42 IN (FROM employees | KEEP emp_no) AND 42 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    /**
+     * The same constant IN predicate in two separate WHERE commands. Each Filter is rewritten independently, allocating its synthetic
+     * constant alias in its own Eval, so the two aliases can share a name (see {@code InSubqueryResolver#syntheticConstName}). That
+     * collision is benign — ordinary cross-level name shadowing (as in {@code EVAL x = .. | EVAL x = ..}): each SemiJoin consumes its
+     * key from its own Eval below the shadowing point, bound by NameId. The golden plan pins this down: two stacked SemiJoin/Eval
+     * pairs, each join key referencing its own Eval's field.
+     */
+    public void testSameConstantInSubqueryInTwoWhereCommands() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE 42 IN (FROM employees | KEEP emp_no)
+            | WHERE 42 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testForkInsideNestedInSubqueriesIsAccepted() {
+        // Each IN subquery is its own query scope; a FORK inside one must not be counted against a FORK in another.
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (
+                FROM employees
+                | WHERE salary IN (
+                    FROM employees
+                    | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+                    | KEEP salary
+                )
+                | FORK (WHERE emp_no > 1) (WHERE emp_no > 2)
+                | KEEP emp_no
+            )
             """, STAGES);
     }
 

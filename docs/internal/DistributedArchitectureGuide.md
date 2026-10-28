@@ -557,7 +557,7 @@ Master-eligible (`master` role) nodes form the cluster's [voting configuration](
 in [master elections](#master-elections).
 
 The elected master node is responsible for cluster-wide coordination: it processes all [cluster state](#cluster-state)
-updates and publishes them to the rest of the cluster. The cluster maintains (conceptually, see [term](#term)
+updates and publishes them to the rest of the cluster. The cluster maintains (conceptually, see [term](#terms)
 section) at most a single master at all times; if the master fails, a new one is elected from the remaining
 master-eligible nodes (excluding `voting_only` nodes, which can vote but cannot be elected).
 
@@ -2247,7 +2247,7 @@ recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` 
 an in-memory record of the recovery process to track its progress, and then runs `EXISTING_STORE` recovery in case the
 recovering replica held a copy of the shard before that has gone out of sync (e.g., because the node holding the
 replica restarted). Because the shard is a replica, it only recovers up to the latest known global checkpoint for the shard
-and discards any operations in the local store that are ahead of that point (see [Translog][#Translog] for details).
+and discards any operations in the local store that are ahead of that point (see [Translog](#translog) for details).
 Once the local shard has been brought close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
 to complete synchronization.
 
@@ -2258,7 +2258,7 @@ load on the source shard.
 
 The next step is to transfer any operations from the source translog. Since the source shard is active,
 it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
-new operations, the source shard adds the target to the shard's replication group (see the [replication][#Replication] docs)
+new operations, the source shard adds the target to the shard's replication group (see the [replication](#replication) docs)
 *before* completing the operation transfer phase. Because of this ordering, any operations accepted on the shard between the
 time it reads and sends the latest operation in the translog and the time the replica completes recovery are sent through the
 request replication process and will not be lost. Once the target has been added to the recovery group, the source reads the
@@ -2790,7 +2790,7 @@ by setting its generation number to `RepositoryData.CORRUPTED_REPO_GEN` to block
 [Task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html
 [cat task management API]:https://www.elastic.co/guide/en/elasticsearch/reference/current/cat-tasks.html
 [TransportAction]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java
-[NodeClient#executeLocally]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L100
+[NodeClient#executeAndReturnTask]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/client/internal/node/NodeClient.java#L100
 [TaskManager#registerAndExecute]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/tasks/TaskManager.java#L174
 [RequestHandlerRegistry#processMessageReceived]:https://github.com/elastic/elasticsearch/blob/5e8fd548b959039b6b77ad53715415b429568bc0/server/src/main/java/org/elasticsearch/transport/RequestHandlerRegistry.java#L65
 
@@ -2823,7 +2823,7 @@ The purpose of tasks is to provide management and visibility of the cluster work
 
 Some examples of operations that are tracked using tasks include:
 - Execution of [TransportAction]s
-  - [NodeClient#executeLocally] invokes [TaskManager#registerAndExecute]
+  - [NodeClient#executeAndReturnTask] invokes [TaskManager#registerAndExecute]
   - [RequestHandlerRegistry#processMessageReceived] registers tasks for actions that are spawned to handle [TransportRequest]s
 - Publication of cluster state updates
 

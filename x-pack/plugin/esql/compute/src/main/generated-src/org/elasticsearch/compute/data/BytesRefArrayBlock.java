@@ -97,6 +97,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return vector.estimateTotalValueBytes();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
@@ -154,15 +159,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
-                if (false == mask.getBoolean(p)) {
+                if (false == mask.getBoolean(p) || isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
-                }
                 int start = getFirstValueIndex(p);
                 if (valueCount == 1) {
                     builder.appendBytesRef(getBytesRef(start, scratch));

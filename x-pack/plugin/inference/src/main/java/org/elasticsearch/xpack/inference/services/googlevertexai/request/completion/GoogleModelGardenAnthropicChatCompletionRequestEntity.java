@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -33,7 +33,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     private static final String STREAM_FIELD = "stream";
     public static final int DEFAULT_MAX_TOKENS = 1024;
 
-    private final UnifiedCompletionRequest unifiedRequest;
+    private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
     private final GoogleVertexAiChatCompletionTaskSettings taskSettings;
 
@@ -49,7 +49,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     }
 
     public GoogleModelGardenAnthropicChatCompletionRequestEntity(
-        UnifiedCompletionRequest unifiedRequest,
+        UnifiedCompletionRequestBody unifiedRequest,
         boolean stream,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) {

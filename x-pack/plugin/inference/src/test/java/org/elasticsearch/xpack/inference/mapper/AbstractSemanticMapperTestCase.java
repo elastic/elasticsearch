@@ -7,21 +7,34 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.PerFieldFormatSupplier;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,19 +43,30 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EndpointClusterState;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.NestedDocuments;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -53,6 +77,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
@@ -64,6 +89,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -84,9 +110,12 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -145,7 +174,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     private void initializeTestEnvironment() {
         threadPool = createThreadPool();
         var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of()));
+        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool), Utils.noopInferenceIndexMappingManager());
         globalModelRegistry = spy(modelRegistry);
         globalModelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
@@ -220,6 +249,54 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         checker.registerIgnoredParameter("model_settings");
         checker.registerIgnoredParameter("chunking_settings");
         checker.registerIgnoredParameter("index_options");
+    }
+
+    @Override
+    public void testEmbeddingsFieldAndFormat() throws IOException {
+        FieldAndFormat expected = new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT);
+
+        // Without model_settings, the field has never seen inference results and skips type validation — every requested vector type
+        // is accepted.
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertEquals(expected, fieldType.embeddingsFieldAndFormat(null));
+        for (VectorType vectorType : VectorType.values()) {
+            assertEquals(expected, fieldType.embeddingsFieldAndFormat(vectorType));
+        }
+
+        // With model_settings, only the matching vector type is accepted; a mismatch throws.
+        for (TaskType taskType : supportedTaskTypes()) {
+            String inferenceId = randomAlphaOfLength(8);
+            EndpointClusterState modelSettings = createRandomModelSettings(taskType);
+            givenModelSettings(inferenceId, modelSettings);
+            MapperService msWithSettings = createMapperService(semanticMapping("field", inferenceId, modelSettings));
+            MappedFieldType ftWithSettings = msWithSettings.fieldType("field");
+
+            VectorType producedType = VectorType.fromTaskType(taskType);
+            assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(null));
+            for (VectorType vectorType : VectorType.values()) {
+                if (vectorType != producedType) {
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> ftWithSettings.embeddingsFieldAndFormat(vectorType)
+                    );
+                    assertThat(
+                        e.getMessage(),
+                        equalTo(
+                            "Field [field] of type ["
+                                + ftWithSettings.typeName()
+                                + "] produces incompatible embeddings (requested: ["
+                                + vectorType
+                                + "], produced: ["
+                                + producedType
+                                + "])"
+                        )
+                    );
+                } else {
+                    assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(vectorType));
+                }
+            }
+        }
     }
 
     @Override
@@ -351,6 +428,72 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         }
     }
 
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/157645.
+     */
+    public void testNestedStoredSourceLoaderHandlesChunks() throws Exception {
+        final String fieldName = "field";
+        // The generated embeddings are not unit-length, which dot_product requires. A real dot_product endpoint only declares that
+        // similarity because its model emits normalized embeddings, so this combination cannot occur in production.
+        Model model = createRandomSupportedModel(List.of(SimilarityMeasure.DOT_PRODUCT));
+        givenModelSettings(model.getInferenceEntityId(), new EndpointClusterState(model));
+
+        CheckedConsumer<IndexVersion, IOException> validate = indexVersion -> {
+            final XContentBuilder mapping = semanticMapping(fieldName, model.getInferenceEntityId());
+            final MapperService mapperService = createSemanticMapperServiceWithSourceMode(
+                mapping,
+                indexVersion,
+                SourceFieldMapper.Mode.STORED
+            );
+            final List<String> fieldValues = randomList(2, 5, () -> randomAlphaOfLengthBetween(5, 15));
+            final ParsedDocument doc = parseValues(mapperService, fieldName, fieldValues, model);
+
+            // Expect one child doc per chunk, plus the root doc
+            int expectedChildDocs = fieldValues.size();
+            assertEquals(expectedChildDocs + 1, doc.docs().size());
+
+            withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+                NestedDocuments nestedDocuments = new NestedDocuments(
+                    mapperService.mappingLookup(),
+                    QueryBitSetProducer::new,
+                    indexVersion
+                );
+                SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, nestedDocuments);
+                LeafReaderContext leafCtx = reader.leaves().getFirst();
+                SourceLoader.Leaf leaf = sourceLoader.leaf(leafCtx, null);
+                LeafStoredFieldLoader leafStoredFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields())
+                    .getLoader(leafCtx, null);
+
+                for (int chunkDocId = 0; chunkDocId < expectedChildDocs; chunkDocId++) {
+                    leafStoredFieldLoader.advanceTo(chunkDocId);
+                    Source chunkSource = leaf.source(leafStoredFieldLoader, chunkDocId);
+                    if (useLegacyFormat()) {
+                        assertFalse(chunkSource.source().isEmpty());
+                    } else {
+                        assertTrue(chunkSource.source().isEmpty());
+                    }
+                }
+
+                leafStoredFieldLoader.advanceTo(expectedChildDocs);
+                Source rootSource = leaf.source(leafStoredFieldLoader, expectedChildDocs);
+                Object loadedRootValue = rootSource.source().get(fieldName);
+                if (useLegacyFormat()) {
+                    assertThat(loadedRootValue, instanceOf(Map.class));
+                } else {
+                    assertEquals(fieldValues, loadedRootValue);
+                }
+            });
+        };
+
+        if (useLegacyFormat() == false) {
+            // New indices do not support the legacy format
+            validate.accept(IndexVersion.current());
+        }
+        for (int i = 0; i < 20; i++) {
+            validate.accept(getRandomCompatibleIndexVersion());
+        }
+    }
+
     protected XContentBuilder semanticMapping(String fieldName, @Nullable String inferenceId) throws IOException {
         return semanticMapping(fieldName, inferenceId, null, null, null, null);
     }
@@ -469,7 +612,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     /**
-     * Creates a (non-legacy) mapper service at the given index version and source mode. With {@code synthetic} or
+     * Creates a mapper service at the given index version and source mode. With {@code synthetic} or
      * {@code columnar_stored}, the field stores its original input value(s) in the internal binary doc values field; with
      * {@code stored}, the original value is kept in {@code _source}.
      */
@@ -480,7 +623,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     ) throws IOException {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
             .build();
         return createMapperService(indexVersion, settings, mappings);
@@ -493,14 +636,82 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     ) throws IOException {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat())
             .put(IndexSettings.MODE.getKey(), indexMode.getName())
             .build();
         return createMapperService(indexVersion, settings, mappings);
     }
 
+    /**
+     * In a columnar index with the ColumNAR codec, the original input is a ColumNAR payload column: routed to the codec, read back in
+     * document order with duplicates by synthetic source, by {@code columnar_stored} (which leaves it out of the source blob and
+     * patches it back) and by the value fetcher.
+     */
+    public void testOriginalValuesAreAColumnarPayloadColumn() throws IOException {
+        assumeFalse("the legacy format keeps the original value in _source", useLegacyFormat());
+        final String dvFieldName = SemanticTextField.getOriginalValuesFieldName("field");
+        for (SourceFieldMapper.Mode mode : List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED)) {
+            final Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), false)
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), mode)
+                .build();
+            final MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping(this::minimalMapping));
+            final PerFieldFormatSupplier formats = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            assertThat(formats.getDocValuesFormatForField(dvFieldName), instanceOf(ColumNARDocValuesFormat.class));
+            assertThat(
+                "only a field this mapper owns is answered for",
+                formats.getDocValuesFormatForField("field.other"),
+                not(instanceOf(ColumNARDocValuesFormat.class))
+            );
+
+            final ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", "b", "a", "b")));
+            assertThat(doc.rootDoc().getField(dvFieldName), instanceOf(ColumnarBinaryDocValuesField.class));
+            if (mode == SourceFieldMapper.Mode.COLUMNAR_STORED) {
+                final String blob = new BytesArray(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue()).utf8ToString();
+                assertThat("the blob leaves the original input out", blob, not(containsString("field")));
+            }
+
+            final SearchExecutionContext searchContext = createSearchExecutionContext(mapperService);
+            final ValueFetcher fetcher = searchContext.getFieldType("field").valueFetcher(searchContext, null);
+            withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+                final LeafReaderContext leaf = reader.leaves().get(0);
+                final SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
+                final int[] docIds = new int[] { 0 };
+                final LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
+                    .getLoader(leaf, docIds);
+                storedFields.advanceTo(0);
+                final Source source = loader.leaf(leaf, docIds).source(storedFields, 0);
+                assertThat("mode=" + mode, source.source(), equalTo(Map.of("field", List.of("b", "a", "b"))));
+
+                fetcher.setNextReader(leaf);
+                assertThat(fetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()), contains("b", "a", "b"));
+
+                // ES|QL loads a semantic_text field's original input from the same column.
+                if (mapperService.fieldType("field") instanceof SemanticTextFieldMapper.SemanticTextFieldType fieldType) {
+                    final BlockLoader blockLoader = fieldType.blockLoader(
+                        new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService)
+                    );
+                    try (
+                        BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
+                            .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))
+                    ) {
+                        final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                        assertThat(block.get(0), equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b"))));
+                    }
+                }
+            });
+        }
+    }
+
     protected TestModel createRandomSupportedModel() {
-        return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
+        return createRandomSupportedModel(null);
+    }
+
+    protected TestModel createRandomSupportedModel(@Nullable List<SimilarityMeasure> excludedSimilarities) {
+        return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()), excludedSimilarities);
     }
 
     protected EndpointClusterState createRandomModelSettings() {
@@ -528,25 +739,27 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         String inferenceId,
         EndpointClusterState modelSettings
     ) throws IOException {
-        SemanticTextField semanticTextField = new SemanticTextField(
-            useLegacyFormat(),
-            fieldName,
-            List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, null, Map.of()),
-            XContentType.JSON
-        );
+        ParsedDocument parsedDocument = parseValues(mapperService, fieldName, List.of(), modelFromSettings(inferenceId, modelSettings));
+        mergeDynamicUpdate(mapperService, parsedDocument.dynamicMappingsUpdate());
+    }
+
+    /**
+     * Parse field values as if they were processed by {@code ShardBulkInferenceActionFilter}.
+     */
+    protected ParsedDocument parseValues(MapperService mapperService, String fieldName, List<String> fieldValues, Model model)
+        throws IOException {
+        SemanticTextField semanticTextField = randomSemanticText(useLegacyFormat(), fieldName, model, null, fieldValues, XContentType.JSON);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         if (useLegacyFormat()) {
-            builder.field(semanticTextField.fieldName());
-            builder.value(semanticTextField);
+            builder.field(fieldName, semanticTextField);
         } else {
-            builder.field(InferenceMetadataFieldsMapper.NAME, Map.of(semanticTextField.fieldName(), semanticTextField));
+            builder.field(fieldName, fieldValues);
+            builder.field(InferenceMetadataFieldsMapper.NAME, Map.of(fieldName, semanticTextField));
         }
         builder.endObject();
 
         SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
-        ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-        mergeDynamicUpdate(mapperService, parsedDocument.dynamicMappingsUpdate());
+        return mapperService.documentMapper().parse(sourceToParse);
     }
 
     /**
@@ -844,5 +1057,21 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             builder.append(randomAlphaOfLengthBetween(5, 15));
         }
         return builder.toString();
+    }
+
+    protected static TestModel modelFromSettings(String inferenceId, EndpointClusterState modelSettings) {
+        return new TestModel(
+            inferenceId,
+            modelSettings.taskType(),
+            Objects.requireNonNullElse(modelSettings.service(), "test_service"),
+            new TestModel.TestServiceSettings(
+                randomAlphaOfLength(4),
+                modelSettings.dimensions(),
+                modelSettings.similarity(),
+                modelSettings.elementType()
+            ),
+            new TestModel.TestTaskSettings((Integer) null),
+            new TestModel.TestSecretSettings("api_key")
+        );
     }
 }

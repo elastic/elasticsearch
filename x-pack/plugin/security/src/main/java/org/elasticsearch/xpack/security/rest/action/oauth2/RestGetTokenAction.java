@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,11 +51,21 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * expected to be JSON
  */
 @ServerlessScope(Scope.INTERNAL)
-public final class RestGetTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
+public final class RestGetTokenAction extends SecurityBaseRestHandler implements RestRequestFilter {
+
+    private static final Logger logger = LogManager.getLogger(RestGetTokenAction.class);
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>(
         "token_request",
-        a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (SecureString) a[3], (String) a[4], (String) a[5])
+        a -> new CreateTokenRequest(
+            (String) a[0],
+            (String) a[1],
+            (SecureString) a[2],
+            (SecureString) a[3],
+            (String) a[4],
+            (String) a[5],
+            (SecureString) a[6]
+        )
     );
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("grant_type"));
@@ -76,6 +88,14 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scope"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            parser -> new SecureString(
+                Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
+            ),
+            new ParseField("service_account_token"),
+            ValueType.STRING
+        );
     }
 
     public RestGetTokenAction(Settings settings, XPackLicenseState xPackLicenseState) {
@@ -262,7 +282,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         _UNAUTHORIZED,
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("password", "kerberos_ticket", "refresh_token");
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "kerberos_ticket", "refresh_token", "service_account_token");
 
     @Override
     public Set<String> getFilteredFields() {

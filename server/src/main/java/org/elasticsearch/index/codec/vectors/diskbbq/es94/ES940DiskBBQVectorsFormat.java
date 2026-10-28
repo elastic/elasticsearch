@@ -61,7 +61,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_DIRECT_IO = VERSION_START;
     public static final int VERSION_PACKED_INT4 = 2;
     public static final int VERSION_PACKED_INT2 = 3;
-    public static final int VERSION_CURRENT = VERSION_PACKED_INT2;
+    public static final int VERSION_ON_DISK_MERGE = 4;
+    public static final int VERSION_CURRENT = VERSION_ON_DISK_MERGE;
     public static final float DYNAMIC_VISIT_RATIO = 0.0f;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
@@ -346,6 +347,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final boolean useDirectIO;
+    private final boolean onDiskMerge;
     private final DirectIOCapableFlatVectorsFormat rawVectorFormat;
     private final TaskExecutor mergeExec;
     private final int numMergeWorkers;
@@ -421,10 +423,12 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             flatVectorThreshold,
-            VERSION_CURRENT
+            VERSION_CURRENT,
+            false
         );
     }
 
+    /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
     public ES940DiskBBQVectorsFormat(
         QuantEncoding quantEncoding,
         int vectorPerCluster,
@@ -436,7 +440,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         boolean doPrecondition,
         int preconditioningBlockDimension,
         int flatVectorThreshold,
-        int writeVersion
+        int writeVersion,
+        boolean onDiskMerge
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -485,6 +490,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             default -> throw new IllegalArgumentException("Unsupported element type " + elementType);
         };
         this.useDirectIO = useDirectIO;
+        this.onDiskMerge = onDiskMerge;
         this.mergeExec = mergingExecutorService == null ? null : new TaskExecutor(mergingExecutorService);
         this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
@@ -503,6 +509,9 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         if (writeVersion >= VERSION_PACKED_INT4 && quantEncoding == QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED) {
             throw new IllegalArgumentException("Striped 4-bit encoding requires version before " + VERSION_PACKED_INT4);
         }
+        if (writeVersion < VERSION_ON_DISK_MERGE && onDiskMerge) {
+            throw new IllegalArgumentException("on_disk_merge requires version " + VERSION_ON_DISK_MERGE + " or later");
+        }
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -516,7 +525,8 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             state,
             rawVectorFormat.getName(),
             useDirectIO,
-            rawVectorFormat.fieldsWriter(state),
+            onDiskMerge,
+            rawVectorFormat.fieldsWriter(state, onDiskMerge),
             quantEncoding,
             vectorPerCluster,
             centroidsPerParentCluster,
@@ -531,10 +541,10 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES940DiskBBQVectorsReader(state, (f, dio) -> {
+        return new ES940DiskBBQVectorsReader(state, (f, dio, odm) -> {
             var format = supportedFormats.get(f);
             if (format == null) return null;
-            return format.fieldsReader(state, dio);
+            return format.fieldsReader(state, dio, odm);
         });
     }
 

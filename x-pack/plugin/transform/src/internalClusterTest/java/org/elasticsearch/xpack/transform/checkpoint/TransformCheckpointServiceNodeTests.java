@@ -14,10 +14,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -116,7 +114,6 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             Clock.systemUTC(),
             transformsConfigManager,
             mockAuditor,
-            new CrossProjectModeDecider(Settings.EMPTY),
             cloudCredentialManager
         );
     }

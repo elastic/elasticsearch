@@ -215,13 +215,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformsConfigManager = new InMemoryTransformConfigManager();
         var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
         when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var transformsCheckpointService = new TransformCheckpointService(
-            clock,
-            transformsConfigManager,
-            auditor,
-            mock(CrossProjectModeDecider.class),
-            cloudCredentialManager
-        );
+        var transformsCheckpointService = new TransformCheckpointService(clock, transformsConfigManager, auditor, cloudCredentialManager);
         return new TransformServices(
             transformsConfigManager,
             transformsCheckpointService,
@@ -231,7 +225,8 @@ public class TransformTaskTests extends ESTestCase {
             mock(CrossProjectModeDecider.class),
             projectId -> false,
             mock(ProjectResolver.class),
-            mock(TransformCloudCredentialManager.class)
+            mock(TransformCloudCredentialManager.class),
+            Clock.systemUTC()
         );
     }
 

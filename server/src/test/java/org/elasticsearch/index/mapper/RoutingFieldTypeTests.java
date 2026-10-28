@@ -8,8 +8,13 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -21,10 +26,19 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.lucene.search.XDocValuesRewriteMethod;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
@@ -36,7 +50,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     public void testTermQueryDocValues() {
         BytesRef value = new BytesRef("foo");
         Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termQuery(value.utf8ToString(), MOCK_CONTEXT);
-        assertEquals("SortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
+        assertEquals("XSortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
         assertEquals("[" + value + " TO " + value + "]", query.toString("_routing"));
     }
 
@@ -52,9 +66,56 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         TermInSetQuery expected = new TermInSetQuery("_routing", List.of(new BytesRef("foo"), new BytesRef("bar")));
         TermInSetQuery actual = (TermInSetQuery) RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "bar"), MOCK_CONTEXT);
         assertEquals(expected, actual);
-        // newSlowSetQuery (SortedSetDocValuesSetQuery) is not affected by the docIDRunEnd() bug and
-        // still uses Lucene's own DOC_VALUES_REWRITE singleton.
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, actual.getRewriteMethod());
+    }
+
+    /**
+     * On a slice-enabled index term queries redirect to the hash-prefixed {@code _slice_key}, the primary index sort.
+     */
+    public void testTermQuerySliceEnabled() {
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termQuery("foo", sliceEnabledMockContext());
+        assertEquals(sliceKeyExactQuery("foo"), query);
+    }
+
+    public void testTermsQuerySliceEnabled() {
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "bar"), sliceEnabledMockContext());
+        Query expected = new ConstantScoreQuery(
+            new BooleanQuery.Builder().add(sliceKeyExactQuery("foo"), BooleanClause.Occur.SHOULD)
+                .add(sliceKeyExactQuery("bar"), BooleanClause.Occur.SHOULD)
+                .build()
+        );
+        assertEquals(expected, query);
+
+        // a single distinct value collapses to the exact query
+        query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(List.of("foo", "foo"), sliceEnabledMockContext());
+        assertEquals(sliceKeyExactQuery("foo"), query);
+    }
+
+    /**
+     * Past the max clause count, where one exact query per slice would throw {@code TooManyClauses},
+     * the terms query falls back to a set query on the encoded keys.
+     */
+    public void testTermsQuerySliceEnabledManySlices() {
+        List<String> slices = IntStream.rangeClosed(0, IndexSearcher.getMaxClauseCount()).mapToObj(i -> "slice-" + i).toList();
+        Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.termsQuery(slices, sliceEnabledMockContext());
+        Query expected = SortedDocValuesField.newSlowSetQuery(
+            SliceIndexing.SLICE_KEY_FIELD_NAME,
+            slices.stream().map(SliceIndexing::encodeSliceKey).toList()
+        );
+        assertEquals(expected, query);
+    }
+
+    private static Query sliceKeyExactQuery(String slice) {
+        return XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey(slice));
+    }
+
+    private static SearchExecutionContext sliceEnabledMockContext() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        when(context.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));
+        return context;
     }
 
     public void testPrefixQuery() {
@@ -118,7 +179,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
     public void testRangeQueryDocValues() {
         Query query = RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.rangeQuery("foo", "qux", true, false, null, null, null, MOCK_CONTEXT);
-        assertEquals("SortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
+        assertEquals("XSortedSetDocValuesRangeQuery", query.getClass().getSimpleName());
         assertEquals("[" + new BytesRef("foo") + " TO " + new BytesRef("qux") + "}", query.toString("_routing"));
 
         ElasticsearchException ee = expectThrows(
@@ -141,7 +202,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPrefixQueryDocValues() {
-        Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), XDocValuesRewriteMethod.DOC_VALUES_REWRITE);
+        Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo")), MultiTermQuery.DOC_VALUES_REWRITE);
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.prefixQuery("foo", null, false, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
@@ -158,7 +219,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         Query expected = new WildcardQuery(
             new Term("_routing", new BytesRef("foo*")),
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-            XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+            MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.wildcardQuery("foo*", null, false, MOCK_CONTEXT));
 
@@ -179,7 +240,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
             0,
             50,
             true,
-            XDocValuesRewriteMethod.DOC_VALUES_REWRITE
+            MultiTermQuery.DOC_VALUES_REWRITE
         );
         assertEquals(expected, RoutingFieldMapper.DOC_VALUES_FIELD_TYPE.fuzzyQuery("foo", Fuzziness.ONE, 0, 50, true, MOCK_CONTEXT, null));
 

@@ -391,6 +391,35 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testHardBoundsWithOffset() throws Exception {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (double value : new double[] { -5, 0, 5, 10, 15 }) {
+                Document doc = new Document();
+                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                w.addDocument(doc);
+            }
+
+            // The reported bucket key is Math.floor((value - offset) / interval) * interval + offset, so hard_bounds
+            // has to be matched against that key and not against the offset-less multiple of the interval.
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field")
+                .interval(5)
+                .offset(3)
+                .hardBounds(new DoubleBounds(-2.0, 10.0));
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+            try (IndexReader reader = w.getReader()) {
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
+                assertThat(histogram.getBuckets(), hasSize(3));
+                assertThat((Double) histogram.getBuckets().get(0).getKey(), equalTo(-2.0));
+                assertThat(histogram.getBuckets().get(0).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(1).getKey(), equalTo(3.0));
+                assertThat(histogram.getBuckets().get(1).getDocCount(), equalTo(1L));
+                assertThat((Double) histogram.getBuckets().get(2).getKey(), equalTo(8.0));
+                assertThat(histogram.getBuckets().get(2).getDocCount(), equalTo(1L));
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
     public void testAsSubAgg() throws IOException {
         AggregationBuilder request = new HistogramAggregationBuilder("outer").field("outer")
             .interval(5)

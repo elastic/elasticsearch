@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
@@ -36,20 +37,26 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.Elasticsearch816Codec;
-import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch816Codec;
+import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntSupplier;
@@ -60,40 +67,49 @@ import static org.hamcrest.Matchers.equalTo;
 public class TsdbDocValueBwcTests extends ESTestCase {
 
     public void testMixedIndex() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
+        var oldCodec = alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
         var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
     }
 
     public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
+        var oldCodec = alwaysDocValuesFormat(new TestES819TSDBDocValuesFormatVersion0());
         var compressionMode = TSDBDocValuesTestUtil.randomBinaryCompressionMode();
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
-    public void testMixedIndexDocValueVersion2ToCurrent() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+    public void testMixedIndexDocValueVersion2ToVersion3() throws Exception {
+        var oldCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var newCodec = alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819Version3);
+    }
+
+    public void testMixedIndexDocValueVersion3ToCurrent() throws Exception {
+        var oldCodec = alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat());
+        var newCodec = alwaysDocValuesFormat(new ES95TSDBDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819Version3, this::assertVersion95);
     }
 
     public void testMixedIndexDocValueBinaryCompressionFeatureDisabledOldCodec() throws Exception {
         // Mimic the behavior of BINARY_DV_COMPRESSION_FEATURE_FLAG being disabled in the oldCodec, but enabled in the newCodec.
-        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS));
-        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
+        var oldCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.NO_COMPRESS));
+        var newCodec = alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
         testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
     }
 
     public void testMixedIndexDocValueBinaryPerBlockCompression() throws Exception {
-        var oldCodec = TestUtil.alwaysDocValuesFormat(
-            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        // Use the same enablePerBlockCompression for both codecs so the compression settings match
+        // and addRawBlock takes the verbatim-copy path for oversized single-doc blocks.
+        boolean enablePerBlockCompression = randomBoolean();
+        var oldCodec = alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, enablePerBlockCompression)
         );
-        var newCodec = TestUtil.alwaysDocValuesFormat(
-            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, randomBoolean())
+        var newCodec = alwaysDocValuesFormat(
+            new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1, enablePerBlockCompression)
         );
-        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819);
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819, true);
     }
 
     public void testMixedIndex816To900Lucene101() throws Exception {
@@ -147,6 +163,11 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         assertFieldInfoDocValuesFormat(reader, "0", "ES8193TSDB");
     }
 
+    void assertVersion95(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
+        assert95DocValuesFormatVersion(reader, "ES95TSDB_0");
+        assertFieldInfoDocValuesFormat(reader, "0", "ES95TSDB");
+    }
+
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
         ClassNotFoundException {
         testMixedIndex(oldCodec, newCodec, this::assertVersion87, this::assertVersion819);
@@ -154,12 +175,31 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     void testMixedIndex(Codec oldCodec, Codec newCodec, VersionAssert assertOldVersion, VersionAssert assertNewVersion) throws IOException,
         NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
+        testMixedIndex(oldCodec, newCodec, assertOldVersion, assertNewVersion, false);
+    }
+
+    void testMixedIndex(
+        Codec oldCodec,
+        Codec newCodec,
+        VersionAssert assertOldVersion,
+        VersionAssert assertNewVersion,
+        boolean expectVerbatimCopy
+    ) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
         int numRounds = 4 + random().nextInt(8);
         int numDocsPerRound = 64 + random().nextInt(128);
-        int numDocs = numRounds * numDocsPerRound;
+        // One extra doc per round for the oversized binary value; total includes both.
+        int numDocs = numRounds * (numDocsPerRound + 1);
+
+        // Threshold for the target format's block size; matches ES819 v3 and ES95 defaults. The old
+        // codec may have a smaller threshold (128 KB for ES819 v2), but the gate-rejection test only
+        // requires that the source block was created as a single-doc block and that addRawBlock falls
+        // back cleanly — we do not require the fast path to have fired.
+        final int oversizedBinaryTagLen = 512 * 1024 + 1024;
+        // Track which timestamps received an oversized binary_tag so assertions can verify exact bytes.
+        final Map<Long, String> oversizedByTimestamp = new HashMap<>();
 
         try (var dir = newDirectory()) {
             long counter1 = 0;
@@ -200,6 +240,20 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         }
                         iw.addDocument(d);
                     }
+                    // One extra oversized binary_tag doc per round. This causes maxLength >=
+                    // blockBytesThreshold to be satisfied, so the merge loop probes for a raw block
+                    // and calls addRawBlock. When the source and target codecs share the same
+                    // compression settings addRawBlock returns true and the block is copied verbatim;
+                    // otherwise it returns false and the merge falls back to the normal
+                    // binaryValue()+addDoc() path.
+                    String oversizedValue = randomAlphaOfLength(oversizedBinaryTagLen);
+                    long oversizedTs = timestamp++;
+                    oversizedByTimestamp.put(oversizedTs, oversizedValue);
+                    var od = new Document();
+                    od.add(new SortedDocValuesField(hostnameField, new BytesRef(String.format(Locale.ROOT, "host-%03d", numRounds - i))));
+                    od.add(new SortedNumericDocValuesField(timestampField, oversizedTs));
+                    od.add(new BinaryDocValuesField("binary_tag", new BytesRef(oversizedValue)));
+                    iw.addDocument(od);
                     iw.commit();
                 }
             }
@@ -258,14 +312,27 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                         }
                     }
                     if (binaryDV.advanceExact(i)) {
-                        String actualBinary = binaryDV.binaryValue().utf8ToString();
-                        assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                        BytesRef actualBinaryRef = binaryDV.binaryValue();
+                        if (oversizedByTimestamp.containsKey(timestamp)) {
+                            assertEquals(
+                                "oversized binary_tag value must round-trip before mixed-format merge",
+                                new BytesRef(oversizedByTimestamp.get(timestamp)),
+                                actualBinaryRef
+                            );
+                        } else {
+                            String actualBinary = actualBinaryRef.utf8ToString();
+                            assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                        }
                     }
                 }
             }
 
             var iwc = getTimeSeriesIndexWriterConfig(hostnameField, timestampField, newCodec);
             iwc.setMergePolicy(new LogByteSizeMergePolicy());
+            var baos = expectVerbatimCopy ? new ByteArrayOutputStream() : null;
+            if (baos != null) {
+                iwc.setInfoStream(new PrintStreamInfoStream(new PrintStream(baos, true, StandardCharsets.UTF_8)));
+            }
             try (var iw = new IndexWriter(dir, iwc)) {
                 iw.forceMerge(1);
                 // Check documents after force merge:
@@ -326,11 +393,26 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                             }
                         }
                         if (binaryDV.advanceExact(i)) {
-                            String actualBinary = binaryDV.binaryValue().utf8ToString();
-                            assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                            BytesRef actualBinaryRef = binaryDV.binaryValue();
+                            if (oversizedByTimestamp.containsKey(timestamp)) {
+                                assertEquals(
+                                    "oversized binary_tag value must round-trip after mixed-format merge",
+                                    new BytesRef(oversizedByTimestamp.get(timestamp)),
+                                    actualBinaryRef
+                                );
+                            } else {
+                                String actualBinary = actualBinaryRef.utf8ToString();
+                                assertTrue("unexpected binary [" + actualBinary + "]", Arrays.binarySearch(tags, actualBinary) >= 0);
+                            }
                         }
                     }
                 }
+            }
+            if (baos != null) {
+                assertTrue(
+                    "verbatim-copy must have fired during merge",
+                    baos.toString(StandardCharsets.UTF_8).contains("copied binary block of")
+                );
             }
         }
     }
@@ -468,8 +550,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         }
     }
 
-    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws NoSuchFieldException,
-        IllegalAccessException, IOException, ClassNotFoundException {
+    private void assert819DocValuesFormatVersion(DirectoryReader reader, String formatName) throws IOException, ClassNotFoundException {
 
         for (var leafReaderContext : reader.leaves()) {
             var leaf = (SegmentReader) leafReaderContext.reader();
@@ -486,15 +567,28 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             } else {
-                var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
-                Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+                fail("Expected XPerFieldDocValuesFormat.FieldsReader but got " + dvReader.getClass());
+            }
+        }
+    }
+
+    private void assert95DocValuesFormatVersion(DirectoryReader reader, String formatName) throws IOException, ClassNotFoundException {
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            dvReader.checkIntegrity();
+
+            if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
+                var formats = perFieldDvReader.getFormats();
                 assertThat(formats, Matchers.aMapWithSize(1));
-                var tsdbDvReader = (DocValuesProducer) formats.get(formatName);
+                var tsdbDvReader = formats.get(formatName);
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
-                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesProducer"))
                 );
+            } else {
+                fail("Expected XPerFieldDocValuesFormat.FieldsReader but got " + dvReader.getClass());
             }
         }
     }
@@ -509,4 +603,39 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     interface VersionAssert {
         void run(DirectoryReader reader) throws IOException, NoSuchFieldException, IllegalAccessException, ClassNotFoundException;
     }
+
+    static Codec alwaysDocValuesFormat(final DocValuesFormat format) {
+        return new AlwaysCodec() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return format;
+            }
+        };
+    }
+
+    public static class AlwaysCodec extends FilterCodec {
+
+        // Reasons with this test codec is that XPerFieldDocValuesFormat gets used:
+        // (Lucene's asserting codec uses PerFieldDocValuesFormat)
+        private final DocValuesFormat docValues = new XPerFieldDocValuesFormat() {
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return AlwaysCodec.this.getDocValuesFormatForField(field);
+            }
+        };
+
+        public AlwaysCodec() {
+            super("always", TestUtil.getDefaultCodec());
+        }
+
+        @Override
+        public DocValuesFormat docValuesFormat() {
+            return docValues;
+        }
+
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            throw new UnsupportedOperationException("AlwaysCodec must be subclassed");
+        }
+    }
+
 }

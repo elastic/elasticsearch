@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -32,7 +32,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     public static ElasticInferenceServiceCompletionModel of(
         ElasticInferenceServiceCompletionModel model,
-        UnifiedCompletionRequest request
+        UnifiedCompletionRequestBody request
     ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(

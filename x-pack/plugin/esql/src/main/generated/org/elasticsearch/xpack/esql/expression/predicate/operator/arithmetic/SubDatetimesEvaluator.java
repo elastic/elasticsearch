@@ -71,10 +71,11 @@ public final class SubDatetimesEvaluator implements ExpressionEvaluator {
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (datetimeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (datetimeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

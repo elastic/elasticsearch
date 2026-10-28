@@ -100,7 +100,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
      * {@code StorageProviderRegistry} so both paths report the same message.
      */
     public static final String MANAGED_IDENTITY_DISABLED_MESSAGE =
-        "auth=managed_identity requires the [esql.datasource.managed_identity.enabled] cluster setting to be enabled; "
+        "auth=managed_identity requires the [esql.external.managed_identity.enabled] cluster setting to be enabled; "
             + "it is disabled by default — enable it only on single-cloud single-tenant deployments";
 
     protected FileDataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
@@ -192,6 +192,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
             }
         }
         validateCredentials(errors);
+        validateSettings(errors);
     }
 
     /**
@@ -209,6 +210,9 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
 
     /** Subclass hook for datasource-specific credential validation. */
     protected void validateCredentials(ValidationException errors) {}
+
+    /** Subclass hook for datasource-specific non-credential setting validation. */
+    protected void validateSettings(ValidationException errors) {}
 
     /**
      * Returns true when the configuration carries a <em>complete</em> static credential. The exact required field

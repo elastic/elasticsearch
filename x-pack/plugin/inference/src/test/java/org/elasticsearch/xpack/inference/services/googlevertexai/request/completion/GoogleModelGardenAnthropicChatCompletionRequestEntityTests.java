@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.inference.completion.Tool;
@@ -124,7 +124,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
             new Message(new ContentString(""), "assistant", null, List.of(toolCall)),
             new Message(new ContentString("72F and sunny"), "tool", "call_1", null)
         );
-        var unifiedRequest = new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        var unifiedRequest = new UnifiedCompletionRequestBody(messages, null, null, null, null, null, null, null);
         var entity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedRequest, false, EMPTY_SETTINGS);
         String actual;
         try (var builder = JsonXContent.contentBuilder()) {
@@ -232,7 +232,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         boolean stream,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) throws IOException {
-        var unifiedRequest = new UnifiedCompletionRequest(
+        var unifiedRequest = new UnifiedCompletionRequestBody(
             List.of(new Message(new ContentString(USER_MESSAGE_CONTENT), "user", null, null)),
             null,
             maxCompletionTokens,

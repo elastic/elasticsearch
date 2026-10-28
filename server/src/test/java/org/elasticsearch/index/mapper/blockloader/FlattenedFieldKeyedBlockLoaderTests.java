@@ -102,7 +102,7 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTest
                 || params.syntheticSource()
                 || params.isColumnarStored());
 
-        int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues
+        int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues && params.indexMode().isStrictColumnar() == false
             ? ((Number) fieldMapping.get("ignore_above")).intValue()
             : Integer.MAX_VALUE;
 

@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
@@ -55,7 +55,7 @@ public class SearchHitRamAccountingBenchmark {
     private static final int MAX_BATCH = 100_000;
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "0", "1", "10", "100", "1000" })

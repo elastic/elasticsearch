@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.EndpointClusterStateTests;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -480,13 +481,7 @@ public class ModelRegistryClusterStateMetadataTests extends AbstractChunkedSeria
             settings.dimensions(),
             settings.similarity(),
             settings.elementType(),
-            new EndpointMetadata(
-                settings.endpointMetadata().heuristics(),
-                internal,
-                settings.endpointMetadata().display(),
-                settings.endpointMetadata().regions(),
-                settings.endpointMetadata().deniedByRegionPolicy()
-            )
+            new EndpointMetadataClusterState(settings.endpointMetadata().heuristics(), internal)
         );
     }
 }

@@ -51,6 +51,19 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(opDocs.formatSectionTitle("Examples"), equalTo("**Examples**\n\n"));
     }
 
+    public void testSignatureStartsWithFirstParamWhenAllParamsAreOptional() {
+        List<EsqlFunctionRegistry.ArgSignature> args = List.of(
+            new EsqlFunctionRegistry.ArgSignature("field", new String[] { "keyword" }, "", true, false),
+            new EsqlFunctionRegistry.ArgSignature("bucket", new String[] { "double_range" }, "", true, false)
+        );
+        DocsV3Support.TypeSignature signature = new DocsV3Support.TypeSignature(
+            List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())),
+            DataType.LONG
+        );
+
+        assertThat(DocsV3Support.getFirstParametersIndexForSignature(args, signature), equalTo(0));
+    }
+
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";

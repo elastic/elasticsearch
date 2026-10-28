@@ -128,6 +128,11 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return valueOffsetsBuffer.getInt((long) getPositionCount() * Integer.BYTES) - valueOffsetsBuffer.getInt(0);
+    }
+
+    @Override
     public BytesRefBlock asBlock() {
         return new BytesRefArrowBufBlock(valueBuffer, valueOffsetsBuffer, null, null, positionCount, 0, blockFactory);
     }
@@ -175,26 +180,29 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
         try {
             newValues = allocator.buffer(totalBytes);
             newValueOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
+
+            int byteIdx = 0;
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
+                newValueOffsets.setInt((long) i * Integer.BYTES, byteIdx);
+                int srcStart = valueOffsetsBuffer.getInt((long) pos * Integer.BYTES);
+                int srcEnd = valueOffsetsBuffer.getInt((long) (pos + 1) * Integer.BYTES);
+                int byteLen = srcEnd - srcStart;
+                if (byteLen > 0) {
+                    newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
+                    byteIdx += byteLen;
+                }
+            }
+            newValueOffsets.setInt((long) length * Integer.BYTES, byteIdx);
+
+            var result = new BytesRefArrowBufVector(newValues, newValueOffsets, length, blockFactory);
             success = true;
+            return result;
         } finally {
             if (success == false) {
                 ArrowUtils.releaseBuffers(newValues, newValueOffsets);
             }
         }
-        int byteIdx = 0;
-        for (int i = 0; i < length; i++) {
-            int pos = positions[offset + i];
-            newValueOffsets.setInt((long) i * Integer.BYTES, byteIdx);
-            int srcStart = valueOffsetsBuffer.getInt((long) pos * Integer.BYTES);
-            int srcEnd = valueOffsetsBuffer.getInt((long) (pos + 1) * Integer.BYTES);
-            int byteLen = srcEnd - srcStart;
-            if (byteLen > 0) {
-                newValues.setBytes(byteIdx, valueBuffer, srcStart, byteLen);
-                byteIdx += byteLen;
-            }
-        }
-        newValueOffsets.setInt((long) length * Integer.BYTES, byteIdx);
-        return new BytesRefArrowBufVector(newValues, newValueOffsets, length, blockFactory);
     }
 
     @Override

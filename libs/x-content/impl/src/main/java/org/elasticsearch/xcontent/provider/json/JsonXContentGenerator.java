@@ -498,9 +498,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(xContentType) == false) {
             copyRawValue(stream, xContentType.xContent());
         } else {
-            if (generator.getOutputContext().getCurrentName() != null) {
+            JsonStreamContext context = generator.getOutputContext();
+            if (context.getCurrentName() != null) {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
+            } else if (context.inArray() && context.getEntryCount() > 0) {
+                // Raw bytes bypass Jackson's own value bookkeeping, which is what normally emits the separator between
+                // array elements, so it has to be written here for every element but the first one.
+                generator.writeRaw(',');
             }
             flush();
             Streams.copy(stream, os, false);
@@ -636,7 +641,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             generator.close();
         } catch (YAMLException e) {
             // ignore the SnakeYAML exception, our own structural check handles the same case
-            assert failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
+            assert allowIllFormed || failsStructuralCheck : "Should fail the structural check, but didn't: " + e.getMessage();
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;

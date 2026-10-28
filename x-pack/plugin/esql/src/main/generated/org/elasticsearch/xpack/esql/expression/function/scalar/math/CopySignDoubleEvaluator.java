@@ -71,10 +71,11 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleBlock magnitudeBlock, DoubleBlock signBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (magnitudeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (magnitudeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -82,10 +83,11 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (signBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (signBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

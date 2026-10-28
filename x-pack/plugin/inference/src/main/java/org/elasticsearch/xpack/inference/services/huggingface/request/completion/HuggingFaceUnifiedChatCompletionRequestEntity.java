@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface.request.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -39,7 +39,7 @@ public class HuggingFaceUnifiedChatCompletionRequestEntity implements ToXContent
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequestBody.withMaxTokens(modelId, params));
         builder.endObject();
 
         return builder;

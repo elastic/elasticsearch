@@ -19,6 +19,7 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -1518,6 +1519,41 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Creates a new setting instance for a {@link RatioValue}
+     */
+    public static Setting<RatioValue> ratioSetting(String key, RatioValue defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.formatNoTrailingZerosPercent(), RatioValue::parseRatioValue, properties);
+    }
+
+    /**
+     * Creates a new setting instance for a {@link RatioValue} with inclusive minimum and maximum values
+     */
+    public static Setting<RatioValue> ratioSetting(
+        String key,
+        RatioValue defaultValue,
+        RatioValue minValueInclusive,
+        RatioValue maxValueInclusive,
+        Property... properties
+    ) {
+        validateRatioBounds(minValueInclusive, maxValueInclusive);
+        return new Setting<>(
+            key,
+            defaultValue.formatNoTrailingZerosPercent(),
+            sValue -> RatioValue.parseRatioValue(sValue, minValueInclusive, maxValueInclusive),
+            properties
+        );
+    }
+
+    private static void validateRatioBounds(RatioValue lowerBoundInclusive, RatioValue upperBoundInclusive) {
+        if (lowerBoundInclusive.getAsPercent() < 0) {
+            throw new IllegalArgumentException("lowerBoundInclusive must be non-negative");
+        }
+        if (lowerBoundInclusive.getAsPercent() > upperBoundInclusive.getAsPercent()) {
+            throw new IllegalArgumentException("lowerBoundInclusive must be less than or equal to upperBoundInclusive");
+        }
+    }
+
+    /**
      * Creates a new Setting instance with a String value
      *
      * @param key          the settings key for this setting.
@@ -1660,6 +1696,15 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
         return new Setting<>(key, defaultValue, byteSizeParser(key), properties);
+    }
+
+    public static Setting<ByteSizeValue> byteSizeSetting(
+        String key,
+        Function<Settings, String> defaultValue,
+        Validator<ByteSizeValue> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, byteSizeParser(key), validator, properties);
     }
 
     private static Function<String, ByteSizeValue> byteSizeParser(String key) {

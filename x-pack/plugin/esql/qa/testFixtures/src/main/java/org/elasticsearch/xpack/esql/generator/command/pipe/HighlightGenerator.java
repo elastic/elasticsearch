@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -54,11 +53,7 @@ public class HighlightGenerator implements CommandGenerator {
         { "order", "\"none\"", "\"score\"" },
         { "no_match_size", "0", "30", "100", "200" },
         // max_analyzed_offset must be a positive integer or -1 (0 is invalid).
-        { "max_analyzed_offset", "-1", "100", "1000" },
-        // Accepted for Query DSL parity but no-ops for the unified highlighter HIGHLIGHT uses.
-        { "boundary_chars", "\".,!?\"" },
-        { "boundary_max_scan", "10", "20" },
-        { "phrase_limit", "128", "256" } };
+        { "max_analyzed_offset", "-1", "100", "1000" } };
 
     @Override
     public CommandDescription generate(
@@ -68,10 +63,6 @@ public class HighlightGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled() == false) {
-            return EMPTY_DESCRIPTION;
-        }
-
         List<Column> stringColumns = previousOutput.stream()
             .filter(HighlightGenerator::isStringField)
             .filter(HighlightGenerator::canPrefix)

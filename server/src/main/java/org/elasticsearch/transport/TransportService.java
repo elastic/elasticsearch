@@ -72,6 +72,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -290,11 +291,13 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private static TransportMessageListener[] createDelegatedMessageListeners(
+        TransportActionMetrics actionMetrics,
         List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
     ) {
-        return transportMessageListenerProviders.stream()
-            .flatMap(provider -> provider.create().stream())
-            .toArray(TransportMessageListener[]::new);
+        return Stream.concat(
+            Stream.of(actionMetrics),
+            transportMessageListenerProviders.stream().flatMap(provider -> provider.create().stream())
+        ).toArray(TransportMessageListener[]::new);
     }
 
     @SuppressWarnings("this-escape")
@@ -323,7 +326,10 @@ public class TransportService extends AbstractLifecycleComponent
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         this.taskManager = taskManger;
         this.interceptor = transportInterceptor;
-        this.delegatedMessageListeners = createDelegatedMessageListeners(transportMessageListenerProviders);
+        this.delegatedMessageListeners = createDelegatedMessageListeners(
+            new TransportActionMetrics(telemetryProvider.getMeterRegistry()),
+            transportMessageListenerProviders
+        );
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
@@ -820,6 +826,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     @Override
     public <T extends TransportResponse> void sendRequest(
@@ -847,6 +856,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public final <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
@@ -916,6 +928,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      *
      * @param connection the connection to send the request on
      * @param action     the name of the action
@@ -1010,6 +1025,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public final <T extends TransportResponse> void sendChildRequest(
         final DiscoveryNode node,
@@ -1042,6 +1060,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,
@@ -1070,6 +1091,9 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
+     * connections by default so all such network disruptions are detected within bounded time.
      */
     public <T extends TransportResponse> void sendChildRequest(
         final Transport.Connection connection,
@@ -1213,8 +1237,9 @@ public class TransportService extends AbstractLifecycleComponent
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
         final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this);
         try {
-            onRequestSent(localNode, requestId, action, request, options);
-            onRequestReceived(requestId, action);
+            // the request is not sent over the network, so there is no network message size
+            onRequestSent(localNode, requestId, action, request, options, -1);
+            onRequestReceived(requestId, action, -1);
             @SuppressWarnings("unchecked")
             final RequestHandlerRegistry<TransportRequest> reg = (RequestHandlerRegistry<TransportRequest>) getRequestHandler(action);
             if (reg == null) {
@@ -1404,7 +1429,7 @@ public class TransportService extends AbstractLifecycleComponent
      * any parsing of it has happened (with the exception of the requestId and action)
      */
     @Override
-    public void onRequestReceived(long requestId, String action) {
+    public void onRequestReceived(long requestId, String action, int networkMessageSize) {
         if (handleIncomingRequests == false) {
             throw new TransportNotReadyException();
         }
@@ -1412,7 +1437,7 @@ public class TransportService extends AbstractLifecycleComponent
             tracerLog.trace("[{}][{}] received request", requestId, action);
         }
         for (TransportMessageListener listener : delegatedMessageListeners) {
-            listener.onRequestReceived(requestId, action);
+            listener.onRequestReceived(requestId, action, networkMessageSize);
         }
     }
 
@@ -1425,13 +1450,14 @@ public class TransportService extends AbstractLifecycleComponent
         long requestId,
         String action,
         TransportRequest request,
-        TransportRequestOptions options
+        TransportRequestOptions options,
+        int networkMessageSize
     ) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
         }
         for (TransportMessageListener listener : delegatedMessageListeners) {
-            listener.onRequestSent(node, requestId, action, request, options);
+            listener.onRequestSent(node, requestId, action, request, options, networkMessageSize);
         }
     }
 
@@ -1452,12 +1478,12 @@ public class TransportService extends AbstractLifecycleComponent
      * called by the {@link Transport} implementation once a response was sent to calling node
      */
     @Override
-    public void onResponseSent(long requestId, String action) {
+    public void onResponseSent(long requestId, String action, int networkMessageSize) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
         for (TransportMessageListener listener : delegatedMessageListeners) {
-            listener.onResponseSent(requestId, action);
+            listener.onResponseSent(requestId, action, networkMessageSize);
         }
     }
 
@@ -1465,12 +1491,12 @@ public class TransportService extends AbstractLifecycleComponent
      * called by the {@link Transport} implementation after an exception was sent as a response to an incoming request
      */
     @Override
-    public void onResponseSent(long requestId, String action, Exception e) {
+    public void onResponseSent(long requestId, String action, Exception e, int networkMessageSize) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace(() -> format("[%s][%s] sent error response", requestId, action), e);
         }
         for (TransportMessageListener listener : delegatedMessageListeners) {
-            listener.onResponseSent(requestId, action, e);
+            listener.onResponseSent(requestId, action, e, networkMessageSize);
         }
     }
 
@@ -1713,7 +1739,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            service.onResponseSent(requestId, action);
+            service.onResponseSent(requestId, action, -1);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
@@ -1760,7 +1786,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(Exception exception) {
-            service.onResponseSent(requestId, action, exception);
+            service.onResponseSent(requestId, action, exception, -1);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop

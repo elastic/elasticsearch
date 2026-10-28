@@ -133,6 +133,33 @@ public class RailRoadDiagramTests extends ESTestCase {
         }
     }
 
+    public void testJsonString() {
+        var definition = TEST_FUNCTION_REGISTRY.resolveFunction("json_string");
+        var rails = RailRoadDiagram.svgSequence(definition);
+        var expressions = rails.getExpressions();
+        var strings = Arrays.stream(expressions).map(Object::toString).toList();
+        var expected = List.of("(? JSON_STRING ?)", "'('", "'key' ',' 'value' { 'key' ',' 'value' }", "')'");
+        assertThat("JSON_STRING expression count", expressions.length, equalTo(expected.size()));
+        for (int i = 0; i < expected.size(); i++) {
+            assertThat("expression " + i, expressions[i].toString(), equalTo(expected.get(i)));
+        }
+        assertThat("First expression is a sequence", expressions[0], instanceOf(SpecialSequence.class));
+        assertThat("Third expression is a repetition", expressions[2], instanceOf(Repetition.class));
+        var repetition = (Repetition) expressions[2];
+        assertThat("Repetition min", repetition.getMinRepetitionCount(), equalTo(1));
+        assertThat("Repetition max", repetition.getMaxRepetitionCount(), equalTo(null));
+        var inner = repetition.getExpression();
+        assertThat("Repetition inner is a sequence", inner, instanceOf(Sequence.class));
+        var innerSeq = (Sequence) inner;
+        var innerExpressions = innerSeq.getExpressions();
+        var innerExpected = List.of("'key'", "','", "'value'");
+        assertThat("Repetition inner expression count", innerExpressions.length, equalTo(innerExpected.size()));
+        for (int i = 0; i < innerExpected.size(); i++) {
+            assertThat("Repetition inner expression " + i, innerExpressions[i].toString(), equalTo(innerExpected.get(i)));
+        }
+        assertThat(strings, equalTo(expected));
+    }
+
     public void testCoalesce() {
         var definition = TEST_FUNCTION_REGISTRY.resolveFunction("coalesce");
         var rails = RailRoadDiagram.svgSequence(definition);

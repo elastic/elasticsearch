@@ -28,4 +28,13 @@ import java.lang.annotation.Target;
 public @interface InlineStringField {
     /** Total byte length of the fixed-size character array (including any NUL terminator). Must be positive. */
     int length();
+
+    /**
+     * Whether the field is UTF-16LE-encoded (e.g. a Windows {@code WCHAR name[N]}) rather than
+     * the implicit UTF-8 default (e.g. a POSIX {@code char name[N]}). {@link #length()} stays in
+     * bytes in both cases, matching the underlying struct layout; when {@code wide} is {@code
+     * true}, {@code length} must be even, since each UTF-16LE code unit is 2 bytes and the field
+     * must also hold a 2-byte NUL terminator.
+     */
+    boolean wide() default false;
 }

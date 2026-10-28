@@ -107,7 +107,7 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                new ActionFilters(Set.of()),
+                ActionFilters.EMPTY,
                 healthInfoCache
             ),
             null,

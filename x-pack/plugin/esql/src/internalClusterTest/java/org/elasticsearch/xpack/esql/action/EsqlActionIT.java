@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -61,9 +63,13 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.Before;
@@ -89,6 +95,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -105,6 +112,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -116,6 +127,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -123,6 +135,23 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
+
+    // Column indices for EXPLAIN output rows — derived from Explain.OUTPUT_ATTRIBUTES so any
+    // reordering of the attribute list breaks here at class-load time rather than silently.
+    private static final int EXPLAIN_COL_CLUSTER = explainColIndex("cluster");
+    private static final int EXPLAIN_COL_NODE = explainColIndex("node");
+    private static final int EXPLAIN_COL_ROLE = explainColIndex("role");
+    private static final int EXPLAIN_COL_TYPE = explainColIndex("type");
+    private static final int EXPLAIN_COL_PLAN = explainColIndex("plan");
+
+    private static int explainColIndex(String name) {
+        for (int i = 0; i < Explain.OUTPUT_ATTRIBUTES.size(); i++) {
+            if (name.equals(Explain.OUTPUT_ATTRIBUTES.get(i).name())) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("No column named '" + name + "' in EXPLAIN output attributes");
+    }
 
     @Before
     public void setupIndex() throws IOException {
@@ -2149,6 +2178,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testQueryEmptyWithEval() {
+        try (EsqlQueryResponse resp = run("FROM none* | EVAL f1 = 1")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("f1", "integer", null))));
+            assertFalse(resp.values().hasNext());
+        }
+    }
+
     public void testGroupingStatsOnMissingFields() {
         assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
@@ -2381,6 +2417,61 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testMaxFillNullFieldsSetting() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 1));
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("from test | fillnull 0 on *"));
+            assertThat(
+                e.getMessage(),
+                containsString("exceeding the limit of 1 set by the [esql.query.max_fillnull_fields] cluster setting")
+            );
+            try (EsqlQueryResponse results = run("from test | fillnull 0 on count | keep count | limit 1")) {
+                assertThat(results.columns(), hasSize(1));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+        }
+    }
+
+    public void testMaxFillNullFieldsSettingWithView() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+        String viewName = "fillnull_view";
+        String query = "FROM " + viewName + " | FILLNULL 0 ON count, data";
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View(viewName, "FROM test | FILLNULL 0 ON count, data")
+                )
+            )
+        );
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 3));
+            var e = expectThrows(VerificationException.class, () -> run(query));
+            assertThat(e.getMessage(), allOf(containsString("FILLNULL would fill 4 columns"), containsString("exceeding the limit of 3")));
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 4));
+            try (EsqlQueryResponse results = run(query + " | KEEP count, data | LIMIT 1")) {
+                assertThat(results.columns(), hasSize(2));
+            }
+        } finally {
+            try {
+                clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+            } finally {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                    )
+                );
+            }
         }
     }
 
@@ -2724,9 +2815,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
             String explainLocalPhysicalPlan = null;
             for (List<Object> row : values) {
-                String role = (String) row.get(2);
-                String type = (String) row.get(3);
-                String plan = (String) row.get(4);
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                 if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                     explainLocalPhysicalPlan = plan;
@@ -2826,6 +2917,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             // Verify we have rows with plan information (ROW doesn't need data nodes)
             List<List<Object>> values = getValuesList(results);
             assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // The node column must contain an actual node name for local-cluster rows.
+            // Remote-cluster rows (cluster != "") are excluded: this test has no CCS setup.
+            Set<String> nodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+            for (List<Object> row : values) {
+                if ("".equals(row.get(EXPLAIN_COL_CLUSTER))) {
+                    assertThat("node column should be a valid cluster node", nodeNames, hasItem((String) row.get(EXPLAIN_COL_NODE)));
+                }
+            }
         }
     }
 
@@ -2888,10 +2988,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 String localPlanNodeName = null;
 
                 for (List<Object> row : values) {
-                    String node = (String) row.get(1);
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String node = (String) row.get(EXPLAIN_COL_NODE);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                         explainLocalPhysicalPlan = plan;
@@ -2983,9 +3083,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -3055,11 +3155,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3127,9 +3222,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 int dataNodePlanCount = 0;
 
                 for (List<Object> row : values) {
-                    String role = (String) row.get(2);
-                    String type = (String) row.get(3);
-                    String plan = (String) row.get(4);
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    String plan = (String) row.get(EXPLAIN_COL_PLAN);
 
                     if ("coordinator".equals(role)) {
                         if ("parsedPlan".equals(type)) {
@@ -3199,11 +3294,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3218,6 +3308,180 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             } catch (Exception e) {
                 // ignore
             }
+        }
+    }
+
+    /**
+     * EXPLAIN of a query with an IN subquery in WHERE. Regression test for EXPLAIN crashing with
+     * "Unsupported expression" on such queries. The IN subquery executes as subplan-0 (SemiJoin
+     * phase); on data nodes {@code ExplainPlanTransformer.replaceDataSourcesWithEmpty} substitutes
+     * empty {@code LocalSourceExec} for real data sources, so the subquery returns no rows. That
+     * empty result is inlined into the main plan, the SemiJoin is resolved, and the main plan is
+     * rebuilt, producing a meaningful optimizedPhysicalPlan row.
+     */
+    public void testExplainWithInSubquery() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("IN subquery requires the capability to be enabled", WHERE_IN_SUBQUERY.isEnabled());
+
+        String query = "FROM test | WHERE data IN (FROM test | STATS m = MAX(data) | KEEP m) | KEEP data";
+        try (EsqlQueryResponse results = run("EXPLAIN (" + query + ")")) {
+            List<List<Object>> values = getValuesList(results);
+
+            Set<String> coordinatorTypes = new HashSet<>();
+            Set<String> subplan0Types = new HashSet<>();
+            boolean hasDataNodePlan = false;
+            String subplanLogical = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                if ("coordinator".equals(role)) {
+                    coordinatorTypes.add(type);
+                } else if ("subplan-0".equals(role)) {
+                    subplan0Types.add(type);
+                    if ("logicalPlan".equals(type)) {
+                        subplanLogical = (String) row.get(EXPLAIN_COL_PLAN);
+                    }
+                } else if ("data".equals(role)) {
+                    hasDataNodePlan = true;
+                }
+            }
+
+            // The optimizedPhysicalPlan row now shows the post-substitution plan: after the IN
+            // subquery runs and its (empty, in explain mode) result is inlined, the SemiJoin is
+            // resolved and the remaining main plan is physically mapped.
+            assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+            assertThat(subplan0Types, hasItems("logicalPlan", "physicalPlan"));
+            assertNotNull("subplan-0 logicalPlan row should be present", subplanLogical);
+            assertThat("Subplan should be the IN subquery aggregation", subplanLogical, containsString("MAX"));
+            assertTrue("EXPLAIN with IN subquery should include data node plans", hasDataNodePlan);
+        }
+    }
+
+    /**
+     * EXPLAIN of a query with two chained INLINE STATS: both executed subplans must be reported, in
+     * execution order (bottom-up). Regression test for only the first subplan being captured.
+     */
+    public void testExplainWithChainedInlineStats() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+
+        String query = "FROM test | INLINE STATS m = MAX(data) BY color | INLINE STATS s = SUM(count) BY color";
+        try (EsqlQueryResponse results = run("EXPLAIN (" + query + ")")) {
+            List<List<Object>> values = getValuesList(results);
+
+            Set<String> coordinatorTypes = new HashSet<>();
+            Set<String> subplan0Types = new HashSet<>();
+            Set<String> subplan1Types = new HashSet<>();
+            String optimizedLogicalPlan = null;
+            String subplan0Logical = null;
+            String subplan1Logical = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(EXPLAIN_COL_ROLE);
+                String type = (String) row.get(EXPLAIN_COL_TYPE);
+                switch (role) {
+                    case "coordinator" -> {
+                        coordinatorTypes.add(type);
+                        if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "subplan-0" -> {
+                        subplan0Types.add(type);
+                        if ("logicalPlan".equals(type)) {
+                            subplan0Logical = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "subplan-1" -> {
+                        subplan1Types.add(type);
+                        if ("logicalPlan".equals(type)) {
+                            subplan1Logical = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                    case "data", "node_reduce", "final" -> {
+                        // covered by other tests
+                    }
+                    default -> fail("unexpected role: " + role);
+                }
+            }
+
+            // InlineJoin is mappable as a whole, so the whole-plan physical row is present
+            assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+            // optimizedLogicalPlan is captured pre-execution: it legitimately contains InlineJoin
+            // with StubRelation placeholders (not yet resolved). This is intentional — it shows the
+            // logical plan after optimization, before any subplan runs.
+            assertNotNull("optimizedLogicalPlan row should be present", optimizedLogicalPlan);
+            assertThat(
+                "optimizedLogicalPlan should show pre-execution InlineJoin structure",
+                optimizedLogicalPlan,
+                containsString("InlineJoin")
+            );
+            assertThat(subplan0Types, hasItems("logicalPlan", "physicalPlan"));
+            assertThat(subplan1Types, hasItems("logicalPlan", "physicalPlan"));
+            // Subplans execute bottom-up: the first INLINE STATS (MAX) runs before the second (SUM)
+            assertNotNull("subplan-0 logicalPlan row should be present", subplan0Logical);
+            assertThat("First executed subplan should be the MAX aggregation", subplan0Logical, containsString("MAX"));
+            assertNotNull("subplan-1 logicalPlan row should be present", subplan1Logical);
+            assertThat("Second executed subplan should be the SUM aggregation", subplan1Logical, containsString("SUM"));
+        }
+    }
+
+    /**
+     * EXPLAIN of a query that reads from a view. Regression test for EXPLAIN silently skipping view
+     * resolution: {@code Explain} was a {@code LeafPlan} with the inner query as a field rather than
+     * a child, so {@code viewResolver.replaceViews} never descended into it and the
+     * {@code UnresolvedRelation} survived into analysis, causing a resolution failure.
+     * After the fix, the view is resolved and the optimizedLogicalPlan shows the underlying index.
+     */
+    public void testExplainWithView() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EXPLAIN.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+
+        String viewName = "explain_view_" + randomAlphaOfLength(4).toLowerCase(java.util.Locale.ROOT);
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(viewName, "FROM test | KEEP data"))
+            )
+        );
+        try {
+            try (EsqlQueryResponse results = run("EXPLAIN (FROM " + viewName + " | STATS count = COUNT(*))")) {
+                List<List<Object>> values = getValuesList(results);
+
+                Set<String> coordinatorTypes = new HashSet<>();
+                String optimizedLogicalPlan = null;
+                String parsedPlan = null;
+                for (List<Object> row : values) {
+                    String role = (String) row.get(EXPLAIN_COL_ROLE);
+                    String type = (String) row.get(EXPLAIN_COL_TYPE);
+                    if ("coordinator".equals(role)) {
+                        coordinatorTypes.add(type);
+                        if ("optimizedLogicalPlan".equals(type)) {
+                            optimizedLogicalPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        } else if ("parsedPlan".equals(type)) {
+                            parsedPlan = (String) row.get(EXPLAIN_COL_PLAN);
+                        }
+                    }
+                }
+
+                assertThat(coordinatorTypes, hasItems("parsedPlan", "optimizedLogicalPlan", "optimizedPhysicalPlan"));
+                // parsedPlan shows the view as an UnresolvedRelation (before view resolution)
+                assertNotNull("parsedPlan row should be present", parsedPlan);
+                assertThat("parsedPlan should reference the view by name", parsedPlan, containsString(viewName));
+                // optimizedLogicalPlan shows the resolved view — the underlying 'test' index is visible
+                assertNotNull("optimizedLogicalPlan row should be present", optimizedLogicalPlan);
+                assertThat(
+                    "optimizedLogicalPlan should show the resolved view body (underlying index)",
+                    optimizedLogicalPlan,
+                    containsString("test")
+                );
+            }
+        } finally {
+            assertAcked(
+                client().execute(
+                    DeleteViewAction.INSTANCE,
+                    new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                )
+            );
         }
     }
 
@@ -3264,6 +3528,86 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testSingleNodeAggregationOptimization() {
+        BiFunction<EsqlQueryResponse.Profile, String, Integer> partitionedBlocksReceived = (profile, driverDescription) -> {
+            int received = 0;
+            for (DriverProfile driver : profile.drivers()) {
+                if (driver.description().contains(driverDescription) == false) {
+                    continue;
+                }
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof HashAggregationOperator.Status status) {
+                        for (var extra : status.extraFields()) {
+                            if (extra instanceof ParallelHashAggregationOperator.PartitioningStatus partitioning) {
+                                received += partitioning.partitionedBlocksReceived();
+                            }
+                        }
+                    }
+                }
+            }
+            return received;
+        };
+
+        var dataNode = randomDataNode().getName();
+        String indexName = "single-node-index";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", dataNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                )
+                .setMapping("long_key", "type=long", "int_key", "type=integer")
+        );
+        int numDocs = between(2000, 5000);
+        Map<List<Object>, Long> expected = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            long longKey = between(0, 200);
+            int intKey = between(0, 100);
+            expected.merge(List.of(longKey, intKey), 1L, Long::sum);
+            bulk.add(new IndexRequest(indexName).id("doc-" + i).source("long_key", longKey, "int_key", intKey));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        var request = EsqlQueryRequest.syncEsqlQueryRequest(
+            "FROM single-node-index | STATS c = COUNT(*) BY long_key, int_key | LIMIT " + numDocs
+        );
+        request.profile(true);
+        request.acceptedPragmaRisks(true);
+        int partitioningThreshold = between(expected.size() / 4, expected.size() * 3 / 4);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), partitioningThreshold)
+                    .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 1)
+                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                    .build()
+            )
+        );
+        try (var resp = client(dataNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), greaterThan(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual.size(), equalTo(expected.size()));
+        }
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        var otherNode = randomValueOtherThan(dataNode, () -> randomDataNode().getName());
+        try (var resp = client(otherNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), equalTo(0));
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "node_reduce"), equalTo(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual, equalTo(expected));
         }
     }
 }

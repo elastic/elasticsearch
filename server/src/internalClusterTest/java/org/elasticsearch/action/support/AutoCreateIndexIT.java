@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -64,11 +65,7 @@ public class AutoCreateIndexIT extends ESIntegTestCase {
 
         assertBusy(
             () -> assertThat(
-                masterNodeClusterService.getMasterService()
-                    .pendingTasks()
-                    .stream()
-                    .map(pendingClusterTask -> pendingClusterTask.getSource().string())
-                    .toList(),
+                masterNodeClusterService.getMasterService().pendingTasks().stream().map(PendingClusterTask::getSource).toList(),
                 hasItems("auto create [no-dot]", "auto create [.has-dot]")
             )
         );

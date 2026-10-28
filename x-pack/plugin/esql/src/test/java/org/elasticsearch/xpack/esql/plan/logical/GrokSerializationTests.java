@@ -46,4 +46,9 @@ public class GrokSerializationTests extends AbstractLogicalPlanSerializationTest
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    public void testOutputIsCached() {
+        LogicalPlan plan = createTestInstance().replaceChild(EsRelationSerializationTests.randomEsRelation());
+        assertSame(plan.output(), plan.output());
+    }
 }

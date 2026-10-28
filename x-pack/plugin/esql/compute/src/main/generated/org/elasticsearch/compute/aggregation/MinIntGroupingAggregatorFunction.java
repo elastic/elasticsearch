@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -37,7 +38,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   MinIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new IntArrayState(driverContext.bigArrays(), MinIntAggregator.init());
+    this.state = new IntArrayState(driverContext.bigArrays(), driverContext.breaker(), MinIntAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -126,7 +127,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+          MinIntAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -143,7 +144,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        MinIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -190,7 +191,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), min.getInt(valuesPosition)));
+          MinIntAggregator.combine(state, groupId, min.getInt(valuesPosition));
         }
       }
     }
@@ -213,7 +214,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           int vValue = vBlock.getInt(vOffset);
-          state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+          MinIntAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -230,7 +231,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int vValue = vVector.getInt(valuesPosition);
-        state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        MinIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -277,7 +278,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), min.getInt(valuesPosition)));
+          MinIntAggregator.combine(state, groupId, min.getInt(valuesPosition));
         }
       }
     }
@@ -294,7 +295,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         int vValue = vBlock.getInt(vOffset);
-        state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+        MinIntAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -304,7 +305,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       int vValue = vVector.getInt(valuesPosition);
-      state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), vValue));
+      MinIntAggregator.combine(state, groupId, vValue);
     }
   }
 
@@ -344,7 +345,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MinIntAggregator.combine(state.getOrDefault(groupId), min.getInt(valuesPosition)));
+        MinIntAggregator.combine(state, groupId, min.getInt(valuesPosition));
       }
     }
   }
@@ -394,6 +395,47 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
     blocks[offset] = state.toValuesBlock(selectedInPage, driverContext);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    if (length == 0) {
+      return;
+    }
+    int[] values = state.partitionValues(source, partition);
+    boolean[] seen = state.partitionSeen(source, partition);
+    if (seen == null) {
+      if (appendOnly) {
+        state.appendPartition(values, dstIds[0], length);
+      } else {
+        for (int i = 0; i < length; i++) {
+          MinIntAggregator.combine(state, dstIds[i], values[i]);
+        }
+      }
+      return;
+    }
+    for (int i = 0; i < length; i++) {
+      if (seen[i]) {
+        MinIntAggregator.combine(state, dstIds[i], values[i]);
+      }
+    }
   }
 
   @Override

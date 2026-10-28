@@ -10,17 +10,22 @@ package org.elasticsearch.xpack.core.security.authc.service;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * An account that authenticates with a service account token instead of a password.
+ * <p>
+ * There are two kinds, distinguished by how their privileges are determined. Built-in accounts live in the reserved
+ * {@link ServiceAccountSettings#BUILTIN_NAMESPACE} namespace and carry a compile-time role descriptor; see
+ * {@link BuiltInServiceAccount}. User-managed accounts are created through the API and are authorized by the named
+ * roles recorded on {@link #asUser()}, resolved by the role stores like any other user's roles.
+ */
 public interface ServiceAccount {
 
     ServiceAccountId id();
-
-    RoleDescriptor roleDescriptor();
 
     User asUser();
 

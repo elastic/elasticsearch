@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.xcontent;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -88,6 +90,74 @@ public class XContentUtilsTests extends ESTestCase {
         assertThat(json, equalTo("{\"authorization\":{\"service_account\":\"" + account + "\"}}"));
     }
 
+    /**
+     * A built-in account's privileges follow from its principal, but a user-managed account's follow from the role
+     * names snapshotted onto it, so the principal alone would not say what the background service may do.
+     */
+    public void testAddAuthorizationInfoWithUserManagedServiceAccount() throws IOException {
+        final String account = "apps/" + randomAlphaOfLengthBetween(3, 8);
+        final String[] roles = randomArray(1, 3, String[]::new, () -> "role_" + randomAlphaOfLengthBetween(3, 8));
+        final Authentication authentication = AuthenticationTestHelper.builder().userManagedServiceAccount(account, roles).build();
+        final String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(json, equalTo("{\"authorization\":{\"service_account\":\"" + account + "\",\"roles\":" + jsonStringArray(roles) + "}}"));
+    }
+
+    public void testAddAuthorizationInfoWithCloudServiceAccount() throws IOException {
+        final String serviceAccountId = randomAlphanumericOfLength(20);
+        final List<String> limitedByRoleNames = randomBoolean() ? null : AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = AuthenticationTestHelper.randomCloudServiceAccountAuthentication(
+            serviceAccountId,
+            limitedByRoleNames
+        );
+        final String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(
+            json,
+            equalTo(
+                "{\"authorization\":{\"cloud_service_account\":{\"id\":\""
+                    + serviceAccountId
+                    + "\",\"roles\":"
+                    + jsonStringArray(authentication.getEffectiveSubject().getUser().roles())
+                    + expectedLimitedByRoles(limitedByRoleNames)
+                    + "}}}"
+            )
+        );
+    }
+
+    /**
+     * Authorization ANDs the cloud identity provider's cap with the subject's assigned roles, so reporting only the
+     * latter would overstate the permissions a background service runs with. The cap can be attached to a cloud user
+     * token, which authenticates through an ordinary realm and so presents as a plain user subject.
+     */
+    public void testAddAuthorizationInfoWithCloudUserLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final Authentication authentication = AuthenticationTestHelper.randomCloudUserAuthentication(limitedByRoleNames);
+        final String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(
+            json,
+            equalTo(
+                "{\"authorization\":{\"roles\":"
+                    + jsonStringArray(authentication.getEffectiveSubject().getUser().roles())
+                    + expectedLimitedByRoles(limitedByRoleNames)
+                    + "}}"
+            )
+        );
+    }
+
+    public void testAddAuthorizationInfoWithCloudApiKeyLimitedByRoles() throws IOException {
+        final List<String> limitedByRoleNames = AuthenticationTestHelper.randomCloudLimitedByRoleNames();
+        final User user = AuthenticationTestHelper.randomCloudApiKeyUser();
+        final Authentication authentication = AuthenticationTestHelper.randomCloudApiKeyAuthentication(
+            user,
+            user.principal(),
+            limitedByRoleNames
+        );
+        final String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(
+            json,
+            containsString("\"roles\":" + jsonStringArray(user.roles()) + ",\"limited_by_roles\":" + jsonStringArray(limitedByRoleNames))
+        );
+    }
+
     public void testAddAuthorizationInfoWithCrossClusterAccess() throws IOException {
         final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final var apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_NAME_KEY);
@@ -130,6 +200,18 @@ public class XContentUtilsTests extends ESTestCase {
     public void testAddAuthorizationInfoWithCorruptData() throws IOException {
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, "corrupt"));
         assertThat(json, equalTo("{}"));
+    }
+
+    private static String jsonStringArray(String... values) {
+        return Arrays.stream(values).collect(Collectors.joining("\",\"", "[\"", "\"]"));
+    }
+
+    private static String jsonStringArray(List<String> values) {
+        return jsonStringArray(values.toArray(String[]::new));
+    }
+
+    private static String expectedLimitedByRoles(@Nullable List<String> limitedByRoleNames) {
+        return limitedByRoleNames == null ? "" : ",\"limited_by_roles\":" + jsonStringArray(limitedByRoleNames);
     }
 
     private String generateJson(Map<String, String> headers) throws IOException {

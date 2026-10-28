@@ -11,12 +11,16 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,13 +39,17 @@ import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -62,6 +70,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -146,8 +155,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
-        return new LookupResponse(in, blockFactory);
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
+        return new LookupResponse(in, blockFactory, threadContext);
     }
 
     private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
@@ -272,7 +281,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         }
     }
 
-    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+    static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Gated behind the same transport version as the per-driver warnings feature (DriverCompletionInfo#warnings).
         private static final TransportVersion ESQL_LOOKUP_RESPONSE_WARNINGS = TransportVersion.fromName("esql_driver_warnings");
 
@@ -287,7 +296,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.warnings = warnings == null ? List.of() : warnings;
         }
 
-        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        LookupResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
             super(blockFactory);
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
@@ -295,7 +304,17 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
                 ? in.readVLong()
                 : 0L;
-            this.warnings = in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS) ? in.readStringCollectionAsList() : List.of();
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_RESPONSE_WARNINGS)) {
+                this.warnings = in.readStringCollectionAsList();
+            } else {
+                // Old nodes send warnings as transport response headers; the transport layer has already
+                // deposited them into the current thread's context before this constructor is called.
+                // Parse the RFC 7234 warning format to extract the plain warning text.
+                this.warnings = threadContext.takeResponseHeaders("Warning")
+                    .stream()
+                    .map(s -> HeaderWarning.decodeAndUnescape(HeaderWarning.extractWarningValueFromWarningHeader(s, false)))
+                    .toList();
+            }
         }
 
         @Override
@@ -344,6 +363,19 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        Map<String, EnrichPolicy> policies = project.custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY).getPolicies();
+        // The lookup below runs with the enrich origin rather than as the user, so restrict it to the
+        // indices it exists to read: those created for a local enrich policy.
+        if (isEnrichPolicyIndex(policies, project.index(transportRequest.shardId.getIndex())) == false) {
+            delegate.onFailure(
+                Exceptions.authorizationError(
+                    "enrich lookup on index [{}] is not allowed; it is not the index of an enrich policy",
+                    transportRequest.shardId.getIndexName()
+                )
+            );
+            return;
+        }
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
             delegate,
@@ -356,6 +388,24 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 super.sendChildRequest(parentTask, l, targetNode, transportRequest);
             }
         }));
+    }
+
+    /**
+     * Whether {@code index} is an index that the enrich policy runner built for one of {@code policies}. The policy is read from
+     * the {@code _meta} of the index's mapping rather than parsed from the index name, because the system index migration renames
+     * enrich indices (appending {@link SystemIndices#UPGRADED_INDEX_SUFFIX}) but copies their mappings. The {@code .enrich-}
+     * prefix is still required, so that an index outside the enrich namespace can't pass by carrying the same {@code _meta}.
+     */
+    static boolean isEnrichPolicyIndex(Map<String, EnrichPolicy> policies, @Nullable IndexMetadata index) {
+        if (index == null || index.getIndex().getName().startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE) == false) {
+            return false;
+        }
+        MappingMetadata mapping = index.mapping();
+        if (mapping == null) {
+            return false;
+        }
+        Object policyName = ObjectPath.eval("_meta." + EnrichPolicy.ENRICH_POLICY_NAME_FIELD_NAME, mapping.getSourceAsMap());
+        return policyName instanceof String name && policies.containsKey(name);
     }
 
     protected void hasEnrichPrivilege(ActionListener<Void> outListener) {

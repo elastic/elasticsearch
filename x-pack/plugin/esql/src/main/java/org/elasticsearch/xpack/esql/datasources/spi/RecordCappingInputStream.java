@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Stream wrapper that enforces the {@code max_record_size} byte cap on every record without
+ * Stream wrapper that enforces the {@code external_max_record_size} byte cap on every record without
  * decoding characters or visiting bytes outside the bulk-read fast path. The byte counter starts at
  * zero, accumulates every byte (including line terminators), and resets when an unquoted record
  * terminator is observed: {@code '\n'}, {@code '\r'}, or {@code '\r\n'}. The cap matches the
@@ -54,9 +54,9 @@ public abstract class RecordCappingInputStream extends FilterInputStream {
     }
 
     /**
-     * Format-specific exception thrown when a record exceeds the byte cap. Subclasses should return
-     * an exception with the same {@code "record exceeded max_record_size [N]"} message shape used by
-     * the matching record splitter so log lines stay consistent across enforcement points.
+     * Format-specific exception thrown when a record exceeds the byte cap. Subclasses should return an exception
+     * whose message starts {@code "record exceeds [<size>]"}, the size rendered as a {@code ByteSizeValue}, so the
+     * formats report the same event the same way across enforcement points.
      */
     protected abstract IOException recordTooLarge();
 

@@ -284,3 +284,32 @@
         local: true
 
   - exists: component_templates
+
+---
+"PUT component template with duplicate dynamic template names emits a warning":
+  - requires:
+      cluster_features: [ "mapper.dynamic_template.warn_on_duplicate_names" ]
+      reason: duplicate dynamic template name warning was added
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Dynamic template [my_template] in template [test-dup-dynamic-templates] is defined more than once. It is not defined which of the duplicate definitions takes effect. Defining multiple dynamic templates with the same name will be rejected in a future version."
+      cluster.put_component_template:
+        name: test-dup-dynamic-templates
+        body:
+          template:
+            mappings:
+              dynamic_templates:
+                - my_template:
+                    match: "foo_*"
+                    mapping:
+                      type: keyword
+                - my_template:
+                    match: "bar_*"
+                    mapping:
+                      type: text
+
+  - do:
+      cluster.delete_component_template:
+        name: test-dup-dynamic-templates

@@ -20,13 +20,18 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.DatasetIdentity;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
@@ -71,7 +76,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
     @Before
     public void initBlockFactory() {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     @After
@@ -147,7 +152,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     /**
      * Byte-array cap-drop safe-miss (mirrors CSV's {@code testMaxRecordSizeDropSafeMissesStripeCapture}).
      * On the recordAligned (byte-array) path an oversized record is dropped and decoding CONTINUES, so the
-     * harvested row count is {@code max_record_size}-dependent. Because the cap is a query pragma and not in
+     * harvested row count is {@code external_max_record_size}-dependent. Because the cap is a query pragma and not in
      * the cache fingerprint, the whole publish must safe-miss — otherwise a warm aggregate under a different
      * cap would serve this scan's under-count. Proven to publish an under-count without the capDropped gate.
      */
@@ -178,7 +183,10 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        assertNull("byte-array cap-drop must publish no stats (max_record_size is not fingerprinted)", sink.get(o.path().toString()));
+        assertNull(
+            "byte-array cap-drop must publish no stats (external_max_record_size is not fingerprinted)",
+            sink.get(o.path().toString())
+        );
     }
 
     /**
@@ -329,7 +337,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertFoldsTo(frags, total);
     }
 
-    // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------
+    // ---- Harvest-scope tests (esql.external.cache.stripe.columns) -------------------------------------
 
     /**
      * COUNT(*) — zero projected columns — must still harvest each stripe's row count under count/projected/all
@@ -453,22 +461,19 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".ndjson";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             service.getOrComputeSchema(
                 key,
                 k -> SchemaCacheEntry.from(schema, "ndjson", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint), Map.of())
             );
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
-            return enriched.safeMetadata();
+            Map<String, Object> enriched = harvested(service, key);
+            return enriched;
         }
     }
 
@@ -542,12 +547,12 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".ndjson";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, testIdentity(), false);
             List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG, Nullability.TRUE, null, false));
             service.getOrComputeSchema(
                 key,
@@ -556,14 +561,11 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, fragments));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(
-                key,
-                k -> { throw new AssertionError("schema entry must remain cached"); }
-            );
+            Map<String, Object> enriched = harvested(service, key);
             assertEquals(
                 "real reader fragments must fold to the exact whole-file row count",
                 expectedRows,
-                ((Number) enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+                ((Number) enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
             );
         }
     }
@@ -643,6 +645,14 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         Instant fixedMtime = Instant.ofEpochMilli(1000L);
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
             }
@@ -679,6 +689,14 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         Instant fixedMtime = Instant.ofEpochMilli(1000L);
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
             }
@@ -708,5 +726,31 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 return StoragePath.of(uniquePath);
             }
         };
+    }
+
+    /**
+     * The identity these cases need is any identity: they exercise the stripe-capture path, not addressing, and
+     * only require that the key they mint and the key they read back agree. The extension in the reader slot is
+     * a label for readability, not the mechanism: production separates two formats through the coordinator lane,
+     * not this one.
+     */
+    private static DatasetIdentity testIdentity() {
+        return DatasetIdentity.of("", null, "", ".ndjson", "");
+    }
+
+    /**
+     * The measurements a warm serve would use for {@code key}: the statistics committed under the read the
+     * schema record was resolved with. The two kinds of fact are separate stores, so a measurement is no longer
+     * read off the schema record — these cases predate that and assert on the measurement, which is what they
+     * mean to assert.
+     */
+    private static Map<String, Object> harvested(ExternalSourceCacheService service, SchemaCacheKey key) {
+        SchemaCacheEntry schema = service.getSchemaIfPresent(key);
+        assertNotNull("no schema record at " + key, schema);
+        String stamp = schema.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str && str.isEmpty() == false
+            ? str
+            : null;
+        Map<String, Object> statistics = service.getStatistics(StatisticsKey.of(key, stamp));
+        return statistics == null ? Map.of() : statistics;
     }
 }

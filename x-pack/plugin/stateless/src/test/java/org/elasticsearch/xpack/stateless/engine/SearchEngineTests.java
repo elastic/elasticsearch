@@ -920,6 +920,80 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         );
     }
 
+    /**
+     * Verifies that closing a relocated PIT {@link SearcherSupplier} before any search is issued
+     * ("unprimed") releases the store reference and shared commit reader that were acquired during
+     * {@link SearchEngine#acquireSearcherForCommit}.
+     *
+     * <p>{@link SearchEngine#acquireSearcherForCommit} registers a {@code RelocatedPITReader} in
+     * {@code SearchEngine.RelocatedPITReaderTracker} and returns a lazy-initialisation wrapper
+     * {@link SearcherSupplier}: the real underlying supplier (the {@code delegate}) is only acquired
+     * on the first {@code acquireSearcher} call, deferring the Lucene searcher open until a search
+     * actually arrives. Until then the supplier is "unprimed" — {@code delegate} is {@code null}.
+     * The supplier is handed to {@code PITRelocationService}, which registers it with
+     * {@code SearchService} once the shard reaches STARTED. When the {@code SearchService.Reaper}
+     * expires a context before any search is issued, it closes the supplier while {@code delegate}
+     * is still {@code null}. Closing an unprimed supplier must remove the {@code RelocatedPITReader}
+     * from {@code SearchEngine.RelocatedPITReaderTracker.trackedReaders} and release its
+     * {@code storeRef} and {@code PITCommitHandle}, because those resources are not owned by anyone
+     * else at that point.
+     */
+    public void testUnprimedRelocatedPITSearcherSupplierReleasesResourcesOnClose() throws IOException {
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            indexEngine.index(randomDoc("1"));
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            Engine.IndexCommitRef commit = searchEngine.acquireLastIndexCommit(false);
+            final String segmentsFileName = commit.getIndexCommit().getSegmentsFileName();
+            final Map<String, BlobFileRanges> metadata;
+            try (DirectoryReader reader = DirectoryReader.open(commit.getIndexCommit())) {
+                SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(reader.directory());
+                metadata = searchDirectory.getBlobFileRangesForFiles(commit.getIndexCommit().getFileNames());
+            }
+            IOUtils.close(commit);
+
+            final var store = searchEngine.config().getStore();
+            final int refCountBefore = store.refCount();
+            final int sharedReaderCountBefore = searchEngine.getSharedPITCommitReaderCount();
+
+            var supplierFuture = new PlainActionFuture<SearcherSupplier>();
+            searchEngine.acquireSearcherForCommit(
+                segmentsFileName,
+                metadata,
+                Function.identity(),
+                null,
+                SplitShardCountSummary.IRRELEVANT,
+                supplierFuture
+            );
+            searchTaskQueue.runAllRunnableTasks();
+            SearcherSupplier supplier = supplierFuture.actionGet(TimeValue.timeValueSeconds(5));
+
+            assertThat(store.refCount(), equalTo(refCountBefore + 1));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore + 1));
+
+            // Simulate closing the context before any search: close the supplier
+            // without ever calling acquireSearcher(), leaving the internal delegate null.
+            supplier.close();
+
+            // Closing an unprimed supplier must release the storeRef and PITCommitHandle
+            // that are still owned by the RelocatedPITReader in trackedReaders.
+            assertThat(store.refCount(), equalTo(refCountBefore));
+            assertThat(searchEngine.getSharedPITCommitReaderCount(), equalTo(sharedReaderCountBefore));
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
     public void testSegmentGenerationListenerNotLeakedOnConcurrentClose() throws Exception {
         var indexConfig = indexConfig();
         var searchTaskQueue = new DeterministicTaskQueue();

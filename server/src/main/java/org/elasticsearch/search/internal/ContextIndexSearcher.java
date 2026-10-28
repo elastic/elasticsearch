@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -55,7 +57,6 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -77,12 +78,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
     private QueryProfiler profiler;
 
-    @Nullable
-    private CircuitBreaker circuitBreaker;
-
-    private final ThreadLocal<long[]> leafExecutionBytes = ThreadLocal.withInitial(() -> new long[1]);
-
-    private final AtomicLong outstandingPointRangeExecutionBytes = new AtomicLong();
+    /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
+    private final ExecutionAccounting executionAccounting;
+    private final boolean ownsExecutionAccounting;
 
     private final MutableQueryTimeout cancellable;
 
@@ -130,7 +128,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
     }
 
-    @SuppressWarnings("this-escape")
     ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -142,6 +139,33 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            cancellable,
+            wrapWithExitableDirectoryReader,
+            executor,
+            maximumNumberOfSlices,
+            minimumDocsPerSlice,
+            null
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    private ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        MutableQueryTimeout cancellable,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        int maximumNumberOfSlices,
+        int minimumDocsPerSlice,
+        @Nullable ExecutionAccounting sharedExecutionAccounting
+    ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         this.hasExecutor = executor != null;
         setSimilarity(similarity);
@@ -150,6 +174,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
         this.maximumNumberOfSlices = maximumNumberOfSlices;
+        this.ownsExecutionAccounting = sharedExecutionAccounting == null;
+        this.executionAccounting = ownsExecutionAccounting ? new ExecutionAccounting(getLeafContexts().size()) : sharedExecutionAccounting;
     }
 
     /**
@@ -174,7 +200,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
-        this.circuitBreaker = circuitBreaker;
+        if (ownsExecutionAccounting == false) {
+            throw new IllegalStateException("a searcher derived with withQueryCache uses the circuit breaker of the searcher it came from");
+        }
+        executionAccounting.setBreaker(circuitBreaker);
     }
 
     /**
@@ -183,7 +212,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     @Nullable
     public static CircuitBreaker circuitBreakerOrNull(IndexSearcher searcher) {
-        return searcher instanceof ContextIndexSearcher cis ? cis.circuitBreaker : null;
+        return searcher instanceof ContextIndexSearcher cis ? cis.executionAccounting.breaker() : null;
+    }
+
+    /**
+     * Returns a searcher over the same reader that uses {@code queryCache} and shares this searcher's request circuit breaker and
+     * execution accounting. The execution memory its weights charge is released when this searcher is closed.
+     */
+    public ContextIndexSearcher withQueryCache(QueryCache queryCache) throws IOException {
+        return new ContextIndexSearcher(
+            getIndexReader(),
+            getSimilarity(),
+            queryCache,
+            getQueryCachingPolicy(),
+            new MutableQueryTimeout(),
+            false,
+            null,
+            -1,
+            -1,
+            executionAccounting
+        );
     }
 
     /**
@@ -202,41 +250,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Reserve {@code bytes} of point-range execution RAM on the request breaker for the leaf currently
-     * being scored on this thread, recording it so {@link #searchLeaf} can release it once the leaf is
-     * done. No-op when no breaker is configured or {@code bytes <= 0}. Propagates
-     * {@link org.elasticsearch.common.breaker.CircuitBreakingException} when the reservation trips the
-     * breaker; in that case nothing is recorded because the breaker did not commit the bytes.
+     * As {@link #checkBinaryDvDecodeBreaker(CircuitBreaker)}, resolving the breaker from {@code searcher}. Shaped to be
+     * passed as a method reference where a caller can only be handed a searcher - see {@code ScanBudget} in the columnar
+     * library, which has no notion of a circuit breaker of its own.
      */
-    void chargeLeafExecutionBytes(long bytes) {
-        if (circuitBreaker == null || bytes <= 0L) {
-            return;
-        }
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "pointrange-execution");
-        leafExecutionBytes.get()[0] += bytes;
-        outstandingPointRangeExecutionBytes.addAndGet(bytes);
-    }
-
-    /**
-     * Release any point-range execution RAM charged on this thread since {@code baseline} (the value
-     * returned by an earlier {@link #leafExecutionBytesBaseline()} call), returning the tally to that
-     * baseline. Called from a {@code finally} block in {@link #searchLeaf}.
-     */
-    private void releaseLeafExecutionBytes(long baseline) {
-        if (circuitBreaker == null) {
-            return;
-        }
-        long[] holder = leafExecutionBytes.get();
-        long toRelease = holder[0] - baseline;
-        if (toRelease > 0L) {
-            circuitBreaker.addWithoutBreaking(-toRelease);
-            outstandingPointRangeExecutionBytes.addAndGet(-toRelease);
-        }
-        holder[0] = baseline;
-    }
-
-    private long leafExecutionBytesBaseline() {
-        return circuitBreaker == null ? 0L : leafExecutionBytes.get()[0];
+    public static void checkBinaryDvDecodeBreaker(IndexSearcher searcher) {
+        checkBinaryDvDecodeBreaker(circuitBreakerOrNull(searcher));
     }
 
     /**
@@ -272,9 +291,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // of memory.
         this.cancellable.clear();
 
-        long remaining = outstandingPointRangeExecutionBytes.getAndSet(0L);
-        if (circuitBreaker != null && remaining > 0L) {
-            circuitBreaker.addWithoutBreaking(-remaining);
+        if (ownsExecutionAccounting) {
+            executionAccounting.close();
         }
     }
 
@@ -324,7 +342,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
-        final Weight weight;
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -339,16 +356,50 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 timer.stop();
                 profiler.pollLastElement();
             }
-            weight = new ProfileWeight(query, innerWeight, profile);
-        } else {
-            weight = super.createWeight(query, scoreMode, boost);
+            return chargingExecutionMemory(query, new ProfileWeight(query, innerWeight, profile));
         }
-
-        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
-        if (circuitBreaker != null && pointRangeQuery != null) {
-            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        // The charging weight sits below the query cache, so a leaf served from the cache is not charged.
+        final Weight weight = chargingExecutionMemory(query, query.createWeight(this, scoreMode, boost));
+        final QueryCache queryCache = getQueryCache();
+        if (scoreMode.needsScores() == false && queryCache != null) {
+            return queryCache.doCache(weight, getQueryCachingPolicy());
         }
         return weight;
+    }
+
+    /** Wraps {@code weight} so that the memory {@code query} allocates to score a leaf is charged to the request circuit breaker. */
+    private Weight chargingExecutionMemory(Query query, Weight weight) {
+        if (executionAccounting.breaker() == null) {
+            return weight;
+        }
+        PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
+        if (pointRangeQuery != null) {
+            executionAccounting.ensureCreated();
+            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        }
+        Query multiTermQuery = multiTermQueryOrNull(unwrapBoost(query));
+        if (multiTermQuery != null) {
+            executionAccounting.ensureCreated();
+            return new MultiTermBreakerWeight(this, weight, multiTermQuery, unwrapBoost(query) instanceof IndexOrDocValuesQuery);
+        }
+        return weight;
+    }
+
+    /**
+     * Reserves {@code bytes} of execution memory on the request circuit breaker under {@code label}, attributed to
+     * {@code ctx}'s leaf (or to the {@link LeafExecutionScope} bound to the calling thread, if any). The memory is
+     * released when {@link #searchLeaf} finishes collecting the leaf, when the owning scope is dropped, or at the
+     * latest when this searcher closes. May trip the breaker; in that case nothing is recorded. No-op when no
+     * circuit breaker is configured (see {@link #setCircuitBreaker}), so callers that need accounting without one
+     * must use their own fallback.
+     */
+    public void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+        executionAccounting.charge(ctx, bytes, label);
+    }
+
+    /** Test-only */
+    boolean hasLeafExecutionAccounting() {
+        return executionAccounting.hasLeafAccounting();
     }
 
     private static PointRangeQuery pointRangeQueryOrNull(Query query) {
@@ -359,6 +410,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return prq;
         }
         return null;
+    }
+
+    @Nullable
+    private static Query multiTermQueryOrNull(Query query) {
+        if (query instanceof IndexOrDocValuesQuery iodvq) {
+            query = iodvq.getIndexQuery();
+        }
+        return CostlyMultiTermQueries.isCostlyMultiTermQuery(query) ? query : null;
+    }
+
+    /**
+     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
+     * already wrapped once; unwrapping it here too would double-charge.
+     */
+    private static Query unwrapBoost(Query query) {
+        while (query instanceof BoostQuery boostQuery) {
+            query = boostQuery.getQuery();
+        }
+        return query;
     }
 
     /**
@@ -442,6 +512,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             sum += lr.reader().maxDoc();
         }
         return sum;
+    }
+
+    /**
+     * Not supported.
+     *
+     * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+     */
+    @Deprecated
+    @Override
+    public final void search(Query query, Collector collector) {
+        throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
     }
 
     @Override
@@ -564,8 +645,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final long leafExecutionBaseline = leafExecutionBytesBaseline();
-        try {
+        try (Releasable ignored = executionAccounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {
                 leafCollector = collector.getLeafCollector(ctx);
@@ -613,8 +693,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Finish the leaf collection in preparation for the next.
             // This includes any collection that was terminated early via `CollectionTerminatedException`
             leafCollector.finish();
-        } finally {
-            releaseLeafExecutionBytes(leafExecutionBaseline);
         }
     }
 

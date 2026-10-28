@@ -119,12 +119,17 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
 
         public int count() {
             if (hasValue) {
-                if (offsetToOrd != null) {
+                if (offsetToOrd != null && offsetToOrd.length > 0) {
                     // Even though there may only be one value, the fact that offsets were recorded means that
                     // the value was in an array, so we need to trick CompositeSyntheticFieldLoader into
                     // always serializing this layer as an array
                     return offsetToOrd.length + 1;
                 } else {
+                    // Either no offsets or empty offsets (offsetToOrd.length == 0): fall back to writing
+                    // the raw doc values. An empty offset array can arise when markEmptyArray() was called
+                    // for one occurrence of the field (e.g. field: [[]]) while a separate occurrence in the
+                    // same document contributed a numeric doc value without recording an offset. In that
+                    // case offsetToOrd carries no positional info, so we emit the values without ordering.
                     return valueDocValues.docValueCount();
                 }
             } else {
@@ -143,7 +148,7 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
                 return;
             }
 
-            if (offsetToOrd != null && hasValue) {
+            if (offsetToOrd != null && hasValue && offsetToOrd.length > 0) {
                 int count = valueDocValues.docValueCount();
                 long[] values = new long[count];
                 int duplicates = 0;
@@ -164,13 +169,14 @@ public class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implemen
                         writer.writeLongValue(b, values[offset]);
                     }
                 }
-            } else if (offsetToOrd != null) {
-                // in cased all values are NULLs
+            } else if (offsetToOrd != null && hasValue == false) {
+                // all values are NULLs (or empty array: offsetToOrd is empty)
                 for (int offset : offsetToOrd) {
                     assert offset == -1;
                     b.nullValue();
                 }
             } else {
+                // no offsets, or empty offsets with values: write doc values directly
                 for (int i = 0; i < valueDocValues.docValueCount(); i++) {
                     writer.writeLongValue(b, valueDocValues.nextValue());
                 }

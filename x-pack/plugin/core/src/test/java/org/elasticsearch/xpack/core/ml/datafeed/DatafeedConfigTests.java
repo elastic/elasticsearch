@@ -47,6 +47,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -74,9 +75,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -418,6 +422,44 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         conf.setIndices(Collections.singletonList("whatever"));
         conf.setMaxEmptySearches(-1);
         assertThat(conf.build().getMaxEmptySearches(), is(nullValue()));
+    }
+
+    public void testDefaultMaxConsecutiveExtractionFailuresIsNull() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("index"));
+        assertThat(builder.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testCheckValid_GivenInvalidMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> conf.setMaxConsecutiveExtractionFailures(randomFrom(-2, 0))
+        );
+        assertThat(e.getMessage(), containsString("Invalid max_consecutive_extraction_failures value"));
+    }
+
+    public void testCheckValid_GivenMaxConsecutiveExtractionFailuresMinusOneResetsToDefault() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(-1);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), is(nullValue()));
+    }
+
+    public void testCheckValid_GivenPositiveMaxConsecutiveExtractionFailures() {
+        DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
+        conf.setIndices(Collections.singletonList("whatever"));
+        conf.setMaxConsecutiveExtractionFailures(42);
+        assertThat(conf.build().getMaxConsecutiveExtractionFailures(), equalTo(42));
+    }
+
+    public void testMaxConsecutiveExtractionFailuresSurvivesSerializationRoundTrip() throws IOException {
+        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("job1", randomValidDatafeedId(), 3600000);
+        builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+        DatafeedConfig config = builder.build();
+        DatafeedConfig deserialized = copyInstance(config);
+        assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(config.getMaxConsecutiveExtractionFailures()));
+        assertThat(deserialized, equalTo(config));
     }
 
     public void testCheckValid_GivenEmptyIndices() {
@@ -782,6 +824,26 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
     }
 
+    public void testDefaultFrequencyGivenEsqlQueryShouldSnapToGroupingInterval() {
+        DatafeedConfig oneHourGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueHours(1)).build();
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), oneHourGrouping.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
+
+        DatafeedConfig fiveMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(5)).build();
+        assertEquals(TimeValue.timeValueMinutes(5), fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(5), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(10),
+            fiveMinuteGrouping.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry())
+        );
+
+        DatafeedConfig oneMinuteGrouping = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(1)).build();
+        assertEquals(TimeValue.timeValueMinutes(1), oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(
+            TimeValue.timeValueMinutes(2),
+            oneMinuteGrouping.defaultFrequency(TimeValue.timeValueSeconds(240), xContentRegistry())
+        );
+    }
+
     public void testSerializationOfComplexAggs() throws IOException {
         MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
         AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
@@ -964,7 +1026,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 14 : 12)) {
+        switch (between(0, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled() ? 15 : 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1064,13 +1126,20 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
                 break;
             case 13:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 1);
+                }
+                break;
+            case 14:
                 if (instance.getCloudInternalCredential() == null) {
                     builder.setCloudInternalCredential(randomPersistedCloudCredential());
                 } else {
                     builder.setCloudInternalCredential(null);
                 }
                 break;
-            case 14:
+            case 15:
                 if (instance.getProjectRouting() == null) {
                     builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
@@ -1085,6 +1154,20 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     @Override
     protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
+        if (version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+            // ES|QL datafeeds (esqlQuery, sourceTimeField, groupingInterval and no indicesOptions) have no representation before
+            // ML_DATAFEED_ESQL_QUERY: DatafeedConfig#writeTo refuses to serialize them, so there is no expected deserialized instance.
+            // Classic datafeeds always carry non-null indicesOptions (the builder defaults them), which older nodes read without a
+            // presence flag, so they round-trip unchanged apart from the version-gated fields handled below.
+            assertThat(
+                "ES|QL datafeeds cannot be serialized to transport version [" + version + "]; callers must expect a failure instead",
+                instance.getEsqlQuery(),
+                nullValue()
+            );
+            assertThat(instance.getSourceTimeField(), nullValue());
+            assertThat(instance.getGroupingInterval(), nullValue());
+            assertThat(instance.getIndicesOptions(), notNullValue());
+        }
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
         if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) == false) {
             builder.setProjectRouting(null);
@@ -1092,13 +1175,16 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         if (version.supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL) == false) {
             builder.setCloudInternalCredential(null);
         }
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(version) == false) {
+            // Absent on the wire below the original version and within the reverted window (before it was re-added).
+            builder.setMaxConsecutiveExtractionFailures(null);
+        }
         return builder.build();
     }
 
     /**
      * Verifies that when the CPS feature flag is enabled, building a config with project_routing succeeds.
-     * Feature flags cannot be disabled in unit tests, so the forbidden case (project_routing when CPS is
-     * disabled) is validated at runtime and in integration tests.
+     * Persisted configs with project_routing also build when the flag is disabled; CPS fields are inert at runtime.
      */
     public void testProjectRoutingRespectsFeatureFlag() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
@@ -1241,8 +1327,8 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(DatafeedConfig.isCPSAllowed(decider, true), equalTo(true));
     }
 
-    /** Mirrors the put/update datafeed guard: {@code project_routing} is rejected when cluster CPS is on but the ML flag is off. */
-    public void testIsCPSAllowed_rejectsProjectRoutingGapUsedByDatafeedManager() {
+    /** Mirrors the combined CPS gate used at runtime: {@code project_routing} is inert when cluster CPS is on but the ML flag is off. */
+    public void testIsCPSAllowedShouldLeaveProjectRoutingInertWhenMlFlagOff() {
         org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
@@ -1256,7 +1342,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY);
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, decider)
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, decider, true)
         );
         assertThat(e.getMessage(), equalTo("datafeed must not be null"));
     }
@@ -1265,13 +1351,16 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         DatafeedConfig datafeed = createTestInstance();
         NullPointerException e = expectThrows(
             NullPointerException.class,
-            () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, null)
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, null, true)
         );
         assertThat(e.getMessage(), equalTo("crossProjectModeDecider must not be null"));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenBothNull() {
-        NullPointerException e = expectThrows(NullPointerException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, null));
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, null, true)
+        );
         assertThat(e.getMessage(), equalTo("datafeed must not be null"));
     }
 
@@ -1282,10 +1371,36 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", false).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
 
         // Should return the same instance when CPS is disabled
         assertThat(result, sameInstance(datafeed));
+    }
+
+    public void testWithCrossProjectModeIfEnabledShouldKeepEsqlIndicesOptionsAbsentWhenLocalOnly() {
+        DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", false).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false, true);
+
+        assertThat(result, sameInstance(datafeed));
+        assertThat(result.getIndicesOptions(), nullValue());
+    }
+
+    public void testWithCrossProjectModeIfEnabledShouldKeepEsqlIndicesOptionsAbsentWhenCpsHasNoCredential() {
+        DatafeedConfig datafeed = createEsqlDatafeedBuilder().build();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false, true);
+
+        assertThat(result, sameInstance(datafeed));
+        assertThat(result.getIndicesOptions(), nullValue());
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
@@ -1301,7 +1416,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
 
         // Should return a new instance with CPS enabled
         assertThat(result, not(equalTo(datafeed)));
@@ -1324,13 +1439,13 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
 
         // Should return the same instance when CPS is already enabled (optimization)
         assertThat(result, sameInstance(datafeed));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagDisabled_NoFlipEvenWithClusterCpsEnabled() {
+    public void testMlCpsFeatureDisabledWithClusterCpsEnabledShouldNotPromoteIndicesOptions() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
@@ -1341,7 +1456,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true, false);
 
         // With the ML CPS feature flag disabled, the cluster-level CPS setting must not promote a
         // local-only datafeed to cross-project mode at runtime.
@@ -1349,7 +1464,68 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagEnabled_AndClusterCpsEnabled_Flips() {
+    public void testMlCpsFeatureDisabledNormalizesPersistedCpsStateForExecution() {
+        IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setIndicesOptions(cpsEnabledOptions);
+        builder.setProjectRouting("_alias:prod-*");
+        DatafeedConfig persisted = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig effective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, false);
+
+        assertThat(effective, not(sameInstance(persisted)));
+        assertThat(effective.getProjectRouting(), nullValue());
+        assertThat(effective.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+        assertThat(persisted.getProjectRouting(), equalTo("_alias:prod-*"));
+        assertThat(persisted.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testPersistedCpsConfigBuildsWhenMlFlagDisabled() {
+        assumeFalse("Run with -Des.ml_cross_project_feature_flag_enabled=false", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        PersistedCloudCredential cred = randomPersistedCloudCredential();
+        IndicesOptions cpsOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        DatafeedConfig config = new DatafeedConfig.Builder("flag-off-persisted", "test-job").setIndices(List.of("logs-*"))
+            .setProjectRouting("_alias:prod-*")
+            .setIndicesOptions(cpsOptions)
+            .setCloudInternalCredential(cred)
+            .build();
+
+        assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
+        assertThat(config.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+        assertThat(config.getCloudInternalCredential(), equalTo(cred));
+    }
+
+    public void testMlCpsFeatureReenabledRestoresRoutingFromPersistedConfig() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setProjectRouting("_alias:linked_project");
+        DatafeedConfig persisted = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig flagOffEffective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, false);
+        assertThat(flagOffEffective.getProjectRouting(), nullValue());
+
+        DatafeedConfig flagOnEffective = DatafeedConfig.withCrossProjectModeIfEnabled(persisted, decider, true, true);
+        assertThat(flagOnEffective.getProjectRouting(), equalTo("_alias:linked_project"));
+        assertThat(flagOnEffective.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testMlCpsFeatureAndClusterCpsEnabledWithCredentialShouldPromoteIndicesOptions() {
         assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
@@ -1361,13 +1537,13 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true, true);
 
         assertThat(result, not(sameInstance(datafeed)));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagDisabled_AndClusterCpsDisabled_NoFlip() {
+    public void testMlCpsFeatureAndClusterCpsDisabledShouldReturnSameInstance() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
@@ -1378,7 +1554,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", false).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true, false);
 
         assertThat(result, sameInstance(datafeed));
     }
@@ -1394,7 +1570,10 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 }
             };
 
-        RuntimeException e = expectThrows(RuntimeException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider));
+        RuntimeException e = expectThrows(
+            RuntimeException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true)
+        );
         assertThat(e.getMessage(), equalTo("Simulated exception from crossProjectEnabled()"));
     }
 
@@ -1414,7 +1593,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(originalDatafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(originalDatafeed, decider, true);
 
         // Verify all properties except IndicesOptions are preserved
         assertThat(result.getId(), equalTo(originalDatafeed.getId()));
@@ -1441,7 +1620,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
 
         // Should handle project-qualified indices correctly
         assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
@@ -1462,10 +1641,46 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 Settings.builder().put("serverless.cross_project.enabled", true).build()
             );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
 
         // Should handle wildcard patterns correctly
         assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCpsAllowedWithoutCredential_DoesNotPromote() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false);
+
+        assertThat(result, sameInstance(datafeed));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCpsAllowedWithCredential_AllowsPromotion() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
+
+        assertThat(result, not(sameInstance(datafeed)));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
@@ -1501,12 +1716,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
               "job_id": "test-job",
               "indices": ["remote-1:src"]
             }""");
-        assertNull(
-            datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
-                new CrossProjectModeDecider(Settings.EMPTY),
-                (org.elasticsearch.action.ActionRequestValidationException) null
-            )
-        );
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
     }
 
     public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {
@@ -1635,6 +1845,397 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         config.close();
         expectThrows(IllegalStateException.class, "SecureString has already been closed", () -> cred.internalApiKey().length());
         config.close();
+    }
+
+    public void testBuildEsqlQueryWithDslQueryShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setParsedQuery(QueryBuilders.termQuery("field", "value"));
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "query")));
+    }
+
+    public void testBuildEsqlQueryWithAggregationsShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        builder.setParsedAggregations(
+            AggregatorFactories.builder().addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime))
+        );
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "aggregations")));
+    }
+
+    public void testBuildEsqlQueryWithScriptFieldsShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setScriptFields(
+            Collections.singletonList(new SearchSourceBuilder.ScriptField("computed", mockScript("doc['x'].value"), false))
+        );
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "script_fields")));
+    }
+
+    public void testBuildEsqlQueryWithRuntimeMappingsShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("type", "keyword");
+        Map<String, Object> runtimeFields = new HashMap<>();
+        runtimeFields.put("computed_field", settings);
+        builder.setRuntimeMappings(runtimeFields);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "runtime_mappings")));
+    }
+
+    public void testBuildEsqlQueryWithCustomScrollSizeShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setScrollSize(500);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD, "scroll_size")));
+    }
+
+    public void testBuildEsqlQueryWithChunkingOffShouldThrow() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setChunkingConfig(ChunkingConfig.newOff());
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(e.getMessage(), equalTo(DATAFEED_ESQL_CHUNKING_MUST_NOT_BE_DISABLED));
+    }
+
+    public void testBuildEsqlQueryAloneShouldSucceed() {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        assertThat(config.getIndicesOptions(), nullValue());
+        assertThat(config.getRuntimeMappings(), nullValue());
+        assertThat(config.getEsqlQuery(), equalTo("FROM logs"));
+        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
+    public void testDefaultChunkingConfigEsqlQueryShouldBeAuto() {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        assertThat(config.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
+    public void testToXContentEsqlQueryShouldIncludeEsqlQueryAndOmitDslQuery() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+
+        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
+
+        assertThat(parsedConfig.getEsqlQuery(), equalTo(config.getEsqlQuery()));
+        String json = bytes.utf8ToString();
+        assertThat(json, containsString("\"esql_query\""));
+        assertThat(json, not(containsString("\"query\"")));
+    }
+
+    public void testWireRoundTripEsqlQueryShouldPreserveQuery() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        assertThat(original.getQuery(), nullValue());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
+                assertThat(roundTripped.getId(), equalTo(original.getId()));
+                assertThat(roundTripped.getQuery(), nullValue());
+            }
+        }
+    }
+
+    public void testWireRoundTripEsqlQueryWithSourceTimeFieldAndGroupingIntervalShouldPreserveThem() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+        assertThat(original.getSourceTimeField(), equalTo("@timestamp"));
+        assertThat(original.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getEsqlQuery(), equalTo(original.getEsqlQuery()));
+                // Explicit field assertions against literal expected values, not just equals(original) or
+                // DatafeedConfig#equals -- a round-trip bug in one field could otherwise hide behind a
+                // builder default that happens to coincidentally match.
+                assertThat(roundTripped.getSourceTimeField(), equalTo("@timestamp"));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(TimeValue.timeValueHours(1)));
+                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
+                assertThat(roundTripped, equalTo(original));
+            }
+        }
+    }
+
+    public void testWireSerializationBeforeEsqlSupportShouldFailClearly() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+        TransportVersion unsupportedVersion = TransportVersion.fromName("histogram_blocks_multivalue_support");
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(unsupportedVersion);
+            IOException exception = expectThrows(IOException.class, () -> config.writeTo(out));
+            assertThat(exception.getMessage(), containsString("Cannot send ES|QL datafeed [datafeed1]"));
+            assertThat(exception.getMessage(), containsString("upgrade every node before restoring or starting it"));
+        }
+    }
+
+    /**
+     * Nodes that predate {@code ML_DATAFEED_ESQL_QUERY} read {@link IndicesOptions} directly, without a presence boolean.
+     * Writing a non-ES|QL datafeed to such a node must therefore keep the original layout, otherwise the old node misparses
+     * the stream (e.g. "Unknown WildcardStates ordinal") during a rolling upgrade.
+     */
+    public void testWireFormatBeforeEsqlSupportMatchesLegacyLayout() throws IOException {
+        TransportVersion legacyVersion = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        DatafeedConfig config = createRandomizedDatafeedConfigBuilder("job1", "datafeed1", 3600000L).build();
+        assertThat(config.getIndicesOptions(), notNullValue());
+        assertWireFormatMatchesLegacyLayout(config, legacyVersion);
+    }
+
+    /**
+     * Randomized version of {@link #testWireFormatBeforeEsqlSupportMatchesLegacyLayout()}: every classic datafeed must be written in the
+     * layout expected by a node that predates {@code ML_DATAFEED_ESQL_QUERY}, for every released transport version before it.
+     * Serializing and deserializing with the same code cannot detect a layout change (both sides agree on it), so this decodes the
+     * bytes with an independent reader that mirrors the pre-ES|QL constructor.
+     */
+    public void testRandomizedWireFormatBeforeEsqlSupportMatchesLegacyLayout() throws IOException {
+        List<TransportVersion> legacyVersions = legacyBwcVersions();
+        assertThat(legacyVersions, not(empty()));
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            DatafeedConfig config = createTestInstance();
+            for (TransportVersion legacyVersion : legacyVersions) {
+                assertWireFormatMatchesLegacyLayout(config, legacyVersion);
+            }
+        }
+    }
+
+    /**
+     * Randomly picks classic or ES|QL datafeeds and round-trips them over every BWC version plus the versions around
+     * {@code ML_DATAFEED_ESQL_QUERY}. Versions that support ES|QL datafeeds must round-trip both kinds; older versions must round-trip
+     * classic datafeeds (as modelled by {@link #mutateInstanceForVersion}) and must refuse ES|QL datafeeds instead of silently
+     * dropping their ES|QL fields.
+     */
+    public void testRandomizedBwcSerializationIncludingEsqlDatafeeds() throws IOException {
+        List<TransportVersion> versions = new ArrayList<>(bwcVersions());
+        for (TransportVersion extra : List.of(
+            TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY),
+            DatafeedConfig.ML_DATAFEED_ESQL_QUERY,
+            TransportVersion.current()
+        )) {
+            if (versions.contains(extra) == false) {
+                versions.add(extra);
+            }
+        }
+        boolean sawEsql = false;
+        boolean sawClassic = false;
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            DatafeedConfig config = randomBoolean() || (runs == 0 && sawEsql == false)
+                ? createRandomizedEsqlDatafeedConfigBuilder("job1", "datafeed1").build()
+                : createRandomizedDatafeedConfig("job1", "datafeed1", 3600000L);
+            boolean esql = config.getEsqlQuery() != null;
+            sawEsql |= esql;
+            sawClassic |= esql == false;
+            for (TransportVersion version : versions) {
+                if (esql && version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+                    IOException e = expectThrows(
+                        IOException.class,
+                        () -> copyWriteable(config, getNamedWriteableRegistry(), instanceReader(), version)
+                    );
+                    assertThat(e.getMessage(), containsString("Cannot send ES|QL datafeed [datafeed1]"));
+                } else {
+                    assertBwcSerialization(config, version);
+                }
+            }
+        }
+        assertTrue("expected to generate at least one ES|QL datafeed", sawEsql);
+        assertTrue("expected to generate at least one classic datafeed", sawClassic);
+    }
+
+    private List<TransportVersion> legacyBwcVersions() {
+        List<TransportVersion> legacyVersions = new ArrayList<>();
+        for (TransportVersion version : bwcVersions()) {
+            if (version.supports(DatafeedConfig.ML_DATAFEED_ESQL_QUERY) == false) {
+                legacyVersions.add(version);
+            }
+        }
+        TransportVersion previous = TransportVersionUtils.getPreviousVersion(DatafeedConfig.ML_DATAFEED_ESQL_QUERY);
+        if (legacyVersions.contains(previous) == false) {
+            legacyVersions.add(previous);
+        }
+        return legacyVersions;
+    }
+
+    private void assertWireFormatMatchesLegacyLayout(DatafeedConfig config, TransportVersion legacyVersion) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(legacyVersion);
+            config.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(legacyVersion);
+                IndicesOptions legacyIndicesOptions = readIndicesOptionsWithLegacyLayout(in);
+                assertThat("version " + legacyVersion, legacyIndicesOptions, equalTo(config.getIndicesOptions()));
+                assertThat("legacy reader must consume the whole stream, version " + legacyVersion, in.available(), equalTo(0));
+            }
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(legacyVersion);
+                assertThat(new DatafeedConfig(in), equalTo(mutateInstanceForVersion(config, legacyVersion)));
+            }
+        }
+    }
+
+    /**
+     * Builds a random ES|QL datafeed: no indices, query, aggregations, script fields, runtime mappings or indices options, which
+     * {@link DatafeedConfig.Builder#build()} rejects for ES|QL datafeeds.
+     */
+    static DatafeedConfig.Builder createRandomizedEsqlDatafeedConfigBuilder(String jobId, String datafeedId) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+        builder.setEsqlQuery("FROM " + randomAlphaOfLengthBetween(1, 10) + "-* | WHERE " + randomAlphaOfLengthBetween(1, 10) + " > 0");
+        builder.setSourceTimeField(randomAlphaOfLengthBetween(1, 10));
+        builder.setGroupingInterval(TimeValue.timeValueSeconds(randomIntBetween(1, 3600)));
+        if (randomBoolean()) {
+            builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
+        }
+        if (randomBoolean()) {
+            builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
+        }
+        if (randomBoolean()) {
+            builder.setChunkingConfig(
+                randomBoolean() ? ChunkingConfig.newAuto() : ChunkingConfig.newManual(TimeValue.timeValueHours(randomIntBetween(1, 100)))
+            );
+        }
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(3600000L));
+        }
+        if (randomBoolean()) {
+            builder.setMaxEmptySearches(randomIntBetween(10, 100));
+        }
+        return builder;
+    }
+
+    /**
+     * Mirrors the {@code DatafeedConfig(StreamInput)} constructor as it was before ES|QL datafeeds were introduced and returns the
+     * {@link IndicesOptions} read from the stream.
+     */
+    private static IndicesOptions readIndicesOptionsWithLegacyLayout(StreamInput in) throws IOException {
+        in.readString(); // id
+        in.readString(); // job id
+        in.readOptionalTimeValue(); // query delay
+        in.readOptionalTimeValue(); // frequency
+        if (in.readBoolean()) {
+            in.readCollectionAsImmutableList(StreamInput::readString); // indices
+        }
+        QueryProvider.fromStream(in);
+        in.readOptionalWriteable(AggProvider::fromStream);
+        if (in.readBoolean()) {
+            in.readCollectionAsImmutableList(SearchSourceBuilder.ScriptField::new);
+        }
+        in.readOptionalVInt(); // scroll size
+        in.readOptionalWriteable(ChunkingConfig::new);
+        in.readImmutableMap(StreamInput::readString); // headers
+        in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        in.readOptionalVInt(); // max empty searches
+        IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
+        in.readGenericMap(); // runtime mappings
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
+            in.readOptionalString();
+        }
+        if (in.getTransportVersion().supports(DatafeedConfig.DATAFEED_CLOUD_INTERNAL_CREDENTIAL)) {
+            in.readOptionalWriteable(PersistedCloudCredential::new);
+        }
+        // The field is on the wire for the original feature era and again once it was re-added, so a pre-ES|QL version
+        // that supports the re-added transport version (a backport to a branch without ES|QL datafeeds) carries it too.
+        if (DatafeedConfig.maxConsecutiveExtractionFailuresOnWire(in.getTransportVersion())) {
+            in.readOptionalInt();
+        }
+        return indicesOptions;
+    }
+
+    public void testEsqlQueryWithoutSourceTimeFieldShouldReject() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setSourceTimeField(null);
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_REQUIRES_SOURCE_TIME_FIELD)));
+    }
+
+    public void testEsqlQueryWithoutGroupingIntervalShouldReject() {
+        DatafeedConfig.Builder builder = createEsqlDatafeedBuilder();
+        builder.setGroupingInterval(null);
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, builder::build);
+        assertThat(exception.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_ESQL_REQUIRES_GROUPING_INTERVAL)));
+    }
+
+    public void testEsqlCalendarGroupingIntervalShouldReject() {
+        for (String calendarInterval : List.of("1w", "1M", "1y")) {
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> DatafeedConfig.Builder.parseFixedGroupingInterval(calendarInterval)
+            );
+            assertThat(exception.getMessage(), containsString("unit is missing or unrecognized"));
+            assertThat(exception.getMessage(), containsString("grouping_interval"));
+        }
+    }
+
+    public void testClassicDatafeedWithoutTimeDomainFieldsShouldSucceed() {
+        DatafeedConfig config = new DatafeedConfig.Builder("classic-datafeed", "classic-job").setIndices(Collections.singletonList("logs"))
+            .build();
+
+        assertThat(config.getSourceTimeField(), nullValue());
+        assertThat(config.getGroupingInterval(), nullValue());
+    }
+
+    public void testToXContentShouldRoundTripTimeDomainFields() throws IOException {
+        DatafeedConfig config = createEsqlDatafeedBuilder().build();
+
+        BytesReference bytes = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        DatafeedConfig parsedConfig = DatafeedConfig.STRICT_PARSER.apply(parser(bytes), null).build();
+
+        assertThat(parsedConfig.getSourceTimeField(), equalTo(config.getSourceTimeField()));
+        assertThat(parsedConfig.getGroupingInterval(), equalTo(config.getGroupingInterval()));
+        String json = bytes.utf8ToString();
+        assertThat(json, containsString("\"source_time_field\""));
+        assertThat(json, containsString("\"grouping_interval\""));
+    }
+
+    public void testWireRoundTripShouldPreserveTimeDomainFields() throws IOException {
+        DatafeedConfig original = createEsqlDatafeedBuilder().build();
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            original.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                DatafeedConfig roundTripped = new DatafeedConfig(in);
+                assertThat(roundTripped.getSourceTimeField(), equalTo(original.getSourceTimeField()));
+                assertThat(roundTripped.getGroupingInterval(), equalTo(original.getGroupingInterval()));
+            }
+        }
+    }
+
+    public void testDatafeedConfigEqualsShouldConsiderEsqlFields() {
+        DatafeedConfig base = createEsqlDatafeedBuilder().build();
+        DatafeedConfig differentEsqlQuery = createEsqlDatafeedBuilder().setEsqlQuery("FROM other-index").build();
+        DatafeedConfig differentSourceTimeField = createEsqlDatafeedBuilder().setSourceTimeField("event.ingested").build();
+        DatafeedConfig differentGroupingInterval = createEsqlDatafeedBuilder().setGroupingInterval(TimeValue.timeValueMinutes(30)).build();
+
+        assertThat(base, not(equalTo(differentEsqlQuery)));
+        assertThat(base, not(equalTo(differentSourceTimeField)));
+        assertThat(base, not(equalTo(differentGroupingInterval)));
+        assertThat(base.hashCode(), not(equalTo(differentEsqlQuery.hashCode())));
+        assertThat(base.hashCode(), not(equalTo(differentSourceTimeField.hashCode())));
+        assertThat(base.hashCode(), not(equalTo(differentGroupingInterval.hashCode())));
+    }
+
+    private DatafeedConfig.Builder createEsqlDatafeedBuilder() {
+        // ES|QL datafeeds source indices from the query itself; DatafeedConfig.Builder.build() rejects
+        // `indices` combined with `esql_query` (DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_FIELD).
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setEsqlQuery("FROM logs");
+        builder.setSourceTimeField("@timestamp");
+        builder.setGroupingInterval(TimeValue.timeValueHours(1));
+        return builder;
     }
 
     private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {

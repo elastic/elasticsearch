@@ -8,19 +8,19 @@
 package org.elasticsearch.xpack.esql.action;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.queryparser.ext.Extensions.Pair;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
+import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -106,16 +107,14 @@ import static org.hamcrest.Matchers.is;
  * E.g. the field {@code main_byte} will occur another time in the index {@code main_byte_as_short} when we're testing a byte-short union
  * type.
  */
-// TODO: This suite creates a lot of indices. It should be sufficient to just create 1 main index with 1 field per relevant type and 1
-// lookup index with 1 field per relevant type; only union types require additional main indices so we can have the same field mapped to
-// different types.
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 @ClusterScope(scope = SUITE, numClientNodes = 1, numDataNodes = 1)
+@SuiteScopeTestCase
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
 public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final String MAIN_INDEX_PREFIX = "main_";
     private static final String MAIN_INDEX = MAIN_INDEX_PREFIX + "index";
     private static final String LOOKUP_INDEX_PREFIX = "lookup_";
+    private static final int MAX_SHARDS_PER_DELETE_BATCH = 10;
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
@@ -147,6 +146,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static final Map<Pair<String, BinaryComparisonOperation>, TestConfigs> testConfigurations = new HashMap<>();
+    private static final TestConfigs suiteTestConfigurations;
     static {
         List<BinaryComparisonOperation> operations = new ArrayList<>(List.of(BinaryComparisonOperation.values()));
         operations.add(null); // null means field-based join
@@ -259,7 +259,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
                         || type == DATE_RANGE // need special handling for loads at the moment
-                        || type == DOUBLE_RANGE // block loading is not supported yet
+                        || type == DOUBLE_RANGE // need special handling for loads at the moment
                         || type == FLATTENED // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM
@@ -361,21 +361,15 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 }
             }
         }
-        // Make sure we have never added two configurations with the same lookup index name.
-        // This prevents accidentally adding the same test config to two different groups.
-        Set<String> knownTypes = new HashSet<>();
+        suiteTestConfigurations = new TestConfigs("all", null);
         for (TestConfigs configs : testConfigurations.values()) {
             for (TestConfig config : configs.configs.values()) {
-                if (knownTypes.contains(config.lookupIndexName())) {
-                    throw new IllegalArgumentException("Duplicate lookup index name: " + config.lookupIndexName());
+                TestConfig existing = suiteTestConfigurations.configs.putIfAbsent(config.lookupIndexName(), config);
+                if (existing != null && existing.lookupIndex().equals(config.lookupIndex()) == false) {
+                    throw new IllegalArgumentException("Conflicting lookup index mappings: " + config.lookupIndexName());
                 }
-                knownTypes.add(config.lookupIndexName());
             }
         }
-    }
-
-    static String stringForOperation(BinaryComparisonOperation operation) {
-        return operation == null ? "_field" : "_" + operation.name().toLowerCase(Locale.ROOT);
     }
 
     private static boolean existingIndex(
@@ -384,8 +378,49 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         DataType lookupType,
         BinaryComparisonOperation operation
     ) {
-        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType() + stringForOperation(operation);
-        return existing.stream().anyMatch(c -> c.exists(indexName));
+        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
+        return existing.stream().filter(c -> c.operation == operation).anyMatch(c -> c.exists(indexName));
+    }
+
+    @Override
+    public void setupSuiteScopeCluster() {
+        initIndexes(suiteTestConfigurations);
+        initData(suiteTestConfigurations);
+    }
+
+    /**
+     * Deletes the suite's indices in batches before {@link ESIntegTestCase#afterClass()} wipes the cluster. That wipe deletes every
+     * index at once and then allows {@link #SAFE_AWAIT_TIMEOUT} for all shards to close. Concurrent shard closes default to
+     * {@code min(10, node.processors)}, the test cluster can set {@code node.processors} to 1, and closing all ~200 shards of this suite
+     * one at a time can exceed that timeout. Waiting after each batch of at most {@link #MAX_SHARDS_PER_DELETE_BATCH} shards keeps the
+     * work per wait bounded.
+     */
+    @AfterClass
+    public static void deleteSuiteIndicesInBatches() {
+        if (cluster() == null || cluster().size() == 0) {
+            return;
+        }
+        Map<String, Settings> indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).get().getSettings();
+        List<String> batch = new ArrayList<>();
+        int batchShards = 0;
+        for (Map.Entry<String, Settings> index : indices.entrySet()) {
+            int shards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(index.getValue());
+            if (batchShards + shards > MAX_SHARDS_PER_DELETE_BATCH && batch.isEmpty() == false) {
+                deleteAndAwaitShardsClosed(batch);
+                batch.clear();
+                batchShards = 0;
+            }
+            batch.add(index.getKey());
+            batchShards += shards;
+        }
+        if (batch.isEmpty() == false) {
+            deleteAndAwaitShardsClosed(batch);
+        }
+    }
+
+    private static void deleteAndAwaitShardsClosed(List<String> indices) {
+        assertAcked(indicesAdmin().prepareDelete(indices.toArray(String[]::new)));
+        internalCluster().awaitIndexShardCloseAsyncTasks();
     }
 
     /** This test generates documentation for the supported output types of the lookup join. */
@@ -451,8 +486,6 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private void testLookupJoinTypes(String group, BinaryComparisonOperation operation) {
         TestConfigs configs = testConfigurations.get(new Pair<>(group, operation));
-        initIndexes(configs);
-        initData(configs);
         for (TestConfig config : configs.values()) {
             if ((isValidDataType(config.mainType()) && isValidDataType(config.lookupType())) == false) {
                 continue;
@@ -804,7 +837,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String lookupIndexName() {
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType() + stringForOperation(operation());
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
         }
 
         default TestMapping lookupIndex() {
@@ -924,17 +957,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         @Override
         public String lookupIndexName() {
             // Override so it doesn't clash with other lookup indices from non-union type tests.
-            return LOOKUP_INDEX_PREFIX
-                + mainType().esType()
-                + "_union_"
-                + otherMainType().esType()
-                + "_"
-                + lookupType().esType()
-                + stringForOperation(operation());
+            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_union_" + otherMainType().esType() + "_" + lookupType().esType();
         }
 
         private String additionalIndexName() {
-            return mainFieldName() + "_as_" + otherMainType().typeName() + stringForOperation(operation());
+            return mainFieldName() + "_as_" + otherMainType().typeName();
         }
 
         @Override

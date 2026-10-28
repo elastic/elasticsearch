@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
@@ -35,6 +33,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.inference.InferenceRequestMetadata.Field;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -42,6 +41,8 @@ import org.elasticsearch.inference.telemetry.NodeTelemetryAttributes;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -69,9 +70,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
+import org.elasticsearch.xpack.core.inference.action.DecisionAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteRegionPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.DocumentExtractionAction;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
@@ -91,10 +95,13 @@ import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.action.TransportDecisionAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteRegionPolicyAction;
+import org.elasticsearch.xpack.inference.action.TransportDocumentExtractionAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
 import org.elasticsearch.xpack.inference.action.TransportGetCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
@@ -211,6 +218,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
+import org.elasticsearch.xpack.inference.services.tencentcloud.TencentCloudService;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
@@ -228,7 +236,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_MAX_BINARY_INPUT_SIZE;
 
@@ -316,6 +323,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
+    private final SetOnce<InferenceIndexMappingManager> inferenceIndexManager = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
     /**
@@ -355,6 +363,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
             new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(DecisionAction.INSTANCE, TransportDecisionAction.class),
+            new ActionHandler(DocumentExtractionAction.INSTANCE, TransportDocumentExtractionAction.class),
             new ActionHandler(RefreshAuthorizedEndpointsAction.INSTANCE, TransportRefreshAuthorizedEndpointsAction.class),
             new ActionHandler(GetRegionPolicyAction.INSTANCE, TransportGetRegionPolicyAction.class),
             new ActionHandler(PutRegionPolicyAction.INSTANCE, TransportPutRegionPolicyAction.class),
@@ -423,7 +433,9 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), services.featureService()));
+        inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), createInferenceIndexDescriptor(getIndexSettings())));
+
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client(), inferenceIndexManager.get()));
         services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {
@@ -541,6 +553,7 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
+        components.add(inferenceIndexManager.get());
         components.add(
             new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
         );
@@ -695,40 +708,39 @@ public class InferencePlugin extends Plugin
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-        return List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
-            // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
-            context -> new OpenAiService(
-                httpFactory.get(),
-                serviceComponents.get(),
-                context,
-                oauth2TokenCache.get(),
-                projectResolver.get()
-            ),
-            context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context),
-            context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context),
-            ElasticsearchInternalService::new,
-            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
+        var factories = new ArrayList<InferenceServiceExtension.Factory>();
+        factories.add(context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context));
+        // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
+        factories.add(
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context, oauth2TokenCache.get(), projectResolver.get())
         );
+        factories.add(context -> new GroqService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new CohereService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new MistralService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new TencentCloudService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new Ai21Service(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new OpenShiftAiService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new NvidiaService(httpFactory.get(), serviceComponents.get(), context));
+        if (ElasticsearchInternalService.isSupported(settings)) {
+            factories.add(ElasticsearchInternalService::new);
+        }
+        factories.add(context -> new CustomService(httpFactory.get(), serviceComponents.get(), context));
+        return List.copyOf(factories);
     }
 
     @Override
@@ -793,22 +805,30 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(createInferenceIndexDescriptor(), createInferenceSecretsIndexDescriptor(), createCCMIndexDescriptor());
+        return List.of(
+            createInferenceIndexDescriptor(getIndexSettings()),
+            createInferenceSecretsIndexDescriptor(),
+            createCCMIndexDescriptor()
+        );
     }
 
-    private SystemIndexDescriptor createInferenceIndexDescriptor() {
+    /**
+     * Creates the descriptor for the inference system index
+     * @param indexSettings the index settings
+     * @return the descriptor
+     */
+    public static SystemIndexDescriptor createInferenceIndexDescriptor(Settings indexSettings) {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
             .setDescription(INFERENCE_INDEX_DESCRIPTION)
-            .setSettings(getIndexSettings())
+            .setSettings(indexSettings)
             .setOrigin(ClientHelper.INFERENCE_ORIGIN);
 
         SystemIndexDescriptor v1 = builder.setMappings(InferenceIndex.mappingsV1()).build();
         SystemIndexDescriptor v2 = builder.setMappings(InferenceIndex.mappingsV2()).build();
-
         SystemIndexDescriptor v3 = builder.setMappings(InferenceIndex.mappingsV3()).build();
         return builder.setMappings(InferenceIndex.mappingsV4()).setPriorSystemIndexDescriptors(List.of(v1, v2, v3)).build();
     }
@@ -890,6 +910,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
         settings.addAll(RetrySettings.getSettingsDefinitions());
         settings.addAll(Truncator.getSettingsDefinitions());
+        settings.addAll(RecursiveChunkingSettings.getSettingsDefinitions());
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
@@ -998,12 +1019,17 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, true));
+        return InferenceContext.WIRE_LAYOUT.stream()
+            .map(field -> new RestHeaderDefinition(field.httpHeader(), field.allowsMultipleRestValues()))
+            .toList();
     }
 
     @Override
     public Collection<String> getTaskHeaders() {
-        return Set.of(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        // Task headers are exposed through the tasks API. The trace, user, and space ids are left out on purpose.
+        return Stream.of(Field.PRODUCT_USE_CASE, Field.PRODUCT_SOLUTION, Field.PRODUCT_FEATURE, Field.INTERACTION_ID)
+            .map(Field::httpHeader)
+            .toList();
     }
 
     protected SSLService getSslService() {

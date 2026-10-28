@@ -101,6 +101,13 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
+     * Returns information about deprecated repository features in use.
+     */
+    default Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        return List.of();
+    }
+
+    /**
      * Reads a collection of {@link SnapshotInfo} instances from the repository.
      *
      * @param snapshotIds    The IDs of the snapshots whose {@link SnapshotInfo} instances should be retrieved.
@@ -199,7 +206,7 @@ public interface Repository extends LifecycleComponent {
      *                                     exceptionally.
      */
     void deleteSnapshots(
-        Collection<SnapshotId> snapshotIds,
+        Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,

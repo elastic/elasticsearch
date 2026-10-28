@@ -38,7 +38,7 @@ public class ScoreScriptTests extends ESSingleNodeTestCase {
         List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.script.score.txt"));
         contexts.put(ScoreScript.CONTEXT, whitelists);
-        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
+        PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts, () -> null, false);
 
         SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
 

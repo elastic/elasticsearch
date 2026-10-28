@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -31,28 +31,29 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
     public static final String LATENCY_TOTAL = "es.tsdb.downsample.latency.total.histogram";
     public static final String ACTIONS_SHARD = "es.tsdb.downsample.actions.shard.total";
-    public static final String ACTIONS = "es.tsdb.downsample.actions.total";
+    public static final String ACTIONS_TOTAL = "es.tsdb.downsample.actions.total";
 
-    private final MeterRegistry meterRegistry;
+    private final LongHistogram shardLatency;
+    private final LongHistogram totalLatency;
+    private final LongCounter shardActions;
+    private final LongCounter totalActions;
 
     public DownsampleMetrics(TelemetryProvider telemetryProvider) {
-        this.meterRegistry = telemetryProvider.getMeterRegistry();
+        var meterRegistry = telemetryProvider.getMeterRegistry();
+        shardLatency = meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
+        totalLatency = meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
+        shardActions = meterRegistry.registerLongCounter(ACTIONS_SHARD, "Number of shard-level downsampling actions", "count");
+        totalActions = meterRegistry.registerLongCounter(ACTIONS_TOTAL, "Number of downsampling operations", "count");
     }
 
     @Override
-    protected void doStart() {
-        // Register all metrics to track.
-        meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
-        meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
-        meterRegistry.registerLongCounter(ACTIONS_SHARD, "Number of shard-level downsampling actions", "count");
-        meterRegistry.registerLongCounter(ACTIONS, "Number of downsampling operations", "count");
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
     enum ActionStatus {
 
@@ -75,12 +76,12 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     }
 
     void recordShardOperation(long durationInMilliSeconds, ActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
-        meterRegistry.getLongCounter(ACTIONS_SHARD).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
+        shardLatency.record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        shardActions.incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 
     void recordOperation(long durationInMilliSeconds, ActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_TOTAL).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
-        meterRegistry.getLongCounter(ACTIONS).incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
+        totalLatency.record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+        totalActions.incrementBy(1L, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 }

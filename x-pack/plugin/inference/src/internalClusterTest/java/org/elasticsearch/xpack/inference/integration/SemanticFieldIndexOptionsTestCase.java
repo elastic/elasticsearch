@@ -297,7 +297,8 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
             randomIntBetween(1, 10_000),
             randomBoolean(),
             null,
-            -1
+            -1,
+            false
         );
         assertAcked(
             safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions)).execute())
@@ -365,7 +366,8 @@ public abstract class SemanticFieldIndexOptionsTestCase extends ESIntegTestCase 
             90,
             false,
             null,
-            -1
+            -1,
+            false
         );
         assertAcked(
             safeGet(prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, baseIndexOptions)).execute())

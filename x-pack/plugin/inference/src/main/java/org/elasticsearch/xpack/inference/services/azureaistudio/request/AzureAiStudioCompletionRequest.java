@@ -1,0 +1,82 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.azureaistudio.request;
+
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Objects;
+
+public class AzureAiStudioCompletionRequest extends AzureAiStudioRequest implements OutboundCompletionRequest {
+    private final List<String> input;
+    private final AzureAiStudioChatCompletionModel completionModel;
+    private final boolean stream;
+
+    public AzureAiStudioCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input, boolean stream) {
+        super(model);
+        this.input = Objects.requireNonNull(input);
+        this.completionModel = Objects.requireNonNull(model);
+        this.stream = stream;
+    }
+
+    public boolean isRealtimeEndpoint() {
+        return isRealtimeEndpoint;
+    }
+
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(this.uri).build();
+
+        httpPost.setBody(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
+
+        setAuthHeader(httpPost, completionModel);
+
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+    }
+
+    @Override
+    public OutboundRequest truncate() {
+        // no truncation
+        return this;
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        // no truncation
+        return null;
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return stream;
+    }
+
+    private AzureAiStudioChatCompletionRequestEntity createRequestEntity() {
+        var taskSettings = completionModel.getTaskSettings();
+        var serviceSettings = completionModel.getServiceSettings();
+        return new AzureAiStudioChatCompletionRequestEntity(
+            input,
+            serviceSettings.endpointType(),
+            taskSettings.temperature(),
+            taskSettings.topP(),
+            taskSettings.doSample(),
+            taskSettings.maxNewTokens(),
+            isStreaming()
+        );
+    }
+
+}

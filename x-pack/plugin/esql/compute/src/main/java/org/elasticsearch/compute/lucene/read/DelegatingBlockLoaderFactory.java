@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -190,6 +191,53 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) sumBlock,
             (IntBlock) countBlock
         );
+    }
+
+    @Override
+    public BlockLoader.Block buildOrdinalBytesRefDirect(
+        int[] ordinals,
+        int valueCount,
+        int[] valueCounts,
+        int positionCount,
+        BytesRef[] dictionary,
+        int dictionarySize
+    ) {
+        BytesRefVector dict = null;
+        IntBlock ords = null;
+        OrdinalBytesRefBlock result = null;
+        try {
+            try (BytesRefVector.Builder bytes = factory.newBytesRefVectorBuilder(dictionarySize)) {
+                for (int i = 0; i < dictionarySize; i++) {
+                    bytes.appendBytesRef(dictionary[i]);
+                }
+                dict = bytes.build();
+            }
+            try (IntBlock.Builder builder = factory.newIntBlockBuilder(valueCount)) {
+                int at = 0;
+                for (int position = 0; position < positionCount; position++) {
+                    final int held = valueCounts == null ? 1 : valueCounts[position];
+                    if (held == 0) {
+                        builder.appendNull();
+                    } else if (held == 1) {
+                        builder.appendInt(ordinals[at++]);
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int i = 0; i < held; i++) {
+                            builder.appendInt(ordinals[at++]);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                assert at == valueCount : "read " + at + " ordinals, was given " + valueCount;
+                ords = builder.build();
+            }
+            result = new OrdinalBytesRefBlock(ords, dict);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(ords, dict);
+            }
+        }
     }
 
     @Override

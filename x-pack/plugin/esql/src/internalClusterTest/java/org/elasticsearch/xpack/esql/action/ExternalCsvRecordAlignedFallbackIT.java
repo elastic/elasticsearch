@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Regression test for CSV record-aligned macro splits when {@code parsing_parallelism=1}.
+ * Regression test for CSV record-aligned macro splits when {@code external_parsing_parallelism=1}.
  * Forces many macro splits via {@code target_split_size} and validates exact row accounting
  * across split boundaries in the single-threaded fallback path.
  */
@@ -40,7 +40,7 @@ public class ExternalCsvRecordAlignedFallbackIT extends AbstractExternalDataSour
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 1).build());
     }
 
     public void testCountMinMaxWithMacroSplitsInSingleThreadFallback() throws Exception {

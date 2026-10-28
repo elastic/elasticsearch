@@ -21,6 +21,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
     }
 
-    protected final BufferScratch scratch = new BufferScratch();
+    protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
     public MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
@@ -71,7 +72,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        return IndexInputUtils.withSlice(in, dimensions, scratch::get, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
+        return IndexInputUtils.withSlice(in, dimensions, scratch, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
@@ -156,9 +157,8 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == dimensions;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, scratch::get, segment -> {
+        IndexInputUtils.withVoidSlice(in, (long) dimensions * count, scratch, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
-            return null;
         });
     }
 
@@ -235,7 +235,7 @@ public sealed class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7Vec
         int bulkSize
     ) throws IOException {
         int7DotProductBulk(q, bulkSize, scores);
-        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch::get, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, scratch, memorySegment -> {
             applyCorrectionsBulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,

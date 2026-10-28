@@ -96,6 +96,13 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        // Each value counts as the dictionary's average term, so the ordinals are never read.
+        final int terms = bytes.getPositionCount();
+        return terms == 0 ? 0 : bytes.estimateTotalValueBytes() * ordinals.getTotalValueCount() / terms;
+    }
+
+    @Override
     public BytesRefBlock slice(int beginInclusive, int endExclusive) {
         if (beginInclusive == 0 && endExclusive == getPositionCount()) {
             incRef();
@@ -255,7 +262,7 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public boolean doesHaveMultivaluedFields() {
-        return ordinals.mayHaveMultivaluedFields();
+        return ordinals.doesHaveMultivaluedFields();
     }
 
     @Override
@@ -265,6 +272,10 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public OrdinalBytesRefBlock expand() {
+        if (mayHaveMultivaluedFields() == false) {
+            incRef();
+            return this;
+        }
         OrdinalBytesRefBlock result = null;
         IntBlock expandedOrdinals = ordinals.expand();
         try {
@@ -299,6 +310,6 @@ public final class OrdinalBytesRefBlock extends AbstractBlockRefCounted implemen
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[ordinals=" + ordinals + ", bytes=" + bytes + "]";
+        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", ordinals=" + ordinals + ", bytes=" + bytes + "]";
     }
 }

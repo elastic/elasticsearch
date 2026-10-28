@@ -381,23 +381,32 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
             }, "TEST-appendThread");
             appendThread.start();
 
+            record VbccRangeRead(int offset, int length, BytesRef expected) {}
+            var performedReads = new ArrayList<VbccRangeRead>();
+
             while (appendThread.isAlive()) {
                 if (virtualBatchedCompoundCommit.getPendingCompoundCommits().size() > 0) {
-                    try (BytesStreamOutput output = new BytesStreamOutput()) {
-                        // Workaround to serialize VBCC without freezing for testing
-                        try (
-                            var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(
-                                virtualBatchedCompoundCommit
-                            )
-                        ) {
-                            Streams.copy(vbccInputStream, output, false);
-                        }
-
-                        var serializedBatchedCompoundCommit = output.bytes();
-                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length() - 1);
-                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length() - randomOffset);
+                    // Workaround to serialize VBCC without freezing for testing
+                    try (
+                        var vbccInputStream = VirtualBatchedCompoundCommitTestUtils.getInputStreamForUpload(virtualBatchedCompoundCommit)
+                    ) {
+                        // At this point a commit is concurrently appended to this vbcc by `appendThread`.
+                        // Appending a commit first changes `internalDataReadersByOffset` and then advances `currentOffset`.
+                        // `vbcc#getInputStreamForUpload()` returns a stream that contains all files in `internalDataReadersByOffset`
+                        // but some of the files are not ready to be read at this point because `currentOffset` is not advanced yet.
+                        // Doing that causes an assertion failure in `getBytesByRange()`.
+                        // By clamping the commit to `getTotalSizeInBytes()` we ensure we only read files once they are fully appended.
+                        // Note that this is not a problem in production code since 1) commit appends and freeze/uploads are synchronized
+                        // in the caller, 2) callers also clamp the vbcc stream using `getTotalSizeInBytes()`.
+                        // This test is still valuable because we want to verify that concurrent appends do not impact
+                        // reading previously appended commit data (the race explained above only impacts currently appended commit files).
+                        var serializedBatchedCompoundCommit = vbccInputStream.readNBytes(
+                            (int) virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                        );
+                        int randomOffset = randomIntBetween(0, serializedBatchedCompoundCommit.length - 1);
+                        int randomBytesToRead = randomIntBetween(0, serializedBatchedCompoundCommit.length - randomOffset);
                         var serializedBatchedCompoundCommitBytesRef = new BytesRef(
-                            serializedBatchedCompoundCommit.toBytesRef().bytes,
+                            serializedBatchedCompoundCommit,
                             randomOffset,
                             randomBytesToRead
                         );
@@ -408,10 +417,20 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                             BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef).bytes,
                             BytesRef.deepCopyOf(bytesStreamOutput.bytes().toBytesRef()).bytes
                         );
+                        performedReads.add(
+                            new VbccRangeRead(randomOffset, randomBytesToRead, BytesRef.deepCopyOf(serializedBatchedCompoundCommitBytesRef))
+                        );
                     } catch (Exception e) {
                         assert false : "Unexpected exception: " + e.getMessage();
                     }
                 }
+            }
+
+            virtualBatchedCompoundCommit.freeze();
+            var bytesToUpload = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload().readAllBytes();
+            for (var read : performedReads) {
+                var actualRangeData = new BytesRef(bytesToUpload, read.offset, read.length);
+                assertTrue(actualRangeData.bytesEquals(read.expected));
             }
 
             virtualBatchedCompoundCommit.close();
@@ -613,6 +632,93 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 }
             }
             virtualBatchedCompoundCommit.close();
+        }
+    }
+
+    public void testSizeInBytesExcludingCopiedGenerationalFiles() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            var noDeletionsCommits = fakeNode.generateIndexCommits(randomIntBetween(2, 5), false, false, generation -> {});
+            var noDeletionsVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                noDeletionsCommits.getFirst().getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (StatelessCommitRef statelessCommitRef : noDeletionsCommits) {
+                assertTrue(noDeletionsVbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(noDeletionsVbcc.getTotalSizeInBytes(), noDeletionsVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var commitsWithDeletions = fakeNode.generateCommitsWithGenerationalFiles(randomIntBetween(3, 8));
+
+            // We add some commits to a new VBCC so that the first of them clears `isFirstCommit` check
+            // and forces a copy of generational files.
+            // Commits beyond the first one help to validate that we only consider the first commit.
+
+            // We need at least 2 commits to be able to produce generational files.
+            int intoNewVbcc = 2;
+
+            var intermediaryVbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.getFirst().getGeneration(),
+                noDeletionsVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = 0; i < intoNewVbcc; i++) {
+                assertTrue(intermediaryVbcc.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // Since there are no deletions and therefore no generational files, the sizes match.
+            assertEquals(intermediaryVbcc.getTotalSizeInBytes(), intermediaryVbcc.sizeInBytesExcludingCopiedGenerationalFiles());
+
+            var vbccWithCopiedGenerationalFiles = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commitsWithDeletions.get(intoNewVbcc).getGeneration(),
+                intermediaryVbcc::getBlobLocation,
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            for (int i = intoNewVbcc; i < commitsWithDeletions.size(); i++) {
+                assertTrue(vbccWithCopiedGenerationalFiles.appendCommit(commitsWithDeletions.get(i), randomBoolean(), null));
+            }
+
+            // We don't always generate deletes so they can be equal.
+            assertTrue(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() >= vbccWithCopiedGenerationalFiles
+                    .sizeInBytesExcludingCopiedGenerationalFiles()
+            );
+
+            // Only the first commit in the VBCC has copied generational files.
+            StatelessCommitRef firstCommit = commitsWithDeletions.get(intoNewVbcc);
+            StatelessCommitRef previousCommit = commitsWithDeletions.get(intoNewVbcc - 1);
+            long generationalFilesSize = 0;
+            for (String commitFile : firstCommit.getCommitFiles()) {
+                // And we are only interested in _copied_ generational files.
+                if (StatelessCompoundCommit.isGenerationalFile(commitFile) && previousCommit.getCommitFiles().contains(commitFile)) {
+                    generationalFilesSize += firstCommit.getDirectory().fileLength(commitFile);
+                }
+            }
+
+            assertEquals(
+                vbccWithCopiedGenerationalFiles.getTotalSizeInBytes() - generationalFilesSize,
+                vbccWithCopiedGenerationalFiles.sizeInBytesExcludingCopiedGenerationalFiles()
+            );
         }
     }
 

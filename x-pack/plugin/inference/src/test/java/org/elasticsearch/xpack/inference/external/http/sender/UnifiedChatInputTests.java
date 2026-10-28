@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.inference.InferenceObjectRamBytesUsedTest;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Template;
 import org.hamcrest.Matchers;
 
 import java.util.List;
+import java.util.Map;
 
 public class UnifiedChatInputTests extends InferenceObjectRamBytesUsedTest<UnifiedChatInput> {
 
@@ -35,6 +37,27 @@ public class UnifiedChatInputTests extends InferenceObjectRamBytesUsedTest<Unifi
         );
     }
 
+    public void testIsSingleInput_TemplateOnlyRequest() {
+        var body = new UnifiedCompletionRequestBody(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Template(".summarize", 1, Map.of())
+        );
+        var input = new UnifiedChatInput(body, true);
+
+        assertThat(input.isSingleInput(), Matchers.is(true));
+        assertThat(input.ramBytesUsed(), Matchers.greaterThan(0L));
+    }
+
     public void testConvertsStringInputToMessages() {
         var a = new UnifiedChatInput(List.of("hello", "awesome"), "a role", true);
 
@@ -42,7 +65,7 @@ public class UnifiedChatInputTests extends InferenceObjectRamBytesUsedTest<Unifi
         assertThat(
             a.getRequest(),
             Matchers.is(
-                UnifiedCompletionRequest.of(
+                UnifiedCompletionRequestBody.of(
                     List.of(
                         new Message(new ContentString("hello"), "a role", null, null),
                         new Message(new ContentString("awesome"), "a role", null, null)

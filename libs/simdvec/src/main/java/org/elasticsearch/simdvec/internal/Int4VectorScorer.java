@@ -16,8 +16,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
@@ -35,9 +34,7 @@ import java.util.Optional;
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     // Size of the corrections trailer that follows each packed vector in the codec's per-vector
     // record: 3 floats (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).
@@ -153,7 +150,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final VectorSimilarityFunction similarityFunction;
         private final float centroidDP;
         private final Int4Corrections.SingleCorrection correction;
-        private final FixedSizeScratch scratch;
+        private final FixedSizeSegmentScratch scratch;
         private final AddressesScratch addrsScratch = new AddressesScratch();
         private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -175,7 +172,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             this.similarityFunction = similarityFunction;
             this.centroidDP = centroidDP;
             this.correction = correction;
-            this.scratch = new FixedSizeScratch(vectorPitch);
+            this.scratch = new FixedSizeSegmentScratch(vectorPitch);
         }
 
         void checkOrdinal(int ord) {
@@ -228,8 +225,8 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             checkOrdinal(node);
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI4(seg, query.unpackedQuery(), packedDims);
                 return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
             });
         }
@@ -244,7 +241,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             }
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
             MemorySegment scoresSeg = MemorySegment.ofArray(scores);
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
                 DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
                 maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
             });

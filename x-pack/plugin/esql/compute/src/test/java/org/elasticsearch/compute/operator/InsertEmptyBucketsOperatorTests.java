@@ -397,9 +397,9 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
      * The precision guard looks at the bound with the larger magnitude, which for a negative range is {@code from}.
      */
     public void testNumericNegativeFromBelowDoubleSpacingProducesNoFills() {
-        // Mirror of the 2^63 case on the negative side: from and to are adjacent doubles 2048 apart, width 1.0.
-        double to = -0x1p63;
-        assertNumericRangeProducesNoFills(1.0, Math.nextDown(to), to);
+        // Mirror of the 1e17 case on the negative side: a width of 5.0 collapses onto the doubles -1e17-16 and -1e17.
+        double to = -1e17;
+        assertNumericRangeProducesNoFills(5.0, to - 16.0, to);
     }
 
     /**

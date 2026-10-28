@@ -376,10 +376,31 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
      * spacing between adjacent doubles there.
      */
     public void testNumericBucketIndexBeyondLongRangeProducesNoFills() {
+        // from and to are adjacent doubles (spacing 2048 at 2^63) but the width is 1.0, so from / roundTo = 2^63.
+        double from = 0x1p63;
+        assertNumericRangeProducesNoFills(1.0, from, Math.nextUp(from));
+    }
+
+    /**
+     * Even when the bucket index fits in a {@code long}, a width below the spacing between adjacent doubles at the
+     * bounds can't produce distinct keys: consecutive {@code roundTo * n} round to the same double, so filling would
+     * only emit duplicate rows. Reachable with tight {@code long} bounds above {@code 2^53}, e.g.
+     * {@code BUCKET(x, 10, 100000000000000000, 100000000000000010)}.
+     */
+    public void testNumericWidthBelowDoubleSpacingProducesNoFills() {
+        // Doubles are 16 apart at 1e17; a width of 5.0 would yield the keys 1e17, 1e17 (+5 rounds down), 1e17+16.
+        double from = 1e17;
+        assertNumericRangeProducesNoFills(5.0, from, from + 16.0);
+    }
+
+    /**
+     * Runs a single real row at {@code from} through a numeric cursor expected to be exhausted up front, and asserts
+     * that only that row comes out.
+     */
+    private void assertNumericRangeProducesNoFills(double roundTo, double from, double to) {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
 
-        double from = 0x1p63;
         Page input;
         try (
             DoubleBlock.Builder bucketBuilder = blockFactory.newDoubleBlockBuilder(1);
@@ -390,10 +411,9 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
             input = new Page(bucketBuilder.build(), countBuilder.build());
         }
 
-        // from and to are adjacent doubles (spacing 2048 at 2^63) but the width is 1.0, so from / roundTo = 2^63.
         InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
             {
-                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(1.0, from, Math.nextUp(from)));
+                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(roundTo, from, to));
             }
         }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
 
@@ -404,6 +424,48 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
             assertThat(result.getPositionCount(), equalTo(1));
             assertThat(buckets.getDouble(0), equalTo(from));
             assertThat(counts.getLong(0), equalTo(4L));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    /**
+     * The boundary of the precision guard: a width equal to the double spacing at the bounds still yields distinct
+     * keys, so the range is filled normally.
+     */
+    public void testNumericWidthAtDoubleSpacingStillFills() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        double from = 1e17;
+        double roundTo = Math.ulp(from); // 16.0
+        double to = from + 4 * roundTo;
+
+        Page input;
+        try (
+            DoubleBlock.Builder bucketBuilder = blockFactory.newDoubleBlockBuilder(1);
+            LongBlock.Builder countBuilder = blockFactory.newLongBlockBuilder(1)
+        ) {
+            bucketBuilder.appendDouble(from + 2 * roundTo);
+            countBuilder.appendLong(4L);
+            input = new Page(bucketBuilder.build(), countBuilder.build());
+        }
+
+        InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
+            {
+                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(roundTo, from, to));
+            }
+        }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
+
+        Page result = runToSinglePage(ctx, factory, input);
+        try {
+            DoubleBlock buckets = result.getBlock(0);
+            LongBlock counts = result.getBlock(1);
+            assertThat(result.getPositionCount(), equalTo(4));
+            for (int i = 0; i < 4; i++) {
+                assertThat(buckets.getDouble(i), equalTo(from + i * roundTo));
+                assertThat(counts.getLong(i), equalTo(i == 2 ? 4L : 0L));
+            }
         } finally {
             result.releaseBlocks();
         }

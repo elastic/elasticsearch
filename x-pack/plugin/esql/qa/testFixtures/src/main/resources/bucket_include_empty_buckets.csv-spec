@@ -944,3 +944,18 @@ ROW x = 9223372036854776828::unsigned_long
 c:long | b:double
 1      | 9.223372036854776E18
 ;
+
+
+Tight long range above 2^53 produces no empty buckets
+required_capability: bucket_include_empty_buckets
+required_capability: fn_bucket_unsigned_long_bounds
+
+// Doubles are 16 apart at 1e17, wider than any bucket of this range: filling would only emit duplicate keys.
+ROW x = 100000000000000000
+| STATS c = COUNT(*)
+  BY b = BUCKET(x, 10, 100000000000000000, 100000000000000010, {"include_empty_buckets": true})
+;
+
+c:long | b:double
+1      | 1.0E17
+;

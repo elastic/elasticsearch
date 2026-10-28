@@ -330,6 +330,13 @@ tests:
     - testColumnar {cluster=UPGRADED}
     - testLogsdbColumnar {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/163164
+# Lucene 11 Dutch default is Kraaij-Pohlmann. Existing dutch names must keep
+# Porter stems (#163610). Yaml still asserts Lucene 10 tokens.
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  methods:
+    - test {yaml=analysis-common/20_analyzers/dutch}
+    - test {yaml=analysis-common/20_analyzers/snowball_dutch}
+  issue: https://github.com/elastic/elasticsearch/issues/163610
 
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyRestIT
   method: testGrantTargetCanUpdateApiKey

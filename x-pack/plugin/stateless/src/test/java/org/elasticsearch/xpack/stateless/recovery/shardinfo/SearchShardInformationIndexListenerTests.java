@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -107,14 +106,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     private final CountDownLatch latch = new CountDownLatch(1);
     private final LatchedActionListener<Void> latchedActionListener = new LatchedActionListener<>(ActionListener.noop(), latch);
     private final RecordingClient client = new RecordingClient();
-    private final ClusterService clusterService = mock(ClusterService.class);
+    private ClusterState clusterState = ClusterState.EMPTY_STATE;
     private MockLog mockLog;
-
-    @Before
-    public void stubEmptyClusterState() {
-        // Mockito returns null unless stubbed; beforeIndexShardRecovery always calls clusterService.state().
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-    }
 
     @Before
     public void setupMockLogger() {
@@ -442,7 +435,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testPutHappensBeforeShardMovedSentinel() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
-        when(clusterService.state()).thenReturn(state);
+        clusterState = state;
         ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
@@ -467,7 +460,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testDidNotCollectClearsClaimForRetry() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
-        when(clusterService.state()).thenReturn(state);
+        clusterState = state;
         ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
@@ -484,7 +477,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testFailureClearsClaimForRetry() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
-        when(clusterService.state()).thenReturn(state);
+        clusterState = state;
         ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
 
@@ -497,7 +490,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testSecondShardDoesNotClaimVolumesWhileFetchInFlight() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
-        when(clusterService.state()).thenReturn(state);
+        clusterState = state;
         ShardWarmVolumes volumes = newVolumes();
         IndexShard firstShard = relocatingDrainShard("source", shardId);
         IndexShard secondShard = relocatingDrainShard("source", new ShardId(index, 1));
@@ -523,7 +516,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     public void testExecuteThrowsReleasesClaim() {
         long generation = randomNonNegativeLong();
         ClusterState state = drainState(index, "source", "target", generation);
-        when(clusterService.state()).thenReturn(state);
+        clusterState = state;
         ShardWarmVolumes volumes = newVolumes();
         IndexShard indexShard = relocatingDrainShard("source");
         Client throwingClient = mock(Client.class);
@@ -534,7 +527,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
             collector,
             clusterSettings,
             System::currentTimeMillis,
-            clusterService,
+            () -> clusterState,
             volumes
         ).beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
         assertTrue(volumes.claimFetch(state, "source"));
@@ -550,7 +543,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
     }
 
     private SearchShardInformationIndexListener newListener(LongSupplier now, ShardWarmVolumes volumes) {
-        return new SearchShardInformationIndexListener(client, collector, clusterSettings, now, clusterService, volumes);
+        return new SearchShardInformationIndexListener(client, collector, clusterSettings, now, () -> clusterState, volumes);
     }
 
     private IndexShard relocatingDrainShard(String sourceId) {

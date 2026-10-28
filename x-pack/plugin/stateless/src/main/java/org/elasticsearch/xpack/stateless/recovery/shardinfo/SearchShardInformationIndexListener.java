@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -25,6 +24,7 @@ import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 
 import java.util.Map;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * An IndexEventListener to retrieve state from other shard copies
@@ -54,7 +54,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
     private final Client client;
     private final SearchShardInformationMetricsCollector collector;
     private final LongSupplier nowSupplier;
-    private final ClusterService clusterService;
+    private final Supplier<ClusterState> clusterStateSupplier;
     private final ShardWarmVolumes shardWarmVolumes;
     private volatile boolean active = FEATURE_FLAG_QUERY_SEARCH_SHARD_INFORMATION.isEnabled();
 
@@ -64,13 +64,13 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
         SearchShardInformationMetricsCollector collector,
         ClusterSettings clusterSettings,
         LongSupplier nowSupplier,
-        ClusterService clusterService,
+        Supplier<ClusterState> clusterStateSupplier,
         ShardWarmVolumes shardWarmVolumes
     ) {
         this.client = client;
         this.collector = collector;
         this.nowSupplier = nowSupplier;
-        this.clusterService = clusterService;
+        this.clusterStateSupplier = clusterStateSupplier;
         this.shardWarmVolumes = shardWarmVolumes;
         clusterSettings.initializeAndWatch(QUERY_SEARCH_SHARD_INFORMATION_SETTING, active -> this.active = active);
     }
@@ -85,7 +85,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
             // if relocation from another node is in the routing entry, this is the best source of information, no need to ask other shards
             String relocatingNodeId = indexShard.routingEntry().relocatingNodeId();
 
-            final var state = clusterService.state();
+            final var state = clusterStateSupplier.get();
             final boolean relocatingFromNodeMarkedForRemoval = isRelocatingFromNodeMarkedForRemoval(relocatingNodeId, state);
             final long claimedShutdownSignalTimestamp = relocatingFromNodeMarkedForRemoval
                 ? state.metadata().nodeShutdowns().get(relocatingNodeId).getStartedAtMillis()
@@ -105,7 +105,7 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                 if (shouldFetchSourceNodeShardWarmVolumes && response.volumesCollected()) {
                     assert relocatingNodeId.equals(response.respondingNodeId()) : "Warm volumes should only be collected from the source";
                     shardWarmVolumes.completeFetch(
-                        clusterService.state(),
+                        clusterStateSupplier.get(),
                         response.respondingNodeId(),
                         claimedShutdownSignalTimestamp,
                         response.volumes()

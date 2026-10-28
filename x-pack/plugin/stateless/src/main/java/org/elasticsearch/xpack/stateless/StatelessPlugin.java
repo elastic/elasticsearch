@@ -1163,7 +1163,7 @@ public class StatelessPlugin extends Plugin
                     shardInformationMetricsCollector,
                     clusterService.getClusterSettings(),
                     threadPool.relativeTimeInMillisSupplier(),
-                    clusterService,
+                    clusterService::state,
                     warmVolumes
                 )
             );

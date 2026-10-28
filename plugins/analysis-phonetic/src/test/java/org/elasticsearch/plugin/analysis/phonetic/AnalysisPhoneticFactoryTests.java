@@ -75,6 +75,23 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         assertNotEquals(fourChars, phoneticKey(Settings.builder().put("encoder", "double_metaphone").put("max_code_len", 6).build()));
     }
 
+    /** max_variations changes the codes the two Koelner-variant encoders emit; every other encoder ignores it. */
+    public void testMaxVariationsIsKeyed() {
+        for (String encoder : new String[] { "koelnerphonetik", "haasephonetik" }) {
+            Object defaults = phoneticKey(Settings.builder().put("encoder", encoder).build());
+            Settings explicitDefault = Settings.builder()
+                .put("encoder", encoder)
+                .put("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS)
+                .build();
+            assertEquals(defaults, phoneticKey(explicitDefault));
+            assertNotEquals(defaults, phoneticKey(Settings.builder().put("encoder", encoder).put("max_variations", 8).build()));
+        }
+        assertEquals(
+            phoneticKey(Settings.builder().put("encoder", "metaphone").build()),
+            phoneticKey(Settings.builder().put("encoder", "metaphone").put("max_variations", 8).build())
+        );
+    }
+
     /** caverphone is an alias for caverphone2, and the language set is used as a set. */
     public void testEquivalentSettingsShareKey() {
         assertEquals(

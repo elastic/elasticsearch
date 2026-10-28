@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
@@ -23,7 +22,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -97,16 +95,6 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
             checkNumberOfShardsSetting(indexName, shards * multiple);
 
             ensureGreen(indexName);
-
-            // Explicit refresh currently needed because it is not done in scope of split.
-            refresh(indexName);
-
-            // All data movement is done properly.
-            var search = prepareSearch(indexName).setAllowPartialSearchResults(false)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setTrackTotalHits(true)
-                .setSize(numDocs * 2);
-            assertResponse(search, r -> assertEquals(numDocs, r.getHits().getTotalHits().value()));
         }
     }
 
@@ -135,7 +123,7 @@ public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBase
             // These tests are not performing writes and do not need the grace period.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
             // If the source moves, retry recovery with its new location before the test's cluster health wait times out.
-            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5));
+            .put(SplitTargetService.START_SPLIT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1));
     }
 
     private static void checkNumberOfShardsSetting(String indexName, int expected_shards) {

@@ -333,7 +333,11 @@ public class SplitSourceService {
             commitService.markSplitting(sourceShardId, targetShardId);
             l.onResponse(null);
         })
-            .<Releasable>andThen(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
+            // delay next step to reproduce #161494
+            .<Releasable>andThen(l -> {
+                Thread.sleep(250);
+                sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic());
+            })
             .<Releasable>andThen((l, permit) -> {
                 try (Releasable ignore = permit) {
                     objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);

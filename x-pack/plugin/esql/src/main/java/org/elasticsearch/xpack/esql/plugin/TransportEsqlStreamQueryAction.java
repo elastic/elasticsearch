@@ -40,9 +40,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
@@ -80,6 +82,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -238,9 +241,12 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         // Stored results are identified so that they can be read again: the task id routes to this coordinator.
-        String streamId = request.store()
-            ? new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(clusterService.localNode().getId(), task.getId())).getEncoded()
+        AsyncExecutionId resultId = request.store()
+            ? new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(clusterService.localNode().getId(), task.getId()))
             : null;
+        Map<String, String> securityHeaders = resultId == null
+            ? null
+            : ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state());
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
@@ -295,7 +301,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
-                            streamId,
+                            resultId,
+                            securityHeaders,
                             request,
                             publisher,
                             streamStarted,
@@ -390,7 +397,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     assert outputRunSeen.get() == false : "an OUTPUT plan ran but the stream was never started";
                     List<ColumnInfoImpl> columns = buildColumns(result.schema(), result.attributeMetadata());
                     Exception startFailure = startStream(
-                        streamId,
+                        resultId,
+                        securityHeaders,
                         request,
                         publisher,
                         streamStarted,
@@ -457,8 +465,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         return ChunkedToXContent.wrapAsToXContent(executionInfo);
     }
 
-    private static Exception startStream(
-        @Nullable String streamId,
+    private Exception startStream(
+        @Nullable AsyncExecutionId resultId,
+        @Nullable Map<String, String> securityHeaders,
         EsqlStreamQueryRequest request,
         PageStreamPublisher publisher,
         AtomicBoolean streamStarted,
@@ -466,8 +475,21 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        request.resultStreamListener()
-            .onResponse(new EsqlStreamQueryAction.ResultStream(streamId, columns, publisher, nullColumns, zoneId));
+        if (resultId != null) {
+            StoredResultWriter writer = new StoredResultWriter(
+                client,
+                resultId.getDocId(),
+                StoredResultMetadata.running(securityHeaders, columns, zoneId),
+                threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)
+                    .millis(),
+                publisher
+            );
+            publisher.observePages(writer);
+            writer.start();
+            publisher.addCloseListener(ActionListener.running(() -> writer.finish(publisher.footer(), publisher.failure())));
+        }
+        String id = resultId == null ? null : resultId.getEncoded();
+        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(id, columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

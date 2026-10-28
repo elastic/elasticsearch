@@ -66,7 +66,25 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
         @Nullable ChunkedToXContent profile
     ) {}
 
+    /**
+     * Sees every page just before it is handed to the subscriber, for example to store it, and can hold the
+     * producers back while it has no capacity left.
+     */
+    public interface PageObserver {
+        /**
+         * Called with each page before the subscriber gets it. Must neither retain nor release the page and must not throw.
+         */
+        void onPage(Page page);
+
+        /**
+         * Whether producers may add more pages. Called under the publisher's lock, so it must be cheap and non-blocking.
+         * Call {@link #observerCapacityAvailable()} once capacity is back.
+         */
+        boolean hasCapacity();
+    }
+
     private final ArrayDeque<Page> buffer = new ArrayDeque<>();
+    private volatile PageObserver observer;
 
     private volatile Flow.Subscriber<? super Page> subscriber;
 
@@ -103,7 +121,22 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
 
     private boolean isWritable() {
         assert Thread.holdsLock(this);
-        return cancelled || terminated() || demand > buffer.size();
+        return cancelled || terminated() || (demand > buffer.size() && (observer == null || observer.hasCapacity()));
+    }
+
+    /**
+     * Registers the {@link PageObserver}. Must be called before {@link #subscribe}.
+     */
+    public void observePages(PageObserver observer) {
+        assert subscriber == null : "the observer must be registered before the subscriber";
+        this.observer = observer;
+    }
+
+    /**
+     * Signals that the {@link PageObserver} has capacity again, unblocking producers held back by it.
+     */
+    public void observerCapacityAvailable() {
+        notifyWritable();
     }
 
     private void notifyWritable() {
@@ -387,6 +420,10 @@ public class PageStreamPublisher implements Flow.Publisher<Page> {
             page.releaseBlocks();
             notifyWritable();
             return false;
+        }
+        PageObserver o = observer;
+        if (o != null) {
+            o.onPage(page);
         }
         subscriber.onNext(page);
         notifyWritable();

@@ -1,0 +1,183 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.esql.plugin.StoredResultMetadata;
+import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction;
+import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction.StoredPage;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.LongStream;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * Streaming queries that store their result with {@code store=true}.
+ */
+public class StoredStreamIT extends AbstractEsqlIntegTestCase {
+
+    /**
+     * Registers the index the results are stored in, as the async plugin does in a real cluster.
+     */
+    public static class ResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(AsyncResultPagesIndex.getSystemIndexDescriptor());
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "async_result_pages";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Stored ES|QL results";
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ResultsIndexPlugin.class);
+        return Collections.unmodifiableList(plugins);
+    }
+
+    private int indexDocs() {
+        int numDocs = between(100, 300);
+        assertAcked(client().admin().indices().prepareCreate("test").setMapping("v", "type=long"));
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numDocs; i++) {
+            bulk.add(prepareIndex("test").setSource("v", i));
+        }
+        assertNoFailures(bulk.get());
+        return numDocs;
+    }
+
+    private EsqlStreamQueryAction.ResultStream stream(boolean store, StreamQueryTestUtils.CountingStreamSubscriber subscriber) {
+        EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("FROM test | KEEP v | LIMIT 10000");
+        AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
+        EsqlStreamQueryRequest request = new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
+            startRef.set(resultStream);
+            resultStream.publisher().subscribe(subscriber);
+        }, subscriber.failure::set), false);
+        if (store) {
+            request.store(true);
+        }
+        ActionFuture<ActionResponse.Empty> future = client().execute(EsqlStreamQueryAction.INSTANCE, request);
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        safeAwait(subscriber.completed);
+        assertThat(subscriber.failure.get(), nullValue());
+        return startRef.get();
+    }
+
+    public void testNotStoredByDefault() {
+        int numDocs = indexDocs();
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        var resultStream = stream(false, subscriber);
+        assertThat(subscriber.rowCount.get(), equalTo(numDocs));
+        assertThat(resultStream.id(), nullValue());
+        assertFalse(indexExists(AsyncResultPagesIndex.INDEX));
+    }
+
+    public void testStored() throws Exception {
+        int numDocs = indexDocs();
+        var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        var resultStream = stream(true, subscriber);
+        assertThat(subscriber.rowCount.get(), equalTo(numDocs));
+        assertThat(resultStream.id(), notNullValue());
+        String docId = AsyncExecutionId.decode(resultStream.id()).getDocId();
+
+        NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class);
+        AtomicReference<StoredResultMetadata> metadata = new AtomicReference<>();
+        assertBusy(() -> {
+            List<StoredPage> first;
+            try {
+                first = readPages(docId, 0, 1);
+            } catch (Exception e) {
+                // the result is stored in the background and may not be there yet
+                throw new AssertionError(e);
+            }
+            assertThat(first.size(), equalTo(1));
+            StoredResultMetadata m = new StoredResultMetadata(input(first.get(0), registry));
+            assertThat(m.status(), equalTo(StoredResultMetadata.Status.COMPLETED));
+            metadata.set(m);
+        });
+        assertThat(metadata.get().rowCount(), equalTo((long) numDocs));
+        assertThat(metadata.get().pageCount(), greaterThan(1));
+        assertThat(metadata.get().columns().get(0).name(), equalTo("v"));
+
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<Long> values = new ArrayList<>();
+        List<StoredPage> pages = readPages(docId, 1, metadata.get().pageCount() + 1);
+        assertThat(pages.size(), equalTo(metadata.get().pageCount()));
+        long expectedFirstRow = 0;
+        for (int i = 0; i < pages.size(); i++) {
+            StoredPage stored = pages.get(i);
+            assertThat(stored.seq(), equalTo(i + 1));
+            assertThat(stored.firstRow(), equalTo(expectedFirstRow));
+            try (BlockStreamInput in = new BlockStreamInput(input(stored, registry), blockFactory)) {
+                Page page = new Page(in);
+                try {
+                    assertThat(page.getPositionCount(), equalTo(stored.rowCount()));
+                    LongBlock block = page.getBlock(0);
+                    for (int p = 0; p < block.getPositionCount(); p++) {
+                        values.add(block.getLong(block.getFirstValueIndex(p)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            expectedFirstRow += stored.rowCount();
+        }
+        Collections.sort(values);
+        assertThat(values, equalTo(LongStream.range(0, numDocs).boxed().toList()));
+    }
+
+    private List<StoredPage> readPages(String docId, int fromSeq, int maxPages) {
+        return client().execute(
+            TransportReadAsyncResultPagesAction.TYPE,
+            new TransportReadAsyncResultPagesAction.Request(docId, fromSeq, maxPages)
+        ).actionGet(TEST_REQUEST_TIMEOUT).pages();
+    }
+
+    private static StreamInput input(StoredPage stored, NamedWriteableRegistry registry) throws IOException {
+        StreamInput in = new NamedWriteableAwareStreamInput(stored.bytes().streamInput(), registry);
+        in.setTransportVersion(stored.transportVersion());
+        return in;
+    }
+}

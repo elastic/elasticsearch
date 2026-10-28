@@ -297,6 +297,12 @@ public final class QuerySettings {
                 name = "limit",
                 type = { "integer" },
                 description = "Maximum number of exemplars to return. Without it the default limit of a regular query applies."
+            ),
+            @MapParam.MapParamEntry(
+                name = "include_timeseries",
+                type = { "boolean" },
+                description = "When enabled, a `_timeseries` column is returned, holding the dimensions that identify the series each"
+                    + " exemplar belongs to. Defaults to `false`."
             ) }
     )
     public static final QuerySettingDef<ExemplarsSettings> EXEMPLARS = QuerySettingDef.object(

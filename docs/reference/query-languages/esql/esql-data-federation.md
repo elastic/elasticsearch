@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -19,7 +19,7 @@ You can query data stored in compatible external data sources, using the same sy
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:
 
-- {applies_to}`stack: experimental 9.6+` This feature is enabled by default in {{es}}. The {{kib}} UI is turned on separately. Refer to [Enable the feature](#enable-the-feature).
+- {applies_to}`stack: preview 9.6+` This feature is enabled by default in {{es}}. The {{kib}} UI is turned on separately. Refer to [Enable the feature](#enable-the-feature).
 - {applies_to}`stack: experimental =9.5` This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
@@ -33,7 +33,7 @@ To use {{esql}} Data Federation, make sure the feature is enabled in {{es}} and 
 
 :::::{applies-switch}
 
-::::{applies-item} stack: experimental 9.6+
+::::{applies-item} stack: preview 9.6+
 {{esql}} Data Federation is enabled by default. To turn it off, add the following to your {{es}} configuration:
 
 ```yaml
@@ -63,7 +63,7 @@ The {{kib}} UI lets you connect data sources and add datasets without using the 
 
 :::::{applies-switch}
 
-::::{applies-item} stack: experimental 9.6+
+::::{applies-item} stack: preview 9.6+
 Turn on the UI with an advanced setting:
 
 1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
@@ -159,7 +159,7 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 
 Relevance scoring works differently for datasets:
 
-- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: preview 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
 - {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.

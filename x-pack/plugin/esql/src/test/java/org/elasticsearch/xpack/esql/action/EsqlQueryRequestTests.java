@@ -848,7 +848,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     "exemplars": {"limit": 1234}
                 }
             }""");
-        assertEquals(new ExemplarsSettings(true, 1234), request.get(QuerySettings.EXEMPLARS));
+        assertEquals(new ExemplarsSettings(true, 1234, false), request.get(QuerySettings.EXEMPLARS));
     }
 
     public void testSettingsBlockRejectsConflictingValuesAtBothLevels() {

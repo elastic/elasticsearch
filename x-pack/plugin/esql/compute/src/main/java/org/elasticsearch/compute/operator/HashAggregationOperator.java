@@ -171,7 +171,7 @@ public class HashAggregationOperator implements Operator {
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
     public static final long DEFAULT_PARTITIONING_MEMORY_THRESHOLD = 16L * 1024 * 1024;
     public static final int DEFAULT_PARTITIONING_NUM_KEYS_THRESHOLD = 400_000;
-    public static final int DEFAULT_DIRECT_TABLE_SLOTS = 16 * 1024;
+    public static final int DEFAULT_DIRECT_TABLE_SLOTS = 2048;
     public static final int DEFAULT_DIRECT_TABLE_SWITCH_MIN_KEYS = 32 * 1024;
     public static final double DEFAULT_DIRECT_TABLE_SWITCH_UNIQUENESS = 0.5;
 

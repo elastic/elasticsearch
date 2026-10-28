@@ -41,6 +41,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
+    private int maxVariations;
     private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
@@ -53,6 +54,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
+        this.maxVariations = 0;
         this.isDaitchMokotoff = false;
         this.replace = settings.getAsBoolean("replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
@@ -96,9 +98,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik(maxVariations(settings));
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new KoelnerPhonetik(maxVariations);
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik(maxVariations(settings));
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new HaasePhonetik(maxVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -107,12 +111,14 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
-        // The commons-codec encoders are built with their defaults, so the class identifies the encoding; the
-        // language set is used as a set, so its order and duplicates do not matter.
+        // The commons-codec encoders are built with their defaults, except the Koelner variants which take
+        // max_variations, so the class plus the keyed limits identifies the encoding; the language set is
+        // used as a set, so its order and duplicates do not matter.
         this.sharingKey = new Key(
             encoder == null ? null : encoder.getClass(),
             replace,
             maxcodelength,
+            maxVariations,
             languageset == null ? null : Set.copyOf(languageset),
             nametype,
             ruletype,
@@ -172,6 +178,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         Class<? extends Encoder> encoder,
         boolean replace,
         int maxCodeLength,
+        int maxVariations,
         Set<String> languageSet,
         NameType nameType,
         RuleType ruleType,

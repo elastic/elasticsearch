@@ -23,7 +23,8 @@ import java.util.Map;
  *     <li>{@link #COLD_SEGMENTS_TOTAL_SIZE_HISTOGRAM_METRIC}: the total size of the commit's internal files (new data embedded in the
  *     commit), excluding the header and other non-file content;</li>
  *     <li>{@link #COLD_SEGMENTS_MERGE_SIZE_HISTOGRAM_METRIC}: the subset of new data that has been produced by a merge. A merge introduces
- *     no new documents, so reading merged segments cold before they are uploaded and prewarmed only adds cold reads without much benefit.</li>
+ *     no new documents, so reading merged segments cold before they are uploaded and prewarmed only adds cold reads without much
+ *     benefit.</li>
  * </ul>
  */
 public record SearchColdSegmentsMetrics(LongHistogram coldSegmentsTotalSizeHistogram, LongHistogram coldSegmentsMergeSizeHistogram) {

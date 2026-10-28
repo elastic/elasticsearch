@@ -158,6 +158,8 @@ public final class DefBootstrap {
          * Does a slow lookup against the whitelist.
          */
         private MethodHandle lookup(int flavorValue, String nameValue, Class<?> receiver) throws Throwable {
+            // For a load, array load or iterator, an int flag says the script instance was pushed after the receiver.
+            boolean scriptPushed = args.length > 0 && args[0] instanceof Integer flag && flag != 0;
             return switch (flavorValue) {
                 case METHOD_CALL -> Def.lookupMethod(
                     painlessLookup,
@@ -169,11 +171,11 @@ public final class DefBootstrap {
                     nameValue,
                     args
                 );
-                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue, args.length > 0 && ((int) args[0]) != 0);
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue, scriptPushed);
                 case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
-                case ARRAY_LOAD -> Def.lookupArrayLoad(painlessLookup, receiver, args.length > 0 && ((int) args[0]) != 0);
+                case ARRAY_LOAD -> Def.lookupArrayLoad(painlessLookup, receiver, scriptPushed);
                 case ARRAY_STORE -> Def.lookupArrayStore(receiver);
-                case ITERATOR -> Def.lookupIterator(painlessLookup, receiver, args.length > 0 && ((int) args[0]) != 0);
+                case ITERATOR -> Def.lookupIterator(painlessLookup, receiver, scriptPushed);
                 case REFERENCE -> Def.lookupReference(
                     painlessLookup,
                     functions,

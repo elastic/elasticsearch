@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateFilter;
@@ -54,6 +55,27 @@ class SpatialGeometryBlockProcessor {
     BytesRef processSingleGeometry(Geometry jtsGeometry, double parameter) {
         Geometry result = applyOperation(jtsGeometry, parameter);
         return UNSPECIFIED.jtsGeometryToWkb(result);
+    }
+
+    /**
+     * Creates transformers that apply the operation to geometries reconstructed from shape doc values, for functions that
+     * are fused into loading those doc values. The coordinates are copied straight into JTS, without an intermediate
+     * WKB encoding, and a geometry that cannot be transformed registers a warning and becomes null, as in the evaluators.
+     */
+    BlockLoaderFunctionConfig.GeometryTransformerFactory transformers(double parameter) {
+        return warnings -> {
+            JtsGeometryConverter converter = new JtsGeometryConverter(geometryFactory);
+            return geometry -> {
+                try {
+                    return processSingleGeometry(converter.toJts(geometry), parameter);
+                } catch (IllegalArgumentException e) {
+                    if (warnings != null) {
+                        warnings.registerException(IllegalArgumentException.class, e.getMessage());
+                    }
+                    return null;
+                }
+            };
+        };
     }
 
     void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double parameter) throws IOException {

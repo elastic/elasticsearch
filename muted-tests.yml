@@ -156,9 +156,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/156569
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecChangePointIT
-  method: test {csv-spec:change_point.null keys}
-  issue: https://github.com/elastic/elasticsearch/issues/156856
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/157223
@@ -168,9 +165,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
-  method: test {csv-spec:change_point.null keys}
-  issue: https://github.com/elastic/elasticsearch/issues/157411
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   method: testFailedDeploymentStats
   issue: https://github.com/elastic/elasticsearch/issues/157341
@@ -352,9 +346,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
-  method: testSourceNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/162540
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565

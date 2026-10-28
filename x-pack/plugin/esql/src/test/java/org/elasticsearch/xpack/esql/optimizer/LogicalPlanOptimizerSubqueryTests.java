@@ -315,6 +315,28 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         assertThat(e.getMessage(), containsString("query resolved to 2 nested union levels, exceeding the limit of 1"));
     }
 
+    /**
+     * FORKs nested through UNION ALL subqueries multiply the leaf branches: each FORK repeats its input, and the UNION ALL under it,
+     * in every branch. The query-wide branch count limit rejects them on the optimized plan, and the same plan passes once the
+     * limit allows it, so nothing else stands in its way.
+     */
+    public void testNestedForksRejectedByTotalBranchCount() {
+        String query = nestedForks(4) + " | STATS c = COUNT(*)";
+        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery(query, Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("query resolved to 62 branches in total, exceeding the limit of 20"));
+        Settings raised = Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 62).build();
+        planSubquery(query, raised);
+    }
+
+    /** {@code depth} FORKs, each over a UNION ALL of the previous one and {@code test}: 2^(depth + 2) - 2 leaves. */
+    private static String nestedForks(int depth) {
+        String query = "FROM test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0)";
+        for (int i = 0; i < depth; i++) {
+            query = "FROM (" + query + "), test | FORK (WHERE emp_no > 0) (WHERE emp_no < 0)";
+        }
+        return query;
+    }
+
     public void testNestedLimitsAgainstClusterSettings() {
         assertNestedLimitsWithClusterSettings(4, 3, (pragmas, flags) -> planSubquery(FOUR_LEAF_THREE_LEVEL, pragmas, flags));
         assertNestedLimitsWithClusterSettings(

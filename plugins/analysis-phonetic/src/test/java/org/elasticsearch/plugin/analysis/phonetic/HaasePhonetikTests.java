@@ -32,17 +32,24 @@ public class HaasePhonetikTests extends ESTestCase {
     }
 
     public void testLegacyStartingChDropsFollowingLetter() throws EncoderException {
-        assertEquals("4_8", new HaasePhonetik(true).encode("CHLOE"));
+        assertEquals("4_8", new HaasePhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode("CHLOE"));
     }
 
     public void testEndAnchoredRulesDoNotChangeCodes() throws EncoderException {
         for (String word : new String[] { "MARIA", "OTTO", "BEAU", "ANNA" }) {
-            assertEquals(word, new HaasePhonetik(true).encode(word), new HaasePhonetik(false).encode(word));
+            assertEquals(
+                word,
+                new HaasePhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode(word),
+                new HaasePhonetik().encode(word)
+            );
         }
     }
 
     public void testKoelnerPhonetikUnaffected() throws EncoderException {
-        assertEquals(new KoelnerPhonetik().encode("CHLOE"), new KoelnerPhonetik(false, true).encode("CHLOE"));
+        assertEquals(
+            new KoelnerPhonetik().encode("CHLOE"),
+            new KoelnerPhonetik(KoelnerPhonetik.DEFAULT_MAX_VARIATIONS, true).encode("CHLOE")
+        );
     }
 
     public void testFilterFactoryGatesOnIndexVersion() throws IOException {

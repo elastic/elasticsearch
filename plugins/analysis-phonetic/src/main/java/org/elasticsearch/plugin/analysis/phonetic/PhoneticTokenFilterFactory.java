@@ -97,9 +97,10 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik();
+                this.encoder = new KoelnerPhonetik(maxVariations(settings));
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
                 this.encoder = new HaasePhonetik(
+                    maxVariations(settings),
                     indexSettings.getIndexVersionCreated().before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS)
                 );
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
@@ -121,6 +122,22 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             ruletype,
             isDaitchMokotoff
         );
+    }
+
+    // Only the koelnerphonetik and haasephonetik encoders generate spelling variations; the limit is ignored
+    // for every other encoder, like the other encoder-specific settings above.
+    private static int maxVariations(Settings settings) {
+        int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+        if (maxVariations < 1 || maxVariations > KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "[max_variations] must be between 1 and "
+                    + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND
+                    + " for phonetic token filter, got ["
+                    + maxVariations
+                    + "]"
+            );
+        }
+        return maxVariations;
     }
 
     @Override

@@ -62,6 +62,14 @@ If the `double_metaphone` encoder is used, then this additional setting is suppo
 :   The maximum length of the emitted metaphone token. Defaults to `4`.
 
 
+## Kölner Phonetik and Haase Phonetik settings [_koelner_phonetik_settings]
+
+If the `koelnerphonetik` or `haasephonetik` encoder is used, then this additional setting is supported:
+
+`max_variations` {applies_to}`stack: ga 9.4`
+:   Available in 9.4.9, 9.5.6, 9.6.1, and later. The maximum number of spelling variations the encoder generates for a single token. These encoders emit a code for every spelling variation of a token (for example `AUN` and `OWN`) and for every combination of its punctuation-separated segments, which grows quickly for long tokens. A token that would exceed the limit is encoded from its first `max_variations` variations only. Defaults to `256`. The memory needed to encode one token grows in proportion to `max_variations` multiplied by the token length, so raising it on a field whose tokenizer emits long tokens (for example `keyword`) lets a single large value consume a large amount of heap.
+
+
 ## Beider Morse settings [_beider_morse_settings]
 
 If the `beider_morse` encoder is used, then these additional settings are supported:

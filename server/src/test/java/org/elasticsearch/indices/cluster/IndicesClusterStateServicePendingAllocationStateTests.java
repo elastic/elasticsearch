@@ -373,7 +373,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // Batched cluster-state processing can take a primary straight from initializing(term1) to
         // initializing(term2) with the same routing/allocation id (see
         // IndicesClusterStateService#removeIndicesAndShards's "primary term bumped" branch). The old
-        // ticket must not survive this, or the new chapter's createShard would find it still "owned".
+        // ticket must not survive this, or the new term's createShard would find it still "owned".
         applyState(stateWithPrimaryTermBumped(shardRouting));
 
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
@@ -448,7 +448,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         // Old primary failed; the former replica is promoted (same allocation id), bumping the primary
         // term (see IndicesClusterStateService#removeIndicesAndShards's "primary promotion" branch). The
-        // old ticket must not survive this, or the new chapter's createShard would find it still "owned".
+        // old ticket must not survive this, or the new term's createShard would find it still "owned".
         ShardRouting promoted = TestShardRouting.shardRoutingBuilder(replica.shardId(), localNodeId, true, ShardRoutingState.INITIALIZING)
             .withAllocationId(replica.allocationId())
             .build();
@@ -504,16 +504,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // earlier recovery failure) -- createIndicesAndUpdateShards reports it as failed separately.
         assertTrue(isFailureReported(shardRouting));
     }
-
-    // NOTE: a test formerly lived here ("...ClearsWhenFailedShardsCacheHit") simulating a FailureReported
-    // write landing on top of an existing AwaitingRecoveryRetry via a second direct handleRecoveryFailure(FAIL_SEND)
-    // call. That scenario is no longer constructible: handleRecoveryFailure now requires the caller's
-    // ticket to match the live pendingAllocationStates entry, and a single CreatingShard attempt can only ever
-    // produce one terminal signal (RecoveryListener#assertOnce), so two independent handleRecoveryFailure
-    // calls for the same attempt can't happen. The only remaining production path that can still write
-    // FailureReported over a live AwaitingRecoveryRetry is FailedShardHandler (a separate, ticket-independent
-    // caller -- see the "leave FailedShardHandler as is" decision). testRetryDoesNotClobberFailureReported
-    // covers the mirror-image ordering (FailureReported already present, then a stale RETRY arrives).
 
     public void testRetryContextKeptWhenCreateGivesUpMissingPeerSource() {
         String indexName = randomIndexName();
@@ -623,22 +613,19 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
     }
 
-    public void testRetryDoesNotRegressAnExistingFresherMarker() {
+    public void testRetryIgnoresStaleTicketWhenAwaitingRecoveryRetryIsCurrent() {
         final var shardRouting = applyInitializingPrimary();
-        // Capture the original ticket before it's spent, so the later "stale" call below can present it.
+        // Capture the ticket before it's spent, so the later stale call below can present it.
         final var originalCreatingShard = currentCreatingShard(shardRouting);
+
         handleRecoveryFailureWithRetry(shardRouting);
         assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
-
-        // Seed a fresher marker, as if a newer attempt had already recorded more retries.
-        indicesClusterStateService.pendingAllocationStates.put(
-            allocationKey(shardRouting),
-            new IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(5, primaryTerm(shardRouting))
-        );
         int tasksBefore = pendingApplierTasks.size();
 
-        // A late failure from the original (now-superseded) attempt, presenting its own now-stale
-        // ticket, must not regress the marker nor schedule a second retry task.
+        // A late failure from the original (now-superseded) attempt, presenting its own stale ticket,
+        // must be ignored by handleRecoveryFailure's `pendingAllocationStates.get(key) != creatingShard`
+        // check -- it's no longer the owner, so it must not touch the current marker or schedule a
+        // second retry task.
         indicesClusterStateService.handleRecoveryFailure(
             shardRouting,
             RETRY,
@@ -647,7 +634,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             recoveryState(shardRouting, 0),
             originalCreatingShard
         );
-        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(5));
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
         assertThat(pendingApplierTasks.size(), equalTo(tasksBefore));
     }
 

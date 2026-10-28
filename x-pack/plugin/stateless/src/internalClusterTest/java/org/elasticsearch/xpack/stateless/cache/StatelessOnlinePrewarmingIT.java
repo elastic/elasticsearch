@@ -17,6 +17,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -34,12 +35,16 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
+import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -55,14 +60,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.SEGMENT_PREWARMING_EXECUTION_WAITING_TIME_HISTOGRAM_NAME;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.SHARD_TOOK_DURATION_HISTOGRAM_NAME;
+import static org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -269,6 +278,104 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
             cachePopulationReason,
             cachePopulationSource
         );
+    }
+
+    /**
+     * Online prewarming reads the first region of the latest blob from the indexing node while that blob is still a virtual batched
+     * compound commit (VBCC). If the VBCC is uploaded and released before the read arrives, the indexing node replies that it is not
+     * found and the reader surfaces a {@link org.elasticsearch.ResourceAlreadyUploadedException}, which prewarming has to retry from the
+     * object store rather than fail on.
+     */
+    public void testShardPrewarmingRetriesFromObjectStoreWhenVbccWasUploaded() throws Exception {
+        startMasterOnlyNode();
+
+        var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
+            // keep refreshes batched in a single VBCC until we flush
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 10)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), "1g")
+            // release the VBCC as soon as it is uploaded, so that the indexing node no longer serves chunks of it
+            .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), TimeValue.ZERO)
+            .put(TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(), REGION_SIZE)
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+        final String searchNode = startSearchNode(nodeSettings);
+        final String indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+                .build()
+        );
+        ensureGreen(indexName);
+        final var shardId = findIndexShard(indexName).shardId();
+
+        // Do not tell the search node that the VBCC got uploaded, so that its upload tracker still sends reads to the indexing node. The
+        // SwitchingCacheBlobReader only learns about the upload from the indexing node's "not found" reply.
+        final var searchNodeTransport = MockTransportService.getInstance(searchNode);
+        searchNodeTransport.addRequestHandlingBehavior(
+            TransportNewCommitNotificationAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                var notificationRequest = (NewCommitNotificationRequest) request;
+                var routingTable = mock(IndexShardRoutingTable.class);
+                when(routingTable.shardId()).thenReturn(shardId);
+                handler.messageReceived(
+                    new NewCommitNotificationRequest(
+                        routingTable,
+                        notificationRequest.getCompoundCommit(),
+                        notificationRequest.getBatchedCompoundCommitGeneration(),
+                        null,
+                        notificationRequest.getClusterStateVersion(),
+                        notificationRequest.getNodeId()
+                    ),
+                    channel,
+                    task
+                );
+            }
+        );
+        final var chunkRequestsToIndexingNode = new AtomicInteger();
+        searchNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                chunkRequestsToIndexingNode.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        for (int i = 0; i < 3; i++) {
+            indexDocs(indexName, 1000);
+            refresh(indexName);
+        }
+        // uploads the VBCC; the search node is not told, and the indexing node releases the VBCC right away
+        flush(indexName);
+
+        IndexShard indexShard = findSearchShard(indexName);
+        var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
+        StatelessSharedBlobCacheService cacheService = BlobStoreCacheDirectoryTestUtils.getCacheService(searchDirectory);
+        // clear the cache so that prewarming has something to fetch
+        cacheService.forceEvict(key -> true);
+        long bytesWarmedBeforePrewarming = searchDirectory.totalBytesWarmed();
+        int chunkRequestsBeforePrewarming = chunkRequestsToIndexingNode.get();
+
+        StatelessOnlinePrewarmingService onlinePrewarmingService = (StatelessOnlinePrewarmingService) internalCluster().getInstance(
+            OnlinePrewarmingService.class,
+            DiscoveryNodeRole.SEARCH_ROLE
+        );
+        PlainActionFuture<Void> prewarmingFuture = new PlainActionFuture<>();
+        onlinePrewarmingService.prewarm(indexShard, prewarmingFuture);
+        // fails with a ResourceAlreadyUploadedException unless prewarming retries from the object store
+        prewarmingFuture.get(10, TimeUnit.SECONDS);
+
+        assertThat(
+            "prewarming should first have tried to read the VBCC from the indexing node",
+            chunkRequestsToIndexingNode.get(),
+            greaterThan(chunkRequestsBeforePrewarming)
+        );
+        assertThat(searchDirectory.totalBytesWarmed() - bytesWarmedBeforePrewarming, is(greaterThan(0L)));
     }
 
     private static long getNumberOfCompletedTasks(ThreadPool threadPool, String shardReadThreadPool) {

@@ -24,6 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -171,8 +172,14 @@ final class BatchRouterSet implements Releasable {
      * Records one item for deferred routing. Dispatches to the correct per-abstraction
      * {@link BatchModeRouter} via the batch key computed from the item's index abstraction.
      *
-     * <p>The {@code requestsByShard} parameter is accepted for API compatibility with the production
-     * call site but is unused — items are deferred until {@link #buildGrouping}.
+     * <p>An {@link IndexRequest} without a source-row reference belongs to an index that did not opt in
+     * to batch indexing ({@code index.batch_indexing}); {@link BulkBatchEncoders#encode} leaves such items
+     * on their inline source. They are routed immediately by the row path and added to
+     * {@code requestsByShard}. Pre-built batches never contain such items, as {@link #create} requires
+     * every item to carry a source-row reference.
+     *
+     * <p>Every other item is deferred until {@link #buildGrouping}, so {@code requestsByShard} is only
+     * written by this method for the inline items described above.
      *
      * @throws IllegalArgumentException if no batch was supplied for the item's index abstraction
      */
@@ -185,6 +192,13 @@ final class BatchRouterSet implements Releasable {
         ProjectMetadata project,
         Map<ShardId, List<BulkItemRequest>> requestsByShard
     ) {
+        if (request instanceof IndexRequest indexRequest && indexRequest.indexSource().hasSourceRow() == false) {
+            request.preRoutingProcess(routing);
+            int shardId = request.route(routing);
+            request.postRoutingProcess(routing);
+            requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
+            return;
+        }
         BatchModeRouter router = findRouter(abstraction, project);
         if (router == null) {
             throw new IllegalArgumentException(

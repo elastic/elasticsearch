@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,6 +55,12 @@ public class BulkBatchEncodersTests extends ESTestCase {
     private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
     private final List<BatchRouterSet> routers = new ArrayList<>();
 
+    /** Batch encoding only happens when the batch_indexing feature flag is on. */
+    @Before
+    public void requireBatchIndexingFeatureFlag() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+    }
+
     /** Releases the routers created by {@link #encode}, then checks that no recycler page is still held. */
     @After
     public void releaseRouters() {
@@ -73,15 +80,27 @@ public class BulkBatchEncodersTests extends ESTestCase {
         return router;
     }
 
+    /** Index settings that opt in to batch indexing, as the encode pass only encodes items of indices with {@code index.batch_indexing}. */
     private static Settings.Builder indexSettings(String name) {
+        return indexSettings(name, true);
+    }
+
+    private static Settings.Builder indexSettings(String name, boolean batchIndexing) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_INDEX_UUID, name + "-uuid")
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing);
     }
 
     private static IndexMetadata plainMeta(String name) {
-        return IndexMetadata.builder(name).settings(indexSettings(name).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).build();
+        return plainMeta(name, true);
+    }
+
+    private static IndexMetadata plainMeta(String name, boolean batchIndexing) {
+        return IndexMetadata.builder(name)
+            .settings(indexSettings(name, batchIndexing).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+            .build();
     }
 
     private static ProjectMetadata singleIndexProject(String indexName) {
@@ -296,6 +315,59 @@ public class BulkBatchEncodersTests extends ESTestCase {
         assertThat(router, notNullValue());
         IndexRequest ir = (IndexRequest) req.requests().get(0);
         assertTrue(ir.indexSource().hasSourceRow());
+    }
+
+    // ---- per-index opt-in tests ----
+
+    /**
+     * Only indices with {@code index.batch_indexing} enabled are encoded; items of a disabled index in the same bulk keep their
+     * inline source and carry no source-row reference, without abandoning batching for the enabled index.
+     */
+    public void testEncodeOnlyBatchesIndicesThatOptedIn() throws Exception {
+        String enabled = "enabled-index";
+        String disabled = "disabled-index";
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(plainMeta(enabled, true), false)
+            .put(plainMeta(disabled, false), false)
+            .build();
+        int numDocs = randomIntBetween(4, 20);
+        BulkRequest req = new BulkRequest();
+        List<BytesReference> originalBytes = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = indexRequest(i % 2 == 0 ? enabled : disabled, doc(i));
+            originalBytes.add(ir.indexSource().bytes());
+            req.add(ir);
+        }
+
+        BatchRouterSet router = encode(req, project);
+        assertThat(router, notNullValue());
+
+        int enabledRow = 0;
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = (IndexRequest) req.requests().get(i);
+            if (ir.index().equals(enabled)) {
+                assertTrue("item " + i + " of the enabled index must have a source row", ir.indexSource().hasSourceRow());
+                assertThat("item " + i + " row", ir.indexSource().rowIndex(), equalTo(enabledRow++));
+            } else {
+                assertFalse("item " + i + " of the disabled index must keep inline source", ir.indexSource().hasSourceRow());
+                assertSame("item " + i + " bytes must be untouched", originalBytes.get(i), ir.indexSource().bytes());
+            }
+        }
+    }
+
+    /** When no item targets an index that opted in there is nothing to batch, so no router is created. */
+    public void testEncodeReturnsNullWhenNoIndexOptedIn() throws Exception {
+        ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(plainMeta(INDEX, false), false).build();
+        BulkRequest req = new BulkRequest();
+        BytesReference src = doc(0);
+        req.add(indexRequest(INDEX, src));
+        req.add(indexRequest(INDEX, doc(1)));
+
+        assertThat(encode(req, project), nullValue());
+
+        for (DocWriteRequest<?> request : req.requests()) {
+            assertFalse(((IndexRequest) request).indexSource().hasSourceRow());
+        }
     }
 
     // ---- eligibility delegation tests ----

@@ -23,6 +23,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.sourcebatch.SourceBatch;
 
 import java.util.ArrayList;
@@ -45,7 +46,13 @@ import java.util.Map;
  * uses a routing strategy that requires extracting fields from the source on the shard side
  * (e.g. routing-path-based TSDB), or if any item's source bytes fail encoding, {@link #encode}
  * returns {@code null} and the whole bulk takes the row path.
- * Because attachment ({@link org.elasticsearch.action.index.IndexSource#setSourceRow}) is deferred
+ *
+ * <p>Per-index opt-in is not all-or-nothing: items whose write index has {@code index.batch_indexing}
+ * disabled ({@link IndexSettings#isBatchIndexingEnabled}) are skipped, keep their inline source, and are
+ * routed by {@link BatchRouterSet#route} as ordinary row-path items, without abandoning batching for the
+ * other indices of the bulk.
+ *
+ * <p>Because attachment ({@link org.elasticsearch.action.index.IndexSource#setSourceRow}) is deferred
  * until every document has been encoded successfully, every {@link IndexRequest} still holds its
  * original inline source on abort, and the row path picks it up without any recovery step.
  */
@@ -93,9 +100,11 @@ final class BulkBatchEncoders {
      *
      * <p>Returns {@code null} if the bulk is not eligible (see {@link #isBulkBatchEligible}), if any
      * item targets a null batch key, if any write index uses routing that requires source-extraction
-     * at the shard (e.g. {@link IndexRouting.ExtractFromSource.ForRoutingPath}), or if encoding
-     * fails for any item. On {@code null} return every {@link IndexRequest} still holds its
-     * original inline source bytes.
+     * at the shard (e.g. {@link IndexRouting.ExtractFromSource.ForRoutingPath}), if encoding
+     * fails for any item, or if no item targets an index with {@code index.batch_indexing} enabled.
+     * On {@code null} return every {@link IndexRequest} still holds its original inline source bytes.
+     * Items of indices with {@code index.batch_indexing} disabled are left out of the batches and keep
+     * their inline source even when the result is non-null.
      */
     @Nullable
     static BatchRouterSet encode(
@@ -114,6 +123,9 @@ final class BulkBatchEncoders {
         // a null value (stored explicitly) means "seen and incompatible — abort on first access".
         // We use containsKey() rather than computeIfAbsent() to allow caching null keys.
         Map<String, String> keyByTargetName = new HashMap<>();
+        // Per-key cache of the index.batch_indexing decision for the key's write index. The setting is Final, so it cannot
+        // change during the bulk.
+        Map<String, Boolean> batchEnabledByKey = new HashMap<>();
         // Deferred list of (request, key, row) to attach after all documents encoded and batches built.
         List<PendingAttachment> pending = new ArrayList<>(bulkRequest.requests.size());
         // Built batches, tracked separately so they can be released on failure after the build loop.
@@ -135,6 +147,9 @@ final class BulkBatchEncoders {
                         resolved = null; // unsupported routing — treat same as null key
                     }
                     keyByTargetName.put(targetName, resolved); // cache, including null
+                    if (resolved != null) {
+                        batchEnabledByKey.putIfAbsent(resolved, isBatchEnabledFor(ia, project));
+                    }
                     key = resolved;
                 }
 
@@ -144,10 +159,21 @@ final class BulkBatchEncoders {
                     return null;
                 }
 
+                if (batchEnabledByKey.get(key) == false) {
+                    // The index did not opt in via index.batch_indexing: leave the item on its inline source. It carries no
+                    // source-row reference, so BatchRouterSet#route sends it down the row path.
+                    continue;
+                }
+
                 EscfEncoder encoder = encoders.computeIfAbsent(key, k -> new EscfEncoder(recycler));
                 int rowIndex = encoder.addDocument(indexRequest.indexSource().bytes(), indexRequest.getContentType());
                 // Attachment is deferred: indexSource().bytes() must remain intact for the row path fallback.
                 pending.add(new PendingAttachment(indexRequest, key, rowIndex));
+            }
+
+            if (pending.isEmpty()) {
+                // Every item targets an index that did not opt in, so there is nothing to batch.
+                return null;
             }
 
             // Build one EscfBatch per abstraction key.
@@ -186,6 +212,19 @@ final class BulkBatchEncoders {
             }
             return null;
         }
+    }
+
+    /**
+     * Returns {@code true} when the write index of {@code ia} has {@code index.batch_indexing} enabled. An index missing
+     * from the project is not batchable: its items stay on the inline-source path instead of failing the bulk.
+     */
+    private static boolean isBatchEnabledFor(IndexAbstraction ia, ProjectMetadata project) {
+        Index writeIndex = ia.getWriteIndex();
+        if (writeIndex == null) {
+            return false;
+        }
+        IndexMetadata indexMeta = project.index(writeIndex);
+        return indexMeta != null && IndexSettings.isBatchIndexingEnabled(indexMeta.getSettings());
     }
 
     /**

@@ -28,7 +28,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * `date`
 * `date_nanos` (Tech Preview)
 
-    * The following functions don’t yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
+    * The following functions don’t yet support date nanos: `date_parse`
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `date_range` [range family](/reference/elasticsearch/mapping-reference/range.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`

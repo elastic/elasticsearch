@@ -42,8 +42,8 @@ import java.util.Map;
  *                       this field ({@code multi_value=false}). With {@code on_failure=ignore} an extra value is still in
  *                       {@code _source}, so a reader of {@code _source} itself may see more; see
  *                       {@code FieldMapper#guaranteesSingleValue}.
- *                       {@code false} only means "not guaranteed", which is also what nodes that do not report this flag look like.
- *                       It is not part of the merged field caps response.
+ *                       {@code false} means "unknown": the mapping does not guarantee a single value, so the field may hold more than
+ *                       one. A node that does not report this flag looks the same. It is not part of the merged field caps response.
  */
 
 public record IndexFieldCapabilities(

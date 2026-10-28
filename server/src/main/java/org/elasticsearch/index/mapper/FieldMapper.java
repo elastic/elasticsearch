@@ -574,8 +574,8 @@ public abstract class FieldMapper extends Mapper {
      * the block loaders do not expose the diverted value, for every field extract preference and every source mode that allows
      * {@code multi_value=false}; keep that test passing.
      * <p>
-     * Defaults to {@code false}, which only means "not guaranteed". {@code multi_value} and {@code on_failure} are not updateable, so
-     * the guarantee cannot be removed later.
+     * Defaults to {@code false}, which means "unknown": the mapper gives no guarantee, so the field may hold more than one value.
+     * {@code multi_value} and {@code on_failure} are not updateable, so the guarantee cannot be removed later.
      */
     protected boolean guaranteesSingleValue() {
         return false;

@@ -352,7 +352,8 @@ public class EsField implements Writeable {
      * This is not the segment statistics behind {@code SearchStats#isSingleValue}. They are an observation of one shard's current
      * segments, so only local planning on a data node can use them.
      * <p>
-     * {@code false} only means "not claimed", never "multi-valued", which is also how a node that cannot read this flag sees the field.
+     * {@code false} means "unknown": the mapping does not guarantee a single value, so the field may hold more than one. It does not
+     * mean that the field is multi-valued. A node that cannot read this flag reports {@code false} for every field.
      */
     public boolean isStaticallySingleValued() {
         return isStaticallySingleValued;

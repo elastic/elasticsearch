@@ -51,15 +51,15 @@ import java.util.List;
  *   <li>a grouping key or a {@code COUNT} of an earlier {@link Aggregate}; and</li>
  *   <li>an {@link Eval}, {@link Project} or {@code ROW} alias of an attribute proven by these rules.</li>
  * </ul>
- * {@code SINGLE} means <em>statically</em> single-valued: it follows from the query and the mapping alone, without reading data, so it
- * holds on every shard. A field of {@code FROM index} is {@code SINGLE} only if the mapping of every resolved index guarantees it
- * ({@code multi_value=false}), as recorded in {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}.
- * The segment statistics of {@code SearchStats} are not used: they describe one shard and exist only in local planning. External
- * sources answer {@code MAYBE_MULTI}; a hook can be added where their schema guarantees it.
+ * {@code SINGLE} means <em>statically</em> single-valued: it follows from the query and from what the source guarantees, without
+ * reading data, so it holds on every shard. A source field is {@code SINGLE} only if its source guarantees a single value, as recorded
+ * in {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}. The segment statistics of {@code SearchStats}
+ * are not used: they describe one shard and exist only in local planning. A source that does not set that flag answers
+ * {@code MAYBE_MULTI}.
  * <p>
- * "Single-valued" is what the ES|QL field loaders return. A field with {@code on_failure=ignore} keeps an extra value in {@code _source}
- * and a side column, which the loaders do not read, so it is still {@code SINGLE} here. See {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()}
- * for what that depends on.
+ * "Single-valued" is what the ES|QL field loaders return. A value that the loaders do not read, such as one that is kept only in
+ * {@code _source}, does not count. See {@link org.elasticsearch.xpack.esql.core.type.EsField#isStaticallySingleValued()} for how
+ * that applies to an index.
  */
 enum ValueCardinality {
     SINGLE,

@@ -97,26 +97,26 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testEsqlWindowShouldIncludeBucketContainingUnalignedStart() {
-        long hour = TimeValue.timeValueHours(1).millis();
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
 
         // start 09:14:53 inside the [09:00, 10:00) bucket: that bucket (emitted with time 09:00) must not be dropped
         long start = Duration.ofHours(9).plusMinutes(14).plusSeconds(53).toMillis();
-        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, 10 * hour);
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(start, Duration.ofHours(10).toMillis());
 
-        assertThat(dataExtractor.getContext().start(), equalTo(9 * hour));
-        assertThat(dataExtractor.getContext().end(), equalTo(10 * hour));
+        assertThat(dataExtractor.getContext().start(), equalTo(Duration.ofHours(9).toMillis()));
+        assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(10).toMillis()));
     }
 
     public void testEsqlWindowInsideSingleBucketShouldBeEmptyRatherThanInverted() {
-        long hour = TimeValue.timeValueHours(1).millis();
         ChunkedDataExtractorFactory factory = createEsqlFactory(TimeValue.timeValueHours(1));
 
-        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(9 * hour + 14 * 60_000L, 9 * hour + 29 * 60_000L);
+        long windowStart = Duration.ofHours(9).plusMinutes(14).toMillis();
+        long windowEnd = Duration.ofHours(9).plusMinutes(29).toMillis();
+        ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(windowStart, windowEnd);
 
         // the bucket containing the (unaligned) end is still open, so it is never extracted
-        assertThat(dataExtractor.getContext().start(), equalTo(9 * hour));
-        assertThat(dataExtractor.getContext().end(), equalTo(9 * hour));
+        assertThat(dataExtractor.getContext().start(), equalTo(Duration.ofHours(9).toMillis()));
+        assertThat(dataExtractor.getContext().end(), equalTo(Duration.ofHours(9).toMillis()));
         assertThat(dataExtractor.hasNext(), is(false));
     }
 

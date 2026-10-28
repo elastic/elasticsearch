@@ -5806,6 +5806,37 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertNull(plan.options());
     }
 
+    public void testGraphExpandSubqueryEdge() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", id), to_id = CONCAT(\"n:\", manager))"
+                    + " ON node_id == from_id TO to_id WITH { \"max_hops\": 2 }"
+            ),
+            GraphExpand.class
+        );
+        assertThat(plan.indexPattern().indexPattern(), equalTo("idx"));
+        var eval = as(plan.edgeRelation(), Eval.class);
+        assertThat(eval.fields().stream().map(NamedExpression::name).toList(), equalTo(List.of("from_id", "to_id")));
+        as(eval.child(), UnresolvedRelation.class);
+        assertThat(plan.seedColumn(), equalToIgnoringIds(attribute("node_id")));
+        assertThat(plan.matchField(), equalToIgnoringIds(attribute("from_id")));
+        assertThat(plan.targetFields(), equalToIgnoringIds(List.of(attribute("to_id"))));
+        assertThat(plan.options().keyFoldedMap().get("max_hops"), equalToIgnoringIds(integer(2)));
+    }
+
+    public void testGraphExpandExcludeOption() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var plan = as(
+            TEST_PARSER.parseQuery(
+                "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": [\"b\", \"c\"], \"max_hops\": 2 }"
+            ),
+            GraphExpand.class
+        );
+        var exclude = as(plan.options().keyFoldedMap().get("exclude"), Literal.class);
+        assertThat(exclude.value(), equalTo(List.of(new BytesRef("b"), new BytesRef("c"))));
+    }
+
     public void testGraphExpandWithMapOptions() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         var plan = as(

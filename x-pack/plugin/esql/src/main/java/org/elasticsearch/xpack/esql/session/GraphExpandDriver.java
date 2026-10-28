@@ -70,7 +70,8 @@ public final class GraphExpandDriver {
         "hub_degree",
         "max_edges_per_node",
         "max_nodes",
-        "max_frontier"
+        "max_frontier",
+        "exclude"
     );
 
     /** Walk orientation for one hop leg. */
@@ -95,6 +96,8 @@ public final class GraphExpandDriver {
 
     /** Nodes already admitted (including seeds). */
     private final Set<Object> visited = new HashSet<>();
+    /** Nodes the walk never admits; an edge touching one is dropped as soon as the hop returns it. */
+    private final Set<Object> excluded;
     /** Nodes to expand on the next hop. */
     private List<Object> frontier = new ArrayList<>();
     /** Depth of the next hop to run (1-based). */
@@ -113,6 +116,8 @@ public final class GraphExpandDriver {
     private int nextFieldIndex;
     /** Outbound rows buffered while the inbound leg of {@code direction: both} runs. */
     private List<List<Object>> pendingOutRows;
+    /** Set when the walk had no frontier to start from and an empty hop result is in flight. */
+    private boolean emptyStart;
     /**
      * Rows from completed TO-field legs of the current hop, waiting for remaining
      * fields before SORT / caps. {@code null} when no multi-field buffering is active.
@@ -165,10 +170,39 @@ public final class GraphExpandDriver {
         this.nextFieldIndex = 0;
         this.until = graphExpand.until();
         this.untilSubqueryDone = until == null || untilContainsInSubquery(until) == false;
+        this.excluded = excludedNodes(graphExpand, nodeType);
         for (Object seed : seeds) {
+            if (excluded.contains(seed)) {
+                continue;
+            }
             visited.add(seed);
             frontier.add(seed);
         }
+    }
+
+    /**
+     * The {@code exclude} option as node values: keyword ids as stored bytes, ip ids in the
+     * encoding the ip column carries, so a row's endpoint compares equal to them.
+     */
+    private static Set<Object> excludedNodes(GraphExpand ge, DataType nodeType) {
+        MapExpression options = ge.options();
+        if (options == null) {
+            return Set.of();
+        }
+        Expression value = options.keyFoldedMap().get("exclude");
+        if (value == null) {
+            return Set.of();
+        }
+        Object folded = value.fold(FoldContext.small());
+        List<?> values = folded instanceof List<?> list ? list : folded == null ? List.of() : List.of(folded);
+        Set<Object> result = new HashSet<>();
+        for (Object v : values) {
+            if (v == null) {
+                continue;
+            }
+            result.add(nodeType == DataType.IP ? canonicalIp(v) : v instanceof BytesRef ? v : new BytesRef(v.toString()));
+        }
+        return result;
     }
 
     private Leg initialLeg() {
@@ -245,6 +279,11 @@ public final class GraphExpandDriver {
             return subqueryPlan;
         }
         if (frontier.isEmpty() || nextHop > maxHops) {
+            if (admittedRows.isEmpty() && nextHop == 1 && emptyStart == false) {
+                // Nothing to walk: one empty hop result lets newMainPlan finish and replace the command.
+                emptyStart = true;
+                return emptyHopPlan();
+            }
             finished = true;
             return null;
         }
@@ -268,6 +307,11 @@ public final class GraphExpandDriver {
         }
 
         List<List<Object>> rows = extractRows(hopResult);
+
+        if (emptyStart) {
+            // The empty start result: finish at once, whatever the direction or TO list.
+            return admitAndAdvance(mainPlan, rows, false);
+        }
 
         if ("both".equals(direction) && nextLeg == Leg.OUT) {
             pendingOutRows = rows;
@@ -412,6 +456,17 @@ public final class GraphExpandDriver {
         return finished;
     }
 
+    /**
+     * A walk that ends before its first hop (every seed excluded, or no hop budget) still has
+     * to leave the main plan without the command: this is the empty hop result to run through
+     * {@link #newMainPlan} so the usual finishing path replaces {@link GraphExpand}.
+     */
+    public LogicalPlan emptyHopPlan() {
+        LogicalPlan empty = rowsAsRelation(graphExpand.source(), List.of());
+        empty.setOptimized();
+        return empty;
+    }
+
     // --- hop plan ----------------------------------------------------------------
 
     private LogicalPlan buildHopPlan(int hop, List<Object> frontierValues, Leg leg, Attribute targetField) {
@@ -439,12 +494,30 @@ public final class GraphExpandDriver {
             false
         );
         LogicalPlan scanned = new MvExpand(source, graphExpand.edgeRelation(), frontierField, expandedFrontier);
+        // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
+        // list of relationship targets) yields one edge per value on an outbound leg as well,
+        // and UNTIL compares against a single reached id rather than a list. Without STATS
+        // nothing else would split the values.
+        Attribute pointerField = leg == Leg.OUT ? targetField : matchField;
+        Attribute expandedPointer = new ReferenceAttribute(
+            pointerField.source(),
+            pointerField.qualifier(),
+            pointerField.name(),
+            pointerField.dataType(),
+            pointerField.nullable(),
+            null,
+            false
+        );
+        scanned = new MvExpand(source, scanned, pointerField, expandedPointer);
         In inPredicate = new In(source, expandedFrontier, literals);
         // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
-        Expression notNullPointer = new IsNotNull(source, retarget(targetField, frontierField, expandedFrontier));
+        Expression notNullPointer = new IsNotNull(
+            source,
+            retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer)
+        );
         Expression documentFilter = graphExpand.documentFilter() == null
             ? null
-            : retarget(graphExpand.documentFilter(), frontierField, expandedFrontier);
+            : retarget(retarget(graphExpand.documentFilter(), frontierField, expandedFrontier), pointerField, expandedPointer);
         Expression edgePredicate = Predicates.combineAnd(
             documentFilter != null ? List.of(inPredicate, notNullPointer, documentFilter) : List.of(inPredicate, notNullPointer)
         );
@@ -455,12 +528,21 @@ public final class GraphExpandDriver {
         Attribute nodeReached = resultAttributes.get(nodeReachedIdx);
         Attribute hopAttr = resultAttributes.get(hopIdx);
 
-        Attribute seenMatch = retarget(matchField, frontierField, expandedFrontier);
-        Attribute seenTarget = retarget(targetField, frontierField, expandedFrontier);
+        Attribute seenMatch = retarget(retarget(matchField, frontierField, expandedFrontier), pointerField, expandedPointer);
+        Attribute seenTarget = retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer);
         Attribute evalFrom = seenMatch;
         Attribute evalTo = seenTarget;
         if (graphExpand.aggregates() != null) {
-            Aggregate aggregate = buildHopAggregate(source, hopChild, seenMatch, seenTarget, frontierField, expandedFrontier);
+            Aggregate aggregate = buildHopAggregate(
+                source,
+                hopChild,
+                seenMatch,
+                seenTarget,
+                frontierField,
+                expandedFrontier,
+                pointerField,
+                expandedPointer
+            );
             hopChild = aggregate;
             // Aggregate WHERE filters collapsed edges after STATS, before admission.
             if (graphExpand.aggregateFilter() != null) {
@@ -511,7 +593,9 @@ public final class GraphExpandDriver {
         Attribute seenMatch,
         Attribute seenTarget,
         Attribute frontierField,
-        Attribute expandedFrontier
+        Attribute expandedFrontier,
+        Attribute pointerField,
+        Attribute expandedPointer
     ) {
         List<? extends NamedExpression> userAggregates = graphExpand.aggregates();
         List<Expression> userGroupings = graphExpand.groupings() != null ? graphExpand.groupings() : List.of();
@@ -520,14 +604,14 @@ public final class GraphExpandDriver {
         groupings.add(seenMatch);
         groupings.add(seenTarget);
         for (Expression grouping : userGroupings) {
-            groupings.add(retarget(grouping, frontierField, expandedFrontier));
+            groupings.add(retarget(retarget(grouping, frontierField, expandedFrontier), pointerField, expandedPointer));
         }
 
         // Same shape as ParserUtils.buildStats: user aggs first, then grouping keys
         // so Aggregate.output() carries the pair (for Eval) and any user BY columns.
         List<NamedExpression> aggregates = new ArrayList<>(userAggregates.size() + groupings.size());
         for (NamedExpression aggregate : userAggregates) {
-            Expression rewritten = retarget(aggregate, frontierField, expandedFrontier);
+            Expression rewritten = retarget(retarget(aggregate, frontierField, expandedFrontier), pointerField, expandedPointer);
             if (rewritten instanceof NamedExpression named) {
                 aggregates.add(named);
             } else {
@@ -638,6 +722,11 @@ public final class GraphExpandDriver {
                 List<Object> row = new ArrayList<>(resultAttributes.size());
                 for (int channel : channels) {
                     row.add(BlockUtils.toJavaObject(page.getBlock(channel), i));
+                }
+                // An edge touching an excluded node leaves before SORT, hub_degree, caps and
+                // UNTIL see it, so the node is never admitted and nothing is walked beyond it.
+                if (excluded.isEmpty() == false && (excluded.contains(row.get(nodeFromIdx)) || excluded.contains(row.get(nodeToIdx)))) {
+                    continue;
                 }
                 rows.add(row);
             }

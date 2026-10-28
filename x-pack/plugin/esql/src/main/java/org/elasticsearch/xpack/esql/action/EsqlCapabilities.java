@@ -3021,6 +3021,16 @@ public class EsqlCapabilities {
         GRAPH_EXPAND(Build.current().isSnapshot()),
 
         /**
+         * GRAPH EXPAND accepts a subquery as its edge side, so ON/TO may name computed columns.
+         */
+        GRAPH_EXPAND_EDGE_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * GRAPH EXPAND takes an exclude option: node ids the walk never admits.
+         */
+        GRAPH_EXPAND_EXCLUDE(Build.current().isSnapshot()),
+
+        /**
          * Supports the {@code URI_PARTS}) command.
          */
         URI_PARTS_COMMAND,

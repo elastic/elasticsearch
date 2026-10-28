@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -364,6 +365,12 @@ public class Verifier {
             }
             // p is resolved, skip
             else if (p.resolved()) {
+                return;
+            }
+            // GRAPH EXPAND's edge plan is a field, not a child: report what is unresolved inside
+            // it, and not the ON/TO references that only fail because of it.
+            else if (p instanceof GraphExpand ge && ge.edgeRelation().resolved() == false) {
+                checkUnresolvedAttributes(ge.edgeRelation(), failures, skipUnresolvedTimestamp);
                 return;
             }
 

@@ -2278,9 +2278,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitGraphExpandCommand(EsqlBaseParser.GraphExpandCommandContext ctx) {
         Source source = source(ctx);
 
-        IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(List.of(ctx.index)));
-        // Edge index as UnresolvedRelation — Analyzer resolves it to EsRelation like FROM.
-        UnresolvedRelation edgeRelation = new UnresolvedRelation(source, indexPattern, false, List.of(), IndexMode.STANDARD, null);
+        LogicalPlan edgeRelation;
+        if (ctx.edge != null) {
+            // Edge side as a subquery: ON/TO resolve against its output, so a computed column
+            // (an entity id evaluated from identity fields) can be the matched or reached id.
+            edgeRelation = visitSubquery(ctx.edge);
+        } else {
+            IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(List.of(ctx.index)));
+            // Edge index as UnresolvedRelation — Analyzer resolves it to EsRelation like FROM.
+            edgeRelation = new UnresolvedRelation(source, indexPattern, false, List.of(), IndexMode.STANDARD, null);
+        }
         Attribute seedColumn = visitQualifiedName(ctx.seedColumn);
         Attribute matchField = visitQualifiedName(ctx.matchField);
 

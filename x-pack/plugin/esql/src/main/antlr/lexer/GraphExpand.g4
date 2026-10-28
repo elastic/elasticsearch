@@ -19,6 +19,9 @@ mode GRAPH_EXPAND_MODE;
 
 GRAPH_PIPE : PIPE -> type(PIPE), popMode;
 GRAPH_RP : ')' -> type(RP), popMode, popMode;
+// Edge side as a subquery: '(' enters the default mode like FROM_LP, and the subquery's
+// closing ')' double-pops (FROM_RP or the expression RP) back into this mode so ON follows.
+GRAPH_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
 
 EXPAND : 'expand';
 

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -55,7 +56,8 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
         "hub_degree",
         "max_nodes",
         "max_frontier",
-        "direction"
+        "direction",
+        "exclude"
     );
 
     private static final Set<String> INTEGER_CAP_OPTIONS = Set.of(
@@ -69,9 +71,10 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
     private static final Set<String> DIRECTION_VALUES = Set.of("in", "out", "both");
 
     /**
-     * Edge-index side of the expand: {@link UnresolvedRelation} before analysis,
-     * {@link EsRelation} after. Not a plan child — resolution happens in
-     * {@code Analyzer.ResolveRefs#resolveGraphExpand}.
+     * Edge side of the expand: an {@link UnresolvedRelation} (index pattern form) or a
+     * subquery plan whose leaves are unresolved relations before analysis; an
+     * {@link EsRelation} or a resolved subquery plan after. Not a plan child — resolution
+     * happens in {@code Analyzer.ResolveRefs#resolveGraphExpand}.
      */
     private final LogicalPlan edgeRelation;
     private final Attribute seedColumn;
@@ -159,14 +162,23 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
 
     /**
      * Index pattern written after {@code GRAPH EXPAND}, derived from
-     * {@link #edgeRelation()}.
+     * {@link #edgeRelation()}. For a subquery edge, the first relation the subquery reads,
+     * or {@code null} when it reads none (a {@code ROW} subquery).
      */
     public IndexPattern indexPattern() {
-        return switch (edgeRelation) {
-            case UnresolvedRelation ur -> ur.indexPattern();
-            case EsRelation er -> new IndexPattern(er.source(), er.indexPattern());
-            default -> throw new IllegalStateException("unexpected edge relation [" + edgeRelation.getClass().getSimpleName() + "]");
-        };
+        Holder<IndexPattern> first = new Holder<>();
+        edgeRelation.forEachUp(p -> {
+            if (first.get() != null) {
+                return;
+            }
+            switch (p) {
+                case UnresolvedRelation ur -> first.set(ur.indexPattern());
+                case EsRelation er -> first.set(new IndexPattern(er.source(), er.indexPattern()));
+                default -> {
+                }
+            }
+        });
+        return first.get();
     }
 
     public LogicalPlan edgeRelation() {
@@ -368,10 +380,27 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
             }
             if (key.equals("direction")) {
                 verifyDirection(failures, value);
+            } else if (key.equals("exclude")) {
+                verifyExclude(failures, value);
             } else if (INTEGER_CAP_OPTIONS.contains(key)) {
                 verifyIntegerCap(failures, key, value);
             }
         });
+    }
+
+    /**
+     * Node ids the walk never admits: an edge that touches one is dropped before sorting,
+     * caps and UNTIL, so nothing beyond an excluded node is visited and no budget is spent
+     * on it. A string or a list of strings.
+     */
+    private void verifyExclude(Failures failures, Expression value) {
+        if ((value instanceof Literal) == false) {
+            failures.add(fail(this, "expected exclude to be a literal, got [" + value.sourceText() + "]"));
+            return;
+        }
+        if (value.dataType() != DataType.KEYWORD && value.dataType() != DataType.TEXT) {
+            failures.add(fail(this, "GRAPH EXPAND exclude must be a string or a list of strings, got [" + value.sourceText() + "]"));
+        }
     }
 
     private void verifyDirection(Failures failures, Expression value) {

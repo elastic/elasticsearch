@@ -30,8 +30,8 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AnalyzedTextExpression;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -8210,6 +8210,76 @@ public class AnalyzerTests extends AnalyzerTestCase {
             graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
             equalTo(List.of("node_from", "node_to", "node_reached", "hop"))
         );
+    }
+
+    public void testGraphExpandResolvesSubqueryEdgeComputedIds() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", id), to_id = CONCAT(\"n:\", manager))"
+                + " ON node_id == from_id TO to_id WITH { \"max_hops\": 2, \"direction\": \"out\" }"
+        );
+        if (plan instanceof Project project) {
+            plan = project.child();
+        }
+        var limit = as(plan, Limit.class);
+        var graphExpand = as(limit.child(), GraphExpand.class);
+        // The edge side is the analyzed subquery: EVAL over the resolved relation.
+        var eval = as(graphExpand.edgeRelation(), Eval.class);
+        assertTrue(eval.resolved());
+        as(eval.child(), EsRelation.class);
+        // ON and TO resolve to the columns the subquery computes, not to stored fields.
+        assertTrue(graphExpand.matchField().resolved());
+        assertThat(graphExpand.matchField(), instanceOf(ReferenceAttribute.class));
+        assertThat(graphExpand.matchField().name(), equalTo("from_id"));
+        assertTrue(graphExpand.targetFields().stream().allMatch(Attribute::resolved));
+        assertThat(graphExpand.targetFields().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(graphExpand.targetFields().get(0).name(), equalTo("to_id"));
+        assertThat(
+            graphExpand.resultAttributes().stream().map(Attribute::name).toList(),
+            equalTo(List.of("node_from", "node_to", "node_reached", "hop"))
+        );
+    }
+
+    public void testGraphExpandSubqueryEdgeUnknownFieldFailsCleanly() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> a.query(
+                "ROW node_id = \"n:a\" | GRAPH EXPAND (FROM idx | EVAL from_id = CONCAT(\"n:\", does_not_exist)) ON node_id == from_id TO manager"
+            )
+        );
+        assertThat(e.getMessage(), containsString("Unknown column [does_not_exist]"));
+    }
+
+    public void testGraphExpandFollowedByStatsStillResolvesEdgeFields() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, EsField> mapping = Map.of(
+            "id",
+            new EsField("id", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "manager",
+            new EsField("manager", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer a = analyzer().addIndex("idx", IndexResolution.valid(EsIndexGenerator.esIndex("idx", mapping)));
+        var plan = a.query(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"max_hops\": 1, \"exclude\": [\"x\"] } | STATS rows = COUNT(*)"
+        );
+        var ge = org.elasticsearch.xpack.esql.session.GraphExpandDriver.findGraphExpand(plan);
+        assertNotNull(ge);
+        assertTrue(ge.resolved());
     }
 
     public void testGraphExpandMultiFieldToEmitsRelationColumn() {

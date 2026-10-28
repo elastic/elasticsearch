@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -128,6 +129,14 @@ public class FieldNameUtils {
                     projectAll.set(true);
                 }
             });
+        }
+
+        // GRAPH EXPAND reads an edge relation that is not a plan child: the fields ON/TO, its STATS and
+        // WHERE name, and everything a subquery edge computes, never enter the reference walk below. A
+        // consumer after the command (a STATS) would otherwise narrow field caps to its own references
+        // and leave the edge relation without the columns the walk matches on.
+        if (projectAll.get() == false && parsed.anyMatch(p -> p instanceof GraphExpand)) {
+            projectAll.set(true);
         }
 
         if (projectAll.get()) {

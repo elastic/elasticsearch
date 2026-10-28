@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -251,6 +252,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -3308,21 +3310,45 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (edgeRelation instanceof UnresolvedRelation ur) {
                 IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
                 edgeRelation = resolveEdgeIndex(ur, indexResolution);
+            } else if (edgeRelation.resolved() == false) {
+                // Subquery edge: resolve its relations and commands bottom-up, like an UNTIL
+                // subquery, so ON/TO can name a column the subquery computes.
+                edgeRelation = analyzeUntilSubquery(edgeRelation, context);
+                if (edgeRelation.resolved()) {
+                    // The final-batch cleanup never reaches the edge plan: drop the synthetic
+                    // union-type attributes and settle leftover partially unmapped fields here.
+                    edgeRelation = new UnionTypesCleanup().apply(edgeRelation, context);
+                }
+            }
+
+            if (edgeRelation.resolved()) {
+                // The command's own references (ON/TO, STATS, document WHERE) resolve against the
+                // edge output, so the main plan's unmapped-field handling never sees them: under
+                // SET unmapped_fields a name the edge lacks is loaded (or nullified) at the edge
+                // relation, exactly as a FROM's own references would be.
+                edgeRelation = loadEdgeReferences(ge, edgeRelation, context);
             }
 
             List<Attribute> edgeOutput = edgeRelation.output();
+            // The edge output can widen across passes: an unmapped field loaded on a later pass
+            // resolves the subquery's EVAL and with it the columns ON/TO name. A reference marked
+            // unknown against the narrower output is never retried, so ON/TO are refreshed when
+            // the edge plan changed, the way ResolveUnmapped refreshes the references it satisfies.
+            boolean edgeChanged = edgeRelation != ge.edgeRelation();
 
             Attribute seedColumn = ge.seedColumn();
             if (seedColumn instanceof UnresolvedAttribute ua) {
                 seedColumn = maybeResolveAttribute(ua, childrenOutput);
             }
 
-            Attribute matchField = ge.matchField();
+            Attribute matchField = edgeChanged ? freshenEdgeReference(ge.matchField()) : ge.matchField();
             if (matchField instanceof UnresolvedAttribute ua) {
                 matchField = maybeResolveAttribute(ua, edgeOutput);
             }
 
-            List<Attribute> targetFields = ge.targetFields();
+            List<Attribute> targetFields = edgeChanged
+                ? ge.targetFields().stream().map(ResolveRefs::freshenEdgeReference).toList()
+                : ge.targetFields();
             boolean targetsChanged = false;
             if (Resolvables.resolved(targetFields) == false) {
                 List<Attribute> resolvedTargets = new ArrayList<>(targetFields.size());
@@ -3503,12 +3529,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * refused in {@link GraphExpand#postAnalysisVerification}.
          */
         private LogicalPlan analyzeUntilSubquery(LogicalPlan subquery, AnalyzerContext context) {
+            LogicalPlan resolved = resolveNestedPlanRefs(subquery, context);
+            if (resolved.resolved()) {
+                return resolved;
+            }
+            // The plan-tree rules that follow reference resolution in the main batch never reach
+            // this nested plan, so the ones a subquery edge needs run here: implicit casts of
+            // function arguments, union-type (and partially unmapped) field conversions, and
+            // unmapped-field loading under SET unmapped_fields.
+            LogicalPlan cast = new ImplicitCasting().apply(resolved, context);
+            LogicalPlan unions = new ResolveUnionTypes().apply(cast, context);
+            return new ResolveUnmapped().apply(unions, context);
+        }
+
+        private LogicalPlan resolveNestedPlanRefs(LogicalPlan subquery, AnalyzerContext context) {
+            // Function resolution is a plan-tree rule and never reaches this nested plan, so it is
+            // applied here first: a subquery edge computes its ids with functions (CONCAT, COALESCE).
+            EsqlFunctionRegistry snapshotRegistry = context.functionRegistry().snapshotRegistry();
             return subquery.transformUp(p -> {
                 LogicalPlan current = p;
                 if (current instanceof UnresolvedRelation ur) {
                     IndexResolution indexResolution = context.indexResolution().get(ur.indexPattern());
                     current = resolveEdgeIndex(ur, indexResolution);
+                    if (current instanceof EsRelation) {
+                        // The per-relation rewrites the main batch applies once a table is resolved: a
+                        // field mapped in only some of the indices (ip here, loaded as keyword there)
+                        // is a type conflict until these give it one conversion.
+                        current = new DateMillisToNanosInEsRelation().apply(current, context);
+                        current = new ResolveTwoLeggedPunksInEsRelation().apply(current, context);
+                    }
                 }
+                current = current.transformExpressionsOnly(
+                    UnresolvedFunction.class,
+                    uf -> ResolveFunctions.resolveFunction(uf, context.configuration(), snapshotRegistry)
+                );
                 if (current.childrenResolved() == false) {
                     return current;
                 }
@@ -3644,6 +3698,54 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Turns an edge-index {@link UnresolvedRelation} into an {@link EsRelation},
          * mirroring {@link ResolveTable#resolveIndex} without metadata fields.
          */
+        /**
+         * Edge-side references of the command that name no column of the resolved edge plan,
+         * loaded from {@code _source} (or nullified) at the edge relation when the query asks for
+         * unmapped fields to be. Only names the edge plan would surface are added.
+         */
+        private static LogicalPlan loadEdgeReferences(GraphExpand ge, LogicalPlan edgeRelation, AnalyzerContext context) {
+            UnmappedResolution resolution = context.unmappedResolution();
+            if (resolution == UnmappedResolution.DEFAULT) {
+                return edgeRelation;
+            }
+            Set<String> edgeNames = new HashSet<>(Expressions.names(edgeRelation.output()));
+            LinkedHashMap<String, UnresolvedAttribute> missing = new LinkedHashMap<>();
+            Consumer<Expression> collect = e -> e.forEachUp(UnresolvedAttribute.class, ua -> {
+                if (edgeNames.contains(ua.name()) == false
+                    && ua instanceof UnresolvedPattern == false
+                    && MetadataAttribute.isSupported(ua.name()) == false
+                    && branchCanSurfaceLoadedField(edgeRelation, ua.name())) {
+                    missing.putIfAbsent(ua.name(), ua);
+                }
+            });
+            collect.accept(ge.matchField());
+            ge.targetFields().forEach(collect);
+            if (ge.aggregates() != null) {
+                ge.aggregates().forEach(collect);
+            }
+            if (ge.groupings() != null) {
+                ge.groupings().forEach(collect);
+            }
+            if (ge.documentFilter() != null) {
+                collect.accept(ge.documentFilter());
+            }
+            if (missing.isEmpty()) {
+                return edgeRelation;
+            }
+            List<FieldAttribute> loaders = missing.values()
+                .stream()
+                .map(ua -> resolution.loadsUnmappedFields() ? unmappedKeyword(ua) : nullifyField(ua))
+                .toList();
+            return edgeRelation.transformUp(EsRelation.class, esr -> withAdditionalAttributesUnlessLookup(esr, loaders, true));
+        }
+
+        /** A reference marked unknown against an earlier, narrower edge output, made resolvable again. */
+        private static Attribute freshenEdgeReference(Attribute attribute) {
+            return attribute instanceof UnresolvedAttribute ua && ua.customMessage()
+                ? new UnresolvedAttribute(ua.source(), ua.name())
+                : attribute;
+        }
+
         private static LogicalPlan resolveEdgeIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
             if (indexResolution == null || indexResolution.isValid() == false) {
                 String indexResolutionMessage = indexResolution == null ? "[none specified]" : indexResolution.toString();

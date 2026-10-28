@@ -70,6 +70,14 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertFieldNames("from test", ALL_FIELDS);
     }
 
+    public void testGraphExpandRequestsAllFieldsForItsEdge() {
+        assumeTrue("requires snapshot build", org.elasticsearch.Build.current().isSnapshot());
+        assertFieldNames(
+            "row node_id = \"a\" | graph expand test on node_id == first_name to last_name | stats rows = count(*)",
+            ALL_FIELDS
+        );
+    }
+
     public void testBasicFromCommandWithInlineStats() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertFieldNames("from test | inline stats max(salary) by gender", ALL_FIELDS);

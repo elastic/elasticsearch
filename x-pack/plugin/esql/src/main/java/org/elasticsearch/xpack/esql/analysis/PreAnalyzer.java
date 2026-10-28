@@ -107,11 +107,14 @@ public class PreAnalyzer {
                 }
             }
         });
-        // GRAPH EXPAND's edge UnresolvedRelation is a field, not a child — collect it explicitly.
+        // GRAPH EXPAND's edge side (an UnresolvedRelation, or a subquery plan that reads some)
+        // is a field, not a child — collect its relations explicitly.
         plan.forEachUp(GraphExpand.class, ge -> {
-            if (ge.edgeRelation() instanceof UnresolvedRelation ur && ur.indexMode() != IndexMode.LOOKUP) {
-                indexes.putIfAbsent(ur.indexPattern(), ur.indexMode());
-            }
+            ge.edgeRelation().forEachUp(UnresolvedRelation.class, ur -> {
+                if (ur.indexMode() != IndexMode.LOOKUP) {
+                    indexes.putIfAbsent(ur.indexPattern(), ur.indexMode());
+                }
+            });
             // UNTIL InSubquery plans nest UnresolvedRelation inside the expression — collect those too.
             if (ge.until() != null) {
                 ge.until().forEachDown(InSubquery.class, inSub -> {

@@ -478,8 +478,10 @@ denseVectorNaming
 
 // GRAPH EXPAND — clause order is fixed (WHERE may appear twice: documents, then aggregates).
 // WITH reuses commandNamedParameters (brace map). Pair form WITH key = value does not parse.
+// The edge side is an index pattern or a subquery whose output columns ON/TO name, so the
+// matched and reached ids can be computed (an entity id evaluated from identity fields).
 graphExpandCommand
-    : DEV_GRAPH EXPAND index=indexPattern
+    : DEV_GRAPH EXPAND (index=indexPattern | edge=subquery)
       ON seedColumn=qualifiedName EQ matchField=qualifiedName
       TO graphExpandTargets
       docFilter=graphExpandWhere?

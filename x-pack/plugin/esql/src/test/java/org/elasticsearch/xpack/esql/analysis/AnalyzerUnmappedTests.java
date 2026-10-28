@@ -124,6 +124,34 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         DataType.TEXT
     );
 
+    public void testGraphExpandSubqueryEdgeLoadsUnmappedField() {
+        assumeTrue("requires snapshot build", org.elasticsearch.Build.current().isSnapshot());
+        var plan = test().statement(setUnmappedLoad("""
+            ROW node_id = "n:1"
+            | GRAPH EXPAND (FROM test | EVAL from_id = COALESCE(does_not_exist, first_name)) ON node_id == from_id TO last_name
+              WITH { "max_hops": 1 }
+            """));
+        var ge = org.elasticsearch.xpack.esql.session.GraphExpandDriver.findGraphExpand(plan);
+        assertNotNull(ge);
+        assertTrue(ge.edgeRelation().resolved());
+        assertTrue(ge.matchField().resolved());
+    }
+
+    public void testGraphExpandLoadsUnmappedStatsAndToFields() {
+        assumeTrue("requires snapshot build", org.elasticsearch.Build.current().isSnapshot());
+        var plan = test().statement(setUnmappedLoad("""
+            ROW node_id = "n:1"
+            | GRAPH EXPAND test ON node_id == first_name TO does_not_exist_pointer
+                STATS n = COUNT(*), extra = VALUES(does_not_exist_payload)
+              WITH { "max_hops": 1 }
+            """));
+        var ge = org.elasticsearch.xpack.esql.session.GraphExpandDriver.findGraphExpand(plan);
+        assertNotNull(ge);
+        assertTrue(ge.resolved());
+        assertTrue(ge.targetFields().get(0).resolved());
+        assertTrue(ge.aggregates().stream().allMatch(a -> a.resolved()));
+    }
+
     public void testFailKeepAndNonMatchingStar() {
         assertUnmappedFailure(test(), """
             FROM test

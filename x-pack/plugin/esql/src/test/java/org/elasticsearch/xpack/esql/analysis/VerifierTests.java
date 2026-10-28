@@ -5321,6 +5321,15 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testGraphExpandExcludeMustBeStrings() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        graphExpandAnalyzer().error(
+            "ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": 1 }",
+            equalTo("1:21: GRAPH EXPAND exclude must be a string or a list of strings, got [1]")
+        );
+        graphExpandAnalyzer().query("ROW node_id = \"a\" | GRAPH EXPAND idx ON node_id == id TO manager WITH { \"exclude\": [\"x\"] }");
+    }
+
     public void testGraphExpandInvalidDirectionFails() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         graphExpandAnalyzer().error(

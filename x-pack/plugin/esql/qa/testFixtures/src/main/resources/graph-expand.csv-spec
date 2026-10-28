@@ -322,3 +322,188 @@ ROW node_id = TO_IP("10.0.0.1")
 node_from:ip | node_to:ip     | node_reached:ip | hop:integer
 10.0.0.1     | 203.0.113.77   | 203.0.113.77    | 1
 ;
+
+
+subquery edge computes the matched and reached ids
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "n:a"
+| GRAPH EXPAND (FROM graph_expand_edges | EVAL from_id = CONCAT("n:", source), to_id = CONCAT("n:", target))
+    ON node_id == from_id TO to_id
+  WITH { "max_hops": 5, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+n:a               | n:b             | n:b                  | 1
+n:b               | n:c             | n:c                  | 2
+n:b               | n:a             | null                 | 2
+;
+
+
+subquery edge unions two indices under one computed id
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_edges, graph_expand_pointers | EVAL from_id = COALESCE(source, id), to_id = COALESCE(target, manager))
+    ON node_id == from_id TO to_id
+    STATS edges = COUNT(*)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges:long
+a                 | b               | b                    | 1           | 2
+;
+
+
+subquery edge filters documents before the walk and keeps STATS
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_weighted | WHERE weight > 1 | EVAL to_id = target)
+    ON node_id == source TO to_id
+    STATS weight = SUM(weight), edges = COUNT(*)
+  WITH { "max_hops": 2, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | weight:long | edges:long
+a                 | b               | b                    | 1           | 4           | 1
+b                 | c               | c                    | 2           | 10          | 1
+;
+
+
+subquery edge walks inbound on a computed pointer
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "b"
+| GRAPH EXPAND (FROM graph_expand_pointers | EVAL boss = manager) ON node_id == id TO boss
+  WITH { "max_hops": 1, "direction": "in" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | a                    | 1
+;
+
+
+outbound walk explodes a multi-valued pointer into one edge per value
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+  WITH { "max_hops": 2, "direction": "out" }
+| SORT hop, node_to
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+a                 | c               | c                    | 1
+c                 | a               | null                 | 2
+;
+
+
+UNTIL matches one value of a multi-valued pointer on an outbound walk
+required_capability: graph_expand_edge_subquery
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_associates ON node_id == id TO known_associates
+    UNTIL node_reached == "c"
+  WITH { "max_hops": 2, "direction": "out" }
+| SORT node_to
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+a                 | c               | c                    | 1
+;
+
+
+subquery edge loads an unmapped field when the query asks for it
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "a"
+| GRAPH EXPAND (FROM graph_expand_edges | EVAL from_id = COALESCE(not_mapped_anywhere, source)) ON node_id == from_id TO target
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+;
+
+
+subquery edge filters on a field mapped in only some of its indices
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "173.21.3.15"
+| GRAPH EXPAND (FROM apps_short, partial_mapping_sample_data | WHERE client_ip IS NULL OR CIDR_MATCH(client_ip, "173.21.0.0/16") | EVAL src = TO_STRING(client_ip), dst = message)
+    ON node_id == src TO dst
+    STATS edges = COUNT(*)
+  WITH { "max_hops": 1, "direction": "out" }
+| SORT node_to
+;
+
+node_from:keyword | node_to:keyword        | node_reached:keyword    | hop:integer | edges:long
+173.21.3.15       | Connected to 10.1.0.1! | Connected to 10.1.0.1!  | 1           | 1
+173.21.3.15       | Connection error?      | Connection error?       | 1           | 3
+;
+
+
+STATS over a field no edge index maps loads it when the query asks for it
+required_capability: graph_expand_edge_subquery
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_edges ON node_id == source TO target
+    STATS edges = COUNT(*), extra = VALUES(not_mapped_anywhere)
+  WITH { "max_hops": 1, "direction": "out" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | edges:long | extra:keyword
+a                 | b               | b                    | 1           | 1          | null
+;
+
+
+exclude never admits the listed nodes and walks nothing beyond them
+required_capability: graph_expand_exclude
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 3, "direction": "out", "exclude": ["c", "d"] }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer
+a                 | b               | b                    | 1
+b                 | a               | null                 | 2
+;
+
+
+exclude drops the edge to an excluded node before hub_degree counts it
+required_capability: graph_expand_exclude
+
+ROW node_id = "a"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "hub_degree": 2, "exclude": "d" }
+;
+
+node_from:keyword | node_to:keyword | node_reached:keyword | hop:integer | dropped:integer
+a                 | b               | b                    | 1           | null
+b                 | c               | c                    | 2           | null
+b                 | a               | null                 | 2           | null
+;
+
+
+exclude applies to an excluded seed as well
+required_capability: graph_expand_exclude
+
+ROW node_id = "b"
+| GRAPH EXPAND graph_expand_fanout ON node_id == source TO target
+  WITH { "max_hops": 2, "direction": "out", "exclude": ["a", "b"] }
+| STATS rows = COUNT(*)
+;
+
+rows:long
+0
+;

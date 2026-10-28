@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -78,15 +79,48 @@ public class InSubqueryResolverTests extends ESTestCase {
     }
 
     public void testIsInSubquerySynthetic() {
+        // single-column mark and const: prefix + value hash + subquery hash + ordinal
         assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$-1$2$0")));
         assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_const$-1$2$0")));
+        assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$-2147483648$-7$12")));
+        // multi-column mark: prefix + predicate hash + ordinal
+        assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$123$0")));
+        assertTrue(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$-123$1")));
+        // not flagged synthetic
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(nonSyntheticAttr("$$in_subquery_mark$-1$2$0")));
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(nonSyntheticAttr("$$in_subquery_const$-1$2$0")));
-        // Union-type casts of a field named in_subquery_mark / in_subquery_const share the prefix but contain converted_to.
+        // Union-type casts of a field named in_subquery_mark / in_subquery_const share the prefix but not the numeric shape.
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$converted_to$ip")));
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_const$converted_to$keyword")));
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$emp_no$converted_to$long")));
         assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$converted_to$ip")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$2$0$converted_to$ip")));
+        // prefix alone, or the wrong number / kind of segments
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$2$3$4")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$abc$0")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$$0")));
+        assertFalse(InSubqueryResolver.isInSubquerySynthetic(syntheticAttr("$$in_subquery_mark$1$2$")));
+    }
+
+    public void testGeneratedSyntheticNamesAreRecognised() {
+        LogicalPlan plan = resolve(
+            "FROM main | WHERE x IN (FROM sub1) OR 42 IN (FROM sub2 | KEEP y) OR (f1, f2) IN (FROM sub3 | KEEP f1, f2)"
+        );
+        List<MarkJoin> markJoins = plan.collect(MarkJoin.class);
+        assertEquals(3, markJoins.size());
+        for (MarkJoin mj : markJoins) {
+            Attribute mark = mj.markAttribute();
+            assertTrue(mark.name(), mark.synthetic());
+            assertTrue(mark.name(), InSubqueryResolver.isInSubquerySynthetic(mark));
+        }
+        List<Eval> evals = plan.collect(Eval.class);
+        assertEquals(1, evals.size());
+        assertEquals(1, evals.get(0).fields().size());
+        Attribute constAlias = evals.get(0).fields().get(0).toAttribute();
+        assertTrue(constAlias.name(), constAlias.synthetic());
+        assertTrue(constAlias.name(), InSubqueryResolver.isInSubquerySynthetic(constAlias));
     }
 
     private static Attribute syntheticAttr(String name) {

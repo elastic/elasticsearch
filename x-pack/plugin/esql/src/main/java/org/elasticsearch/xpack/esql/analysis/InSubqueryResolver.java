@@ -49,10 +49,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX;
+import static org.elasticsearch.xpack.esql.core.expression.Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR;
 
 /**
  * Resolves {@link InSubquery} expressions in {@link Filter} conditions, {@link Eval} field definitions, and
@@ -102,30 +105,32 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class InSubqueryResolver {
 
-    /** Prefix of the synthetic boolean mark produced by a {@link MarkJoin}. */
-    public static final String SYNTHETIC_MARK_NAME_PREFIX = "$$in_subquery_mark$";
+    private static final String MARK_BASE_NAME = "in_subquery_mark";
 
-    /** Prefix of the synthetic alias that materializes a foldable IN-subquery left-hand side. */
-    public static final String SYNTHETIC_CONST_NAME_PREFIX = "$$in_subquery_const$";
+    private static final String CONST_BASE_NAME = "in_subquery_const";
 
     /**
-     * {@code true} for MarkJoin marks and foldable IN-subquery const aliases. Other synthetics
-     * (union-type {@code $$<field>$converted_to$<type>} casts) are not included: those must stay in {@code FORK} / {@code UnionAll} output
-     * so a conversion above the merge can reference them.
-     * <p>
-     * A union-type cast of a field named {@code in_subquery_mark} / {@code in_subquery_const}
-     * ({@code $$in_subquery_mark$converted_to$<type>}) shares the reserved prefix, so names that contain {@code converted_to} are excluded.
+     * Exactly the names built by {@link #syntheticMarkName} / {@link #syntheticConstName}: {@code $$} plus one of the two base names
+     * above, followed by two or three {@code $}-separated decimal integers (hash codes may be negative).
+     */
+    private static final Pattern SYNTHETIC_NAME = Pattern.compile(
+        Pattern.quote(SYNTHETIC_ATTRIBUTE_NAME_PREFIX)
+            + "(?:"
+            + MARK_BASE_NAME
+            + "|"
+            + CONST_BASE_NAME
+            + ")(?:"
+            + Pattern.quote(SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR)
+            + "-?\\d+){2,3}"
+    );
+
+    /**
+     * {@code true} for MarkJoin marks and foldable IN-subquery const aliases. Other synthetics (union-type
+     * {@code $$<field>$converted_to$<type>} casts) are not included: those must stay in {@code FORK} / {@code UnionAll} output so a
+     * conversion above the merge can reference them.
      */
     public static boolean isInSubquerySynthetic(Attribute attr) {
-        if (attr.synthetic() == false) {
-            return false;
-        }
-        String name = attr.name();
-        return isGeneratedInSubqueryName(name, SYNTHETIC_MARK_NAME_PREFIX) || isGeneratedInSubqueryName(name, SYNTHETIC_CONST_NAME_PREFIX);
-    }
-
-    private static boolean isGeneratedInSubqueryName(String name, String prefix) {
-        return name.startsWith(prefix) && name.contains("converted_to") == false;
+        return attr.synthetic() && SYNTHETIC_NAME.matcher(attr.name()).matches();
     }
 
     // for testing only
@@ -797,7 +802,12 @@ public class InSubqueryResolver {
      *  produces only one join and one synthetic alias.
      */
     private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
-        return SYNTHETIC_CONST_NAME_PREFIX + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(
+            CONST_BASE_NAME,
+            Integer.toString(value.hashCode()),
+            Integer.toString(subquery.hashCode()),
+            Integer.toString(ordinal)
+        );
     }
 
     /**
@@ -810,7 +820,12 @@ public class InSubqueryResolver {
      *  join and one mark attribute.
      */
     private static String syntheticMarkName(InSubquery inSubquery, int ordinal) {
-        return SYNTHETIC_MARK_NAME_PREFIX + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(
+            MARK_BASE_NAME,
+            Integer.toString(inSubquery.value().hashCode()),
+            Integer.toString(inSubquery.subquery().hashCode()),
+            Integer.toString(ordinal)
+        );
     }
 
     /**
@@ -823,7 +838,7 @@ public class InSubqueryResolver {
      *  only one join and one mark attribute.
      */
     private static String syntheticMarkName(MultiColumnInSubquery mcs, int ordinal) {
-        return SYNTHETIC_MARK_NAME_PREFIX + mcs.hashCode() + "$" + ordinal;
+        return Attribute.rawTemporaryName(MARK_BASE_NAME, Integer.toString(mcs.hashCode()), Integer.toString(ordinal));
     }
 
     public static void verify(LogicalPlan plan) {

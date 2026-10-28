@@ -835,27 +835,32 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     /**
      * Resolves the effective {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} for
      * a set of splits. Uses {@link ExternalSplit#splitStats()} on each split, which handles both
-     * {@link FileSplit} and {@link CoalescedSplit} transparently without flattening. For single-split
-     * queries the per-split stats (if available) or the sourceMetadata map is used; for multi-split
-     * queries a {@link MergedSplitStats} over the per-split stats is returned. Returns {@code null}
-     * if any split lacks stats.
+     * {@link FileSplit} and {@link CoalescedSplit} transparently without flattening. Empty splits
+     * (skip-discovery) read {@code sourceMetadata}. A present split without typed stats falls back
+     * to that map only when {@code STATS_FILE_COUNT} equals the number of whole files this
+     * assignment covers ({@link FileSplitProvider#isFirstInFile} and
+     * {@link FileSplitProvider#isLastInFile} on every leaf). Missing file-count, a larger listing,
+     * or a partial file (head/mid/tail range, including offset 0) safe-miss so INITIAL fold cannot
+     * emit the full COUNT on every data node. Multi-split queries return a {@link MergedSplitStats},
+     * or {@code null} if any split lacks stats.
      */
     @Nullable
     public static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveEffectiveStats(
         List<? extends ExternalSplit> splits,
         Map<String, Object> sourceMetadata
     ) {
-        if (splits.size() <= 1) {
-            if (splits.size() == 1) {
-                org.elasticsearch.xpack.esql.datasources.spi.SplitStats perSplit = splits.getFirst().splitStats();
-                if (perSplit != null) {
-                    return perSplit;
-                }
+        if (splits.isEmpty()) {
+            return sourceMetadataStatsIfComplete(sourceMetadata);
+        }
+        if (splits.size() == 1) {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats perSplit = splits.getFirst().splitStats();
+            if (perSplit != null) {
+                return perSplit;
             }
-            if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+            if (refuseListingFallback(splits.getFirst(), sourceMetadata)) {
                 return null;
             }
-            return of(sourceMetadata);
+            return sourceMetadataStatsIfComplete(sourceMetadata);
         }
         List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> perSplitStats = new ArrayList<>(splits.size());
         for (ExternalSplit split : splits) {
@@ -868,6 +873,65 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         // Pure value-fold: per-split stats are already normalized to the reconciled type at split construction
         // (FileSplitProvider), so the merge does not reconcile units. See MergedSplitStats.
         return new MergedSplitStats(perSplitStats);
+    }
+
+    /**
+     * {@code sourceMetadata} stats when they are complete; {@code null} when marked partial.
+     */
+    @Nullable
+    public static org.elasticsearch.xpack.esql.datasources.spi.SplitStats sourceMetadataStatsIfComplete(
+        Map<String, Object> sourceMetadata
+    ) {
+        if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
+            return null;
+        }
+        return of(sourceMetadata);
+    }
+
+    /**
+     * True when listing {@code sourceMetadata} must not answer this node's assigned split.
+     * Missing {@code STATS_FILE_COUNT} fail-closes. A split that is not the whole file — including
+     * the head byte-range at {@code offset == 0} — is never the listing the coordinator counted.
+     * {@link CoalescedSplit} refuses unless every leaf is a whole file and {@code STATS_FILE_COUNT}
+     * equals that leaf count.
+     */
+    public static boolean refuseListingFallback(ExternalSplit split, Map<String, Object> sourceMetadata) {
+        int assignedFiles = wholeFileLeafCount(split);
+        if (assignedFiles <= 0) {
+            return true;
+        }
+        if (sourceMetadata == null) {
+            return true;
+        }
+        Object fileCount = sourceMetadata.get(SourceStatisticsSerializer.STATS_FILE_COUNT);
+        if (fileCount instanceof Number == false) {
+            return true;
+        }
+        return ((Number) fileCount).longValue() != assignedFiles;
+    }
+
+    /**
+     * Whole files covered by {@code split}, or {@code 0} when any leaf is a partial range.
+     * Delegates to {@link FileSplitProvider#isFirstInFile} and {@link FileSplitProvider#isLastInFile}
+     * so position keys and the legacy unstamped whole-file shape stay in one place.
+     * Unknown split types fail closed.
+     */
+    static int wholeFileLeafCount(ExternalSplit split) {
+        if (split instanceof FileSplit fileSplit) {
+            return FileSplitProvider.isFirstInFile(fileSplit) && FileSplitProvider.isLastInFile(fileSplit) ? 1 : 0;
+        }
+        if (split instanceof CoalescedSplit coalesced) {
+            int total = 0;
+            for (ExternalSplit child : coalesced.children()) {
+                int n = wholeFileLeafCount(child);
+                if (n <= 0) {
+                    return 0;
+                }
+                total += n;
+            }
+            return total;
+        }
+        return 0;
     }
 
     @Override

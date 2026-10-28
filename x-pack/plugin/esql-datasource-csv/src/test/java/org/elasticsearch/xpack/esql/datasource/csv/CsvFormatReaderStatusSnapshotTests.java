@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -111,6 +112,9 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
     private static StorageObject inMemoryCsv(String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

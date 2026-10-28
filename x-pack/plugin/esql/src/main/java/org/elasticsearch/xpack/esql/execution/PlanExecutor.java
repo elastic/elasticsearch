@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -314,7 +316,18 @@ public class PlanExecutor {
         );
         ActionListener<Versioned<Result>> executeListener = wrap(
             x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
-            ex -> onQueryFailure(request, releasingListener, ex, clientId, planTelemetry, begin, client)
+            ex -> onQueryFailure(
+                request,
+                session.planSnapshot().settings(),
+                releasingListener,
+                ex,
+                clientId,
+                planTelemetry,
+                executionInfo,
+                begin,
+                client,
+                externalSourceResolver
+            )
         );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
@@ -348,7 +361,7 @@ public class PlanExecutor {
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
-        Versioned<Result> x,
+        Versioned<Result> result,
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
@@ -356,16 +369,16 @@ public class PlanExecutor {
         String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
-        boolean partial = x != null && x.inner().completionInfo().partial();
+        boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
-            planTelemetry.externalSource(),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             partial,
             null
         );
-        queryLog.onQueryPhase(x, request.queryDescription());
+        queryLog.onQueryPhase(result, request.queryDescription(), request.viewSettings());
         // record routing usage telemetry
         usageService.getProjectRoutingUsageHolder()
             .recordEsql(
@@ -373,17 +386,20 @@ public class PlanExecutor {
                 planTelemetry.settings().containsKey("PROJECT_ROUTING"),
                 executionInfo.isHasLinkedProjects()
             );
-        listener.onResponse(x);
+        listener.onResponse(result);
     }
 
     private void onQueryFailure(
         EsqlQueryRequest request,
+        ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
         QueryMetric clientId,
         PlanTelemetry planTelemetry,
+        EsqlExecutionInfo executionInfo,
         long begin,
-        String client
+        String client,
+        ExternalSourceResolver externalSourceResolver
     ) {
         // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
         // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
@@ -393,12 +409,18 @@ public class PlanExecutor {
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),
-            planTelemetry.externalSource(),
+            executionInfo.externalSource(),
             (System.nanoTime() - begin) / 1_000_000,
             false,
             ex
         );
-        queryLog.onQueryFailure(request.queryDescription(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
+        // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
+        if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
+            // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the
+            // client's next attempt lists them again; other queries' entries stay.
+            externalSourceResolver.invalidateUsedCacheEntries();
+        }
         listener.onFailure(ex);
     }
 

@@ -1918,7 +1918,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
         }
     }
 
-    public void testViewUnionAllWithAllEmptyRemoteBranches() {
+    public void testBranchPlanWithAllEmptyRemoteBranches() {
         String viewA = "missing_remote_view_a_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String viewB = "missing_remote_view_b_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         try {

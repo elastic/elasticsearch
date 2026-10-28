@@ -1,0 +1,75 @@
+---
+# KNN on a 1-dimension dense_vector. ES|QL folds a one-element multivalue into a scalar, so the query vector
+# reaches KNN as a single number rather than a list.
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ fn_knn_single_dimension_query_vector ]
+      reason: "KNN failed with a ClassCastException on 1-dimension vectors"
+      test_runner_features: [ capabilities ]
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              v:
+                type: dense_vector
+                dims: 1
+                similarity: l2_norm
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test" } }
+          - { "id": 0, "v": [ 0.1 ] }
+          - { "index": { "_index": "test" } }
+          - { "id": 1, "v": [ 0.5 ] }
+          - { "index": { "_index": "test" } }
+          - { "id": 2, "v": [ 0.9 ] }
+
+---
+"literal list":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, [0.5]) | SORT _score DESC | KEEP id | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+
+---
+"scalar literal":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, 0.5) | SORT _score DESC | KEEP id | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+
+---
+"parameter":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, ?q) | SORT _score DESC | KEEP id | LIMIT 1'
+          params: [ { "q": [ 0.5 ] } ]
+  - match: { values: [ [ 1 ] ] }
+
+---
+"to_dense_vector":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, TO_DENSE_VECTOR([0.5])) | SORT _score DESC | KEEP id | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+
+---
+"different query vector returns its nearest document":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _score | WHERE KNN(v, [0.1]) | SORT _score DESC | KEEP id | LIMIT 1'
+  - match: { values: [ [ 0 ] ] }

@@ -170,6 +170,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger attempts = new AtomicInteger();
         StorageObject flaky = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -281,6 +289,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger attempts = new AtomicInteger();
         StoragePath path = StoragePath.of("s3://bucket/key");
         StorageObject flaky = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -435,6 +451,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
     private static StorageObject failOnceAsync(AtomicInteger attempts, StoragePath path) {
         return new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -505,6 +529,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger ioAttempts = new AtomicInteger();
         StoragePath path = StoragePath.of("s3://bucket/key");
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -602,6 +634,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger ioAttempts = new AtomicInteger();
         StoragePath path = StoragePath.of("s3://bucket/key");
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -704,6 +744,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://bucket/key");
         StorageObject inner = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -798,6 +846,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicBoolean attempt0Closed = new AtomicBoolean();
         AtomicBoolean attempt1Closed = new AtomicBoolean();
         StorageObject flaky = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -1110,6 +1166,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         // A native-async delegate whose read fails with a non-storage, non-transient fault, so the async driver
         // gives up on the first attempt and records the terminal failure.
         StorageObject delegate = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
@@ -2022,6 +2086,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger opens = new AtomicInteger();
         StorageObject delegate = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2155,6 +2227,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger opens = new AtomicInteger();
         StorageObject inner = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2270,6 +2350,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         AtomicInteger opens = new AtomicInteger();
         StorageObject inner = new StorageObject() {
             @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;
             }
@@ -2377,6 +2465,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://bucket/key");
         AtomicInteger opens = new AtomicInteger();
         StorageObject inner = new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
             @Override
             public StorageIdentity storageIdentity() {
                 return AbstractTestStorageObject.NOOP;

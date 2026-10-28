@@ -228,7 +228,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     )
                     : null,
                 null,
-                false
+                false,
+                randomBoolean() ? randomNonNegativeLong() : null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null, null);
 
@@ -300,7 +301,8 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 : null,
             randomBoolean() ? randomFrom(FrozenTransitionStatus.values()) : null,
             // the lifecycle can be enabled by default only when there is no configured lifecycle
-            lifecycle == null && randomBoolean()
+            lifecycle == null && randomBoolean(),
+            randomBoolean() ? randomNonNegativeLong() : null
         );
     }
 

@@ -337,7 +337,8 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
 
         // Wait until the IndexShardCacheWarmer warms the commit to ensure that it reads some bytes (otherwise it could race with
         // recovery getting bytes into the cache first).
-        // Note: we don't do warming for to-be-hollowed shards. Hence, we skip waiting and don't expect warming metrics.
+        // Note: we don't do warming for to-be-hollowed shards, apart from the region 0 pre-warming of the root blob. Hence, we skip waiting
+        // for the IndexShardCacheWarmer.
         if (hollowEnabled == false) {
             assertBusy(
                 () -> assertThat(
@@ -379,8 +380,8 @@ public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTest
             SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
         );
         if (hollowEnabled) {
-            // We don't warm for to-be-hollowed shards. This is a weak assertion as there is no wait.
-            assertThat(measurements.size(), equalTo(0));
+            // We don't warm for to-be-hollowed shards, apart from the region 0 pre-warming of the root blob.
+            assertBusy(() -> assertThat(measurements.size(), equalTo(1)));
         } else {
             // One from IndexShardCacheWarmer, one for the region 0 pre-warming
             // and the other from StatelessIndexNodeRecoveryListener (which we may need to wait for it to appear)

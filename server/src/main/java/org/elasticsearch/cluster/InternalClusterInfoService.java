@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
@@ -382,6 +383,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 // This returns the shard write-loads
                 indicesStatsRequest.indexing(true);
             }
+            // This returns the shard search loads
+            indicesStatsRequest.search(true);
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
             client.admin()
@@ -431,6 +434,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                                 final ShardStats[] stats = indicesStatsResponse.getShards();
                                 final Map<ShardId, Double> shardWriteLoadByIdentifierBuilder = new HashMap<>();
+                                final Map<ShardId, Double> shardSearchLoadBuilder = new HashMap<>();
                                 final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
                                 final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
                                 final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
@@ -439,6 +443,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 buildShardLevelInfo(
                                     adjustShardStats(stats),
                                     shardWriteLoadByIdentifierBuilder,
+                                    shardSearchLoadBuilder,
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
                                     dataPath,
@@ -454,7 +459,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     Map.copyOf(shardDataSetSizeBuilder),
                                     Map.copyOf(dataPath),
                                     Map.copyOf(reservedSpace),
-                                    Map.copyOf(shardWriteLoadByIdentifierBuilder)
+                                    Map.copyOf(shardWriteLoadByIdentifierBuilder),
+                                    Map.copyOf(shardSearchLoadBuilder)
                                 );
                             }
 
@@ -580,7 +586,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodeCacheSizeAndCommitments,
                 shardCacheRequirements,
                 hostedShardsPartitionSizeByNodeId,
-                shardSearchLaneRequirements
+                shardSearchLaneRequirements,
+                indicesStatsSummary.shardSearchLoads()
             );
             currentClusterInfo = newClusterInfo;
             return newClusterInfo;
@@ -702,6 +709,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     static void buildShardLevelInfo(
         ShardStats[] stats,
         Map<ShardId, Double> shardWriteLoads,
+        Map<ShardId, Double> shardSearchLoads,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
         Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
@@ -741,6 +749,13 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     }
                 }
             }
+            final SearchStats searchStats = s.getStats().getSearch();
+            if (searchStats != null) {
+                final double shardSearchLoad = searchStats.getTotal().getSearchLoadRate();
+                if (shardSearchLoad > shardSearchLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
+                    shardSearchLoads.put(shardRouting.shardId(), shardSearchLoad);
+                }
+            }
         }
     }
 
@@ -771,9 +786,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<ShardId, Long> shardDataSetSizes,
         Map<ClusterInfo.NodeAndShard, String> dataPath,
         Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace,
-        Map<ShardId, Double> shardWriteLoads
+        Map<ShardId, Double> shardWriteLoads,
+        Map<ShardId, Double> shardSearchLoads
     ) {
-        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
 }

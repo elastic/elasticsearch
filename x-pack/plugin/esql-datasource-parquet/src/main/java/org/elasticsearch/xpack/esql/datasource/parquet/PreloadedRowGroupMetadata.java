@@ -134,8 +134,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * {@link #getColumnIndex}, and {@link #schema()} stay valid.
      * <p>
      * The row-group filter is the last reader of these buffers. Holding them until iterator
-     * end would pin untracked {@code forceAdd} bytes while the driver waits for tickets
-     * (esql-planning#2270). Refunds the original breaker and node-budget charges; the
+     * end would pin untracked {@code forceAdd} bytes while the driver waits for tickets.
+     * Refunds the original breaker and node-budget charges; the
      * {@link org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer} close path does
      * that outside any adapter lock.
      */
@@ -569,55 +569,64 @@ final class PreloadedRowGroupMetadata implements Releasable {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks = new TreeMap<>();
         Releasable omittedDictRelease = () -> {};
 
-        for (RangeMeta meta : rangeMetas) {
-            ByteBuffer buf = fetched.get(meta.range());
-            if (buf == null) {
-                continue;
-            }
-            String k = key(meta.rowGroupIdx(), meta.col());
-            try {
-                switch (meta.kind()) {
-                    case COLUMN_INDEX -> {
-                        byte[] bytes = toByteArray(buf);
-                        org.apache.parquet.format.ColumnIndex thriftCI = Util.readColumnIndex(new ByteArrayInputStream(bytes));
-                        if (thriftCI != null) {
-                            ColumnIndex ci = ParquetMetadataConverter.fromParquetColumnIndex(meta.col().getPrimitiveType(), thriftCI);
-                            if (ci != null) {
-                                columnIndexes.put(k, ci);
-                            }
-                        }
-                    }
-                    case OFFSET_INDEX -> {
-                        byte[] bytes = toByteArray(buf);
-                        org.apache.parquet.format.OffsetIndex thriftOI = Util.readOffsetIndex(new ByteArrayInputStream(bytes));
-                        if (thriftOI != null) {
-                            OffsetIndex oi = ParquetMetadataConverter.fromParquetOffsetIndex(thriftOI);
-                            if (oi != null) {
-                                offsetIndexes.put(k, oi);
-                            }
-                        }
-                    }
-                    case DICTIONARY_PAGE, BLOOM_FILTER -> {
-                        // Retain the raw buffer for the pre-warm cache. CoalescedRangeReader
-                        // delivers slices with position == relativeOffset within the merged range,
-                        // not 0. PrefetchedSource.slice() treats offsetInChunk as 0-based, so
-                        // normalise here via slice() — same fix as buildPrefetched in
-                        // ColumnChunkPrefetcher.
-                        preWarmedChunks.put(
-                            meta.range().offset(),
-                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf.slice())
-                        );
-                    }
+        try {
+            for (RangeMeta meta : rangeMetas) {
+                ByteBuffer buf = fetched.get(meta.range());
+                if (buf == null) {
+                    continue;
                 }
-            } catch (Exception e) {
-                logger.debug(
-                    "Failed to parse [{}] for [{}] in row group [{}]: {}",
-                    meta.kind(),
-                    meta.col().getPath(),
-                    meta.rowGroupIdx(),
-                    e.getMessage()
-                );
+                String k = key(meta.rowGroupIdx(), meta.col());
+                try {
+                    switch (meta.kind()) {
+                        case COLUMN_INDEX -> {
+                            byte[] bytes = toByteArray(buf);
+                            org.apache.parquet.format.ColumnIndex thriftCI = Util.readColumnIndex(new ByteArrayInputStream(bytes));
+                            if (thriftCI != null) {
+                                ColumnIndex ci = ParquetMetadataConverter.fromParquetColumnIndex(meta.col().getPrimitiveType(), thriftCI);
+                                if (ci != null) {
+                                    columnIndexes.put(k, ci);
+                                }
+                            }
+                        }
+                        case OFFSET_INDEX -> {
+                            byte[] bytes = toByteArray(buf);
+                            org.apache.parquet.format.OffsetIndex thriftOI = Util.readOffsetIndex(new ByteArrayInputStream(bytes));
+                            if (thriftOI != null) {
+                                OffsetIndex oi = ParquetMetadataConverter.fromParquetOffsetIndex(thriftOI);
+                                if (oi != null) {
+                                    offsetIndexes.put(k, oi);
+                                }
+                            }
+                        }
+                        case DICTIONARY_PAGE, BLOOM_FILTER -> {
+                            // Retain the raw buffer for the pre-warm cache. CoalescedRangeReader
+                            // delivers slices with position == relativeOffset within the merged range,
+                            // not 0. PrefetchedSource.slice() treats offsetInChunk as 0-based, so
+                            // normalise here via slice() — same fix as buildPrefetched in
+                            // ColumnChunkPrefetcher.
+                            preWarmedChunks.put(
+                                meta.range().offset(),
+                                new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf.slice())
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.debug(
+                        "Failed to parse [{}] for [{}] in row group [{}]: {}",
+                        meta.kind(),
+                        meta.col().getPath(),
+                        meta.rowGroupIdx(),
+                        e.getMessage()
+                    );
+                }
             }
+        } catch (Throwable t) {
+            try {
+                readRelease.close();
+            } catch (Throwable closeFailure) {
+                t.addSuppressed(closeFailure);
+            }
+            throw t;
         }
 
         if (fetchPreWarm) {

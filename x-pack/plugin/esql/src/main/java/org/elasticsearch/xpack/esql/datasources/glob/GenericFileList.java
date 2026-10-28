@@ -53,8 +53,8 @@ final class GenericFileList implements FileList {
     /**
      * @param truncated whether listing stopped at a bound before the end of the glob, so {@code files} is a
      *                  prefix of what the pattern matches. See {@link FileList#isTruncated()} for the
-     *                  invariant that keeps such a list out of the listing cache, and what a reading query
-     *                  handed one owes it.
+     *                  invariant that keeps such a list from being served to a query that asked to list
+     *                  further, and what a reading query handed one owes it.
      */
     GenericFileList(
         List<StorageEntry> files,
@@ -148,6 +148,12 @@ final class GenericFileList implements FileList {
     @Override
     public long lastModifiedMillis(int i) {
         return files.get(i).lastModified().toEpochMilli();
+    }
+
+    @Override
+    @Nullable
+    public String version(int i) {
+        return files.get(i).version();
     }
 
     /**

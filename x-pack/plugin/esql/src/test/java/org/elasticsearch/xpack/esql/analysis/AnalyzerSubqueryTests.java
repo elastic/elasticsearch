@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
@@ -85,7 +84,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,7 +92,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Negative tests for subquery analysis in {@code FROM} (and the related {@code ViewUnionAll}/{@code UnionAll} planning), or those don't
+ * Negative tests for subquery analysis in {@code FROM} (and the related {@code BranchPlan}/{@code UnionAll} planning), or those don't
  * fit the golden tests. The successful plan-shape (positive) tests over real CSV datasets now live in {@code AnalyzerSubqueryGoldenTests}.
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
@@ -181,9 +179,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *                   \_Eval[[null[DOUBLE] AS height.float#955, null[INTEGER] AS languages.byte#956,
      *                           null[INTEGER] AS salary_change.int#957, null[KEYWORD] AS salary_change.keyword#958,
      *                           null[LONG] AS salary_change.long#959]]
-     *                     \_Subquery[]
-     *                       \_Filter[languages{f}#940 > 0[INTEGER]]
-     *                         \_EsRelation[test_mixed_types][avg_worked_seconds{f}#949, birth_date{f}#937, emp_n..]
+     *                     \_Filter[languages{f}#940 > 0[INTEGER]]
+     *                       \_EsRelation[test_mixed_types][avg_worked_seconds{f}#949, birth_date{f}#937, emp_n..]
      */
     public void testMixedDataTypesWithMultipleExplicitCastingInSubquery() {
         LogicalPlan plan = analyzer().addDefaultIndex().addDefaultIncompatible().query("""
@@ -252,8 +249,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(6, explicitCastingEval.fields().size());
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);
         assertEquals(5, missingFieldEval.fields().size());
-        Subquery subquery = as(missingFieldEval.child(), Subquery.class);
-        Filter subqueryFilter = as(subquery.child(), Filter.class);
+        Filter subqueryFilter = as(missingFieldEval.child(), Filter.class);
         GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
         FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("languages", fa.name());
@@ -284,8 +280,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *               null[TEXT] AS gender#2120, null[DATETIME] AS hire_date#2121, null[TEXT] AS job#2122, null[KEYWORD] AS job.raw#2123,
      *               null[INTEGER] AS languages#2124, null[KEYWORD] AS last_name#2125, null[LONG] AS long_noidx#2126,
      *               null[INTEGER] AS salary#2127]]
-     *         \_Subquery[]
-     *           \_EsRelation[sample_data][@timestamp{f}#2109, client_ip{f}#2110, event_durati..]
+     *         \_EsRelation[sample_data][@timestamp{f}#2109, client_ip{f}#2110, event_durati..]
      */
     public void testPruneEmptySubquery() {
         LogicalPlan plan = analyzer().addEmployees("test").addSampleData().addRemoteMissingIndex().query("""
@@ -311,8 +306,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         subqueryProject = as(unionAll.children().get(1), Project.class);
         subqueryEval = as(subqueryProject.child(), Eval.class);
-        Subquery subquery = as(subqueryEval.child(), Subquery.class);
-        subqueryIndex = as(subquery.child(), EsRelation.class);
+        subqueryIndex = as(subqueryEval.child(), EsRelation.class);
         assertEquals("sample_data", subqueryIndex.indexPattern());
     }
 
@@ -323,11 +317,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   |_Project[[]]
      *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *   |_Project[[]]
-     *   | \_Subquery[]
-     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *   \_Project[[]]
-     *     \_Subquery[]
-     *       \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      */
     public void testSubqueryInFromWithNoFieldsIndices() {
         assertNoFieldUnionAll(analyzer().addNoFieldsIndex(), """
@@ -335,7 +327,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 no_fields_index,
                 (FROM no_fields_index),
                 (FROM no_fields_index)
-            """, directBranch("no_fields_index"), subqueryBranch("no_fields_index"), subqueryBranch("no_fields_index"));
+            """, "no_fields_index", "no_fields_index", "no_fields_index");
     }
 
     // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
@@ -345,11 +337,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   |_Project[[]]
      *   | \_EsRelation[empty_index][<no-fields>{r$}#2]
      *   |_Project[[]]
-     *   | \_Subquery[]
-     *   |   \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *   | \_EsRelation[empty_index][<no-fields>{r$}#2]
      *   \_Project[[]]
-     *     \_Subquery[]
-     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     \_EsRelation[empty_index][<no-fields>{r$}#2]
      */
     public void testSubqueryInFromWithEmptyIndex() {
         assertNoFieldUnionAll(analyzer().addEmptyIndex(), """
@@ -357,7 +347,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 empty_index,
                 (FROM empty_index),
                 (FROM empty_index)
-            """, directBranch("empty_index"), subqueryBranch("empty_index"), subqueryBranch("empty_index"));
+            """, "empty_index", "empty_index", "empty_index");
     }
 
     // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
@@ -366,14 +356,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[]]
      *   |_Project[[]]
-     *   | \_Subquery[]
-     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *   |_Project[[]]
-     *   | \_Subquery[]
-     *   |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *   | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *   \_Project[[]]
-     *     \_Subquery[]
-     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     \_EsRelation[empty_index][<no-fields>{r$}#2]
      */
     public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
         assertNoFieldUnionAll(analyzer().addNoFieldsIndex().addEmptyIndex(), """
@@ -381,7 +368,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 (FROM no_fields_index),
                 (FROM no_fields_index),
                 (FROM empty_index)
-            """, subqueryBranch("no_fields_index"), subqueryBranch("no_fields_index"), subqueryBranch("empty_index"));
+            """, "no_fields_index", "no_fields_index", "empty_index");
     }
 
     /*
@@ -389,11 +376,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#2367]]
      *   \_UnionAll[[]]
      *     |_Project[[]]
-     *     | \_Subquery[]
-     *     |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *     \_Project[[]]
-     *       \_Subquery[]
-     *         \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *       \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      */
     public void testCountWithSubqueryWithNoFields() {
         assertCountOverNoFieldSubqueries(analyzer().addNoFieldsIndex(), "no_fields_index", "no_fields_index");
@@ -404,11 +389,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#171]]
      *   \_UnionAll[[]]
      *     |_Project[[]]
-     *     | \_Subquery[]
-     *     |   \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *     | \_EsRelation[empty_index][<no-fields>{r$}#2]
      *     \_Project[[]]
-     *       \_Subquery[]
-     *         \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
      */
     public void testCountWithSubqueryWithEmptyIndex() {
         assertCountOverNoFieldSubqueries(analyzer().addEmptyIndex(), "empty_index", "empty_index");
@@ -419,11 +402,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#885]]
      *   \_UnionAll[[]]
      *     |_Project[[]]
-     *     | \_Subquery[]
-     *     |   \_EsRelation[no_fields_index][<no-fields>{r$}#2]
+     *     | \_EsRelation[no_fields_index][<no-fields>{r$}#2]
      *     \_Project[[]]
-     *       \_Subquery[]
-     *         \_EsRelation[empty_index][<no-fields>{r$}#2]
+     *       \_EsRelation[empty_index][<no-fields>{r$}#2]
      */
     public void testCountWithSubqueryWithNoFieldsAndEmptyIndex() {
         assertCountOverNoFieldSubqueries(analyzer().addEmptyIndex().addNoFieldsIndex(), "no_fields_index", "empty_index");
@@ -437,13 +418,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   \_UnionAll[[@timestamp{r}#879, !client_ip, event_duration{r}#881, message{r}#882]]
      *     |_Project[[@timestamp{f}#871, client_ip{r}#883, event_duration{f}#873, message{f}#874]]
      *     | \_Eval[[null[KEYWORD] AS client_ip#883]]
-     *     |   \_Subquery[]
-     *     |     \_EsRelation[sample_data][@timestamp{f}#871, client_ip{f}#872, event_duration..]
+     *     |   \_EsRelation[sample_data][@timestamp{f}#871, client_ip{f}#872, event_duration..]
      *     \_Project[[@timestamp{f}#875, client_ip{r}#884, event_duration{f}#877, message{f}#878]]
      *       \_Eval[[null[KEYWORD] AS client_ip#884]]
-     *         \_Subquery[]
-     *           \_Eval[[1[INTEGER] AS client_ip#869]]
-     *             \_EsRelation[sample_data][@timestamp{f}#875, client_ip{f}#876, event_duration..]
+     *         \_Eval[[1[INTEGER] AS client_ip#869]]
+     *           \_EsRelation[sample_data][@timestamp{f}#875, client_ip{f}#876, event_duration..]
      */
     public void testUnionAllWithConflictingTypesFromSubqueries() {
         LogicalPlan plan = analyzer().addSampleData().query("""
@@ -463,7 +442,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // Left leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → EsRelation[sample_data]
+        // Left leg: Project → Eval[null[KEYWORD] AS client_ip] → EsRelation[sample_data]
         Project leftProject = as(unionAll.children().get(0), Project.class);
         Eval leftEval = as(leftProject.child(), Eval.class);
         List<Alias> leftAliases = leftEval.fields();
@@ -474,10 +453,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertNull(leftNull.value());
         assertEquals(KEYWORD, leftNull.dataType());
 
-        Subquery leftSubquery = as(leftEval.child(), Subquery.class);
-        EsRelation leftRelation = as(leftSubquery.child(), EsRelation.class);
+        EsRelation leftRelation = as(leftEval.child(), EsRelation.class);
 
-        // Right leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → Eval[1[INTEGER] AS client_ip] → EsRelation[sample_data]
+        // Right leg: Project → Eval[null[KEYWORD] AS client_ip] → Eval[1[INTEGER] AS client_ip] → EsRelation[sample_data]
         Project rightProject = as(unionAll.children().get(1), Project.class);
         Eval rightEval = as(rightProject.child(), Eval.class);
         List<Alias> rightAliases = rightEval.fields();
@@ -488,8 +466,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertNull(rightNull.value());
         assertEquals(KEYWORD, rightNull.dataType());
 
-        Subquery rightSubquery = as(rightEval.child(), Subquery.class);
-        Eval innerEval = as(rightSubquery.child(), Eval.class);
+        Eval innerEval = as(rightEval.child(), Eval.class);
         List<Alias> innerAliases = innerEval.fields();
         assertThat(innerAliases, hasSize(1));
         Alias innerAlias = innerAliases.getFirst();
@@ -644,12 +621,10 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   \_UnionAll[[!x]]
      *     |_Project[[x{r}#9]]
      *     | \_Eval[[null[KEYWORD] AS x#9]]
-     *     |   \_Subquery[]
-     *     |     \_Row[[1[INTEGER] AS x#4]]
+     *     |   \_Row[[1[INTEGER] AS x#4]]
      *     \_Project[[x{r}#10]]
      *       \_Eval[[null[KEYWORD] AS x#10]]
-     *         \_Subquery[]
-     *           \_Row[[abc[KEYWORD] AS x#6]]
+     *         \_Row[[abc[KEYWORD] AS x#6]]
      */
     public void testUnionAllWithConflictingTypesFromRowSubqueries() {
         LogicalPlan plan = analyzer().query("""
@@ -667,7 +642,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // Both legs share the structure Project → Eval[null[KEYWORD] AS x] → Subquery → Row
+        // Both legs share the structure Project → Eval[null[KEYWORD] AS x] → Row
         // The Eval is the conflict-resolution null injected by the analyzer to align the leg
         // schema with the (UNSUPPORTED) union output.
         for (int i = 0; i < 2; i++) {
@@ -679,8 +654,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertNull(legNull.value());
             assertEquals(KEYWORD, legNull.dataType());
 
-            Subquery legSubquery = as(legConflictEval.child(), Subquery.class);
-            Row row = as(legSubquery.child(), Row.class);
+            Row row = as(legConflictEval.child(), Row.class);
             assertEquals(1, row.fields().size());
             assertEquals("x", row.fields().get(0).name());
         }
@@ -803,13 +777,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   \_UnionAll[[@timestamp{r}#13, !client_ip, event_duration{r}#15, message{r}#16]]
      *     |_Project[[@timestamp{f}#6, client_ip{r}#17, event_duration{f}#8, message{f}#9]]
      *     | \_Eval[[null[KEYWORD] AS client_ip#17]]
-     *     |   \_Subquery[]
-     *     |     \_EsRelation[sample_data][@timestamp{f}#6, client_ip{f}#7, event_duration{f}#..]
+     *     |   \_EsRelation[sample_data][@timestamp{f}#6, client_ip{f}#7, event_duration{f}#..]
      *     \_Project[[@timestamp{r}#10, client_ip{r}#18, event_duration{r}#11, message{r}#12]]
      *       \_Eval[[null[KEYWORD] AS client_ip#18]]
      *         \_Eval[[null[DATETIME] AS @timestamp#10, null[LONG] AS event_duration#11, null[KEYWORD] AS message#12]]
-     *           \_Subquery[]
-     *             \_Row[[1[INTEGER] AS client_ip#4]]
+     *           \_Row[[1[INTEGER] AS client_ip#4]]
      */
     public void testUnionAllWithConflictingTypesFromMixedRowAndFromSubqueries() {
         LogicalPlan plan = analyzer().addSampleData().query("""
@@ -827,7 +799,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // FROM leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → EsRelation[sample_data]
+        // FROM leg: Project → Eval[null[KEYWORD] AS client_ip] → EsRelation[sample_data]
         // The single Eval is the conflict-resolution null override; sample_data already provides
         // every other column the union exposes, so there are no "missing field" nullEvals here.
         Project fromProject = as(unionAll.children().get(0), Project.class);
@@ -837,12 +809,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Literal fromNull = as(fromConflictEval.fields().get(0).child(), Literal.class);
         assertNull(fromNull.value());
         assertEquals(KEYWORD, fromNull.dataType());
-        Subquery fromSubquery = as(fromConflictEval.child(), Subquery.class);
-        EsRelation fromRelation = as(fromSubquery.child(), EsRelation.class);
+        EsRelation fromRelation = as(fromConflictEval.child(), EsRelation.class);
         assertEquals("sample_data", fromRelation.indexPattern());
 
         // ROW leg: Project → Eval[null[KEYWORD] AS client_ip] → Eval[3 nullEvals for missing
-        // sample_data columns] → Subquery → Row[client_ip = 1]
+        // sample_data columns] → Row[client_ip = 1]
         Project rowProject = as(unionAll.children().get(1), Project.class);
         Eval rowConflictEval = as(rowProject.child(), Eval.class);
         assertEquals(1, rowConflictEval.fields().size());
@@ -852,8 +823,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(KEYWORD, rowNull.dataType());
         Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
         assertEquals(3, rowMissingEval.fields().size()); // @timestamp, event_duration, message
-        Subquery rowSubquery = as(rowMissingEval.child(), Subquery.class);
-        Row row = as(rowSubquery.child(), Row.class);
+        Row row = as(rowMissingEval.child(), Row.class);
         assertEquals("client_ip", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
         assertEquals(1, rowLiteral.value());
@@ -875,8 +845,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *         \_Eval[[null[KEYWORD] AS _meta_field#17, null[KEYWORD] AS first_name#18, null[TEXT] AS gender#19,
      *                 null[DATETIME] AS hire_date#20, null[TEXT] AS job#21, null[KEYWORD] AS job.raw#22, null[INTEGER] AS languages#23,
      *                 null[KEYWORD] AS last_name#24, null[LONG] AS long_noidx#25, null[INTEGER] AS salary#26]]
-     *           \_Subquery[]
-     *             \_Row[[abc[KEYWORD] AS emp_no#4]]
+     *           \_Row[[abc[KEYWORD] AS emp_no#4]]
      */
     public void testUnionAllWithConflictingTypesFromRowSubqueryAndMainIndex() {
         LogicalPlan plan = analyzer().addEmployees().query("""
@@ -908,7 +877,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("employees", indexRelation.indexPattern());
 
         // ROW leg: Project → Eval[null[KEYWORD] AS emp_no] → Eval[10 nullEvals for missing
-        // test fields] → Subquery → Row[emp_no = "abc"]
+        // test fields] → Row[emp_no = "abc"]
         Project rowProject = as(unionAll.children().get(1), Project.class);
         Eval rowConflictEval = as(rowProject.child(), Eval.class);
         assertEquals(1, rowConflictEval.fields().size());
@@ -918,8 +887,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(KEYWORD, rowNull.dataType());
         Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
         assertEquals(10, rowMissingEval.fields().size()); // every test field except emp_no
-        Subquery rowSubquery = as(rowMissingEval.child(), Subquery.class);
-        Row row = as(rowSubquery.child(), Row.class);
+        Row row = as(rowMissingEval.child(), Row.class);
         assertEquals("emp_no", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
         assertEquals(BytesRefs.toBytesRef("abc"), rowLiteral.value());
@@ -932,12 +900,10 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   \_UnionAll[[!a, !b]]
      *     |_Project[[a{r}#15, b{r}#16]]
      *     | \_Eval[[null[KEYWORD] AS a#15, null[KEYWORD] AS b#16]]
-     *     |   \_Subquery[]
-     *     |     \_Row[[1[INTEGER] AS a#4, [[63 61 74], [64 6f 67]][KEYWORD] AS b#6]]
+     *     |   \_Row[[1[INTEGER] AS a#4, [[63 61 74], [64 6f 67]][KEYWORD] AS b#6]]
      *     \_Project[[a{r}#17, b{r}#18]]
      *       \_Eval[[null[KEYWORD] AS a#17, null[KEYWORD] AS b#18]]
-     *         \_Subquery[]
-     *           \_Row[[[1.5, 2.5][DOUBLE] AS a#8, true[BOOLEAN] AS b#10]]
+     *         \_Row[[[1.5, 2.5][DOUBLE] AS a#8, true[BOOLEAN] AS b#10]]
      */
     public void testTwoRowSubqueriesEachWithMixedScalarAndMultivalueFieldsConflictingTypes() {
         LogicalPlan plan = analyzer().query("""
@@ -956,7 +922,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        // Both legs share the structure Project → Eval[null AS a, null AS b] → Subquery → Row.
+        // Both legs share the structure Project → Eval[null AS a, null AS b] → Row.
         // The Eval is the conflict-resolution null injected by the analyzer to align each leg's
         // schema with the (UNSUPPORTED) union output.
         for (int i = 0; i < 2; i++) {
@@ -968,8 +934,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                 assertNull(nullLit.value());
             }
 
-            Subquery legSubquery = as(legConflictEval.child(), Subquery.class);
-            Row row = as(legSubquery.child(), Row.class);
+            Row row = as(legConflictEval.child(), Row.class);
             assertEquals(2, row.fields().size());
             assertEquals("a", row.fields().get(0).name());
             assertEquals("b", row.fields().get(1).name());
@@ -991,16 +956,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   |   \_Eval[[null[KEYWORD] AS _meta_field#24, null[INTEGER] AS emp_no#25, null[KEYWORD] AS first_name#26, null[TEXT] AS gender#27,
      *               null[DATETIME] AS hire_date#28, null[TEXT] AS job#29, null[KEYWORD] AS job.raw#30, null[INTEGER] AS languages#31,
      *               null[KEYWORD] AS last_name#32, null[LONG] AS long_noidx#33, null[INTEGER] AS salary#34]]
-     *   |     \_Subquery[]
-     *   |       \_Row[[1[INTEGER] AS x#4, [[63 61 74], [64 6f 67]][KEYWORD] AS y#6]]
+     *   |     \_Row[[1[INTEGER] AS x#4, [[63 61 74], [64 6f 67]][KEYWORD] AS y#6]]
      *   \_Project[[_meta_field{r}#35, emp_no{r}#36, first_name{r}#37, gender{r}#38, hire_date{r}#39, job{r}#40, job.raw{r}#41,
      *              languages{r}#42, last_name{r}#43, long_noidx{r}#44, salary{r}#45, x{r}#63, y{r}#64]]
      *     \_Eval[[null[KEYWORD] AS x#63, null[KEYWORD] AS y#64]]
      *       \_Eval[[null[KEYWORD] AS _meta_field#35, null[INTEGER] AS emp_no#36, null[KEYWORD] AS first_name#37, null[TEXT] AS gender#38,
      *               null[DATETIME] AS hire_date#39, null[TEXT] AS job#40, null[KEYWORD] AS job.raw#41, null[INTEGER] AS languages#42,
      *               null[KEYWORD] AS last_name#43, null[LONG] AS long_noidx#44, null[INTEGER] AS salary#45]]
-     *         \_Subquery[]
-     *           \_Row[[[1.5, -2.5][DOUBLE] AS x#8, true[BOOLEAN] AS y#10]]
+     *         \_Row[[[1.5, -2.5][DOUBLE] AS x#8, true[BOOLEAN] AS y#10]]
      */
     public void testIndexPatternWithMixedRowSubqueriesAndConflictingTypes() {
         LogicalPlan plan = analyzer().addEmployees().query("""
@@ -1036,15 +999,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         // ROW legs: Project → Eval[conflict-resolution null for x, y]
         // → Eval[11 nullEvals for the test-only fields]
-        // → Subquery → Row.
+        // → Row.
         for (int i = 1; i < 3; i++) {
             Project rowLegProject = as(unionAll.children().get(i), Project.class);
             Eval rowConflictEval = as(rowLegProject.child(), Eval.class);
             assertEquals(2, rowConflictEval.fields().size()); // x, y conflict-resolution nulls
             Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
             assertEquals(11, rowMissingEval.fields().size()); // 11 test-index fields nulled
-            Subquery rowLegSubquery = as(rowMissingEval.child(), Subquery.class);
-            Row row = as(rowLegSubquery.child(), Row.class);
+            Row row = as(rowMissingEval.child(), Row.class);
             assertEquals(2, row.fields().size());
             assertEquals("x", row.fields().get(0).name());
             assertEquals("y", row.fields().get(1).name());
@@ -1058,21 +1020,19 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   | \_Eval[[null[KEYWORD] AS m#2365]]
      *   |   \_Eval[[null[DATETIME] AS @timestamp#2354, null[IP] AS client_ip#2355, null[LONG] AS event_duration#2356,
      *               null[KEYWORD] AS message#2357]]
-     *   |     \_Subquery[]
-     *   |       \_Project[[m{r}#6, cluster{r}#11]]
-     *   |         \_UnpackDims[packed, [cluster]]
-     *   |           \_Aggregate[[_$packed_dims AS packed],
-     *                           [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
-     *   |             \_PackDims[[cluster], _$packed_dims]
-     *   |               \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
-     *                                         VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
-     *   |                 \_EsRelation[k8s][TIME_SERIES][...]
+     *   |     \_Project[[m{r}#6, cluster{r}#11]]
+     *   |       \_UnpackDims[packed, [cluster]]
+     *   |         \_Aggregate[[_$packed_dims AS packed],
+     *                         [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *   |           \_PackDims[[cluster], _$packed_dims]
+     *   |             \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                       VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *   |               \_EsRelation[k8s][TIME_SERIES][...]
      *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
      *     \_Eval[[null[KEYWORD] AS m#2366]]
      *       \_Eval[[null[KEYWORD] AS cluster#2358]]
-     *         \_Subquery[]
-     *           \_Eval[[abc[KEYWORD] AS m#2324]]
-     *             \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
+     *         \_Eval[[abc[KEYWORD] AS m#2324]]
+     *           \_EsRelation[sample_data][@timestamp{f}#2349, client_ip{f}#2350, event_durati..]
      */
     public void testTSSubqueryWithConflictingTypesInUnionAll() {
         TransportVersion minVersion = randomBoolean()
@@ -1103,8 +1063,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
-        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Project tsInnerProject = as(tsNullSampleFields.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
@@ -1137,8 +1096,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Eval sampleNullCluster = as(sampleNullM.child(), Eval.class);
         assertEquals(1, sampleNullCluster.fields().size());
         assertEquals("cluster", sampleNullCluster.fields().get(0).name());
-        Subquery sampleSubquery = as(sampleNullCluster.child(), Subquery.class);
-        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        Eval innerEval = as(sampleNullCluster.child(), Eval.class);
         assertEquals(1, innerEval.fields().size());
         Alias innerMAlias = innerEval.fields().get(0);
         assertEquals("m", innerMAlias.name());
@@ -1162,23 +1120,21 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *         |   \_Eval[[TOSTRING(m{r}#6) AS $$m$converted_to$keyword#54]]
      *         |     \_Eval[[null[DATETIME] AS @timestamp#43, null[IP] AS client_ip#44, null[LONG] AS event_duration#45,
      *                       null[KEYWORD] AS message#46]]
-     *         |       \_Subquery[]
-     *         |         \_Project[[m{r}#6, cluster{r}#15]]
-     *         |           \_UnpackDims[packed, [cluster]]
-     *         |             \_Aggregate[[_$packed_dims AS packed],
-     *                                   [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
-     *         |               \_PackDims[[cluster], _$packed_dims]
-     *         |                 \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
-     *                                                  VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
-     *         |                   \_EsRelation[k8s][TIME_SERIES][...]
+     *         |       \_Project[[m{r}#6, cluster{r}#15]]
+     *         |         \_UnpackDims[packed, [cluster]]
+     *         |           \_Aggregate[[_$packed_dims AS packed],
+     *                                 [MAX(RATE_$1,true[BOOLEAN],PT0S[TIME_DURATION]) AS m, packed]]
+     *         |             \_PackDims[[cluster], _$packed_dims]
+     *         |               \_TimeSeriesAggregate[[_tsid],[RATE(network.total_bytes_in,...) AS RATE_$1,
+     *                                                VALUES(cluster,...) AS cluster, _tsid],...,TS_COMMAND]
+     *         |                 \_EsRelation[k8s][TIME_SERIES][...]
      *         \_Project[[m{r}#58, $$m$converted_to$keyword{r$}#55, cluster{r}#47, @timestamp{f}#38, client_ip{f}#39,
      *                    event_duration{f}#40, message{f}#41]]
      *           \_Eval[[null[KEYWORD] AS m#58]]
      *             \_Eval[[TOSTRING(m{r}#9) AS $$m$converted_to$keyword#55]]
      *               \_Eval[[null[KEYWORD] AS cluster#47]]
-     *                 \_Subquery[]
-     *                   \_Eval[[abc[KEYWORD] AS m#9]]
-     *                     \_EsRelation[sample_data][@timestamp{f}#38, client_ip{f}#39, event_duration{f..]
+     *                 \_Eval[[abc[KEYWORD] AS m#9]]
+     *                   \_EsRelation[sample_data][@timestamp{f}#38, client_ip{f}#39, event_duration{f..]
      */
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
         TransportVersion minVersion = randomBoolean()
@@ -1229,8 +1185,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("$$m$converted_to$keyword", tsCastAlias.name());
         Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
-        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Project tsInnerProject = as(tsNullSampleFields.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
@@ -1258,8 +1213,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("$$m$converted_to$keyword", sampleCastEval.fields().get(0).name());
         Eval sampleNullCluster = as(sampleCastEval.child(), Eval.class);
         assertEquals("cluster", sampleNullCluster.fields().get(0).name());
-        Subquery sampleSubquery = as(sampleNullCluster.child(), Subquery.class);
-        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        Eval innerEval = as(sampleNullCluster.child(), Eval.class);
         Alias innerMAlias = innerEval.fields().get(0);
         assertEquals("m", innerMAlias.name());
         assertEquals(KEYWORD, as(innerMAlias.child(), Literal.class).dataType());
@@ -1276,17 +1230,15 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *   | \_Eval[[null[KEYWORD] AS m#1803]]
      *   |   \_Eval[[null[DATETIME] AS @timestamp#1794, null[IP] AS client_ip#1795, null[LONG] AS event_duration#1796,
      *               null[KEYWORD] AS message#1797]]
-     *   |     \_Subquery[]
-     *   |       \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#50,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
-     *                           long_overflow_throw[KEYWORD]) AS m#5]]
-     *   |         \_TimeSeriesAggregate[[_tsid{m}#49],[LASTOVERTIME(network.bytes_in{f}#22,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                    @timestamp{f}#9) AS LASTOVERTIME_$1#50, _tsid{m}#49],null,null,@timestamp{f}#9,TS_COMMAND]
-     *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1765, client.ip{f}#1769, cluster{f}#1..]
+     *   |     \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#50,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                         long_overflow_throw[KEYWORD]) AS m#5]]
+     *   |       \_TimeSeriesAggregate[[_tsid{m}#49],[LASTOVERTIME(network.bytes_in{f}#22,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                  @timestamp{f}#9) AS LASTOVERTIME_$1#50, _tsid{m}#49],null,null,@timestamp{f}#9,TS_COMMAND]
+     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1765, client.ip{f}#1769, cluster{f}#1..]
      *   \_Project[[m{r}#1804, @timestamp{f}#1789, client_ip{f}#1790, event_duration{f}#1791, message{f}#1792]]
      *     \_Eval[[null[KEYWORD] AS m#1804]]
-     *       \_Subquery[]
-     *         \_Eval[[1.5[DOUBLE] AS m#1764]]
-     *           \_EsRelation[sample_data][@timestamp{f}#1789, client_ip{f}#1790, event_durati..]
+     *       \_Eval[[1.5[DOUBLE] AS m#1764]]
+     *         \_EsRelation[sample_data][@timestamp{f}#1789, client_ip{f}#1790, event_durati..]
      *
      * planCast:
      * Project[[m{r}#57]]
@@ -1300,20 +1252,18 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      *         |   \_Eval[[TODOUBLE(m{r}#51) AS $$m$converted_to$double#97]]
      *         |     \_Eval[[null[DATETIME] AS @timestamp#88, null[IP] AS client_ip#89, null[LONG] AS event_duration#90,
      *                       null[KEYWORD] AS message#91]]
-     *         |       \_Subquery[]
-     *         |         \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#105,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
-     *                                   long_overflow_throw[KEYWORD]) AS m#53]]
-     *         |           \_TimeSeriesAggregate[[_tsid{m}#104],[LASTOVERTIME(network.bytes_in{f}#74,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                            @timestamp{f}#61) AS LASTOVERTIME_$1#105, _tsid{m}#104],null,null,@timestamp{f}#61,
-     *                                            TS_COMMAND]
-     *         |             \_EsRelation[k8s][@timestamp{f}#61, client.ip{f}#65, cluster{f}#62, e..]
+     *         |       \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#105,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                                 long_overflow_throw[KEYWORD]) AS m#53]]
+     *         |         \_TimeSeriesAggregate[[_tsid{m}#104],[LASTOVERTIME(network.bytes_in{f}#74,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                          @timestamp{f}#61) AS LASTOVERTIME_$1#105, _tsid{m}#104],null,null,@timestamp{f}#61,
+     *                                          TS_COMMAND]
+     *         |           \_EsRelation[k8s][@timestamp{f}#61, client.ip{f}#65, cluster{f}#62, e..]
      *         \_Project[[m{r}#101, $$m$converted_to$double{r$}#98, @timestamp{f}#83, client_ip{f}#84, event_duration{f}#85,
      *                    message{f}#86]]
      *           \_Eval[[null[KEYWORD] AS m#101]]
      *             \_Eval[[TODOUBLE(m{r}#54) AS $$m$converted_to$double#98]]
-     *               \_Subquery[]
-     *                 \_Eval[[1.5[DOUBLE] AS m#54]]
-     *                   \_EsRelation[sample_data][@timestamp{f}#83, client_ip{f}#84, event_duration{f..]
+     *               \_Eval[[1.5[DOUBLE] AS m#54]]
+     *                 \_EsRelation[sample_data][@timestamp{f}#83, client_ip{f}#84, event_duration{f..]
      */
     public void testTSSubqueryWithNumericConflictAndExplicitCast() {
         // (1) Without explicit cast: LONG vs DOUBLE → UNSUPPORTED.
@@ -1335,9 +1285,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(KEYWORD, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
-        Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
-        Aggregate tsOuterAggregate = as(tsSubquery.child(), Aggregate.class);
+        Aggregate tsOuterAggregate = as(tsNullSampleFields.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertTrue(tsOuterAggregate.groupings().isEmpty());
         TimeSeriesAggregate tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
@@ -1347,8 +1296,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Project sampleProject = as(noCastUnion.children().get(1), Project.class);
         Eval sampleNullM = as(sampleProject.child(), Eval.class);
         assertEquals("m", sampleNullM.fields().get(0).name());
-        Subquery sampleSubquery = as(sampleNullM.child(), Subquery.class);
-        Eval innerEval = as(sampleSubquery.child(), Eval.class);
+        Eval innerEval = as(sampleNullM.child(), Eval.class);
         Literal oneAndAHalf = as(innerEval.fields().get(0).child(), Literal.class);
         assertEquals(DOUBLE, oneAndAHalf.dataType());
         assertEquals(1.5, oneAndAHalf.value());
@@ -1388,9 +1336,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("$$m$converted_to$double", castTsConvertEval.fields().get(0).name());
         Eval castTsNullSamples = as(castTsConvertEval.child(), Eval.class);
         assertEquals(4, castTsNullSamples.fields().size());
-        Subquery castTsSubquery = as(castTsNullSamples.child(), Subquery.class);
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
-        Aggregate castTsOuterAggregate = as(castTsSubquery.child(), Aggregate.class);
+        Aggregate castTsOuterAggregate = as(castTsNullSamples.child(), Aggregate.class);
         assertFalse(castTsOuterAggregate instanceof TimeSeriesAggregate);
         TimeSeriesAggregate castTsAggregate = as(castTsOuterAggregate.child(), TimeSeriesAggregate.class);
         EsRelation castTsRelation = as(castTsAggregate.child(), EsRelation.class);
@@ -1401,8 +1348,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("m", castSampleNullM.fields().get(0).name());
         Eval castSampleConvertEval = as(castSampleNullM.child(), Eval.class);
         assertEquals("$$m$converted_to$double", castSampleConvertEval.fields().get(0).name());
-        Subquery castSampleSubquery = as(castSampleConvertEval.child(), Subquery.class);
-        Eval castSampleInnerEval = as(castSampleSubquery.child(), Eval.class);
+        Eval castSampleInnerEval = as(castSampleConvertEval.child(), Eval.class);
         assertEquals(DOUBLE, as(castSampleInnerEval.fields().get(0).child(), Literal.class).dataType());
         EsRelation castSampleRelation = as(castSampleInnerEval.child(), EsRelation.class);
         assertEquals("sample_data", castSampleRelation.indexPattern());
@@ -2039,63 +1985,44 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 
-    /**
-     * TODO FORK alignment fills a dropped column with {@code null[T]} using the pre-widen type. After implicit date/date_nanos widening the
-     *  sibling branch is {@code date_nanos} while the filler stays {@code datetime}. {@code alignMergeOutputToChildren} does not update the
-     *  FORK output when children disagree, so {@code checkFork} reports the conflict. The following test can complete successfully if
-     *  filling the dropped column as {@code date_nanos}.
-     */
-
-    public void testForkNullFillsImplicitDateNanosCastColumnInFirstBranch() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (KEEP message) (KEEP @timestamp, message)
+    // FORK-only queries must not implicitly widen {@code datetime} to {@code date_nanos}.
+    public void testForkOnlyDateVsDateNanosStillConflicts() {
+        analyzer().addSampleData().error("""
+            FROM sample_data
+            | FORK (KEEP @timestamp) (EVAL @timestamp = @timestamp::date_nanos)
             | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+            """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
-    public void testForkNullFillsImplicitDateNanosCastColumnInSecondBranch() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (KEEP @timestamp, message) (KEEP message)
-            | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsImplicitDateNanosCastColumnAfterNestedSubquery() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos, (FROM sample_data))
-            | FORK (KEEP @timestamp) (KEEP message)
-            | KEEP @timestamp, _fork
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
-    }
-
-    public void testForkNullFillsImplicitDateNanosCastColumnWithEval() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
-            FROM sample_data, (FROM sample_data_ts_nanos)
-            | FORK (EVAL x = @timestamp) (WHERE true)
+    public void testForkOnlyEvalDateVsDateNanosStillConflicts() {
+        analyzer().addSampleData().error("""
+            FROM sample_data
+            | FORK (EVAL x = @timestamp) (EVAL x = @timestamp::date_nanos)
             | KEEP x, _fork
-            """, allOf(containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+            """, containsString("Column [x] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
     }
 
     public void testForkNullFillsImplicitDateNanosCastColumnWithStats() {
-        analyzer().addSampleData()
-            .addIndex(sampleDataTsNanosIndex())
-            .error(
-                """
-                    FROM sample_data, (FROM sample_data_ts_nanos)
-                    | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
-                    | KEEP m, @timestamp
-                    """,
-                allOf(
-                    containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"),
-                    containsString("Column [m] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")
-                )
-            );
+        // This used to report conflicting FORK branch types for both columns: the union's implicit DATE_NANOS cast
+        // widened each branch's own column while the null fill for the dropped sibling column stayed DATETIME. FORK's
+        // alignment now fills dropped columns with the widened type, so the query analyzes.
+        LogicalPlan plan = analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).query("""
+            FROM sample_data, (FROM sample_data_ts_nanos)
+            | FORK (STATS m = MAX(@timestamp)) (WHERE true | KEEP @timestamp)
+            | KEEP m, @timestamp
+            """);
+        Attribute m = plan.output().stream().filter(a -> "m".equals(a.name())).findFirst().orElseThrow();
+        assertThat(m.dataType(), is(DataType.DATE_NANOS));
+        Attribute timestamp = plan.output().stream().filter(a -> "@timestamp".equals(a.name())).findFirst().orElseThrow();
+        assertThat(timestamp.dataType(), is(DataType.DATE_NANOS));
     }
 
     public void testForkNullFillsAtEveryLevelOfNestedUnionAlls() {
-        analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).error("""
+        // This used to fail FORK's branch-output verification: the nested subquery wrappers hid the sibling
+        // branches from the implicit DATE_NANOS cast alignment, so FORK saw [DATE_NANOS] vs [DATETIME].
+        // With the unions flattened and wrapper-free, the alignment casts every level to DATE_NANOS and the
+        // query analyzes successfully.
+        LogicalPlan plan = analyzer().addSampleData().addIndex(sampleDataTsNanosIndex()).query("""
             FROM (FROM (FROM sample_data, (FROM sample_data_ts_nanos)
                         | FORK (KEEP @timestamp, message) (KEEP message)),
                        (FROM sample_data | KEEP @timestamp, message)
@@ -2104,23 +2031,32 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             | RENAME t AS u
             | KEEP @timestamp, u, message, _fork
             | SORT @timestamp, u
-            """, allOf(containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]")));
+            """);
+        Attribute timestamp = plan.output().stream().filter(a -> "@timestamp".equals(a.name())).findFirst().orElseThrow();
+        assertThat(timestamp.dataType(), is(DataType.DATE_NANOS));
+        Attribute u = plan.output().stream().filter(a -> "u".equals(a.name())).findFirst().orElseThrow();
+        assertThat(u.dataType(), is(DataType.DATE_NANOS));
     }
 
     public void testForkNullFillsInsideAndAfterUnionAllThroughViews() {
-        analyzer().addSampleData()
+        // Like testForkNullFillsAtEveryLevelOfNestedUnionAlls, this used to fail FORK's branch-output
+        // verification because the view/subquery wrappers hid the sibling branches from the implicit
+        // DATE_NANOS cast alignment. Wrapper-free, the alignment unifies @timestamp and the query analyzes.
+        LogicalPlan plan = analyzer().addSampleData()
             .addIndex(sampleDataTsNanosIndex())
             .addView(
                 "fork_over_union_view",
                 "FROM sample_data, (FROM sample_data_ts_nanos) | FORK (KEEP @timestamp, message) (KEEP message)"
             )
-            .error("""
+            .query("""
                 FROM (FROM fork_over_union_view, (FROM sample_data | KEEP @timestamp, message)
                           | FORK (WHERE message IS NOT NULL) (KEEP message)),
                          (FROM sample_data | KEEP @timestamp, message)
                     | KEEP @timestamp, message, _fork
                     | SORT @timestamp
-                """, containsString("Column [@timestamp] has conflicting data types in FORK branches: [DATE_NANOS] and [DATETIME]"));
+                """);
+        Attribute timestamp = plan.output().stream().filter(a -> "@timestamp".equals(a.name())).findFirst().orElseThrow();
+        assertThat(timestamp.dataType(), is(DataType.DATE_NANOS));
     }
 
     private LogicalPlan analyzeExternalDatasetSubquery(String query) {
@@ -2187,40 +2123,26 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
     }
 
     /**
-     * A {@link UnionAll} branch over a no-field index: the empty-projection wrapper {@code Project([]) -> EsRelation}
-     * (a leading bare index) or {@code Project([]) -> Subquery -> EsRelation} (an explicit {@code (FROM ...)} subquery).
+     * Asserts the analyzed {@code query} is {@code Limit -> UnionAll} whose branches match {@code indices} (in order),
+     * each the empty-projection wrapper {@code Project([]) -> EsRelation} over a no-field relation. Bare indices and
+     * explicit {@code (FROM ...)} subqueries produce the same shape: the analyzer strips the per-branch Subquery wrappers.
      */
-    private record UnionBranch(String index, boolean subquery) {}
-
-    private static UnionBranch directBranch(String index) {
-        return new UnionBranch(index, false);
-    }
-
-    private static UnionBranch subqueryBranch(String index) {
-        return new UnionBranch(index, true);
-    }
-
-    /**
-     * Asserts the analyzed {@code query} is {@code Limit -> UnionAll} whose branches match {@code branches} (in order),
-     * each an empty-projection wrapper over a no-field relation as described by {@link UnionBranch}.
-     */
-    private static void assertNoFieldUnionAll(TestAnalyzer analyzer, String query, UnionBranch... branches) {
+    private static void assertNoFieldUnionAll(TestAnalyzer analyzer, String query, String... indices) {
         Limit limit = as(analyzer.query(query), Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(0, unionAll.output().size());
-        assertEquals(branches.length, unionAll.children().size());
-        for (int i = 0; i < branches.length; i++) {
+        assertEquals(indices.length, unionAll.children().size());
+        for (int i = 0; i < indices.length; i++) {
             Project project = as(unionAll.children().get(i), Project.class);
             assertTrue(project.projections().isEmpty());
-            LogicalPlan relationChild = branches[i].subquery() ? as(project.child(), Subquery.class).child() : project.child();
-            EsRelation relation = as(relationChild, EsRelation.class);
-            assertEquals(branches[i].index(), relation.indexPattern());
+            EsRelation relation = as(project.child(), EsRelation.class);
+            assertEquals(indices[i], relation.indexPattern());
         }
     }
 
     /**
      * Asserts that {@code STATS <count>} over subqueries of the given no-field {@code indices} analyzes to
-     * {@code Limit -> Aggregate -> UnionAll}, with one empty {@code Project([]) -> Subquery -> EsRelation} branch per
+     * {@code Limit -> Aggregate -> UnionAll}, with one empty {@code Project([]) -> EsRelation} branch per
      * index. Runs the check for {@code count()}, {@code count(*)} and {@code count(1)}.
      */
     private static void assertCountOverNoFieldSubqueries(TestAnalyzer analyzer, String... indices) {
@@ -2239,8 +2161,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             for (int i = 0; i < indices.length; i++) {
                 Project project = as(unionAll.children().get(i), Project.class);
                 assertEquals(0, project.projections().size());
-                Subquery subquery = as(project.child(), Subquery.class);
-                EsRelation relation = as(subquery.child(), EsRelation.class);
+                EsRelation relation = as(project.child(), EsRelation.class);
                 assertEquals(indices[i], relation.indexPattern());
             }
         }

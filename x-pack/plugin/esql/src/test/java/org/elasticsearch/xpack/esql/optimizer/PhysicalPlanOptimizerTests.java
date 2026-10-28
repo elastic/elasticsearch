@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -129,6 +130,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -159,14 +161,12 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -209,7 +209,6 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -228,7 +227,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -879,7 +877,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -928,7 +926,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -977,7 +975,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertNull(query.limit());
-        assertThat(query.query(), is(unscore(existsQuery("last_name"))));
+        assertThat(query.query(), is(esqlExistsQuery("last_name")));
     }
 
     /**
@@ -1241,7 +1239,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     /**
@@ -1276,7 +1274,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 2 /* for doc id, emp_no*/));
-        assertThat(query.query(), is(unscore(existsQuery("emp_no"))));
+        assertThat(query.query(), is(esqlExistsQuery("emp_no")));
     }
 
     public void testQueryForStatWithMultiAgg() {
@@ -1297,7 +1295,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var query = source(extract.child());
         assertThat(query.estimatedRowSize(), equalTo(Integer.BYTES * 3 /* for doc id, emp_no, salary*/));
-        assertThat(query.query(), is(boolQuery().should(unscore(existsQuery("emp_no"))).should(unscore(existsQuery("salary")))));
+        assertThat(query.query(), is(boolQuery().should(esqlExistsQuery("emp_no")).should(esqlExistsQuery("salary"))));
+    }
+
+    private static QueryBuilder esqlExistsQuery(String field) {
+        return new ExistsQuery(Source.EMPTY, field).toQueryBuilder();
     }
 
     /**
@@ -2439,10 +2441,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
-        assertThat(boolQuery.mustNot(), hasSize(1));
-        var termQuery = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
-        assertThat(termQuery.fieldName(), is("emp_no"));
-        assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
+        assertThat(boolQuery.should(), hasSize(2));
+        var lt = as(boolQuery.should().get(0), RangeQueryBuilder.class);
+        assertThat(lt.fieldName(), is("emp_no"));
+        assertThat(lt.to(), is(10010));
+        assertFalse(lt.includeUpper());
+        var gt = as(boolQuery.should().get(1), RangeQueryBuilder.class);
+        assertThat(gt.fieldName(), is("emp_no"));
+        assertThat(gt.from(), is(10010));
+        assertFalse(gt.includeLower());
     }
 
     /**
@@ -4049,17 +4056,19 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * The subquery branch is a bare relation once the analyzer strips its wrapper, so the union is a direct-leaf shape
+     * and {@code PushAggregateThroughUnionAll} splits the count into per-branch partials that compile to Lucene-level
+     * {@code EsStatsQueryExec} counts, summed by the combiner aggregate above the merge.
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count()#3],SINGLE,[$$count()$count{r}#4, $$count()$
-     * seen{r}#5],8]
-     *   \_MergeExec[[],UNION]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[no_fields_index], ...]
-     *     \_ExchangeExec[[],false]
-     *       \_ProjectExec[[]]
-     *         \_EsQueryExec[no_fields_index], ...]
+     * \_AggregateExec[[],[SUM($$partial$$count(){r$}#4,...) AS count()#3],SINGLE,[$$count()$sum{r}#9, $$count()$seen{r}#10],8]
+     *   \_MergeExec[[$$partial$$count(){r$}#4],UNION]
+     *     |_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *     | \_ExchangeExec[[$$partial$$count()$count{r}#5, $$partial$$count()$seen{r}#6],true]
+     *     |   \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
+     *     \_AggregateExec[[],[COUNT(*[KEYWORD],...) AS $$partial$$count()#4],FINAL,...]
+     *       \_ExchangeExec[[$$partial$$count()$count{r}#7, $$partial$$count()$seen{r}#8],true]
+     *         \_EsStatsQueryExec[no_fields_index], stats[BasicStat[name=*, type=COUNT, query=null]], ...]
      * }
      */
     public void testProjectAwayColumnsWithSubqueryCount() {
@@ -4073,16 +4082,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
             MergeExec merge = as(agg.child(), MergeExec.class);
-            assertEquals(0, merge.output().size());
+            // The single merged column is the per-branch partial count, summed by the combiner aggregate above.
+            assertEquals(1, merge.output().size());
             assertEquals(2, merge.children().size());
 
             for (PhysicalPlan child : merge.children()) {
-                ExchangeExec exchange = as(child, ExchangeExec.class);
-                assertEquals(0, exchange.output().size());
-                ProjectExec project = as(exchange.child(), ProjectExec.class);
-                assertEquals(0, project.projections().size());
-                EsQueryExec esQuery = as(project.child(), EsQueryExec.class);
-                assertEquals("no_fields_index", esQuery.indexPattern());
+                AggregateExec partial = as(child, AggregateExec.class);
+                ExchangeExec exchange = as(partial.child(), ExchangeExec.class);
+                EsStatsQueryExec statsQuery = as(exchange.child(), EsStatsQueryExec.class);
+                var stat = as(statsQuery.stat(), EsStatsQueryExec.BasicStat.class);
+                assertThat(stat.type(), is(EsStatsQueryExec.StatsType.COUNT));
             }
         }
     }
@@ -10282,7 +10291,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
-            null,  // RemoteFetchService - not needed for these tests
+            true,  // snapshotBuild - bare external sources are planned without a registered dataset
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
@@ -10468,13 +10477,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(
             query.query(),
             equalTo(
-                new BoolQueryBuilder().filter(
-                    new SingleValueQuery(
-                        new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
-                        "job",
-                        SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
-                    ).toQueryBuilder()
-                )
+                new SingleValueQuery(
+                    new NotQuery(Source.EMPTY, new EqualsSyntheticSourceDelegate(Source.EMPTY, "job", "v")),
+                    "job",
+                    SingleValueQuery.UseSyntheticSourceDelegate.YES_NEGATED
+                ).toQueryBuilder()
             )
         );
     }
@@ -10512,7 +10519,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
-    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+    public void testDisableTimeSeriesAggsReduction() {
+        var mapping = loadMapping("k8s-mappings.json");
+        EsIndex index = EsIndexGenerator.esIndex("k8s", mapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        Analyzer analyzer = analyzer().configuration(config).addIndex(index).buildAnalyzer();
+        var timeSeriesData = new TestDataSource(mapping, index, analyzer, TEST_SEARCH_STATS);
+
+        var plan = physicalPlan("""
+            TS k8s
+            | STATS max(rate(network.total_bytes_in)) BY TBUCKET(1 hour)
+            """, timeSeriesData);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var fragment = as(as(plans.v2(), ExchangeSinkExec.class).child(), FragmentExec.class);
+        assertTrue(
+            "expected a time-series aggregation on the data node",
+            fragment.fragment().anyMatch(TimeSeriesAggregate.class::isInstance)
+        );
+
+        assertThat(PlannerUtils.reductionPlan(plans.v2()), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+    }
+
+    public void testDisableMetricsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10527,17 +10554,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(metricsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
-        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
-    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+    public void testDisableTsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10552,14 +10572,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(tsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
-        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
     @SuppressWarnings("SameParameterValue")

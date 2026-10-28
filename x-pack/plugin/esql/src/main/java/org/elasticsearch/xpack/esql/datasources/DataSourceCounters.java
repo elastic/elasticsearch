@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Converts the values accumulated in a {@link DataSourceUsageAccumulator} into flat
@@ -122,8 +125,6 @@ public final class DataSourceCounters {
         }
 
         // ---- per-component CPU counters (ns) ----
-        // Note: execution, read, and split_discovery are real per-thread CPU time; planning is wall
-        // time. The total therefore mixes the two measurement kinds.
         long cpuTotal = 0;
         for (int i = 0; i < DataSourceUsageAccumulator.CPU_COMPONENT_COUNT; i++) {
             long v = acc.queryCpuNanos(i);
@@ -153,6 +154,56 @@ public final class DataSourceCounters {
         // ---- bytes histogram (uses the same count ladder as files_scanned and splits_scanned) ----
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
             counters.inc("datasources.discovery.bytes_scanned." + cs.get(b), acc.discoveryBytesScanned(b));
+        }
+    }
+
+    /**
+     * Live admission gauges for {@code GET /_esql/stats}. Occupancy keys (used, waiters, permits)
+     * are point-in-time; {@code waiting_untracked} is cumulative trips of wait-with-untracked.
+     * Not exported on {@code GET /_xpack/usage}.
+     */
+    public static void populateAdmission(
+        Counters counters,
+        NodeByteBudget budget,
+        @Nullable AdmissionStallWatchdog watchdog,
+        Map<String, int[]> permits
+    ) {
+        counters.set("datasources.admission.bytes.used");
+        counters.set("datasources.admission.bytes.limit");
+        counters.set("datasources.admission.bytes.untracked");
+        counters.set("datasources.admission.bytes.waiters");
+        counters.set("datasources.admission.owner");
+        counters.set("datasources.admission.waiting_untracked");
+        counters.set("datasources.admission.rescues");
+        counters.set("datasources.admission.regrants");
+        if (budget != null) {
+            counters.inc("datasources.admission.bytes.used", budget.used());
+            counters.inc("datasources.admission.bytes.limit", budget.limit());
+            counters.inc("datasources.admission.bytes.untracked", budget.untracked());
+            if (budget instanceof NodeByteBudgetService service) {
+                counters.inc("datasources.admission.bytes.waiters", service.waiterCount());
+                counters.inc("datasources.admission.owner", service.overshootOwner() == null ? 0L : 1L);
+                counters.inc("datasources.admission.waiting_untracked", service.waitingUntrackedCount());
+            }
+        }
+        if (watchdog != null) {
+            counters.inc("datasources.admission.rescues", watchdog.rescueCount());
+            counters.inc("datasources.admission.regrants", watchdog.regrantCount());
+            for (AdmissionStallWatchdog.GateStats gate : watchdog.stats()) {
+                String name = gate.name().replace('.', '_');
+                counters.inc("datasources.admission.gates." + name + ".waiters", gate.waiters());
+                counters.inc("datasources.admission.gates." + name + ".holders", gate.holders());
+                // Never-granted is -1; Counters.writeTo uses writeVLong and rejects negatives.
+                long sinceGrant = gate.millisSinceGrant();
+                counters.inc("datasources.admission.gates." + name + ".millis_since_grant", sinceGrant < 0L ? 0L : sinceGrant);
+            }
+        }
+        if (permits != null) {
+            for (Map.Entry<String, int[]> entry : permits.entrySet()) {
+                String scheme = entry.getKey().replace('.', '_');
+                counters.inc("datasources.admission.permits." + scheme + ".available", entry.getValue()[0]);
+                counters.inc("datasources.admission.permits." + scheme + ".max", entry.getValue()[1]);
+            }
         }
     }
 }

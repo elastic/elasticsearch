@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.QlException;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,8 +39,8 @@ import java.util.regex.Pattern;
  *     temporarily-unavailable condition (a remote-store transport failure, or a node-local admission
  *     condition such as permit exhaustion).</li>
  *     <li>{@link ExternalObjectChangedException} &rarr; 503, the object was rewritten mid-query so a
- *     resume would splice generations. Query-level retryable, but not retried as a storage resume
- *     (the generation pin will keep failing until the query restarts).</li>
+ *     resume would splice generations. The client retries the request; it is not retried as a storage
+ *     resume, since the generation pin would keep failing. The server does not retry the query.</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.
@@ -111,6 +114,19 @@ public abstract class ExternalException extends QlException {
                 return detailCode.isEmpty()
                     ? "Unexpected internal failure reading external source"
                     : "Unexpected internal failure reading external source: " + detailCode;
+            }
+        },
+        /**
+         * The worker that received external splits has not yet applied the cluster state the coordinator planned from (a node that
+         * has just joined, or one behind a dataset change), so it cannot bind the plan's datasets or credentials. Not tied to any
+         * object; the store is not involved. A coordinator with another worker hands the splits to it; otherwise the worker waits
+         * for the state, and this is what it fails with when that wait runs out.
+         */
+        WORKER_NOT_READY {
+            @Override
+            public String render(String objectName, String detailCode, String remedy) {
+                String base = "Node has not yet applied the cluster state this query was planned from";
+                return detailCode.isEmpty() ? base : base + " (" + detailCode + ")";
             }
         };
 
@@ -219,6 +235,28 @@ public abstract class ExternalException extends QlException {
     }
 
     /**
+     * Structured constructor for a condition that names no object, such as {@link Condition#WORKER_NOT_READY}: the
+     * message is {@code condition.render("", detailCode, remedy)} and {@link #objectName()} is empty.
+     */
+    @SuppressWarnings("this-escape") // addMetadata only fills a map owned by ElasticsearchException; see recordConditionMetadata
+    protected ExternalException(Condition condition, String detailCode, String remedy, Throwable cause) {
+        super(condition.render("", detailCode, remedy), cause);
+        this.condition = condition;
+        this.objectName = "";
+        this.detailCode = detailCode != null ? detailCode : "";
+        this.remedy = remedy != null ? remedy : "";
+        recordConditionMetadata();
+    }
+
+    /**
+     * Structured constructor for a condition that names no object, without a cause.
+     * See {@link #ExternalException(Condition, String, String, Throwable)}.
+     */
+    protected ExternalException(Condition condition, String detailCode, String remedy) {
+        this(condition, detailCode, remedy, null);
+    }
+
+    /**
      * Copy constructor backing {@link #withoutCause()}: same message, typed fields, detail and dataset
      * context, but no cause.
      */
@@ -317,6 +355,20 @@ public abstract class ExternalException extends QlException {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code failure} or any throwable in its cause chain has the given {@link Condition}, as {@link #conditionOf}
+     * reports it. Unlike a class match, this still holds after the failure crossed a node boundary.
+     */
+    public static boolean hasCondition(Throwable failure, Condition condition) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+            if (conditionOf(t) == condition) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String baseMessage() {

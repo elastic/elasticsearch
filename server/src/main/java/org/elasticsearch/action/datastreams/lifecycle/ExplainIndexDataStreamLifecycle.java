@@ -44,10 +44,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     private static final ParseField ERROR_FIELD = new ParseField("error");
     private static final ParseField FROZEN_TRANSITION_STATUS_FIELD = new ParseField("frozen_transition_status");
     private static final ParseField UNMANAGED_REASON_FIELD = new ParseField("unmanaged_reason");
+    private static final ParseField TAIL_MERGE_DATE_MILLIS_FIELD = new ParseField("tail_merge_date_millis");
+    private static final ParseField TAIL_MERGE_DATE_FIELD = new ParseField("tail_merge_date");
 
     static final TransportVersion EXPLAIN_INDEX_FROZEN_TRANSITION = TransportVersion.fromName("explain_index_frozen_transition");
     public static final TransportVersion EXPLAIN_INDEX_UNMANAGED_REASON = TransportVersion.fromName("explain_index_unmanaged_reason");
     static final TransportVersion EXPLAIN_INDEX_MINIMUM_LIFECYCLE = TransportVersion.fromName("explain_index_minimum_lifecycle");
+    static final TransportVersion EXPLAIN_INDEX_TAIL_MERGE_DATE = TransportVersion.fromName("explain_index_tail_merge_date");
 
     private final String index;
     private final boolean managedByLifecycle;
@@ -67,6 +70,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Nullable
     private final String unmanagedReason;
     private final boolean minimumLifecycleEnabled;
+    @Nullable
+    private final Long tailMergeDate;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     private ExplainIndexDataStreamLifecycle(
@@ -79,8 +84,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
         @Nullable FrozenTransitionStatus frozenTransitionStatus,
-        @Nullable String unmanagedReason,
-        boolean minimumLifecycleEnabled
+        boolean minimumLifecycleEnabled,
+        @Nullable Long tailMergeDate,
+        @Nullable String unmanagedReason
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -91,8 +97,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         this.lifecycle = lifecycle;
         this.error = error;
         this.frozenTransitionStatus = frozenTransitionStatus;
-        this.unmanagedReason = unmanagedReason;
         this.minimumLifecycleEnabled = minimumLifecycleEnabled;
+        this.tailMergeDate = tailMergeDate;
+        this.unmanagedReason = unmanagedReason;
     }
 
     public ExplainIndexDataStreamLifecycle(StreamInput in) throws IOException {
@@ -109,8 +116,10 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
                 ? in.readOptionalEnum(FrozenTransitionStatus.class)
                 : null;
             this.minimumLifecycleEnabled = in.getTransportVersion().supports(EXPLAIN_INDEX_MINIMUM_LIFECYCLE) && in.readBoolean();
+            this.tailMergeDate = in.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE) ? in.readOptionalLong() : null;
             this.unmanagedReason = null;
         } else {
+            this.unmanagedReason = in.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON) ? in.readOptionalString() : null;
             this.indexCreationDate = null;
             this.rolloverDate = null;
             this.generationDateMillis = null;
@@ -118,12 +127,12 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.error = null;
             this.frozenTransitionStatus = null;
             this.minimumLifecycleEnabled = false;
-            this.unmanagedReason = in.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON) ? in.readOptionalString() : null;
+            this.tailMergeDate = null;
         }
     }
 
     public static ExplainIndexDataStreamLifecycle unmanagedIndexResponse(String indexName, @Nullable String reason) {
-        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, reason, false);
+        return new ExplainIndexDataStreamLifecycle(indexName, false, false, null, null, null, null, null, null, false, null, reason);
     }
 
     public static ExplainIndexDataStreamLifecycle managedIndexResponse(
@@ -135,7 +144,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable ErrorEntry error,
         @Nullable FrozenTransitionStatus frozenTransitionStatus,
-        boolean minimumLifecycleEnabled
+        boolean minimumLifecycleEnabled,
+        @Nullable Long tailMergeDate
     ) {
         return new ExplainIndexDataStreamLifecycle(
             index,
@@ -147,8 +157,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             lifecycle,
             error,
             frozenTransitionStatus,
-            null,
-            minimumLifecycleEnabled
+            minimumLifecycleEnabled,
+            tailMergeDate,
+            null
         );
     }
 
@@ -206,6 +217,13 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             if (this.frozenTransitionStatus != null) {
                 builder.field(FROZEN_TRANSITION_STATUS_FIELD.getPreferredName(), frozenTransitionStatus.toString());
             }
+            if (this.tailMergeDate != null) {
+                builder.timestampFieldsFromUnixEpochMillis(
+                    TAIL_MERGE_DATE_MILLIS_FIELD.getPreferredName(),
+                    TAIL_MERGE_DATE_FIELD.getPreferredName(),
+                    tailMergeDate
+                );
+            }
         } else if (unmanagedReason != null) {
             builder.field(UNMANAGED_REASON_FIELD.getPreferredName(), unmanagedReason);
         }
@@ -229,6 +247,9 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             }
             if (out.getTransportVersion().supports(EXPLAIN_INDEX_MINIMUM_LIFECYCLE)) {
                 out.writeBoolean(minimumLifecycleEnabled);
+            }
+            if (out.getTransportVersion().supports(EXPLAIN_INDEX_TAIL_MERGE_DATE)) {
+                out.writeOptionalLong(tailMergeDate);
             }
         } else if (out.getTransportVersion().supports(EXPLAIN_INDEX_UNMANAGED_REASON)) {
             out.writeOptionalString(unmanagedReason);
@@ -315,6 +336,11 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return minimumLifecycleEnabled;
     }
 
+    @Nullable
+    public Long getTailMergeDate() {
+        return tailMergeDate;
+    }
+
     // public for testing purposes only
     public void setNowSupplier(Supplier<Long> nowSupplier) {
         this.nowSupplier = nowSupplier;
@@ -337,7 +363,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             && Objects.equals(error, that.error)
             && Objects.equals(frozenTransitionStatus, that.frozenTransitionStatus)
             && Objects.equals(unmanagedReason, that.unmanagedReason)
-            && minimumLifecycleEnabled == that.minimumLifecycleEnabled;
+            && minimumLifecycleEnabled == that.minimumLifecycleEnabled
+            && Objects.equals(tailMergeDate, that.tailMergeDate);
     }
 
     @Override
@@ -351,7 +378,8 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             error,
             frozenTransitionStatus,
             unmanagedReason,
-            minimumLifecycleEnabled
+            minimumLifecycleEnabled,
+            tailMergeDate
         );
     }
 }

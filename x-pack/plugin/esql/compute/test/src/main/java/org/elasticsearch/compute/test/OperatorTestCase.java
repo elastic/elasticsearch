@@ -95,6 +95,12 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * a random amount of memory between {@code 0b} and the maximum and run that,
      * asserting both that this throws a {@link CircuitBreakingException} and releases
      * all pages.
+     * <p>
+     * Every run also fails if the breaker tripped but the driver completed. Operators
+     * must let a {@link CircuitBreakingException} propagate: one that swallows it, for
+     * example by turning it into a warning, makes tripping non-monotonic in the limit,
+     * so the random limit below the one found by the search may not trip at all.
+     * </p>
      */
     public void testSimpleCircuitBreaking() throws Exception {
         /*
@@ -129,6 +135,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             var operator = factory.get(driverContext);
             driverStarted = true;
             new TestDriverRunner().builder(driverContext).input(localInput).run(operator);
+            assertThat("the breaker tripped but the driver didn't fail", blockFactory.breaker().getTrippedCount(), equalTo(0L));
         } finally {
             if (driverStarted == false) {
                 // if drive hasn't even started then we need to release the input pages manually

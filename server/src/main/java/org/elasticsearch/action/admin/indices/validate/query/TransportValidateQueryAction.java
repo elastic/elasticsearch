@@ -258,7 +258,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(),
             request.filteringAliases(),
             null,
-            SplitShardCountSummary.UNSET,
+            SplitShardCountSummary.IRRELEVANT,
             request.sliceRouting()
         );
         try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
@@ -297,8 +297,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.routing(),
             requestedSlice,
             "validate query request",
-            target,
-            false
+            target
         );
     }
 

@@ -458,7 +458,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     }
 
     public void testNonDefaultContextsRequireDocument() {
-        createIndex("index", Settings.EMPTY, "rank", "type=long");
+        createIndex("index", Settings.EMPTY, "rank", "field", "type=long");
         assertNonDefaultContextsFailValidation(
             context -> new Request(new Script("emit(true)"), context.name, jsonContextSetup("index", null)),
             "document is a required parameter"

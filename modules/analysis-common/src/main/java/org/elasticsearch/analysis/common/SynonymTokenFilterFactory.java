@@ -52,7 +52,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         INLINE("synonyms") {
             @Override
             public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
-                String rules = factory.fixedRules != null ? factory.fixedRules : factory.readInlineRules();
+                String fixedRules = factory.fixedRules();
+                String rules = fixedRules != null ? fixedRules : factory.readInlineRules();
                 return new ReaderWithOrigin(new StringReader(rules), "'" + factory.name() + "' analyzer settings");
             }
         },
@@ -123,8 +124,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public ReaderWithOrigin getRulesReader(SynonymTokenFilterFactory factory, IndexCreationContext context) {
                 String synonymsPath = factory.settings.get(SynonymsSource.LOCAL_FILE.getSettingName(), null);
-                if (factory.fixedRules != null) {
-                    return new ReaderWithOrigin(new StringReader(factory.fixedRules), synonymsPath);
+                String fixedRules = factory.fixedRules();
+                if (fixedRules != null) {
+                    return new ReaderWithOrigin(new StringReader(fixedRules), synonymsPath);
                 }
                 return new ReaderWithOrigin(
                     // Pass the inline setting name because "_path" is appended by getReaderFromFile
@@ -179,8 +181,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
-    private final String fixedRules;
-    private final Object sharingKey;
+    // Read on first use by sharingKey() or the chain build, so a filter no analyzer is built from is never read.
+    private boolean fixedRulesRead;
+    private String fixedRules;
+    private Object sharingKey;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -205,8 +209,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
         this.circuitBreaker = circuitBreaker;
-        this.fixedRules = readFixedRules();
-        this.sharingKey = buildSharingKey();
     }
 
     private String readInlineRules() {
@@ -223,6 +225,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
      * so that the sharing key and the {@link SynonymMap} come from the same text. {@code null} for rules read at load time, and
      * when reading fails: building the chain reads the rules again and reports the failure.
      */
+    private synchronized String fixedRules() {
+        if (fixedRulesRead == false) {
+            fixedRules = readFixedRules();
+            fixedRulesRead = true;
+        }
+        return fixedRules;
+    }
+
     private String readFixedRules() {
         boolean fromFile = settings.get(SynonymsSource.LOCAL_FILE.getSettingName()) != null;
         if (synonymsSource == SynonymsSource.INDEX || (fromFile && analysisMode == AnalysisMode.SEARCH_TIME)) {
@@ -263,7 +273,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
      */
     private Object buildSharingKey() {
         Object rules = switch (synonymsSource) {
-            case INLINE, LOCAL_FILE -> fixedRules == null ? null : Analysis.sha256Hex(fixedRules);
+            case INLINE, LOCAL_FILE -> {
+                String fixedRules = fixedRules();
+                yield fixedRules == null ? null : Analysis.sha256Hex(fixedRules);
+            }
             // Rules are fetched with one query sorted by rule id, so the order the sets are named in does
             // not affect the loaded rules.
             case INDEX -> settings.getAsList(SynonymsSource.INDEX.getSettingName()).stream().distinct().sorted().toList();
@@ -277,7 +290,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private record Key(SynonymsSource source, boolean wordnet, boolean expand, boolean lenient, AnalysisMode mode, Object rules) {}
 
     @Override
-    public Object sharingKey() {
+    public synchronized Object sharingKey() {
+        if (sharingKey == null) {
+            sharingKey = buildSharingKey();
+        }
         return sharingKey;
     }
 

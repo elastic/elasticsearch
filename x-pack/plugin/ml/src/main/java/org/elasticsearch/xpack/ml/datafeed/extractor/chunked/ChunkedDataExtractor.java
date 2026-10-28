@@ -54,7 +54,7 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     /**
      * Target rows per initial ES|QL chunk when chunk span is auto. ES|QL has no scroll; oversized chunks truncate at
-     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}. DSL auto-chunking uses {@code 10 * scrollSize} because scroll pages safely.
+     * {@link EsqlDataExtractor#INJECTED_ROW_LIMIT}.
      */
     private static final long DEFAULT_ESQL_CHUNK_DOCS = EsqlDataExtractor.INJECTED_ROW_LIMIT / CHUNK_HEADROOM_FACTOR;
 

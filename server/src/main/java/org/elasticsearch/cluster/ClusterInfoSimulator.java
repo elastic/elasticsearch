@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -150,14 +151,17 @@ public class ClusterInfoSimulator {
             nonShardHeapUsage,
             new ShardHeapUsageEstimates(estimatedShardHeapUsages, defaultShardHeapUsageForShardsWithoutMetrics)
         ).nodeHeapEstimates();
-        return initialNodeHeapMetrics.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
+        final Map<String, NodeHeapMetrics> updatedMetrics = Maps.newHashMapWithExpectedSize(initialNodeHeapMetrics.size());
+        for (var entry : initialNodeHeapMetrics.entrySet()) {
             final NodeHeapEstimates recalculated = calculated.get(entry.getKey());
             if (recalculated == null) {
-                return entry.getValue();
+                updatedMetrics.put(entry.getKey(), entry.getValue());
+            } else {
+                final NodeHeapMetrics initial = entry.getValue();
+                updatedMetrics.put(entry.getKey(), new NodeHeapMetrics(initial.nodeId(), initial.totalBytes(), recalculated));
             }
-            final NodeHeapMetrics initial = entry.getValue();
-            return new NodeHeapMetrics(initial.nodeId(), initial.totalBytes(), recalculated);
-        }));
+        }
+        return Collections.unmodifiableMap(updatedMetrics);
     }
 
     /**

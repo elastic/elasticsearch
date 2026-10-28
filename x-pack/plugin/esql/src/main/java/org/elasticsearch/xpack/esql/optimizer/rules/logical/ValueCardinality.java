@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -146,6 +147,7 @@ enum ValueCardinality {
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
         for (NamedExpression output : aggregate.aggregates()) {
             if (output.id().equals(attribute.id()) == false) {
+                // skip columns that aren't the attribute we are looking for
                 continue;
             }
             Expression unwrapped = Alias.unwrap(output);
@@ -154,15 +156,20 @@ enum ValueCardinality {
             }
             // Other aggregate functions can return a list (VALUES, TOP, ...), so only the key itself is proven. A grouping
             // key holds one value per group even when the input column was a list, because the aggregation unrolls the list.
-            return aggregate.groupings().stream().anyMatch(grouping -> isGroupingOutput(grouping, output)) ? SINGLE : MAYBE_MULTI;
+            return isGroupKey(aggregate, output) ? SINGLE : MAYBE_MULTI;
         }
         return MAYBE_MULTI;
     }
 
-    private static boolean isGroupingOutput(Expression grouping, NamedExpression output) {
+    private static boolean isGroupKey(Aggregate aggregate, NamedExpression output) {
         Expression unwrappedOutput = Alias.unwrap(output);
-        return unwrappedOutput.semanticEquals(Alias.unwrap(grouping))
-            || (grouping instanceof NamedExpression named && named.id().equals(output.id()));
+        for (Expression grouping : aggregate.groupings()) {
+            if (unwrappedOutput.semanticEquals(Alias.unwrap(grouping))
+                || (grouping instanceof NamedExpression named && named.id().equals(output.id()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Alias definitionOf(Attribute attribute, List<Alias> fields) {
@@ -175,6 +182,6 @@ enum ValueCardinality {
     }
 
     private static boolean isScalarFoldable(Expression expression) {
-        return expression.foldable() && expression.fold(FoldContext.small()) instanceof List<?> == false;
+        return expression.foldable() && expression.fold(FoldContext.small()) instanceof Collection<?> == false;
     }
 }

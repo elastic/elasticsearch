@@ -889,6 +889,8 @@ class KibanaOwnedReservedRoleDescriptors {
 
     private static final String[] ALERTZERO_WORKER_COMMON_FEATURE_PRIVILEGES = {
         "feature_alertzero.all",
+        "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.investigations_all",
         "feature_agentBuilder.read",
         "feature_contextEngine.all",
         "feature_proposals.all",

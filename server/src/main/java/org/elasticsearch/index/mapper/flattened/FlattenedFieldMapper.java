@@ -972,7 +972,7 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             }
             Automaton automaton = caseInsensitive
                 ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(pattern)
-                : WildcardQuery.toAutomaton(pattern, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+                : WildcardQuery.toAutomaton(pattern);
             return keyedQuery(value, automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
 

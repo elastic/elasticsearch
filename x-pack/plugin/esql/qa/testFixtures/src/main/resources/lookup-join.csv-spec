@@ -266,6 +266,7 @@ emp_no:integer | languages:integer | lang:keyword | lang_minus_one:keyword | lan
 
 lookupThreeTimesParkingAColumnNamedLikeTheKey
 required_capability: join_lookup_v12
+required_capability: hoist_projects_past_lookup_joins
 
 FROM employees
 | WHERE emp_no <= 10005

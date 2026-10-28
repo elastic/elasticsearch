@@ -469,10 +469,6 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.xpack.esql:INFO,org.elasticsearch.compute:INFO",
-        reason = "TRACE logs a plan diff per optimizer rule change, which is huge for a 110-join plan"
-    )
     public void testLookupChainLongerThanTheRuleExecutionLimit() throws IOException {
         ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
 

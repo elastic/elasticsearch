@@ -117,7 +117,8 @@ public class PlanSize {
     }
 
     /**
-     * Counts the nodes of {@code plan}, uses a cache to re-visiting already walked nodes.
+     * Counts the nodes of {@code plan}, uses a cache to re-visiting already walked nodes. A shared child gets counted once per parent.
+     * Iterative, so deep plans cannot overflow the stack.
      */
     public final int countNodes(LogicalPlan plan) {
         Deque<LogicalPlan> pending = new ArrayDeque<>();

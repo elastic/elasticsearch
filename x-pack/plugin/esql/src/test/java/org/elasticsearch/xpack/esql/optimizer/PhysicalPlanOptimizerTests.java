@@ -5501,7 +5501,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 var alias = as(evalExec.fields().getLast(), Alias.class);
                 assertThat(alias.name(), equalTo("simplified"));
                 if (withDocValues) {
-                    assertChildIsFusedSimplifyExtract(evalExec, GEO_SHAPE, 0.05);
+                    assertChildIsFusedGeometryTransformExtract(evalExec, BlockLoaderFunctionConfig.Function.ST_SIMPLIFY, GEO_SHAPE, 0.05);
                     continue;
                 }
                 var stSimplifyFunction = as(alias.child(), StSimplify.class);
@@ -5551,7 +5551,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 var alias = as(evalExec.fields().getLast(), Alias.class);
                 assertThat(alias.name(), equalTo("simplified"));
                 if (withDocValues) {
-                    assertChildIsFusedSimplifyExtract(evalExec, CARTESIAN_SHAPE, 0.05);
+                    assertChildIsFusedGeometryTransformExtract(
+                        evalExec,
+                        BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
+                        CARTESIAN_SHAPE,
+                        0.05
+                    );
                     continue;
                 }
                 var stSimplifyFunction = as(alias.child(), StSimplify.class);
@@ -5564,6 +5569,55 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertChildIsExtractedAs(evalExec, fieldExtractPreference, CARTESIAN_SHAPE);
             }
         }
+    }
+
+    /**
+     * Test that ST_SIMPLIFYPRESERVETOPOLOGY and ST_BUFFER on a geo_shape field are fused into loading its doc values like
+     * ST_SIMPLIFY, and that buffers of the same field with different options are loaded as separate fused fields.
+     */
+    public void testSpatialGeometryTransformsFuseIntoDocValues() {
+        for (var function : List.of(
+            BlockLoaderFunctionConfig.Function.ST_SIMPLIFYPRESERVETOPOLOGY,
+            BlockLoaderFunctionConfig.Function.ST_BUFFER
+        )) {
+            String query = String.format(Locale.ROOT, """
+                FROM airport_city_boundaries
+                | EVAL transformed = %s(city_boundary, 0.05)
+                | SORT airport
+                | KEEP airport, transformed
+                """, function.name());
+            var testData = airportsCityBoundaries;
+            var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+            var optimized = optimizedPlan(plan, testData.stats);
+            var project = as(optimized, ProjectExec.class);
+            var topNExec = as(project.child(), TopNExec.class);
+            var exchange = as(topNExec.child(), ExchangeExec.class);
+            project = as(exchange.child(), ProjectExec.class);
+            var topNExecDataNode = as(project.child(), TopNExec.class);
+            var fieldExtract = as(topNExecDataNode.child(), FieldExtractExec.class);
+            var evalExec = as(fieldExtract.child(), EvalExec.class);
+            assertChildIsFusedGeometryTransformExtract(evalExec, function, GEO_SHAPE, 0.05);
+        }
+
+        String query = """
+            FROM airport_city_boundaries
+            | EVAL round = ST_BUFFER(city_boundary, 0.05), flat = ST_BUFFER(city_boundary, 0.05, {"endcap": "flat"})
+            | SORT airport
+            | KEEP airport, round, flat
+            """;
+        var testData = airportsCityBoundaries;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        List<FieldAttribute> fused = new ArrayList<>();
+        optimized.forEachDown(EvalExec.class, eval -> {
+            for (Alias alias : eval.fields()) {
+                if (alias.child() instanceof FieldAttribute field && field.field() instanceof FunctionEsField) {
+                    fused.add(field);
+                }
+            }
+        });
+        assertThat(fused.size(), equalTo(2));
+        assertThat(fused.get(0).name(), not(equalTo(fused.get(1).name())));
     }
 
     /**
@@ -10711,17 +10765,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Asserts that the last field of the EVAL is ST_SIMPLIFY fused into loading the shape doc values, and that the
-     * {@link FieldExtractExec} directly below loads only that fused attribute, without the shape itself.
+     * Asserts that the last field of the EVAL is a geometry transform such as ST_SIMPLIFY fused into loading the shape doc
+     * values, and that the {@link FieldExtractExec} directly below loads only that fused attribute, without the shape itself.
      */
-    private static void assertChildIsFusedSimplifyExtract(EvalExec evalExec, DataType shapeType, double tolerance) {
+    private static void assertChildIsFusedGeometryTransformExtract(
+        EvalExec evalExec,
+        BlockLoaderFunctionConfig.Function function,
+        DataType shapeType,
+        double parameter
+    ) {
         var alias = as(evalExec.fields().getLast(), Alias.class);
         var fused = as(alias.child(), FieldAttribute.class);
         assertThat(fused.dataType(), equalTo(shapeType));
         var functionField = as(fused.field(), FunctionEsField.class);
         var config = as(functionField.functionConfig(), BlockLoaderFunctionConfig.GeometryTransform.class);
-        assertThat(config.function(), equalTo(BlockLoaderFunctionConfig.Function.ST_SIMPLIFY));
-        assertThat(config.parameter(), equalTo(tolerance));
+        assertThat(config.function(), equalTo(function));
+        assertThat(config.parameter(), equalTo(parameter));
         var extract = as(evalExec.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), is(List.of(fused.name())));
         assertThat(extract.docValuesAttributes(), is(empty()));

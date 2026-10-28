@@ -373,7 +373,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         /**
          * Block loader that reconstructs geometry from binary doc-values and returns WKB-encoded bytes.
          * Used when the optimizer determines that reading from doc-values is sufficient (e.g. when the
-         * field is consumed by ST_SIMPLIFY rather than returned directly). When created with a
+         * field is consumed by a function like ST_SIMPLIFY rather than returned directly). When created with a
          * {@link BlockLoaderFunctionConfig.GeometryTransform}, the reconstructed geometry is instead handed to the
          * transformer of that config, fusing the function into the load.
          */

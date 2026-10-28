@@ -81,6 +81,21 @@ public class ShapeGeometryBlockLoaderTests extends ESTestCase {
         assertEquals(transform, same);
         assertEquals(transform.hashCode(), same.hashCode());
         assertNotEquals(transform, other);
+        var buffer = new BlockLoaderFunctionConfig.GeometryTransform(
+            BlockLoaderFunctionConfig.Function.ST_BUFFER,
+            1.5,
+            "a",
+            w -> g -> null
+        );
+        var otherOptions = new BlockLoaderFunctionConfig.GeometryTransform(
+            BlockLoaderFunctionConfig.Function.ST_BUFFER,
+            1.5,
+            "b",
+            w -> g -> null
+        );
+        assertNotEquals(transform, buffer);
+        assertNotEquals(buffer, otherOptions);
+        assertNotEquals(buffer.hashCode(), otherOptions.hashCode());
         expectThrows(
             IllegalArgumentException.class,
             () -> new BlockLoaderFunctionConfig.GeometryTransform(BlockLoaderFunctionConfig.Function.ST_GEOHASH, 1, w -> g -> null)

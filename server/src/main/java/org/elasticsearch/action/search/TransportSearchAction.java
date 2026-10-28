@@ -1069,7 +1069,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchCoordinatorContext,
                 circuitBreaker
             );
-            // Partial results merge responses that searchResponseMerger already holds and charges.
+            // Partial results merge responses that searchResponseMerger already holds and charges, so their merger gets no breaker.
             task.setSearchResponseMergerSupplier(
                 () -> createSearchResponseMerger(
                     searchRequest.source(),

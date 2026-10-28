@@ -1691,8 +1691,9 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     /**
-     * Charges and releases go under the same label, so that the breaker's per-category memory metric stays balanced. {@link LimitedBreaker}
-     * ignores labels, so a release without one would still bring its usage back to zero.
+     * Charges and releases go under the same label, so that the breaker's per-category memory metric stays balanced. Covers both users of
+     * the label: the merger and the single-cluster path, {@link TransportSearchAction#chargeRemoteHits}. {@link LimitedBreaker} ignores
+     * labels, so a release without one would still bring its usage back to zero.
      */
     public void testChargeAndReleaseUseTheSameLabel() {
         LabelRecordingBreaker breaker = new LabelRecordingBreaker();

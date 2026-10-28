@@ -1143,6 +1143,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
         ActionListener.respondAndRelease(ccs.listeners.get("held"), oneHitResponse());
         assertThat(ccs.merger.numResponses(), equalTo(1));
+        assertThat(breaker.getTrippedCount(), equalTo(0L));
         ActionListener.respondAndRelease(ccs.listeners.get("tripped"), oneHitResponse());
         assertThat(breaker.getTrippedCount(), equalTo(1L));
         ActionListener.respondAndRelease(ccs.listeners.get("late"), oneHitResponse());
@@ -1152,9 +1153,26 @@ public class TransportSearchActionTests extends ESTestCase {
         assertThat(ccs.reported, contains("held"));
         ccs.listeners.get("failed").onFailure(new ElasticsearchException("boom"));
 
-        Exception e = expectThrows(Exception.class, ccs.future::actionGet);
-        assertThat(e, instanceOf(CircuitBreakingException.class));
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ccs.future::actionGet);
         assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A trip after another failure becomes the failure the search returns, so the caller gets a 429.
+     */
+    public void testCCSListenerTripReplacesEarlierFailure() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(oneHitResponseBytes() / 2));
+        CCSListeners ccs = new CCSListeners(breaker, 10, "failed", "tripped");
+
+        ccs.listeners.get("failed").onFailure(new ElasticsearchException("boom"));
+        ActionListener.respondAndRelease(ccs.listeners.get("tripped"), oneHitResponse());
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(ccs.merger.numResponses(), equalTo(0));
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, ccs.future::actionGet);
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(ExceptionsHelper.unwrapCause(e.getSuppressed()[0]).getMessage(), equalTo("boom"));
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

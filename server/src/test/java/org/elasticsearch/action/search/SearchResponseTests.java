@@ -958,7 +958,7 @@ public class SearchResponseTests extends ESTestCase {
     /** Enough values for the digest to keep many centroids, which reading it back can merge. */
     private static InternalTDigestPercentiles percentiles() {
         HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, randomDoubleBetween(20, 200, true));
-        int values = between(1, 10_000);
+        int values = between(1_000, 10_000);
         for (int i = 0; i < values; i++) {
             state.add(randomDouble() * 1000);
         }

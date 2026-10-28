@@ -136,14 +136,15 @@ public final class SearchResponseMerger implements Releasable {
      */
     public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
-        if (circuitBreaker != null) {
-            reserve(searchResponse);
-        }
+        reserve(searchResponse);
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
     }
 
     private void reserve(SearchResponse searchResponse) {
+        if (circuitBreaker == null) {
+            return;
+        }
         // Leaves out the hits if they are already charged.
         long bytes = TransportMultiSearchAction.estimateActualBytes(searchResponse);
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
@@ -172,6 +173,9 @@ public final class SearchResponseMerger implements Releasable {
      */
     @Nullable
     private Releasable transferHitsCharge(SearchHits mergedHits) {
+        if (circuitBreaker == null) {
+            return null;
+        }
         if (hitsChargeTransferred) {
             // The first merged response holds the charge, and its hits are the same objects.
             return null;
@@ -350,9 +354,7 @@ public final class SearchResponseMerger implements Releasable {
             );
             topHitsToRelease = null;
             mergedResponse.setDirectoryMetrics(mergedDirectoryMetrics);
-            if (circuitBreaker != null) {
-                mergedResponse.adoptCoordinatorFetchCharge(transferHitsCharge(mergedResponse.getHits()));
-            }
+            mergedResponse.adoptCoordinatorFetchCharge(transferHitsCharge(mergedResponse.getHits()));
             return mergedResponse;
         } finally {
             mergedSearchHits.decRef();

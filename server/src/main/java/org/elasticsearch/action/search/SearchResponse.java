@@ -507,8 +507,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * The serialized size of the aggregations, if this response read them from bytes, otherwise -1, as when it has none or was built
-     * in memory.
+     * The serialized size of the aggregations when this response read them from a stream that knows its remaining size, such as a transport
+     * message, or -1 if it has no aggregations, read them from another stream, or was built in memory.
      */
     long serializedAggregationsBytes() {
         return serializedAggregationsBytes;

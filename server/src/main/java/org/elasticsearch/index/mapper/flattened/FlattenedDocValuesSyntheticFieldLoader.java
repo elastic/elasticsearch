@@ -440,6 +440,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
         private final BinaryDocValues binary;
         private final NumericDocValues counts;
+        /** The keys whose slots are decoded. */
+        private final Predicate<String> keys;
         private final MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader slots =
             new MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull.SlotReader();
 
@@ -451,23 +453,22 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         private int totalSlotCount;
 
         DocumentOrderKeyedFlattenedDocValues(BinaryDocValues binary, NumericDocValues counts) {
-            this.binary = binary;
-            this.counts = counts;
+            // Skip the slots of the keys a reader must not see while decoding, rather than reading a copy without them
+            if (binary instanceof KeyFilteredSlots filtered) {
+                this.binary = filtered.storedSlots();
+                this.counts = filtered.storedCounts();
+                this.keys = filtered::grants;
+            } else {
+                this.binary = binary;
+                this.counts = counts;
+                this.keys = key -> true;
+            }
         }
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
             slotsByKey.clear();
             totalSlotCount = 0;
-
-            // Skip the slots of the keys a reader must not see while decoding, rather than reading a copy without them
-            if (binary instanceof KeyFilteredSlots filtered) {
-                if (filtered.advanceExactStored(docId) == false) {
-                    return false;
-                }
-                totalSlotCount = decodeSlots(filtered.storedSlots(), filtered.storedSlotCount(), filtered::grants);
-                return totalSlotCount > 0;
-            }
 
             if (counts == null || counts.advanceExact(docId) == false) {
                 return false;
@@ -479,12 +480,12 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             }
             BytesRef bytes = binary.binaryValue();
 
-            totalSlotCount = decodeSlots(bytes, slotCount, key -> true);
+            totalSlotCount = decodeSlots(bytes, slotCount);
             return totalSlotCount > 0;
         }
 
-        /** Decodes the {@code slotCount} slots of {@code bytes} whose key {@code keys} accepts, and returns how many it decoded. */
-        private int decodeSlots(BytesRef bytes, int slotCount, Predicate<String> keys) throws IOException {
+        /** Decodes the {@code slotCount} slots of {@code bytes} whose key {@link #keys} accepts, and returns how many it decoded. */
+        private int decodeSlots(BytesRef bytes, int slotCount) throws IOException {
             int decoded = 0;
             slots.reset(bytes, slotCount);
             while (slots.next()) {

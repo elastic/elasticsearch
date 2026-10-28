@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -49,6 +50,7 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
             case Eval eval when eval.child() instanceof Project -> pushDownEval.rule(eval);
             case Limit limit when limit.child() instanceof Project project -> project.replaceChild(limit.replaceChild(project.child()));
             case Filter filter when filter.child() instanceof Project -> PushDownUtils.pushDownPastProject(filter);
+            case OrderBy orderBy when orderBy.child() instanceof Project -> PushDownUtils.pushDownPastProject(orderBy);
             case RegexExtract regex when regex.child() instanceof Project -> PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(regex);
             case Enrich enrich when enrich.child() instanceof Project -> PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(enrich);
             case CompoundOutputEval<?> coe when coe.child() instanceof Project -> PushDownUtils.pushGeneratingPlanPastProjectAndOrderBy(

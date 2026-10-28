@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -612,18 +613,179 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * {@snippet lang="text":
-     * OrderBy[[]]
-     * \_Project[[field{f}#8961 AS renamed#8962]]
-     *   \_EsRelation[test][field{f}#8961]
+     * Project[[_meta_field{f}#2322, emp_no{f}#2316, first_name{f}#2317 AS fn#2314, gender{f}#2318, hire_date{f}#2323, job{f}#2324,
+     * job.raw{f}#2325, languages{f}#2319, last_name{f}#2320, long_noidx{f}#2326, salary{f}#2321]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[first_name{f}#2317,DESC,FIRST]]]
+     *     \_EsRelation[test][_meta_field{f}#2322, emp_no{f}#2316, first_name{f}#..]
      * }
      */
-    public void testProjectStaysBelowOrderBy() {
-        EsRelation relation = relation();
-        Project project = new Project(EMPTY, relation, List.of(new Alias(EMPTY, "renamed", relation.output().getFirst())));
+    public void testOrderByOverRenameIsPushedBelowTheProject() {
+        LogicalPlan before = defaultAnalyzer().query("""
+            FROM test
+            | RENAME first_name AS fn
+            | SORT fn DESC NULLS FIRST
+            """);
 
-        LogicalPlan plan = new HoistProjects().apply(new OrderBy(EMPTY, project, List.of()));
+        LogicalPlan plan = hoistedOnce(before, OrderBy.class);
+        OrderBy orderBy = plan.collect(OrderBy.class).getFirst();
+        assertThat(orderBy.references().names(), equalTo(Set.of("first_name")));
+        assertThat(orderBy.order().getFirst().direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(orderBy.order().getFirst().nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        as(orderBy.child(), EsRelation.class);
+        assertThat(new HoistProjects().local().apply(before), equalTo(plan));
+    }
 
-        as(as(plan, OrderBy.class).child(), Project.class);
+    /**
+     * {@snippet lang="text":
+     * Project[[emp_no{f}#4659, salary{f}#4664]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[salary{f}#4664,DESC,LAST], Order[emp_no{f}#4659,ASC,FIRST]]]
+     *     \_EsRelation[test][_meta_field{f}#4665, emp_no{f}#4659, first_name{f}#..]
+     * }
+     */
+    public void testOrderByOverKeepIsPushedBelowTheProject() {
+        LogicalPlan before = defaultAnalyzer().query("""
+            FROM test
+            | KEEP emp_no, salary
+            | SORT salary DESC NULLS LAST, emp_no ASC NULLS FIRST
+            """);
+
+        LogicalPlan plan = hoistedOnce(before, OrderBy.class);
+        OrderBy orderBy = plan.collect(OrderBy.class).getFirst();
+        assertThat(orderBy.order().stream().map(o -> Expressions.name(o.child())).toList(), contains("salary", "emp_no"));
+        assertThat(orderBy.order().stream().map(Order::direction).toList(), contains(Order.OrderDirection.DESC, Order.OrderDirection.ASC));
+        assertThat(
+            orderBy.order().stream().map(Order::nullsPosition).toList(),
+            contains(Order.NullsPosition.LAST, Order.NullsPosition.FIRST)
+        );
+        as(orderBy.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Project[[_meta_field{f}#5439, emp_no{f}#5433, first_name{f}#5434, gender{f}#5435, hire_date{f}#5440, job{f}#5441, job.raw{f}#5442,
+     * languages{f}#5436, last_name{f}#5437, long_noidx{f}#5443, salary{f}#5438 AS original_salary#5427,
+     * $$salary$temp_name$5444{r}#5445 AS salary#5430]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[salary{f}#5438,DESC,LAST], Order[$$salary$temp_name$5444{r}#5445,ASC,FIRST]]]
+     *     \_Eval[[salary{f}#5438 + 1[INTEGER] AS $$salary$temp_name$5444#5445]]
+     *       \_EsRelation[test][_meta_field{f}#5439, emp_no{f}#5433, first_name{f}#..]
+     * }
+     */
+    public void testOrderByOverRenamedAndShadowedColumns() {
+        LogicalPlan before = defaultAnalyzer().query("""
+            FROM test
+            | RENAME salary AS original_salary
+            | EVAL salary = original_salary + 1
+            | SORT original_salary DESC NULLS LAST, salary ASC NULLS FIRST
+            """);
+
+        LogicalPlan plan = hoistedOnce(before, Eval.class);
+        OrderBy orderBy = plan.collect(OrderBy.class).getFirst();
+        Eval eval = as(orderBy.child(), Eval.class);
+        Alias salary = eval.fields().getFirst();
+        assertThat(salary.name(), startsWith("$$salary"));
+        assertThat(salary.child().references().names(), equalTo(Set.of("salary")));
+        assertThat(orderBy.order().getFirst().child(), equalTo(salary.child().references().iterator().next()));
+        assertThat(orderBy.order().get(1).child(), equalTo(salary.toAttribute()));
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12 AS name#9, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     * languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_OrderBy[[Order[first_name{f}#12,ASC,FIRST]]]
+     *     \_OrderBy[[Order[first_name{f}#12,DESC,LAST]]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     * }
+     */
+    public void testOnePassHoistsTheProjectPastMultipleOrderBys() {
+        LogicalPlan before = defaultAnalyzer().query("""
+            FROM test
+            | RENAME first_name AS fn
+            | SORT fn DESC NULLS LAST
+            | RENAME fn AS name
+            | SORT name ASC NULLS FIRST
+            """);
+
+        LogicalPlan plan = hoistedOnce(before, OrderBy.class);
+        List<OrderBy> sorts = plan.collect(OrderBy.class);
+        assertThat(sorts, hasSize(2));
+        OrderBy outer = sorts.getFirst();
+        OrderBy inner = as(outer.child(), OrderBy.class);
+        assertThat(outer.references().names(), equalTo(Set.of("first_name")));
+        assertThat(inner.references(), equalTo(outer.references()));
+        assertThat(outer.order().getFirst().direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(outer.order().getFirst().nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(inner.order().getFirst().direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(inner.order().getFirst().nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        as(inner.child(), EsRelation.class);
+        assertThat(new HoistProjects().apply(plan), equalTo(plan));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Project[[_meta_field{f}#5390, emp_no{f}#5384, first_name{f}#5385, gender{f}#5386, hire_date{f}#5391, job{f}#5392, job.raw{f}#5393,
+     * languages{f}#5387, last_name{f}#5388, long_noidx{f}#5394, salary{f}#5389, $$language_name$temp_name$5401{r$}#5402 AS lang0#5363,
+     * $$language_name$temp_name$5403{r$}#5404 AS lang1#5372, language_name{f}#5400 AS lang2#5381]]
+     * \_Limit[10000[INTEGER],false,false]
+     *   \_Limit[1000[INTEGER],false,false]
+     *     \_OrderBy[[Order[language_name{f}#5400,ASC,LAST]]]
+     *       \_Join[LEFT,[language_code{r}#5377],[language_code{f}#5399],null,ANY]
+     *         |_Eval[[language_name{f}#5398 AS $$language_name$temp_name$5403#5404]]
+     *         | \_Eval[[languages{f}#5387 + 2[INTEGER] AS language_code#5377]]
+     *         |   \_Limit[1000[INTEGER],false,false]
+     *         |     \_OrderBy[[Order[language_name{f}#5398,ASC,LAST]]]
+     *         |       \_Join[LEFT,[language_code{r}#5368],[language_code{f}#5397],null,ANY]
+     *         |         |_Eval[[language_name{f}#5396 AS $$language_name$temp_name$5401#5402]]
+     *         |         | \_Eval[[languages{f}#5387 + 1[INTEGER] AS language_code#5368]]
+     *         |         |   \_Limit[1000[INTEGER],false,false]
+     *         |         |     \_OrderBy[[Order[language_name{f}#5396,ASC,LAST]]]
+     *         |         |       \_Join[LEFT,[language_code{r}#5359],[language_code{f}#5395],null,ANY]
+     *         |         |         |_Eval[[languages{f}#5387 + 0[INTEGER] AS language_code#5359]]
+     *         |         |         | \_EsRelation[test][_meta_field{f}#5390, emp_no{f}#5384, first_name{f}#..]
+     *         |         |         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#5395, language_name{f}#5396]
+     *         |         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#5397, language_name{f}#5398]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#5399, language_name{f}#5400]
+     * }
+     */
+    public void testOneRunHoistsTheProjectPastOrderByAndLimitBetweenLookupBlocks() {
+        LogicalPlan before = new SubstituteSurrogatePlans().apply(
+            defaultAnalyzer().query(lookupBlocks(3, "\n| SORT lang%d\n| LIMIT 1000"))
+        );
+
+        LogicalPlan plan = hoistedOnce(before, OrderBy.class);
+        assertThat(plan.collect(Join.class), hasSize(3));
+        assertThat(plan.collect(Limit.class).stream().filter(l -> l.child() instanceof OrderBy).count(), equalTo(3L));
+        List<OrderBy> sorts = plan.collect(OrderBy.class);
+        assertThat(sorts, hasSize(3));
+        for (OrderBy orderBy : sorts) {
+            Join join = as(orderBy.child(), Join.class);
+            Attribute sortField = as(orderBy.order().getFirst().child(), Attribute.class);
+            assertThat(sortField.name(), equalTo("language_name"));
+            assertTrue(join.outputSet().contains(sortField));
+        }
+        assertThat(Expressions.names(plan.output()), hasItems("lang0", "lang1", "lang2"));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[salary{f}#1363,DESC,LAST]]]
+     *   \_EsRelation[test][_meta_field{f}#1364, emp_no{f}#1358, first_name{f}#..]
+     * }
+     */
+    public void testOrderByWithoutProjectIsUnchanged() {
+        LogicalPlan before = defaultAnalyzer().query("""
+            FROM test
+            | SORT salary DESC NULLS LAST
+            """);
+
+        assertThat(before.collect(Project.class), hasSize(0));
+        assertSame(before, new HoistProjects().apply(before));
     }
 
     /**
@@ -836,6 +998,33 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testOperatorBatchRunsDoNotGrowWithFiltersOnLookedUpColumns() {
         String block = "\n| WHERE lang%d IS NOT NULL";
+        assertThat(operatorRunsToConverge(lookupBlocks(30, block)), equalTo(operatorRunsToConverge(lookupBlocks(3, block))));
+    }
+
+    /**
+     * Plan for the three-block case (also compared with 30 blocks):
+     * {@snippet lang="text":
+     * Project[[_meta_field{f}#1334, emp_no{f}#1328, first_name{f}#1329, gender{f}#1330, hire_date{f}#1335, job{f}#1336, job.raw{f}#1337,
+     * languages{f}#1331, last_name{f}#1332, long_noidx{f}#1338, salary{f}#1333, $$language_name$temp_name$1353{r$}#1354 AS lang0#1307,
+     * $$language_name$temp_name$1355{r$}#1356 AS lang1#1316, language_name{f}#1344 AS lang2#1325]]
+     * \_TopN[[Order[language_name{f}#1344,ASC,LAST]],1000[INTEGER],false]
+     *   \_Join[LEFT,[language_code{r}#1321],[language_code{f}#1343],null,ANY]
+     *     |_Eval[[languages{f}#1331 + 2[INTEGER] AS language_code#1321, language_name{f}#1342 AS $$language_name$temp_name$1355#1356]]
+     *     | \_TopN[[Order[language_name{f}#1342,ASC,LAST]],1000[INTEGER],false]
+     *     |   \_Join[LEFT,[language_code{r}#1312],[language_code{f}#1341],null,ANY]
+     *     |     |_Eval[[languages{f}#1331 + 1[INTEGER] AS language_code#1312, language_name{f}#1340 AS
+     * $$language_name$temp_name$1353#1354]]
+     *     |     | \_TopN[[Order[language_name{f}#1340,ASC,LAST]],1000[INTEGER],false]
+     *     |     |   \_Join[LEFT,[language_code{r}#1303],[language_code{f}#1339],null,ANY]
+     *     |     |     |_Eval[[languages{f}#1331 + 0[INTEGER] AS language_code#1303]]
+     *     |     |     | \_EsRelation[test][_meta_field{f}#1334, emp_no{f}#1328, first_name{f}#..]
+     *     |     |     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1339, language_name{f}#1340]
+     *     |     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1341, language_name{f}#1342]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1343, language_name{f}#1344]
+     * }
+     */
+    public void testOperatorBatchRunsDoNotGrowWithSortAndLimitOnLookedUpColumns() {
+        String block = "\n| SORT lang%d\n| LIMIT 1000";
         assertThat(operatorRunsToConverge(lookupBlocks(30, block)), equalTo(operatorRunsToConverge(lookupBlocks(3, block))));
     }
 

@@ -470,17 +470,28 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLookupChainLongerThanTheRuleExecutionLimit() throws IOException {
+        assertLookupChain(110, false);
+    }
+
+    public void testLookupChainWithSortAndLimit() throws IOException {
+        assertLookupChain(99, true);
+    }
+
+    private void assertLookupChain(int blocks, boolean sortAndLimit) throws IOException {
         ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
 
-        int blocks = 110;
         StringBuilder chain = new StringBuilder("FROM ").append(EMPLOYEES_INDEX);
         for (int i = 0; i < blocks; i++) {
             chain.append(String.format(Locale.ROOT, """
 
                 | EVAL language_code = languages
                 | LOOKUP JOIN %s ON language_code
-                | RENAME language_name AS lang%d
-                | DROP language_code""", LANGUAGES_LOOKUP_INDEX, i));
+                | RENAME language_name AS lang%d""", LANGUAGES_LOOKUP_INDEX, i));
+            if (sortAndLimit) {
+                chain.append("\n| SORT lang").append(i).append(", emp_no\n| LIMIT 1000");
+            } else {
+                chain.append("\n| DROP language_code");
+            }
         }
         String singleBlock = String.format(Locale.ROOT, """
             FROM %s
@@ -488,6 +499,9 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             | LOOKUP JOIN %s ON language_code
             | RENAME language_name AS lang
             """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+        if (sortAndLimit) {
+            singleBlock += "\n| SORT lang, emp_no\n| LIMIT 1000";
+        }
         String last = "lang" + (blocks - 1);
 
         String stats = "\n| STATS c = COUNT(*) BY %s\n| SORT %s";

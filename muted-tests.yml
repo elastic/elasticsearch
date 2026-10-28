@@ -263,9 +263,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testDeleteAndRecreateIndexDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/160169
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/159774
@@ -281,9 +278,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
-  method: testStress
-  issue: https://github.com/elastic/elasticsearch/issues/160613
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testRotationContinuesAfterMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/160824
@@ -299,12 +293,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRemoveAsyncIndex
-  issue: https://github.com/elastic/elasticsearch/issues/161316
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
-  method: testPeerRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/161463
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testManyDissectFromRow
   issue: https://github.com/elastic/elasticsearch/issues/161465
@@ -323,9 +311,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
-- class: org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValuesGenericWriteableTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/162108
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testFullyUploadedListenerDoesNotFireBeforeItsCopyCompletes
   issue: https://github.com/elastic/elasticsearch/issues/162163
@@ -411,9 +396,6 @@ tests:
 - class: org.elasticsearch.upgrades.CombineDynamicMappingUpdatesRollingUpgradeIT
   method: testTimeSeriesDataStreamDefault {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/162839
-- class: org.elasticsearch.index.mapper.DynamicMappingIT
-  method: testConcurrentBulkRequestsWithDynamicMappingUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/162912
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/162945
@@ -450,11 +432,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSlowConsumerUnderNetworkDelay
   issue: https://github.com/elastic/elasticsearch/issues/163264
-- class: org.elasticsearch.xpack.logsdb.OversizedArrayOffsetsRollingUpgradeIT
-  tasks:
-  - :x-pack:plugin:logsdb:qa:rolling-upgrade:v9.0.8#bwcTest
-  method: testOversizedArraysAcrossUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/163295
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -465,11 +442,6 @@ tests:
   - :x-pack:qa:rolling-upgrade-multi-cluster:v9.6.0#bwcTest
   method: testCannotFollowLeaderInUpgradedCluster {clusterName=LEADER leaderNodesUpgraded=2 followerNodesUpgraded=3}
   issue: https://github.com/elastic/elasticsearch/issues/163301
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecChangePointIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#csvSpecTestsOldCoordinator
-  method: test {csv-spec:change_point.values int column with all nulls}
-  issue: https://github.com/elastic/elasticsearch/issues/163319
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
@@ -540,11 +512,6 @@ tests:
   - :x-pack:qa:rolling-upgrade:v9.2.8#yamlBwcTest
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
-- class: org.elasticsearch.xpack.esql.datasources.ExternalSourceResolverTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testConcurrentUnionByNameResolvesIssueOneListing
-  issue: https://github.com/elastic/elasticsearch/issues/163496
 - class: org.elasticsearch.search.aggregations.bucket.terms.ColumnarTermsAggregationTests
   tasks:
   - :server:test
@@ -554,3 +521,49 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
   issue: https://github.com/elastic/elasticsearch/issues/163504
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.19.24#yamlRestTest
+  method: test {yaml=msearch/10_basic/Search with new response format}
+  issue: https://github.com/elastic/elasticsearch/issues/163546
+- class: org.elasticsearch.xpack.esql.qa.mixed.SparklineWithEveryAggIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest
+  issue: https://github.com/elastic/elasticsearch/issues/163562
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/142793
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecAbsentIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#csvSpecTestsOldCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163577
+- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
+  issue: https://github.com/elastic/elasticsearch/issues/163583
+- class: org.elasticsearch.xpack.esql.qa.orc.OrcFormatSpecIT
+  tasks:
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
+  issue: https://github.com/elastic/elasticsearch/issues/163608
+- class: org.elasticsearch.xpack.eql.qa.mixed_node.EqlSearchIT
+  tasks:
+  - :x-pack:plugin:eql:qa:mixed-node:v9.6.0#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163660
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163565
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingRejectedWithoutFeatureFlag
+  issue: https://github.com/elastic/elasticsearch/issues/163668
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163670

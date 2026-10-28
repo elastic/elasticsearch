@@ -352,9 +352,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationSourceThrottleIT
-  method: testSourceNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/162540
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
   method: testSearchesAgainstNonMatchingIndices
   issue: https://github.com/elastic/elasticsearch/issues/162565

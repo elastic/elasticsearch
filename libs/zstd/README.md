@@ -17,23 +17,25 @@ libs/zstd/
 │   │                       #   ZstdHeapFallback.java - package-private @Critical fallback
 │   └── test/               # Unit tests
 └── native/                 # Build tooling for the prebuilt libzstd binaries
-    ├── publish_zstd_binaries.sh
-    └── zstd.Dockerfile
+    ├── build_zstd.sh
+    └── zstd-inputs.sh
 ```
 
-The prebuilt `libzstd` artifacts themselves are still resolved centrally by
-`:libs:native:native-libraries` (`libs/native/libraries/build.gradle`), which
-aggregates Elasticsearch's native libraries into the single directory that the
-native-library-path mechanism expects.
+Applying `elasticsearch.native-library-build` makes `libs:zstd` a native
+library producer. By default it downloads a published artifact addressed by the
+hash of its pinned source and inputs. The native-library collector
+aggregates that output with the other native libraries.
 
 ## Building libzstd locally
 
 ```bash
-cd libs/zstd/native
-./publish_zstd_binaries.sh --local-only
-cd ../../..
-LOCAL_ZSTD_BINARY=1 ./gradlew :libs:zstd:test
+ZSTD_NATIVE_BUILD=host ./gradlew :libs:zstd:test
 ```
+
+Host mode builds libzstd from source on Linux and stages the pinned upstream
+binary for the current macOS or Windows platform. To build every supported
+platform in the cross-compilation toolchain, use
+`ZSTD_NATIVE_BUILD=docker`.
 
 ## Testing
 

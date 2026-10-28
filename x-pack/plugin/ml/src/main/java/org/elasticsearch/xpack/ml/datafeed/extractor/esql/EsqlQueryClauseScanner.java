@@ -7,56 +7,185 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
-/** Narrow ES|QL scan helpers for ML datafeeds without pulling in the ES|QL parser. */
+import org.elasticsearch.common.Strings;
+
+/**
+ * A deliberately narrow ES|QL lexer for ML datafeed query shaping. It avoids an ML dependency on the ES|QL parser.
+ * <p>
+ * MUST FIX before production: hand-written ES|QL parsing is brittle (misses nested comments, subqueries, FORK, settings,
+ * backtick-quoted fields, ...) and drifts as the ES|QL syntax evolves. Replace with EsqlParser; tracked in
+ * https://github.com/elastic/elasticsearch/issues/161207
+ */
 final class EsqlQueryClauseScanner {
 
     private EsqlQueryClauseScanner() {}
 
-    static boolean hasAggregation(String query) {
+    static ScanResult scan(String query, String timeField) {
+        boolean hasOuterLimit = false;
+        boolean hasOuterTimeWhere = false;
+        boolean hasOuterTimeSort = false;
+        boolean hasOuterStats = false;
+        boolean scanTimeField = Strings.hasLength(timeField);
         for (int index = 0, nestingDepth = 0; index < query.length();) {
-            ScanStep step = scanStep(query, index, nestingDepth);
-            if (step.foundOuterStats) {
-                return true;
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else if (isOpeningDelimiter(character)) {
+                nestingDepth++;
+                index++;
+            } else if (isClosingDelimiter(character)) {
+                nestingDepth = Math.max(0, nestingDepth - 1);
+                index++;
+            } else if (character == '|' && nestingDepth == 0) {
+                int commandStart = skipWhitespaceAndComments(query, index + 1);
+                Command command = commandAt(query, commandStart);
+                if (command == Command.LIMIT) {
+                    hasOuterLimit = true;
+                } else if (scanTimeField
+                    && command == Command.WHERE
+                    && containsTimeField(query, commandStart + command.text.length(), timeField)) {
+                        hasOuterTimeWhere = true;
+                    } else if (scanTimeField
+                        && command == Command.SORT
+                        && containsTimeField(query, commandStart + command.text.length(), timeField)) {
+                            hasOuterTimeSort = true;
+                        } else if (command == Command.STATS) {
+                            hasOuterStats = true;
+                        }
+                index++;
+            } else {
+                index++;
             }
-            index = step.nextIndex;
-            nestingDepth = step.nestingDepth;
+        }
+        return new ScanResult(hasOuterLimit, hasOuterTimeWhere, hasOuterTimeSort, hasOuterStats);
+    }
+
+    /** Whether a depth-zero {@code STATS} command makes source doc count a poor proxy for output rows. */
+    static boolean hasAggregation(String query) {
+        return scan(query, null).hasOuterStats();
+    }
+
+    static boolean hasOuterLimit(String query) {
+        return scan(query, null).hasOuterLimit();
+    }
+
+    /**
+     * Appends a generated pipeline (e.g. {@code " | LIMIT 0"}) to a user-supplied query. When the query ends in a
+     * {@code //} line comment, inserts a newline first so the generated text is not swallowed by that comment.
+     */
+    static String appendGeneratedPipeline(String query, String pipeline) {
+        return query + (endsInLineComment(query) ? "\n" : "") + pipeline;
+    }
+
+    /** Leading pipeline segment before the first depth-zero {@code |}, or the whole query when unpiped. */
+    static String extractLeadingCommand(String query) {
+        for (int index = 0, nestingDepth = 0; index < query.length();) {
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else if (isOpeningDelimiter(character)) {
+                nestingDepth++;
+                index++;
+            } else if (isClosingDelimiter(character)) {
+                nestingDepth = Math.max(0, nestingDepth - 1);
+                index++;
+            } else if (character == '|' && nestingDepth == 0) {
+                return query.substring(0, index);
+            } else {
+                index++;
+            }
+        }
+        return query;
+    }
+
+    /** Index after leading whitespace and comments (for FROM/TS checks on {@link #extractLeadingCommand} text). */
+    static int skipLeadingWhitespaceAndComments(String query) {
+        return skipWhitespaceAndComments(query, 0);
+    }
+
+    static boolean endsInLineComment(String query) {
+        for (int index = 0; index < query.length();) {
+            if (query.charAt(index) == '"') {
+                index = skipQuotedString(query, index);
+            } else if (query.charAt(index) == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+                if (index == query.length()) {
+                    return true;
+                }
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else {
+                index++;
+            }
         }
         return false;
     }
 
-    private record ScanStep(int nextIndex, int nestingDepth, boolean foundOuterStats) {}
-
-    private static ScanStep scanStep(String query, int index, int nestingDepth) {
-        char character = query.charAt(index);
-        if (character == '"') {
-            return new ScanStep(skipQuotedString(query, index), nestingDepth, false);
+    private static boolean containsTimeField(String query, int index, String timeField) {
+        for (int nestingDepth = 0; index < query.length();) {
+            char character = query.charAt(index);
+            if (character == '"') {
+                index = skipQuotedString(query, index);
+            } else if (character == '`') {
+                index = skipQuotedIdentifier(query, index);
+            } else if (query.startsWith("//", index)) {
+                index = skipLineComment(query, index + 2);
+            } else if (query.startsWith("/*", index)) {
+                index = skipBlockComment(query, index + 2);
+            } else if (isOpeningDelimiter(character)) {
+                nestingDepth++;
+                index++;
+            } else if (isClosingDelimiter(character)) {
+                if (nestingDepth == 0) {
+                    return false;
+                }
+                nestingDepth--;
+                index++;
+            } else if (character == '|' && nestingDepth == 0) {
+                return false;
+            } else if (nestingDepth == 0 && matchesIdentifier(query, index, timeField)) {
+                return true;
+            } else {
+                index++;
+            }
         }
-        if (character == '`') {
-            return new ScanStep(skipQuotedIdentifier(query, index), nestingDepth, false);
-        }
-        if (query.startsWith("//", index)) {
-            return new ScanStep(skipLineComment(query, index + 2), nestingDepth, false);
-        }
-        if (query.startsWith("/*", index)) {
-            return new ScanStep(skipBlockComment(query, index + 2), nestingDepth, false);
-        }
-        if (isOpeningDelimiter(character)) {
-            return new ScanStep(index + 1, nestingDepth + 1, false);
-        }
-        if (isClosingDelimiter(character)) {
-            return new ScanStep(index + 1, Math.max(0, nestingDepth - 1), false);
-        }
-        if (character == '|' && nestingDepth == 0) {
-            int commandStart = skipWhitespaceAndComments(query, index + 1);
-            boolean foundStats = isStatsCommand(query, commandStart);
-            return new ScanStep(index + 1, nestingDepth, foundStats);
-        }
-        return new ScanStep(index + 1, nestingDepth, false);
+        return false;
     }
 
-    private static boolean isStatsCommand(String query, int index) {
-        return query.regionMatches(true, index, "STATS", 0, 5)
-            && (index + 5 == query.length() || isCommandBoundary(query.charAt(index + 5)));
+    private static Command commandAt(String query, int index) {
+        for (Command command : Command.values()) {
+            if (query.regionMatches(true, index, command.text, 0, command.text.length())
+                && (index + command.text.length() == query.length() || isCommandBoundary(query.charAt(index + command.text.length())))) {
+                return command;
+            }
+        }
+        return Command.OTHER;
+    }
+
+    private static boolean matchesIdentifier(String query, int index, String identifier) {
+        int end = index + identifier.length();
+        return end <= query.length()
+            && query.regionMatches(false, index, identifier, 0, identifier.length())
+            && (index == 0 || isIdentifierCharacter(query.charAt(index - 1)) == false)
+            && (end == query.length() || isIdentifierCharacter(query.charAt(end)) == false);
+    }
+
+    private static boolean isIdentifierCharacter(char character) {
+        return Character.isLetterOrDigit(character) || character == '_' || character == '@' || character == '.';
     }
 
     private static boolean isOpeningDelimiter(char character) {
@@ -71,7 +200,7 @@ final class EsqlQueryClauseScanner {
         return Character.isWhitespace(character) || character == '/' || character == '(' || character == ')';
     }
 
-    private static int skipWhitespaceAndComments(String query, int index) {
+    static int skipWhitespaceAndComments(String query, int index) {
         while (index < query.length()) {
             if (Character.isWhitespace(query.charAt(index))) {
                 index++;
@@ -86,36 +215,21 @@ final class EsqlQueryClauseScanner {
         return index;
     }
 
-    private static int skipQuotedString(String query, int index) {
-        if (query.startsWith("\"\"\"", index)) {
-            return skipTripleQuotedString(query, index + 3);
-        }
-        return skipSingleQuotedString(query, index + 1);
-    }
-
-    private static int skipTripleQuotedString(String query, int index) {
+    static int skipQuotedString(String query, int index) {
+        boolean tripleQuoted = query.startsWith("\"\"\"", index);
+        int closingQuoteLength = tripleQuoted ? 3 : 1;
+        index += closingQuoteLength;
         while (index < query.length()) {
-            if (query.startsWith("\"\"\"", index)) {
-                index += 3;
-                return skipTrailingQuotes(query, index);
+            if (tripleQuoted && query.startsWith("\"\"\"", index)) {
+                index += closingQuoteLength;
+                for (int optionalQuote = 0; optionalQuote < 2 && index < query.length() && query.charAt(index) == '"'; optionalQuote++) {
+                    index++;
+                }
+                return index;
             }
-            index++;
-        }
-        return index;
-    }
-
-    private static int skipTrailingQuotes(String query, int index) {
-        for (int optionalQuote = 0; optionalQuote < 2 && index < query.length() && query.charAt(index) == '"'; optionalQuote++) {
-            index++;
-        }
-        return index;
-    }
-
-    private static int skipSingleQuotedString(String query, int index) {
-        while (index < query.length()) {
-            if (query.charAt(index) == '\\') {
+            if (tripleQuoted == false && query.charAt(index) == '\\') {
                 index += 2;
-            } else if (query.charAt(index) == '"') {
+            } else if (tripleQuoted == false && query.charAt(index) == '"') {
                 return index + 1;
             } else {
                 index++;
@@ -161,5 +275,21 @@ final class EsqlQueryClauseScanner {
             }
         }
         return index;
+    }
+
+    record ScanResult(boolean hasOuterLimit, boolean hasOuterTimeWhere, boolean hasOuterTimeSort, boolean hasOuterStats) {}
+
+    private enum Command {
+        WHERE("WHERE"),
+        SORT("SORT"),
+        LIMIT("LIMIT"),
+        STATS("STATS"),
+        OTHER("");
+
+        private final String text;
+
+        Command(String text) {
+            this.text = text;
+        }
     }
 }

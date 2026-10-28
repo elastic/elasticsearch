@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 
@@ -32,7 +33,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
-        return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
+        return List.of(AsyncTaskIndexService.getSystemIndexDescriptor(), AsyncResultPagesIndex.getSystemIndexDescriptor());
     }
 
     @Override

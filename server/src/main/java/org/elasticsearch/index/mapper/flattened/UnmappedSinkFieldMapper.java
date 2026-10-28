@@ -10,11 +10,12 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BatchMappingContext;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -99,6 +100,20 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     }
 
     /**
+     * The field type of the unmapped field {@code name}, the key of that full dotted path in the sink, or {@code null} if
+     * {@code lookup} has no sink or {@code name} is below a nested object, whose values are in the sinks of the object's elements.
+     * It is not resolvable by name, so a query reaches it only by asking for it here.
+     */
+    @Nullable
+    public static MappedFieldType unmappedFieldType(MappingLookup lookup, String name) {
+        UnmappedSinkFieldMapper sink = lookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink == null || lookup.nestedLookup().getNestedParent(name) != null) {
+            return null;
+        }
+        return sink.delegate.fieldType().getChildFieldType(name);
+    }
+
+    /**
      * The sink takes part in the columnar batch path whenever its wrapped flattened mapper can batch the absorbed leaves. Its own
      * {@code doSupportsColumnarParse} is deliberately left at the inherited {@code false}: a document key {@code _unmapped} resolves to the
      * sink as a column of its own, and must fall back to the sequential parser, which rejects it, rather than be mapped as a column.
@@ -137,20 +152,5 @@ public final class UnmappedSinkFieldMapper extends MetadataFieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(delegate::unmappedSinkSyntheticFieldLoader);
-    }
-
-    /**
-     * Loads the absorbed field {@code name}, a full dotted path, from the sink's keyed doc values, as a key of a mapped flattened field is
-     * loaded: its values are sorted and deduplicated. Only the sink of the document read is loaded, so it doesn't load a field below a
-     * nested object, whose values are in the documents of the object's elements.
-     */
-    public BlockLoader blockLoader(String name) {
-        var type = delegate.fieldType();
-        return new KeyedFlattenedDocValuesBlockLoader(
-            fullPath() + FlattenedFieldMapper.KEYED_FIELD_SUFFIX,
-            name,
-            type.usesBinaryDocValues,
-            type.usesArrayOrderBinaryDocValues()
-        );
     }
 }

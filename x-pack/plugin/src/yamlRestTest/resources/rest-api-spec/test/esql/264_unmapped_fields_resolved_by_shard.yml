@@ -1,0 +1,614 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains, allowed_warnings_regex, warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ unmapped_fields_resolved_by_shard ]
+      reason: "Each shard resolves a field the query reads that some indices may not map"
+  - do:
+      indices.create:
+        index: mapped
+        body:
+          mappings:
+            properties:
+              k:
+                type: keyword
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: strict
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              other:
+                type: keyword
+  - do:
+      indices.create:
+        index: normalized
+        body:
+          settings:
+            analysis:
+              normalizer:
+                lowercase:
+                  type: custom
+                  filter: [ lowercase ]
+          mappings:
+            properties:
+              k:
+                type: keyword
+                normalizer: lowercase
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "mapped", "_id": "m1" } }
+          - { "k": "a" }
+          - { "index": { "_index": "mapped", "_id": "m2" } }
+          - { "k": "b" }
+          - { "index": { "_index": "mapped", "_id": "m3" } }
+          - { }
+          - { "index": { "_index": "unmapped", "_id": "s1" } }
+          - { "k": "a" }
+          - { "index": { "_index": "unmapped", "_id": "s2" } }
+          - { "k": "c" }
+          - { "index": { "_index": "unmapped", "_id": "s3" } }
+          - { "other": "x" }
+          - { "index": { "_index": "normalized", "_id": "n1" } }
+          - { "k": "A" }
+          - { "index": { "_index": "strict", "_id": "t1" } }
+          - { "other": "y" }
+
+---
+'equality reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ], [ "s1", "a" ] ] }
+
+---
+'range reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k > "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2", "b" ], [ "s2", "c" ] ] }
+
+---
+'is null reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s3" ], [ "t1" ] ] }
+
+---
+'in reads every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IN ("b", "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+
+---
+'a pushed filter returns the rows of the same filter after loading':
+  # each filter runs pushed to the shards, then on a copy of k that is not a field and stays in compute
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k != "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k != "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k > "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k > "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k <= "b" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k <= "b" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IN ("a", "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k IN ("a", "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k LIKE "a*" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k LIKE "a*" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k RLIKE "[ab]" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k RLIKE "[ab]" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE STARTS_WITH(k, "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE STARTS_WITH(k, "c") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s3" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s3" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k IS NOT NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k IS NOT NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "m2" ], [ "s1" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE NOT (k == "a") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE NOT (k == "a") | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m2" ], [ "s2" ] ] }
+
+---
+'a disjunction returns the rows of the same disjunction after loading':
+  # with a field every index maps
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" OR _id == "s3" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s3" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k == "a" OR _id == "s3" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s3" ] ] }
+  # with a side no shard runs as a query
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" OR LENGTH(other) > 0 | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s3" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k == "a" OR LENGTH(other) > 0 | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "s1" ], [ "s3" ], [ "t1" ] ] }
+  # with two fields some indices may not map
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "c" OR other == "y" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s2" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | EVAL k = CONCAT(k, "") | WHERE k == "c" OR other == "y" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "s2" ], [ "t1" ] ] }
+  # the shards that can query both sides run the disjunction, and only the shard that holds k in _source reads every document
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict | WHERE k == "c" OR other == "y" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 2 ] ] }
+  - match: { documents_found: 4 }
+
+---
+'a multi-valued field read from _source warns as it does after loading':
+  - do:
+      indices.create:
+        index: mv_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "mv_unmapped", "_id": "v1" } }
+          - { "k": [ "a", "b" ] }
+          - { "index": { "_index": "mv_unmapped", "_id": "v2" } }
+          - { "k": "a" }
+  - do:
+      warnings_regex:
+        - ".*evaluation of \\[.*\\] failed, treating result as null.*"
+        - ".*single-value function encountered multi-value.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,mv_unmapped METADATA _id | WHERE k == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "v2" ] ] }
+  - do:
+      warnings_regex:
+        - ".*evaluation of \\[.*\\] failed, treating result as null.*"
+        - ".*single-value function encountered multi-value.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,mv_unmapped METADATA _id | EVAL k = CONCAT(k, "") | WHERE k == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ], [ "v2" ] ] }
+
+---
+'a sort across every kind of shard':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict | SORT k | KEEP k | LIMIT 4'
+  - match: { values: [ [ "a" ], [ "a" ], [ "b" ], [ "c" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | SORT k DESC NULLS LAST | KEEP _id, k | LIMIT 2'
+  - match: { values: [ [ "s2", "c" ], [ "m2", "b" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict | SORT k NULLS FIRST | KEEP k | LIMIT 3'
+  - match: { values: [ [ null ], [ null ], [ null ] ] }
+
+---
+'a count of a field some indices may not map':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped | STATS c = COUNT(k) | LIMIT 1'
+  - match: { values: [ [ 4 ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,strict | STATS c = COUNT(k) | LIMIT 1'
+  - match: { values: [ [ 2 ] ] }
+
+---
+'the filter is pushed to the shard that maps the field':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict | WHERE k == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 2 ] ] }
+  # The shard that maps k finds its one match, the shard that cannot hold k finds nothing, and only the shard that holds k in
+  # _source reads every document to check it
+  - match: { documents_found: 4 }
+  # Without load, the plan reads k only where it is mapped: the other shards cannot hold it, and the filter matches nothing there
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped,unmapped,strict | WHERE k == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+  - match: { documents_found: 1 }
+
+---
+'a shard that compares the field differently checks every document':
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,normalized METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ], [ "n1", "a" ], [ "s1", "a" ] ] }
+
+---
+'a normalized keyword compares as it did':
+  # mapped in every index, the filter is pushed and the normalizer reads its input: "A" finds the value read as "a"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM normalized METADATA _id | WHERE k == "A" | KEEP _id, k | LIMIT 10'
+  - match: { values: [ [ "n1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM normalized | WHERE k == "A" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+  - match: { documents_found: 1 }
+  # read from indices that may not map it, the field is compared with its values as read: "A" is not "a"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM normalized,unmapped METADATA _id | WHERE k == "A" | KEEP _id | LIMIT 10'
+  - length: { values: 0 }
+
+---
+'fillnull fills what the filter after it reads':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ fillnull ]
+      reason: "FILLNULL"
+  # the filter reads the filled column, not k, so no shard drops the documents it fills
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | FILLNULL "none" ON k | WHERE k == "none" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s3" ], [ "t1" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | FILLNULL "none" ON k | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ], [ "s1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM mapped,unmapped,strict METADATA _id | FILLNULL "none" ON k | WHERE k == "none" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s1" ], [ "s2" ], [ "s3" ], [ "t1" ] ] }
+
+---
+'fillnull fills what the filter after it reads under load_all':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_load_all_fillnull ]
+      reason: "FILLNULL under load_all"
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM mapped,unmapped,strict METADATA _id | FILLNULL "none" ON k | WHERE k == "none" | STATS ids = VALUES(_id) | EVAL ids = MV_SORT(ids) | LIMIT 1'
+  - match: { values: [ [ [ "m3", "s3", "t1" ] ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load_all"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | STATS ids = VALUES(_id) | EVAL ids = MV_SORT(ids) | LIMIT 1'
+  - match: { values: [ [ [ "m1", "s1" ] ] ] }
+
+---
+'nullify does not read the fields indices do not map':
+  # k is mapped in mapped only, so the other shards read it as null, whatever their _source holds
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM mapped,unmapped,strict METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM mapped,unmapped,strict METADATA _id | WHERE k IS NULL | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m3" ], [ "s1" ], [ "s2" ], [ "s3" ], [ "t1" ] ] }
+  # no index maps k
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM unmapped,strict METADATA _id | WHERE k == "a" | KEEP _id | LIMIT 10'
+  - length: { values: 0 }
+
+---
+'a filter pushed to each shard scores nothing':
+  - do:
+      indices.create:
+        index: scored_mapped
+        body:
+          mappings:
+            properties:
+              msg:
+                type: text
+              k:
+                type: keyword
+  - do:
+      indices.create:
+        index: scored_unmapped
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              msg:
+                type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "scored_mapped", "_id": "s1" } }
+          - { "msg": "x", "k": "a" }
+          - { "index": { "_index": "scored_unmapped", "_id": "s2" } }
+          - { "msg": "x", "k": "a" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM scored_mapped, scored_unmapped METADATA _index, _score | WHERE MATCH(msg, "x") AND k == "a" | EVAL score = _score | KEEP _index, score | SORT _index | LIMIT 10'
+  - match: { values.0.0: "scored_mapped" }
+  - match: { values.1.0: "scored_unmapped" }
+  - set: { values.1.1: unmapped_score }
+  - match: { values.0.1: $unmapped_score }
+
+---
+'a shard runs the filter on the container of its unmapped fields':
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ unmapped_fields_resolved_by_shard ]
+      reason: "the flattened _unmapped container of a columnar index"
+  - do:
+      indices.create:
+        index: sink
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+            number_of_shards: 1
+          mappings:
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "sink", "_id": "c1" } }
+          - { "k": "a", "other": "x" }
+          - { "index": { "_index": "sink", "_id": "c2" } }
+          - { "k": "b", "other": "x" }
+          - { "index": { "_index": "sink", "_id": "c3" } }
+          - { "other": "x" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped, sink METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c1", "a" ], [ "m1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM sink | WHERE k == "a" | STATS c = COUNT(*) | LIMIT 1'
+  - match: { values: [ [ 1 ] ] }
+  # the key runs the filter on its doc values, as a mapped keyword of a columnar index does
+  - match: { documents_found: 1 }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM sink METADATA _id | WHERE k LIKE "b*" | KEEP _id | LIMIT 10'
+  - match: { values: [ [ "c2" ] ] }
+  # only load reads unmapped fields, from the container as from _source
+  - do:
+      esql.query:
+        body:
+          query: 'FROM mapped, sink METADATA _id | WHERE k == "a" | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1", "a" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM sink METADATA _id | KEEP _id, k | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c1", null ], [ "c2", null ], [ "c3", null ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM mapped, sink METADATA _id | WHERE k == "a" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "m1" ] ] }
+  - do:
+      indices.create:
+        index: numbers
+        body:
+          mappings:
+            properties:
+              k:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "numbers", "_id": "n1" } }
+          - { "k": 3 }
+          - { "index": { "_index": "sink", "_id": "c4" } }
+          - { "k": "2", "other": "x" }
+  # the container is read under a column of another type, and a cast reads what it can
+  - do:
+      allowed_warnings_regex:
+        - ".*evaluation of .* failed, treating result as null.*"
+        - ".*Cannot parse number.*"
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM numbers, sink METADATA _id | EVAL n = k::long | WHERE n > 1 | KEEP _id, n | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c4", 2 ], [ "n1", 3 ] ] }
+
+---
+'fillnull fills what the filter after it reads on the container of unmapped fields':
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ unmapped_fields_resolved_by_shard, fillnull ]
+      reason: "FILLNULL over the flattened _unmapped container of a columnar index"
+  - do:
+      indices.create:
+        index: sink
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+            number_of_shards: 1
+          mappings:
+            properties:
+              other:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "sink", "_id": "c1" } }
+          - { "k": "a", "other": "x" }
+          - { "index": { "_index": "sink", "_id": "c2" } }
+          - { "other": "x" }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM mapped, sink METADATA _id | FILLNULL "none" ON k | WHERE k == "none" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c2" ], [ "m3" ] ] }
+  - do:
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="nullify"; FROM mapped, sink METADATA _id | FILLNULL "none" ON k | WHERE k == "none" | KEEP _id | SORT _id | LIMIT 10'
+  - match: { values: [ [ "c1" ], [ "c2" ], [ "m3" ] ] }

@@ -144,6 +144,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -854,6 +855,22 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
+     * A shard reads a field it does not map from {@code _source} as a {@code keyword}: a column of another type that names the
+     * field without a conversion reads null there, as on a shard that cannot hold it.
+     */
+    public void testPlanUnmappedFieldOfAnotherTypeReadsNull() throws Exception {
+        mappingKeepsUnmappedFields = true;
+        var blockLoader = constructBlockLoader(
+            new FieldAttribute(
+                Source.EMPTY,
+                "potentially_unmapped",
+                new EsField("potentially_unmapped", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
      * A shard whose mapping maps every field, and that skipped none, holds no unmapped field to read.
      */
     public void testPlanUnmappedFieldExtractStoredSourceWithoutUnmappedFields() throws Exception {
@@ -1064,6 +1081,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
+        return constructBlockLoader(
+            new FieldAttribute(Source.EMPTY, "potentially_unmapped", new PotentiallyUnmappedKeywordEsField("potentially_unmapped"))
+        );
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader(FieldAttribute attribute) throws IOException {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             EsIndexGenerator.esIndex("test").name(),
@@ -1077,9 +1100,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         FieldExtractExec fieldExtractExec = new FieldExtractExec(
             Source.EMPTY,
             queryExec,
-            List.of(
-                new FieldAttribute(Source.EMPTY, "potentially_unmapped", new PotentiallyUnmappedKeywordEsField("potentially_unmapped"))
-            ),
+            List.of(attribute),
             MappedFieldType.FieldExtractPreference.NONE
         );
         var plan = planner().plan(
@@ -1940,8 +1961,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 }
                 b.startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject();
             })), searcher);
+            // As the compute service does, the shard resolves the field the plan reads that some shards may not map
+            EsqlSearchExecutionContext esqlContext = new EsqlSearchExecutionContext(
+                searchExecutionContext,
+                QueryWarnings.EMIT,
+                Set.of("potentially_unmapped")
+            );
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+                new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), esqlContext, AliasFilter.EMPTY)
             );
         }
         releasables.add(searcher);

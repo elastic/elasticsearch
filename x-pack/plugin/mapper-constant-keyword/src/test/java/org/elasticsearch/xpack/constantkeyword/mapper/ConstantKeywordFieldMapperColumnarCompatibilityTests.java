@@ -208,7 +208,7 @@ public class ConstantKeywordFieldMapperColumnarCompatibilityTests extends Abstra
                 doc(id, routing, tsid, 1L, "{\"@timestamp\":\"2021-06-01T00:00:00.000Z\",\"dim\":\"a\",\"f\":\"hello\"}")
             )
         ));
-        assertThat(e.getMessage(), containsString("ShardBatchMapper.resolveMappers refused this mapping and schema"));
+        assertThat(e.getMessage(), containsString("metadata mapper [_source] does not support columnar parse"));
     }
 
     public void testBailOutOnNull() throws IOException {

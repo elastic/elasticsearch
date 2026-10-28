@@ -27,11 +27,20 @@ tasks.named("shadowJar").configure {
   relocate 'org.bouncycastle', 'shadow.org.bouncycastle'
 }
 
-// The shaded provider is not FIPS approved and its unsigned jar fails JCE provider authentication,
-// so cryptographic primitives must come from the JVM's configured providers instead.
+// Ban the shaded provider and BC's lightweight crypto API, which bypasses JCA entirely.
+// Cryptographic primitives must come from the JVM's configured providers. BC stays for encoding.
 tasks.named("forbiddenApisMain").configure {
   signatures += [
-    "org.bouncycastle.jce.provider.BouncyCastleProvider @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.crypto.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pqc.crypto.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.operator.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.openssl.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.cert.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pkcs.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.cms.bc.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.jcajce.provider.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.pqc.jcajce.provider.** @ use the JVM's configured JCA/JCE providers",
+    "org.bouncycastle.jce.provider.** @ use the JVM's configured JCA/JCE providers",
     "java.security.Security#addProvider(java.security.Provider) @ use the JVM's configured JCA/JCE providers",
     "java.security.Security#insertProviderAt(java.security.Provider,int) @ use the JVM's configured JCA/JCE providers"
   ]

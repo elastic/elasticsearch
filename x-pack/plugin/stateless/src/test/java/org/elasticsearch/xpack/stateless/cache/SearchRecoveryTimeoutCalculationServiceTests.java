@@ -1909,7 +1909,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
 
     /// With no shard pending on the source and a target slot for every relocating shard, nobody waits behind them, so a re-evaluation
     /// extends by all the remaining grace even when nothing was saved. With a pending shard, nothing saved means no extension: 10s grace,
-    /// 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted.
+    /// 4 shards on the source gives each 2500ms; 2000ms later the fresh share is 2000ms, below what was budgeted. A warm-volume map is
+    /// present and would give this shard 600/1800 of the remaining time; it is not consulted on either re-evaluation.
     public void testReevaluationExtendsByRemainingGraceOnlyWhenNoShardIsQueued() {
         try (
             var threadPool = new FakeTimeThreadPool(
@@ -1922,14 +1923,30 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                 .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
                 .put(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING.getKey(), true)
                 .build();
-            final var service = newCalculationService(threadPool, settings, 0L);
-
             final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
             threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
             final long startedAtMillis = threadPool.absoluteTimeInMillis();
             final var index = new Index("idx", randomUUID());
             final String sourceNodeId = "source-node";
             final String targetNodeId = "target-node";
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.CollectedWarmVolumes(
+                    startedAtMillis,
+                    Map.of(
+                        new ShardId(index, 0),
+                        600L,
+                        new ShardId(index, 1),
+                        400L,
+                        new ShardId(index, 2),
+                        400L,
+                        new ShardId(index, 3),
+                        400L
+                    )
+                )
+            );
+            final var service = newCalculationService(threadPool, settings, 0L, volumes, TelemetryProvider.NOOP);
 
             final var previous = new SearchRecoveryTimeout(
                 TimeValue.timeValueMillis(2500),
@@ -2805,6 +2822,58 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     .get(SearchRecoveryTimeoutCalculationService.SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY),
                 equalTo("warm_volume")
             );
+        }
+    }
+
+    /// Warm volume is 4800ms for volumes 600/300/100, above the equal share of three shards. 400 bytes against a 500-byte warming cache
+    /// is 6400ms, so data volume wins and the plan is not extendable.
+    public void testDataVolumeWinsWhenLargerThanWarmVolume() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            Settings settings = Settings.builder()
+                .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+                .build();
+            final long shutdownCurrentTimeMs = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs);
+            final long startedAtMillis = threadPool.absoluteTimeInMillis();
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetNodeId = "target-node";
+            final ClusterState state = clusterStateSearchShardsRelocatingFromShuttingDownSource(
+                3,
+                1,
+                index,
+                sourceNodeId,
+                targetNodeId,
+                startedAtMillis,
+                0,
+                2
+            );
+            threadPool.setCurrentTimeInMillis(shutdownCurrentTimeMs + 2000);
+
+            ShardWarmVolumes volumes = enabledWarmVolumes();
+            volumes.put(
+                sourceNodeId,
+                new ShardWarmVolumes.CollectedWarmVolumes(
+                    startedAtMillis,
+                    Map.of(new ShardId(index, 0), 600L, new ShardId(index, 1), 300L, new ShardId(index, 2), 100L)
+                )
+            );
+            var service = newCalculationService(threadPool, settings, 1000L, volumes, TelemetryProvider.NOOP);
+            final ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            var plan = service.searchRecoveryTimeout(state, mockIndexShard(self), 400L, null);
+            assertThat(plan.timeout().millis(), equalTo(6400L));
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME));
+            assertThat(plan.extendable(), is(false));
         }
     }
 

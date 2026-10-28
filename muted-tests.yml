@@ -555,11 +555,6 @@ tests:
   - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
   method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
   issue: https://github.com/elastic/elasticsearch/issues/163332
-- class: org.elasticsearch.search.heappressure.ColumnarKeywordWildcardHeapPressureIT
-  tasks:
-  - :server:heapPressureTest
-  method: testPausedHeavyWildcardsTripBreaker
-  issue: https://github.com/elastic/elasticsearch/issues/163244
 - class: org.elasticsearch.xpack.esql.CsvColumnarIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

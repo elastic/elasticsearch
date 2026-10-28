@@ -26,7 +26,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -436,8 +435,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
-    // TODO: LUCENE11 int8 knn on 8.x-written segments can rank "1" above "0"
-    // after upgrade; hasItem("0") still fails when "0" drops out of k=2.
     public void testQuantizedVectorSearch() throws Exception {
         assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
@@ -505,10 +502,10 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertInt8KnnTopHit(hits);
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
     }
 
-    // TODO: LUCENE11 same int8 rank flip as testQuantizedVectorSearch (int8_flat).
     public void testFlatQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",
@@ -577,7 +574,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertInt8KnnTopHit(hits);
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
     }
 
     public void testBBQVectorSearch() throws Exception {
@@ -865,16 +863,6 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         // always refresh to ensure the data is visible
         flush(indexName, true);
         refresh(indexName);
-    }
-
-    private void assertInt8KnnTopHit(List<Map<String, Object>> hits) {
-        if (isOldCluster()) {
-            assertThat(hits.get(0).get("_id"), equalTo("0"));
-            assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
-            return;
-        }
-        // TODO: LUCENE11 int8 knn on 8.x-written segments can rank "1" above "0" after upgrade
-        assertThat(hits.stream().map(hit -> hit.get("_id")).toList(), hasItem("0"));
     }
 
     private void indexVectors(String indexName) throws Exception {

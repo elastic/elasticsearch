@@ -298,16 +298,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163523
 # Lucene 11 int8 knn on 8.x-written segments can reorder near-tied hits
 # (VectorSearchIT 8.19 rolling upgrade; SemanticTextHighlighter on a random
-# 8.x / early 9.x IndexVersion). hasItem("0") still fails when "0" drops out
-# of k=2. Highlighter {p0=false} stays unmuted.
+# 8.x / early 9.x IndexVersion). Highlighter {p0=false} stays unmuted.
 - class: org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighterTests
   method: testDenseVector {p0=true}
-  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+  issue: https://github.com/elastic/elasticsearch/issues/163788
 - class: org.elasticsearch.upgrades.VectorSearchIT
   methods:
     - testQuantizedVectorSearch
     - testFlatQuantizedVectorSearch
-  issue: https://github.com/elastic/elasticsearch/issues/XXXX
+  issue: https://github.com/elastic/elasticsearch/issues/163788
 # Maps match main (7/8/9) plus Lucene 11 .dvp. Mute until the blob-delete
 # await is confirmed without the extra wait+flush from 266fe044.
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT

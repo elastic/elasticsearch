@@ -35,7 +35,6 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -278,15 +277,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         {
             String q = "FROM nomatch," + localIndex;
-            IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> runQuery(q, false));
-            assertThat(e.getDetailedMessage(), containsString("no such index [nomatch]"));
+            expectThrows(VerificationException.class, containsString("Unknown index [nomatch]"), () -> runQuery(q, false));
 
-            // MP TODO: am I able to fix this from the field-caps call? Yes, if we detect concrete vs. wildcard expressions in user query
-            // TODO bug - this does not throw; uncomment this test once this is fixed:
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/114495
-            // String limit0 = q + " | LIMIT 0";
-            // VerificationException ve = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
-            // assertThat(ve.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+            expectThrows(VerificationException.class, containsString("Unknown index [nomatch]"), () -> runQuery(q + " | LIMIT 0", false));
         }
 
         {
@@ -329,15 +322,13 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         {
             String q = "FROM nomatch::failures," + localIndex + "::failures";
-            IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> runQuery(q, false));
-            assertThat(e.getDetailedMessage(), containsString("no such index [nomatch]"));
+            expectThrows(VerificationException.class, containsString("Unknown index [nomatch::failures]"), () -> runQuery(q, false));
 
-            // MP TODO: am I able to fix this from the field-caps call? Yes, if we detect concrete vs. wildcard expressions in user query
-            // TODO bug - this does not throw; uncomment this test once this is fixed:
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/114495
-            // String limit0 = q + " | LIMIT 0";
-            // VerificationException ve = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
-            // assertThat(ve.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [nomatch::failures]"),
+                () -> runQuery(q + " | LIMIT 0", false)
+            );
         }
 
         {
@@ -535,7 +526,7 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         }
         {
             String q = "FROM nomatch,cluster-a:nomatch";
-            String expectedError = "Unknown index [cluster-a:nomatch]; Unknown index [nomatch]";
+            String expectedError = "Unknown index [nomatch]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
@@ -762,7 +753,7 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         }
         {
             String q = "FROM nomatch::failures,cluster-a:nomatch::failures";
-            String expectedError = "Unknown index [cluster-a:nomatch::failures]; Unknown index [nomatch::failures]";
+            String expectedError = "Unknown index [nomatch::failures]";
             expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {

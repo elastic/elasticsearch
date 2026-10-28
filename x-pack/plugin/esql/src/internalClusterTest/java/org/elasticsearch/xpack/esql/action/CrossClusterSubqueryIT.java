@@ -347,15 +347,11 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase impleme
             | SORT _index
             """, randomBoolean()));
 
-        expectThrows(
-            VerificationException.class,
-            allOf(containsString("Unknown index [missing]"), containsString("Unknown index [cluster-a:missing,cluster-a:remote]")),
-            () -> runQuery("""
-                FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
-                | STATS c = count(*) by _index
-                | SORT _index
-                """, randomBoolean())
-        );
+        expectThrows(VerificationException.class, containsString("Unknown index [missing]"), () -> runQuery("""
+            FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
+            | STATS c = count(*) by _index
+            | SORT _index
+            """, randomBoolean()));
     }
 
     /*

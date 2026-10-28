@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**

@@ -46,11 +46,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Count extends UnaryAggregateFunction
-    implements
-        ToAggregator,
-        SurrogateExpression,
-        AggregateMetricDoubleNativeSupport {
+public class Count extends UnaryAggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
         .unary(Count::new)

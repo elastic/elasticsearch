@@ -192,6 +192,16 @@ emp_no:integer | languages:integer | height:double | x:double | y:double | z:dou
          10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
 ;
 
+greatestOfCoalesceNull
+required_capability: fix_fold_null
+FROM employees | EVAL result = GREATEST(COALESCE(null)) | KEEP result | LIMIT 3
+;
+result:null
+null
+null
+null
+;
+
 whereNull
 FROM employees
 | WHERE NULL and emp_no <= 10021
@@ -500,6 +510,140 @@ result:boolean
 null
 ;
 
+# integer value NOT IN list with null — value matches non-null entries, result is false
+rowIntegerNotInWithNullMatch
+required_capability: fix_fold_null
+
+ROW x = 1 | EVAL tmp = x IN (1,null), NOT(x IN (1,null)), x NOT IN (1,null), NOT(tmp)
+;
+
+x:integer | tmp:boolean | NOT(x IN (1,null)):boolean | x NOT IN (1,null):boolean | NOT(tmp):boolean
+1         | true        | false                      | false                     | false
+;
+
+# integer value NOT IN list with null — value does not match non-null entries, result is null
+rowIntegerNotInWithNullNoMatch
+required_capability: fix_fold_null
+
+ROW x = 42 | EVAL tmp = x IN (1,null), NOT(x IN (1,null)), x NOT IN (1,null), NOT(tmp)
+;
+
+x:integer | tmp:boolean | NOT(x IN (1,null)):boolean | x NOT IN (1,null):boolean | NOT(tmp):boolean
+42        | null        | null                       | null                      | null
+;
+
+indexInWithNull
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE emp_no IN (10001, null)
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+indexIntegerNotInWithNull
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE emp_no NOT IN (10001, null)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexKeywordNotInWithNull
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE first_name NOT IN ("Georgi", null)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexDateNotInWithNull
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE hire_date NOT IN (TO_DATETIME("1986-06-26T00:00:00.000Z"), null)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexNullableIntegerNotInWithNull
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE languages NOT IN (1, null)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexInWithNullEqualsFalse
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE (emp_no IN (10001, null)) == false
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexNotOfInWithNullAnd
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) AND emp_no < 10003)
+| STATS c = COUNT(*), min = MIN(emp_no), max = MAX(emp_no)
+;
+
+c:long | min:integer | max:integer
+98     | 10003       | 10100
+;
+
+indexNotOfInWithNullOr
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) OR languages == 2)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
+
+indexNotInWithNullOrMatch
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE emp_no NOT IN (10001, null) OR emp_no == 10002
+| KEEP emp_no
+;
+
+emp_no:integer
+10002
+;
+
+indexNotOfInWithNullOrMatch
+required_capability: fix_fold_null
+
+FROM employees
+| WHERE NOT (emp_no IN (10001, null) OR emp_no == 10002)
+| KEEP emp_no
+;
+
+emp_no:integer
+;
 
 # null value IN list of integers — result is null
 rowNullInIntegerList

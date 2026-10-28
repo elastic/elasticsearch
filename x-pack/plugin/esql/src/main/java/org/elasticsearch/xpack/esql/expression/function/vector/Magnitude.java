@@ -151,7 +151,9 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
                     }
                 }
                 if (dimensions == 0) {
-                    return blockFactory.newConstantFloatBlockWith(0F, 0);
+                    // dimensions is 0 if and only if every position is null
+                    // (a non-null dense_vector always has at least one value)
+                    return blockFactory.newConstantNullBlock(positionCount);
                 }
 
                 float[] scratch = new float[dimensions];

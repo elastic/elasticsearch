@@ -1027,9 +1027,10 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     /**
      * Int, short and byte fields declare a long sort, and not an int one, in indices created before
      * {@link IndexVersions#INDEX_INT_SORT_INT_TYPE}, except for the ones created from
-     * {@link IndexVersions#INDEX_INT_SORT_INT_TYPE_8_19} to before {@link IndexVersions#UPGRADE_TO_LUCENE_10_0_0}. The Lucene collectors fill that sort with longs. The sort values of the shard results are
-     * merged using the type the sort field declares, so a {@code BucketedSort} that reports integers for such a field would break
-     * the merge with the shards of newer indices. Those fields keep the Lucene collectors, and the other types are not affected.
+     * {@link IndexVersions#INDEX_INT_SORT_INT_TYPE_8_19} to before {@link IndexVersions#UPGRADE_TO_LUCENE_10_0_0}. The Lucene
+     * collectors fill that sort with longs. The sort values of the shard results are merged using the type the sort field declares,
+     * so a {@code BucketedSort} that reports integers for such a field would break the merge with the shards of newer indices.
+     * Those fields keep the Lucene collectors, and the other types are not affected.
      */
     public void testIntegerFieldsOfOlderIndicesKeepTheLuceneCollectors() throws Exception {
         record Case(IndexVersion version, NumberFieldMapper.NumberType type, boolean bucketedSort) {}

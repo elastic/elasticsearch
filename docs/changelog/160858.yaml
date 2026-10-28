@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 160858
+summary: "ES|QL datafeeds: validation on put/update, chunked extraction and preview"
+type: enhancement

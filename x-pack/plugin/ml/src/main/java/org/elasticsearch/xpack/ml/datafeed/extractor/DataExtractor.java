@@ -17,9 +17,17 @@ import java.util.Optional;
 
 public interface DataExtractor {
 
-    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates) {
+    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates, long rowCount) {
+
+        /** {@code rowCount} was not computed for this result (legacy three-argument constructor). */
+        public static final long ROW_COUNT_UNKNOWN = -1L;
+
         public Result {
             linkedClusterStates = List.copyOf(Objects.requireNonNull(linkedClusterStates));
+        }
+
+        public Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedClusterState> linkedClusterStates) {
+            this(searchInterval, data, linkedClusterStates, ROW_COUNT_UNKNOWN);
         }
     }
 
@@ -76,5 +84,12 @@ public interface DataExtractor {
      */
     default List<LinkedClusterState> getLinkedClusterStates() {
         return List.of();
+    }
+
+    /**
+     * Returns the interval that could not be extracted completely, if any.
+     */
+    default Optional<SearchInterval> getIncompleteSearchInterval() {
+        return Optional.empty();
     }
 }

@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGates;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -208,6 +209,15 @@ public class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        try {
+            EsqlDatafeedQueryValidator.rejectRemoteClusterSources(
+                request.getDatafeed().getEsqlQuery(),
+                crossProjectModeDecider.crossProjectEnabled()
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
@@ -251,7 +261,9 @@ public class DatafeedManager {
                         listener.onFailure(e);
                     }
                 });
-                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                if (request.getDatafeed().getEsqlQuery() != null) {
+                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                } else if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {
                     executeAsyncWithOrigin(
@@ -324,7 +336,7 @@ public class DatafeedManager {
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
-                jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
+                jobConfigProvider.validateDatafeedJob(updatedConfig, headers, validatorListener);
             };
 
             final String datafeedId = request.getUpdate().getId();
@@ -342,6 +354,8 @@ public class DatafeedManager {
                         l.onFailure(e);
                         return;
                     }
+                    // Validate before creating credentials or retaining rollback state for a scope change.
+                    update.apply(current, Map.of(), state);
                     CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                         crossProjectMlEnabled(),
                         hasCpsCredential,
@@ -724,6 +738,7 @@ public class DatafeedManager {
 
         CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
             request.getDatafeed(),
+            headers,
             ActionListener.wrap(validationOk, listener::onFailure)
         );
 

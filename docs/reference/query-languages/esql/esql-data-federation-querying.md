@@ -215,7 +215,10 @@ $$$unknown-index-dataset$$$
 `Unknown index` error for a dataset that exists
 :   A query on a dataset fails with `Unknown index [<dataset>]` when {{esql}} Data Federation is off on the node that coordinates the query. Check that [`esql.federation.enabled`](esql-data-federation-cluster-settings.md#esql-federation-enabled) isn't set to `false`. Refer to [](esql-data-federation.md#enable-the-feature).
 
-    {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, the feature is on for upgraded nodes and off for nodes that aren't upgraded yet, so the same query can succeed or fail depending on which node coordinates it. Wait until every node is upgraded before you create or query datasets.
+    :::{dropdown} During a rolling upgrade from 9.5
+    The feature is on for upgraded nodes and off for nodes that aren't upgraded yet, so the same query can succeed or fail depending on which node coordinates it. Nothing is lost, and queries succeed on every node once the upgrade finishes. Wait until every node is upgraded before you create or query datasets, or set `esql.federation.enabled` explicitly on every node before you upgrade.
+
+    :::
 
 New files not appearing in query results
 :   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. Lower the listing cache TTL when new or removed files must be visible sooner. Refer to [caching settings](esql-data-federation-cluster-settings.md#caching).

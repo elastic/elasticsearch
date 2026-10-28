@@ -411,6 +411,8 @@ public final class StringColumnWriter {
             // The ordinals go straight into the data: the terms are already there, and the escapes are staged,
             // so nothing else writes it until the pass is over. The skip index is fed whenever there is a file
             // for it, since whether the column keeps one is known only once the pass has found its escapes.
+            // The work is wasted when the column drops the skipper at the end (sorted columns, or columns
+            // with escapes), but the cost is small, so we accept it.
             final OrdinalStream ordinalStream = new OrdinalStream(
                 numValues,
                 sizes,
@@ -639,12 +641,10 @@ public final class StringColumnWriter {
          * @see NumericColumnWriter.Stream#finish
          */
         NumericColumnMetadata finish(boolean writeSkipper, IndexOutput skipIndex) throws IOException {
-            if (stream == null) {
-                // Fewer ordinals arrived than the column was counted for, which the slot count is checked
-                // for before this is reached; whatever did arrive is written as any short column is.
-                open(false);
-                replay();
-            }
+            // The stream is open already: a column below the trial size opens it in the constructor, and any
+            // other column fills the trial because the slot count was checked against numValues before this.
+            // Fail here rather than silently write packed ordinals for a column that came up short.
+            assert stream != null : "ordinal stream finished before the trial ended, only [" + sampled + "] ordinals arrived";
             return stream.finish(writeSkipper, skipIndex);
         }
 

@@ -68,6 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.routing.IndexRoutingTestHelper.makeIdThatRoutesToShard;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.ReshardingTestHelpers.postSplitRouting;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
@@ -977,6 +978,62 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
 
     private long primaryTerm(Index index, int shard) {
         return clusterService().state().metadata().projectFor(index).index(index.getName()).primaryTerm(shard);
+    }
+
+    /**
+     * Restores a snapshot that has as many shards as the split in progress would create (possible when the snapshot is of an earlier
+     * index of the same name), so the target shard still exists afterwards. The source's handoff is then not abandoned for lack of shards,
+     * and its permits must still be released: the restore advances the primary terms of the recreated shards, which the handoff observes.
+     */
+    public void testRestoreOverOpenIndexWhileHandoffInFlightToSnapshotWithTheTargetShards() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+        createRepository("test-repo", "fs");
+        var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, 2, 1);
+        ensureGreen();
+        final int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        createSnapshotAndAssertSuccess("two-shard-snap", indexName);
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+        createIndex(indexName, 1, 1);
+        ensureGreen();
+        indexDocs(indexName, 5);
+        var index = resolveIndex(indexName);
+
+        var latch = new CountDownLatch(1);
+        var blockedRequests = new AtomicInteger();
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            try {
+                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                    if (actualRequest instanceof SplitStateRequest r
+                        && r.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF
+                        && latch.getCount() > 0) {
+                        blockedRequests.incrementAndGet();
+                        latch.await();
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        awaitClusterState(indexNode, state -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null);
+        assertBusy(() -> assertEquals(1, blockedRequests.get()));
+        try {
+            var restoreRequest = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "test-repo", "two-shard-snap").indices(indexName)
+                .restoreOverExisting(true)
+                .waitForCompletion(true);
+            var restoreResponse = client().execute(TransportRestoreSnapshotAction.TYPE, restoreRequest).actionGet();
+            assertEquals(0, restoreResponse.getRestoreInfo().failedShards());
+        } finally {
+            latch.countDown();
+        }
+        assertRestoredAndAbandonedSplitCleanedUp(indexName, 2, numDocs, indexNode);
     }
 
     private void createSnapshotAndAssertSuccess(String snapshotName, String indexName) {

@@ -606,15 +606,11 @@ public class SplitSourceService {
 
             IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
-            // A restore over the index replaces its metadata, which always drops the resharding metadata. The handoff can then never
-            // succeed, and waiting for a primary term to advance would hold the permits indefinitely.
-            // The shard ids are checked too for the case where this first looks at the cluster state after another split has been started
-            // on the restored index (e.g. because the handoff was stuck for a long time). That split is not the one this handoff belongs
-            // to, and may not have its shards, whose primary terms are looked up below.
-            if (reshardingMetadata == null
-                || reshardingMetadata.isSplit() == false
-                || targetShardId.getId() >= indexMetadata.getNumberOfShards()
-                || sourceShardId.getId() >= indexMetadata.getNumberOfShards()) {
+            // A restore over the index can leave it with fewer shards than the split this handoff belongs to has (or another split could
+            // since have started on it), in which case the shards of this handoff are gone and their primary terms can't be looked up (and
+            // never advance). If the shards still exist, the restore recreates them and advances their primary terms, which is checked
+            // below.
+            if (targetShardId.getId() >= indexMetadata.getNumberOfShards() || sourceShardId.getId() >= indexMetadata.getNumberOfShards()) {
                 decision.outcome = Outcome.SPLIT_ABANDONED;
                 return true;
             }

@@ -77,13 +77,6 @@ public class SplitSourceServiceTests extends ESTestCase {
         assertHandoffIsAbandonedByRestore(2, 3, null);
     }
 
-    /// As above, but the restored index has as many shards as the split was going to create, so the target shard still exists. The
-    /// primary terms are no higher than the ones the handoff was started with, so without checking the resharding metadata the
-    /// observer would keep waiting, holding the permits.
-    public void testHandoffIsAbandonedWhenRestoreDiscardedTheReshardingMetadata() throws Exception {
-        assertHandoffIsAbandonedByRestore(4, 3, null);
-    }
-
     /// A handoff that was stuck while a restore replaced the index and a new split was then started on it only looks at the cluster state
     /// afterward. The state has resharding metadata, but of a split that doesn't have the handoff's shards (here a split of 1 shard
     /// into 2, for a handoff to shard 3 from shard 1). The handoff belongs to the split that was discarded, and needs to be abandoned

@@ -166,7 +166,10 @@ public class AllFirstBooleanByIntAggregator {
         BooleanBlock values,
         int otherPosition
     ) {
-        if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
+        // `observed` is indexed by the incoming row (`otherPosition`), not by group id. A page can
+        // carry a high group id in a single row, so comparing the group id to the page length skips
+        // this check and then folds an unobserved row in as a real value.
+        if (observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
             // The incoming state hasn't observed anything for this particular group. No work is needed.
             return;
         }
@@ -275,13 +278,15 @@ public class AllFirstBooleanByIntAggregator {
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group <= maxGroupId) {
-                        // We must have seen this group before and saved its state
-                        observedBlockBuilder.appendBoolean(hasValue(group));
+                    // maxGroupId is the highest group this aggregator collected, not proof that `group`
+                    // itself was collected. A lower id can be selected because another aggregator created
+                    // it. Emitting that id as timestamp-present uses the unset key (often -1 or 0), which
+                    // then wins a FIRST merge.
+                    if (group <= maxGroupId && hasValue(group)) {
+                        observedBlockBuilder.appendBoolean(true);
                         hasTimestampBuilder.appendBoolean(nullKey(group) == false);
                         timestampsBuilder.appendInt(key(group));
                     } else {
-                        // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);
                         hasTimestampBuilder.appendBoolean(false);
                         timestampsBuilder.appendNull();

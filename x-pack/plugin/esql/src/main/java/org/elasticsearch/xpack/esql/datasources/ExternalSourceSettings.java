@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -314,6 +315,23 @@ public final class ExternalSourceSettings {
         0,
         300,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a worker waits for the cluster state it lacks (a node that has just joined and not yet applied its first
+     * state, or one that has not yet applied a dataset change the coordinator planned from) before failing the query with
+     * a retryable 503. Only a worker that has to wait does: the coordinator's only choice for a query's external splits,
+     * or the last worker of the walk those splits take once every other one declined them. A worker with another still
+     * to try declines at once instead. One bound per request, whatever it has to wait for in turn. The first state is applied within a
+     * couple of seconds on a healthy node; the default leaves room for a slow one without parking a query for the length
+     * of a master timeout. {@code 0} fails at once.
+     */
+    public static final Setting<TimeValue> WORKER_READY_TIMEOUT = Setting.timeSetting(
+        "esql.external.worker_ready_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -677,6 +695,7 @@ public final class ExternalSourceSettings {
             MAX_CONCURRENT_REQUESTS,
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
+            WORKER_READY_TIMEOUT,
             FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,

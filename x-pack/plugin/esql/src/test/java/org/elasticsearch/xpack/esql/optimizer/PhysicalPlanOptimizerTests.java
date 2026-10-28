@@ -130,6 +130,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -160,14 +161,12 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -2442,10 +2441,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES));
 
         var boolQuery = as(sv(source.query(), "emp_no"), BoolQueryBuilder.class);
-        assertThat(boolQuery.mustNot(), hasSize(1));
-        var termQuery = as(boolQuery.mustNot().get(0), TermQueryBuilder.class);
-        assertThat(termQuery.fieldName(), is("emp_no"));
-        assertThat(termQuery.value(), is(10010));  // TODO this will match multivalued fields and we don't want that
+        assertThat(boolQuery.should(), hasSize(2));
+        var lt = as(boolQuery.should().get(0), RangeQueryBuilder.class);
+        assertThat(lt.fieldName(), is("emp_no"));
+        assertThat(lt.to(), is(10010));
+        assertFalse(lt.includeUpper());
+        var gt = as(boolQuery.should().get(1), RangeQueryBuilder.class);
+        assertThat(gt.fieldName(), is("emp_no"));
+        assertThat(gt.from(), is(10010));
+        assertFalse(gt.includeLower());
     }
 
     /**
@@ -10521,7 +10525,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
-    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+    public void testDisableTimeSeriesAggsReduction() {
+        var mapping = loadMapping("k8s-mappings.json");
+        EsIndex index = EsIndexGenerator.esIndex("k8s", mapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        Analyzer analyzer = analyzer().configuration(config).addIndex(index).buildAnalyzer();
+        var timeSeriesData = new TestDataSource(mapping, index, analyzer, TEST_SEARCH_STATS);
+
+        var plan = physicalPlan("""
+            TS k8s
+            | STATS max(rate(network.total_bytes_in)) BY TBUCKET(1 hour)
+            """, timeSeriesData);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var fragment = as(as(plans.v2(), ExchangeSinkExec.class).child(), FragmentExec.class);
+        assertTrue(
+            "expected a time-series aggregation on the data node",
+            fragment.fragment().anyMatch(TimeSeriesAggregate.class::isInstance)
+        );
+
+        assertThat(PlannerUtils.reductionPlan(plans.v2()), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
+    }
+
+    public void testDisableMetricsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10536,17 +10560,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(metricsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
-        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
-    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+    public void testDisableTsInfoReduction() {
         EsRelation esRelation = new EsRelation(
             Source.EMPTY,
             "k8s",
@@ -10561,14 +10578,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FragmentExec fragment = new FragmentExec(tsInfo);
         ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
 
-        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
-        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
-        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
-        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
-        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
-
-        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
-        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
+        assertThat(PlannerUtils.reductionPlan(dataPlan), equalTo(PlannerUtils.SimplePlanReduction.NO_REDUCTION));
     }
 
     @SuppressWarnings("SameParameterValue")

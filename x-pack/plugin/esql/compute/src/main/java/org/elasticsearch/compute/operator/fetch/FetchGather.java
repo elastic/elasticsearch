@@ -36,6 +36,9 @@ import java.util.List;
  *     page. A concatenation would copy every byte twice and hold both copies at once, and the wide columns a fetch
  *     defers are mostly {@link BytesRef}s.</li>
  * </ul>
+ * The first two share the block without a copy when an output page reads every response row in response order, like
+ * a cut that fits one page and is answered by a single shard. Wide columns like {@code _source} then cost nothing.
+ * <p>
  * {@code FetchGatherBenchmark} measures them against a gather that copies one row at a time.
  */
 public final class FetchGather {
@@ -248,12 +251,28 @@ public final class FetchGather {
     }
 
     /**
-     * Filters a block that holds the column of every response row.
+     * Filters a block that holds the column of every response row. An output page that reads every response row in
+     * response order, like the whole cut answered by a single shard, shares the block instead.
      */
     private record FilterGather(Block column, boolean mayContainDuplicates) implements ColumnGather {
         @Override
         public Block gather(int[] responseRows, int count) {
+            if (readsEveryRowInOrder(responseRows, count)) {
+                return shared(column);
+            }
             return column.filter(mayContainDuplicates, responseRows, 0, count);
+        }
+
+        private boolean readsEveryRowInOrder(int[] responseRows, int count) {
+            if (count != column.getPositionCount()) {
+                return false;
+            }
+            for (int i = 0; i < count; i++) {
+                if (responseRows[i] != i) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override

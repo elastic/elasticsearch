@@ -175,6 +175,56 @@ public class FetchGatherTests extends ComputeTestCase {
     }
 
     /**
+     * A single shard answers in the order of the cut. The fetched columns are shared, not copied. {@link BytesRef}s and
+     * fixed width values take different paths, so both are checked.
+     */
+    public void testSharesFetchedColumnsReadInResponseOrder() {
+        BlockFactory blockFactory = blockFactory();
+        Block sources = RandomBlock.randomBlock(blockFactory, ElementType.BYTES_REF, 3, true, 1, 3, 0, 0).block();
+        Block longs = RandomBlock.randomBlock(blockFactory, ElementType.LONG, 3, true, 1, 3, 0, 0).block();
+        List<Page> output = FetchGather.gather(
+            blockFactory,
+            List.of(new Page(blockFactory.newConstantIntBlockWith(0, 3))),
+            List.of(new Page(sources, longs)),
+            List.of(ElementType.BYTES_REF, ElementType.LONG),
+            new int[] { 0, 1, 2 },
+            false
+        );
+        try {
+            Page page = output.getFirst();
+            assertThat(page.getBlock(1), sameInstance(sources));
+            assertThat(page.getBlock(2), sameInstance(longs));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
+     * Rows read in response order, but one of them dropped, leave fewer rows than the response holds. The fetched
+     * column is filtered to the kept rows.
+     */
+    public void testFiltersFetchedColumnsReadInResponseOrderWithADroppedRow() {
+        BlockFactory blockFactory = blockFactory();
+        Page fetched = new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 30 }, 3).asBlock());
+        List<Page> output = FetchGather.gather(
+            blockFactory,
+            List.of(new Page(blockFactory.newConstantIntBlockWith(0, 3))),
+            List.of(fetched),
+            List.of(ElementType.LONG),
+            new int[] { 0, 1, -1 },
+            false
+        );
+        try {
+            LongBlock gathered = output.getFirst().getBlock(1);
+            assertThat(gathered.getPositionCount(), equalTo(2));
+            assertThat(gathered.getLong(0), equalTo(10L));
+            assertThat(gathered.getLong(1), equalTo(20L));
+        } finally {
+            output.forEach(Page::releaseBlocks);
+        }
+    }
+
+    /**
      * The input of a real fetch carries its documents. They are shared when every row stays, and filtered with the other
      * input columns when rows are dropped.
      */

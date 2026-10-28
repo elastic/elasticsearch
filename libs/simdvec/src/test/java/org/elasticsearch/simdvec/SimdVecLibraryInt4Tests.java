@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -53,11 +52,6 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testInt4BinaryVectors() {
@@ -352,7 +346,7 @@ public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
     }
 
     int similarity(MemorySegment unpacked, MemorySegment packed, int packedLen) {
-        return getVectorDistance().dotProductI4(unpacked, packed, packedLen);
+        return getVectorDistance().dotProductI4(packed, unpacked, packedLen);
     }
 
     void similarityBulk(MemorySegment packedDocs, MemorySegment unpackedQuery, int packedLen, int count, MemorySegment result) {

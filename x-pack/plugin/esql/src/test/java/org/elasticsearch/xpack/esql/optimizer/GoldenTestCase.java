@@ -86,13 +86,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -109,7 +107,6 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -189,26 +186,12 @@ public abstract class GoldenTestCase extends ESTestCase {
         return PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, testClass.getSimpleName()));
     }
 
-    /**
-     * A renamed or deleted test leaves its directory behind: the runner only ever looks at the directory of the test it is
-     * running. Compared against the methods the class declares, not the tests that ran, so a method filter or a mute cannot
-     * make a live directory look stale.
-     */
+    /** A renamed or deleted test leaves its directory behind: the runner only ever looks at the directory of the test it is running. */
     @AfterClass
     public static void noStaleTestDirectories() throws IOException, URISyntaxException {
         Class<?> testClass = getTestClass();
         Path root = goldenRoot(testClass);
-        if (Files.notExists(root)) {
-            return;
-        }
-        Set<String> methods = Arrays.stream(testClass.getMethods()).map(Method::getName).collect(Collectors.toSet());
-        List<Path> stale;
-        try (Stream<Path> dirs = Files.list(root)) {
-            stale = dirs.filter(Files::isDirectory)
-                .filter(dir -> methods.contains(dir.getFileName().toString()) == false)
-                .sorted()
-                .toList();
-        }
+        List<Path> stale = GoldenGc.staleTestDirectories(root, testClass);
         if (stale.isEmpty()) {
             return;
         }

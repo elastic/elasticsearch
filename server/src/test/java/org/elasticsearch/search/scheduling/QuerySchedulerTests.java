@@ -19,7 +19,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -98,7 +101,8 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * Each shard accumulates the time it had tasks queued while the query waited, whatever the other shards had queued.
+     * Each shard accumulates the time it had tasks queued while the query waited, whatever the other shards had queued. A
+     * shard is charged when one of its tasks leaves the queue.
      */
     public void testEachShardAccumulatesTheTimeItHadTasksQueued() {
         Waits first = new Waits();
@@ -113,7 +117,7 @@ public class QuerySchedulerTests extends ESTestCase {
         clock.set(20);
         pool.runNext();
         assertThat(first.total(), equalTo(20L));
-        assertThat(second.total(), equalTo(10L));
+        assertThat(second.values, empty());
         pool.runNext();
         assertThat(first.total(), equalTo(20L));
         assertThat(second.total(), equalTo(10L));
@@ -152,6 +156,8 @@ public class QuerySchedulerTests extends ESTestCase {
         }
         clock.set(10);
         pool.runNext();
+        assertThat(shard.values, empty());
+        pool.runNext();
         assertThat(shard.values, contains(10L));
     }
 
@@ -169,6 +175,28 @@ public class QuerySchedulerTests extends ESTestCase {
         pool.runNext();
         assertThat(shared.values, contains(10L));
         assertThat(other.values, contains(10L));
+    }
+
+    /**
+     * A task submitted to another executor through an executor is one of its tasks, like an ES|QL driver resuming on
+     * another queue.
+     */
+    public void testTaskSubmittedViaAnotherExecutor() {
+        Waits waits = new Waits();
+        ManualPool other = new ManualPool();
+        try (var executor = executor("q", pool, waits)) {
+            executor.execute(() -> {});
+            clock.set(10);
+            executor.execute(() -> {}, other);
+        }
+        assertThat(pool.tasks.size(), equalTo(1));
+        assertThat(other.tasks.size(), equalTo(1));
+        clock.set(20);
+        other.runNext();
+        assertThat(waits.values, contains(20L));
+        pool.runNext();
+        assertThat(waits.values, contains(20L));
+        assertThat(scheduler.queries(), equalTo(0));
     }
 
     /**
@@ -274,11 +302,11 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * The clock is read only when the query starts or stops waiting, or when the shards of its queued tasks change while
-     * it waits. Each read charges each queued shard with work once, so the updates per read are bounded by the shards of
-     * the queued tasks, here one executor per shard as for DSL phases.
+     * The clock is read only when the query starts or stops waiting, or when an executor starts queuing while the query
+     * waits. A task leaving the queue charges only the shards of its executor, once for all the waiting since they were last
+     * charged, here one executor per shard as for DSL phases, so the cost of a task does not grow with the tasks queued.
      */
-    public void testClockReadsAndChargesPerTransition() {
+    public void testClockReadsAndChargesPerTask() {
         int shardCount = between(1, 10);
         List<Waits> shards = new ArrayList<>();
         List<QueryScheduler.QueryExecutor> executors = new ArrayList<>();
@@ -307,9 +335,102 @@ public class QuerySchedulerTests extends ESTestCase {
         pool.runNext();
         assertThat(clockReads.get(), equalTo(shardCount + 1));
         for (int i = 0; i < shardCount; i++) {
-            assertThat(shards.get(i).values, equalTo(Collections.nCopies(shardCount - i, 1L)));
+            assertThat(shards.get(i).values, contains((long) (shardCount - i)));
         }
         assertThat(scheduler.queries(), equalTo(0));
+    }
+
+    /**
+     * Random tasks of executors sharing shards are queued, started in any order, run while others start, and complete. Each
+     * shard accumulates in total the time the query waited while the shard had tasks queued, once however many executors
+     * queued it, as a reference that follows every step computes.
+     */
+    public void testAccumulatesTheWaitingOfAReference() {
+        List<Waits> shards = new ArrayList<>();
+        for (int i = between(1, 5); i > 0; i--) {
+            shards.add(new Waits());
+        }
+        List<QueryScheduler.QueryExecutor> executors = new ArrayList<>();
+        List<List<Waits>> executorShards = new ArrayList<>();
+        for (int i = between(1, 6); i > 0; i--) {
+            List<Waits> some = randomNonEmptySubsetOf(shards);
+            executorShards.add(some);
+            executors.add(executor("q", pool, some.toArray(Waits[]::new)));
+        }
+        Reference reference = new Reference(executors.size(), shards);
+        List<Runnable> queued = new ArrayList<>();
+        int[] steps = { between(10, 200) };
+        Runnable[] step = new Runnable[1];
+        step[0] = () -> {
+            while (steps[0]-- > 0) {
+                switch (between(0, 3)) {
+                    case 0 -> {
+                        int e = between(0, executors.size() - 1);
+                        reference.queued[e]++;
+                        executors.get(e).execute(() -> {
+                            reference.queued[e]--;
+                            reference.running++;
+                            if (randomBoolean()) {
+                                step[0].run();
+                            }
+                            reference.running--;
+                        });
+                        queued.add(pool.tasks.pollLast());
+                    }
+                    case 1 -> {
+                        if (queued.isEmpty() == false) {
+                            queued.remove(between(0, queued.size() - 1)).run();
+                        }
+                    }
+                    case 2 -> reference.advance(between(0, 10), executorShards);
+                    case 3 -> {
+                        return;
+                    }
+                    default -> throw new AssertionError();
+                }
+            }
+        };
+        while (steps[0] > 0) {
+            step[0].run();
+        }
+        while (queued.isEmpty() == false) {
+            reference.advance(between(0, 10), executorShards);
+            queued.remove(between(0, queued.size() - 1)).run();
+        }
+        executors.forEach(QueryScheduler.QueryExecutor::close);
+        for (Waits shard : shards) {
+            assertThat(shard.total(), equalTo(reference.waited.get(shard)));
+        }
+        assertThat(scheduler.queries(), equalTo(0));
+    }
+
+    /**
+     * Follows the tasks of one query and accumulates its waiting to each shard as time passes.
+     */
+    private class Reference {
+        final int[] queued;
+        int running;
+        final Map<Waits, Long> waited = new IdentityHashMap<>();
+
+        Reference(int executors, List<Waits> shards) {
+            queued = new int[executors];
+            shards.forEach(shard -> waited.put(shard, 0L));
+        }
+
+        void advance(long nanos, List<List<Waits>> executorShards) {
+            boolean anyQueued = false;
+            Set<Waits> queuedShards = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (int e = 0; e < queued.length; e++) {
+                if (queued[e] > 0) {
+                    anyQueued = true;
+                    queuedShards.addAll(executorShards.get(e));
+                }
+            }
+            if (running == 0 && anyQueued) {
+                queuedShards.forEach(shard -> waited.merge(shard, nanos, Long::sum));
+            }
+            clock.addAndGet(nanos);
+        }
     }
 
     /**

@@ -2318,44 +2318,37 @@ public class ComputeService {
     }
 
     /**
-     * The shards the drivers search, skipping contexts already closed.
-     */
-    /**
      * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
      * and when they resume.
      */
     private final class QueryDriverExecutor implements DriverExecutor, Releasable {
-        private final QueryScheduler.QueryExecutor normal;
-        private final QueryScheduler.QueryExecutor resumed;
+        private final QueryScheduler.QueryExecutor executor;
+        /** The scheduler submits an {@link AbstractRunnable} it wraps as an {@link AbstractRunnable}. */
+        private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
 
         QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
-            QueryScheduler scheduler = searchService.queryScheduler();
-            this.normal = scheduler.executor(queryId, computeExecutor, shards);
-            this.resumed = scheduler.executor(queryId, task -> {
-                if (task instanceof AbstractRunnable runnable) {
-                    computeExecutor.executeResumed(runnable);
-                } else {
-                    computeExecutor.execute(task);
-                }
-            }, shards);
+            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
         }
 
         @Override
         public void execute(Runnable task) {
-            normal.execute(task);
+            executor.execute(task);
         }
 
         @Override
         public void executeResumed(AbstractRunnable task) {
-            resumed.execute(task);
+            executor.execute(task, resumed);
         }
 
         @Override
         public void close() {
-            Releasables.close(normal, resumed);
+            executor.close();
         }
     }
 
+    /**
+     * The shards the drivers search, skipping contexts already closed.
+     */
     static List<QueryScheduler.SearchedShard> searchedShards(IndexedByShardId<ComputeSearchContext> searchContexts) {
         List<QueryScheduler.SearchedShard> shards = new ArrayList<>();
         for (ComputeSearchContext context : searchContexts.iterable()) {

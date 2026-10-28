@@ -16,9 +16,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
@@ -39,7 +39,7 @@ public final class QueryScheduler {
     interface SearchWaitingAccumulator {
         /**
          * @param waitedInNanos the time the shard's work waited, in nanoseconds
-         * @param nowInNanos    the current time, from the scheduler's clock
+         * @param nowInNanos    the time the waiting was measured up to, from the scheduler's clock
          */
         void accumulateSearchWaiting(long waitedInNanos, long nowInNanos);
     }
@@ -48,17 +48,10 @@ public final class QueryScheduler {
      * A shard the tasks of an executor work on, and whether they still have work for it. Only shards with work accumulate
      * waiting.
      */
-    public record SearchedShard(IndexShard shard, BooleanSupplier hasWork) {
-        /**
-         * A shard with work as long as its tasks are queued.
-         */
-        public static SearchedShard of(IndexShard shard) {
-            return new SearchedShard(shard, () -> true);
-        }
-    }
+    public record SearchedShard(IndexShard shard, BooleanSupplier hasWork) {}
 
     /**
-     * A {@link SearchedShard}. {@code id} identifies it across the executors of a query.
+     * A shard as the scheduler tracks it. {@code id} identifies it across the executors of a query.
      */
     record Shard(Object id, SearchWaitingAccumulator searchWaiting, BooleanSupplier hasWork) {}
 
@@ -86,6 +79,15 @@ public final class QueryScheduler {
         return newExecutor(queryId, delegate, searched);
     }
 
+    /**
+     * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}, all working on
+     * {@code shard}, which has work as long as they are queued.
+     */
+    public QueryExecutor executor(TaskId queryId, Executor delegate, IndexShard shard) {
+        ShardSearchStats stats = shard.shardSearchStats();
+        return newExecutor(queryId, delegate, List.of(new Shard(stats, stats::accumulateSearchWaiting, () -> true)));
+    }
+
     QueryExecutor newExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
         assert shards.stream().map(Shard::id).distinct().count() == shards.size() : "shards listed more than once " + shards;
         return new QueryExecutor(queryId, delegate, shards);
@@ -99,14 +101,21 @@ public final class QueryScheduler {
     }
 
     /**
-     * Submits the tasks of a query to the executor it wraps and tracks them for the query.
+     * Submits the tasks of a query to the executor it wraps and tracks them for the query. Its state is guarded by the
+     * query its tasks are submitted for.
      */
     public final class QueryExecutor implements Executor, Releasable {
         private final TaskId queryId;
         private final Executor delegate;
         private final List<Shard> shards;
-        /** Tasks submitted through this executor and not started. Guarded by the query they were submitted for. */
+        /** Tasks submitted and not started. */
         private int queuedTasks;
+        /** The waiting of the query when this executor last charged its shards, or started queuing. */
+        private long chargedWaitedNanos;
+        /** The state of each of {@link #shards} in the query, while {@link #shared}. */
+        private QueuedShard[] queuedShards;
+        /** Whether other executors of the query queued at the same time, so its shards are charged through the query. */
+        private boolean shared;
         /** Only checked by assertions. */
         private boolean closed;
 
@@ -118,14 +127,19 @@ public final class QueryScheduler {
 
         @Override
         public void execute(Runnable runnable) {
+            execute(runnable, delegate);
+        }
+
+        /**
+         * Submits a task to {@code via} instead of the executor this one wraps, tracked like the other tasks of this
+         * executor.
+         */
+        public void execute(Runnable runnable, Executor via) {
             assert closed == false : "executor of query [" + queryId + "] is closed";
-            QueuedTask task = new QueuedTask(this);
+            Task task = new Task(this, runnable);
             onQueued(task);
-            Runnable wrapped = runnable instanceof AbstractRunnable abstractRunnable
-                ? new TaskAbstractRunnable(task, abstractRunnable)
-                : new TaskRunnable(task, runnable);
             try {
-                delegate.execute(wrapped);
+                via.execute(runnable instanceof AbstractRunnable ? task : new PlainTask(task));
             } catch (RuntimeException e) {
                 onCompleted(task);
                 throw e;
@@ -144,7 +158,7 @@ public final class QueryScheduler {
     /**
      * Counts the task as queued for its query, tracking the query if it has no other task.
      */
-    private void onQueued(QueuedTask task) {
+    private void onQueued(Task task) {
         TaskId queryId = task.executor.queryId;
         while (true) {
             Query query = queries.computeIfAbsent(queryId, Query::new);
@@ -161,7 +175,7 @@ public final class QueryScheduler {
         }
     }
 
-    private void onStarted(QueuedTask task) {
+    private void onStarted(Task task) {
         synchronized (task.query) {
             task.started = true;
             // a task its delegate queued before throwing was completed when the delegate threw
@@ -174,7 +188,7 @@ public final class QueryScheduler {
     /**
      * The task completed, or was rejected before it started. Only the first call for a task counts.
      */
-    private void onCompleted(QueuedTask task) {
+    private void onCompleted(Task task) {
         Query query = task.query;
         synchronized (query) {
             if (task.completed) {
@@ -191,16 +205,27 @@ public final class QueryScheduler {
     }
 
     /**
-     * The tasks of one query on this node, guarded by itself. The clock is read only when the waiting of the query changes.
+     * The tasks of one query on this node, guarded by itself.
+     * <p>
+     * The query keeps the total time it waited on the node. The shards of a task are charged the part of that total they
+     * were not charged yet when the task leaves the queue, so a task never updates the other shards of the query. The
+     * executor keeps what its shards were charged up to, unless other executors of the query queue at the same time: then
+     * each shard keeps it in the query, so a shard they share is charged once.
      */
     private static final class Query {
         final TaskId id;
-        /** The executors of the query with tasks queued. */
-        final List<QueryExecutor> queuingExecutors = new ArrayList<>(1);
         int queuedTasks;
         int runningTasks;
-        /** While the query waits, the time up to which its waiting was charged to its shards. */
-        long waitingChargedUntilNanos;
+        /** The time the query waited on the node, up to {@link #waitedUpToNanos}. */
+        long waitedNanos;
+        /** The last time {@link #waitedNanos} was brought up to date. */
+        long waitedUpToNanos;
+        /** The executors of the query with tasks queued. */
+        int queuingExecutors;
+        /** The executor with tasks queued while it is the only one, until another one queues. */
+        QueryExecutor loneExecutor;
+        /** The shards of the shared executors, by id. */
+        Map<Object, QueuedShard> queuedShards;
         /** Whether the query had no task left and is no longer tracked. */
         boolean forgotten;
 
@@ -216,144 +241,199 @@ public final class QueryScheduler {
             return runningTasks == 0 && queuedTasks == 0;
         }
 
+        /**
+         * Brings {@link #waitedNanos} up to now. Called before a change that can start or stop the waiting, and before the
+         * waiting is read while the query waits, so the clock is read only then.
+         */
+        private void tick(LongSupplier clock) {
+            long now = clock.getAsLong();
+            if (isWaiting()) {
+                waitedNanos += now - waitedUpToNanos;
+            }
+            waitedUpToNanos = now;
+        }
+
         void queued(QueryExecutor executor, LongSupplier clock) {
-            boolean wasWaiting = isWaiting();
-            if (executor.queuedTasks++ == 0) {
-                // the shards with queued tasks change: charge the waiting so far to the shards that waited
-                if (wasWaiting) {
-                    chargeWaiting(clock.getAsLong());
-                }
-                queuingExecutors.add(executor);
+            boolean joins = executor.queuedTasks++ == 0;
+            // the query starts waiting, or an executor starts queuing while it waits
+            if (runningTasks == 0 && (queuedTasks == 0 || joins)) {
+                tick(clock);
             }
             queuedTasks++;
-            if (wasWaiting == false && isWaiting()) {
-                waitingChargedUntilNanos = clock.getAsLong();
+            if (joins) {
+                join(executor);
             }
         }
 
         void started(QueryExecutor executor, LongSupplier clock) {
-            if (isWaiting()) {
-                chargeWaiting(clock.getAsLong());
+            // the query stops waiting
+            if (runningTasks == 0) {
+                tick(clock);
             }
-            removeQueued(executor);
+            queuedTasks--;
             runningTasks++;
+            leaveQueue(executor);
         }
 
-        void completed(QueuedTask task, LongSupplier clock) {
-            boolean wasWaiting = isWaiting();
-            if (wasWaiting) {
-                chargeWaiting(clock.getAsLong());
-            }
+        void completed(Task task, LongSupplier clock) {
             if (task.started) {
+                // the query starts waiting
+                if (runningTasks == 1 && queuedTasks > 0) {
+                    tick(clock);
+                }
                 runningTasks--;
             } else {
-                removeQueued(task.executor);
-            }
-            if (wasWaiting == false && isWaiting()) {
-                waitingChargedUntilNanos = clock.getAsLong();
-            }
-        }
-
-        private void removeQueued(QueryExecutor executor) {
-            assert executor.queuedTasks > 0 : "task of query [" + id + "] was not queued";
-            queuedTasks--;
-            if (--executor.queuedTasks == 0) {
-                queuingExecutors.remove(executor);
+                // rejected before it started: it leaves the queue while the query may wait
+                if (runningTasks == 0) {
+                    tick(clock);
+                }
+                queuedTasks--;
+                leaveQueue(task.executor);
             }
         }
 
         /**
-         * Charges the time since the waiting was last charged to each distinct shard of the queued tasks that has work, so
-         * once per shard the query has queued on the node.
+         * The executor has its first task queued: its shards will be charged from the waiting so far, or from what a shard
+         * was charged up to if another executor of the query has it queued already.
          */
-        private void chargeWaiting(long now) {
-            long waited = now - waitingChargedUntilNanos;
-            waitingChargedUntilNanos = now;
-            if (waited <= 0) {
+        private void join(QueryExecutor executor) {
+            executor.chargedWaitedNanos = waitedNanos;
+            if (queuingExecutors++ == 0) {
+                loneExecutor = executor;
                 return;
             }
-            // an executor lists each shard once, so shards only need deduplicating across executors
-            Set<Object> charged = queuingExecutors.size() > 1 ? new HashSet<>() : null;
-            for (QueryExecutor executor : queuingExecutors) {
-                for (Shard shard : executor.shards) {
-                    if (shard.hasWork().getAsBoolean() && (charged == null || charged.add(shard.id()))) {
-                        shard.searchWaiting().accumulateSearchWaiting(waited, now);
-                    }
+            if (loneExecutor != null) {
+                share(loneExecutor);
+                loneExecutor = null;
+            }
+            share(executor);
+        }
+
+        /**
+         * Moves what the shards of the executor were charged up to into the query, where the other executors that queue the
+         * same shards find it.
+         */
+        private void share(QueryExecutor executor) {
+            if (queuedShards == null) {
+                queuedShards = new HashMap<>();
+            }
+            if (executor.queuedShards == null) {
+                executor.queuedShards = new QueuedShard[executor.shards.size()];
+            }
+            for (int i = 0; i < executor.shards.size(); i++) {
+                Object id = executor.shards.get(i).id();
+                QueuedShard queued = queuedShards.get(id);
+                if (queued == null) {
+                    queued = new QueuedShard(executor.chargedWaitedNanos);
+                    queuedShards.put(id, queued);
+                }
+                queued.executors++;
+                executor.queuedShards[i] = queued;
+            }
+            executor.shared = true;
+        }
+
+        /**
+         * A task of the executor left the queue: charges its shards if the query waited since the executor last charged
+         * them, and forgets them if it was the last task the executor had queued.
+         */
+        private void leaveQueue(QueryExecutor executor) {
+            if (executor.chargedWaitedNanos != waitedNanos) {
+                charge(executor);
+            }
+            if (--executor.queuedTasks > 0) {
+                return;
+            }
+            queuingExecutors--;
+            if (executor.shared == false) {
+                assert loneExecutor == executor : "executor of query [" + id + "] is neither alone nor shared";
+                loneExecutor = null;
+                return;
+            }
+            for (int i = 0; i < executor.queuedShards.length; i++) {
+                QueuedShard queued = executor.queuedShards[i];
+                executor.queuedShards[i] = null;
+                if (--queued.executors == 0) {
+                    queuedShards.remove(executor.shards.get(i).id());
                 }
             }
+            executor.shared = false;
+        }
+
+        /**
+         * Charges the shards of the executor that have work the waiting since they were last charged. A shard without work
+         * leaves its waiting to the other executors of the query that work on it.
+         */
+        private void charge(QueryExecutor executor) {
+            for (int i = 0; i < executor.shards.size(); i++) {
+                Shard shard = executor.shards.get(i);
+                if (shard.hasWork().getAsBoolean() == false) {
+                    continue;
+                }
+                long chargedWaitedNanos;
+                if (executor.shared) {
+                    chargedWaitedNanos = executor.queuedShards[i].chargedWaitedNanos;
+                    executor.queuedShards[i].chargedWaitedNanos = waitedNanos;
+                } else {
+                    chargedWaitedNanos = executor.chargedWaitedNanos;
+                }
+                if (waitedNanos > chargedWaitedNanos) {
+                    shard.searchWaiting().accumulateSearchWaiting(waitedNanos - chargedWaitedNanos, waitedUpToNanos);
+                }
+            }
+            executor.chargedWaitedNanos = waitedNanos;
         }
     }
 
     /**
-     * A task submitted through a {@link QueryExecutor}. Its query is set before it is submitted to the delegate; its flags
-     * are guarded by its query.
+     * A shard of the shared executors of a query.
      */
-    private static final class QueuedTask {
+    private static final class QueuedShard {
+        /** The waiting of the query the shard was charged up to. */
+        long chargedWaitedNanos;
+        /** The shared executors with tasks queued for the shard. */
+        int executors;
+
+        QueuedShard(long chargedWaitedNanos) {
+            this.chargedWaitedNanos = chargedWaitedNanos;
+        }
+    }
+
+    /**
+     * A task submitted through a {@link QueryExecutor}. It keeps the rejection, failure and force execution behavior of the
+     * {@link AbstractRunnable} it wraps. Its query is set before it is submitted to the delegate; its flags are guarded by
+     * its query.
+     */
+    private final class Task extends AbstractRunnable {
         final QueryExecutor executor;
+        final Runnable delegate;
         Query query;
         boolean started;
         boolean completed;
 
-        QueuedTask(QueryExecutor executor) {
+        Task(QueryExecutor executor, Runnable delegate) {
             this.executor = executor;
-        }
-    }
-
-    private final class TaskRunnable implements Runnable {
-        private final QueuedTask task;
-        private final Runnable delegate;
-
-        TaskRunnable(QueuedTask task, Runnable delegate) {
-            this.task = task;
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void run() {
-            onStarted(task);
-            try {
-                delegate.run();
-            } finally {
-                onCompleted(task);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return delegate.toString();
-        }
-    }
-
-    /**
-     * Keeps the rejection, failure and force execution behavior of the {@link AbstractRunnable} it wraps.
-     */
-    private final class TaskAbstractRunnable extends AbstractRunnable {
-        private final QueuedTask task;
-        private final AbstractRunnable delegate;
-
-        TaskAbstractRunnable(QueuedTask task, AbstractRunnable delegate) {
-            this.task = task;
             this.delegate = delegate;
         }
 
         @Override
         public boolean isForceExecution() {
-            return delegate.isForceExecution();
+            return delegate instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
         }
 
         @Override
         protected void doRun() {
-            onStarted(task);
+            onStarted(this);
             try {
                 delegate.run();
             } finally {
-                onCompleted(task);
+                onCompleted(this);
             }
         }
 
         @Override
         public void onFailure(Exception e) {
-            // the delegate handles its own failures, so this was thrown by its failure handling
+            // thrown by a plain runnable, or by the failure handling of an AbstractRunnable: rethrow it as they would unwrapped
             if (e instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
@@ -362,22 +442,38 @@ public final class QueryScheduler {
 
         @Override
         public void onRejection(Exception e) {
-            onCompleted(task);
-            delegate.onRejection(e);
+            onCompleted(this);
+            ((AbstractRunnable) delegate).onRejection(e);
         }
 
         @Override
         public void onAfter() {
-            if (task.started == false) {
+            if (started == false) {
                 // rejected: the delegate did not run, so it did not call its own onAfter
-                onCompleted(task);
-                delegate.onAfter();
+                onCompleted(this);
+                ((AbstractRunnable) delegate).onAfter();
             }
         }
 
         @Override
         public String toString() {
             return delegate.toString();
+        }
+    }
+
+    /**
+     * A {@link Task} that wraps a plain {@link Runnable}, submitted as a plain {@link Runnable} so the executor handles it,
+     * and rejects it, as it would the runnable.
+     */
+    private record PlainTask(Task task) implements Runnable {
+        @Override
+        public void run() {
+            task.run();
+        }
+
+        @Override
+        public String toString() {
+            return task.toString();
         }
     }
 }

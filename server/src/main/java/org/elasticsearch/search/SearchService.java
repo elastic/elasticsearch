@@ -1149,7 +1149,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Runs a phase of {@code task} on the pool of {@code shard}, through the {@link QueryScheduler}.
      */
     private void executeOnShard(IndexShard shard, Task task, Runnable runnable) {
-        try (var executor = queryScheduler.executor(queryId(task), getExecutor(shard), List.of(QueryScheduler.SearchedShard.of(shard)))) {
+        try (var executor = queryScheduler.executor(queryId(task), getExecutor(shard), shard)) {
             executor.execute(runnable);
         }
     }

@@ -182,7 +182,7 @@ public final class ShardSearchStats implements SearchOperationListener {
      * Accumulates the recent search waiting for this shard: the time a query waited with work for it queued on the node.
      *
      * @param waitedInNanos the time waited, in nanoseconds
-     * @param nowInNanos    the current monotonic time, in nanoseconds, obtained from
+     * @param nowInNanos    the monotonic time the waiting was measured up to, in nanoseconds, obtained from
      *                      {@link System#nanoTime()}, used as the timestamp for the waiting sample
      */
     public void accumulateSearchWaiting(long waitedInNanos, long nowInNanos) {

@@ -23,7 +23,7 @@ TS index_pattern [METADATA fields]
 `index_pattern`
 :   A list of indices, data streams or aliases with the [`time_series` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). Supports wildcards and date math.
 
-    `index_pattern` can't reference [views](/reference/query-languages/esql/esql-views.md) or subqueries, even if they're backed by time series indices. If you name a view explicitly, the query fails. Wildcard patterns skip any matching views. To query a view, use [`FROM`](/reference/query-languages/esql/commands/from.md) instead.
+    `index_pattern` can't reference [views](/reference/query-languages/esql/esql-views.md) or [subqueries](/reference/query-languages/esql/esql-from-subquery.md), even if they're backed by time series indices. If you name a view explicitly, the query fails. Wildcard patterns skip any matching views. To query a view, use [`FROM`](/reference/query-languages/esql/commands/from.md) instead.
 
 `fields`
 :   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) to retrieve.

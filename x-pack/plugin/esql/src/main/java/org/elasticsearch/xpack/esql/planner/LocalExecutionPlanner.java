@@ -51,7 +51,6 @@ import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MetricFieldInfo;
-import org.elasticsearch.compute.operator.MetricsInfoMetadataTracker;
 import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -2036,13 +2035,7 @@ public class LocalExecutionPlanner {
         Map<String, String> dataStreamsByIndex = createDataStreamLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new MetricsInfoOperator.Factory(
-                fieldLookup,
-                dataStreamsByIndex,
-                metadataSourceChannel,
-                indexChannel,
-                createMetricsInfoMetadataTracker(context.shardContexts, dataStreamsByIndex, fieldLookup)
-            ),
+            createMetricsInfoOperatorFactory(context.shardContexts, dataStreamsByIndex, fieldLookup, metadataSourceChannel, indexChannel),
             layoutBuilder.build()
         );
     }
@@ -2220,11 +2213,12 @@ public class LocalExecutionPlanner {
         return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), index.getParentDataStream().getName());
     }
 
-    @Nullable
-    private MetricsInfoMetadataTracker createMetricsInfoMetadataTracker(
+    private MetricsInfoOperator.Factory createMetricsInfoOperatorFactory(
         IndexedByShardId<? extends ShardContext> shardContexts,
         Map<String, String> dataStreamsByIndex,
-        MetricsInfoOperator.MetricFieldLookup fieldLookup
+        MetricsInfoOperator.MetricFieldLookup fieldLookup,
+        int metadataSourceChannel,
+        int indexChannel
     ) {
         Map<String, List<MetricFieldInfo>> metricsByDataStream = new HashMap<>();
         Map<String, Set<String>> dimensionFieldsByDataStream = new HashMap<>();
@@ -2236,7 +2230,7 @@ public class LocalExecutionPlanner {
             if (previousMapping != null) {
                 // Shards can capture different mapping snapshots during a concurrent mapping update.
                 if (previousMapping != mapping) {
-                    return null;
+                    return new MetricsInfoOperator.Factory(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel);
                 }
                 continue;
             }
@@ -2246,7 +2240,7 @@ public class LocalExecutionPlanner {
                 MappedFieldType field = mapper.fieldType();
                 // Compound dimensions can expose metadata leaf names that are not enumerated in the mapping.
                 if (METRICS_INFO_SCALAR_DIMENSION_TYPES.contains(field.typeName()) == false) {
-                    return null;
+                    return new MetricsInfoOperator.Factory(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel);
                 }
                 dimensionFields.add(field.name());
             }
@@ -2258,7 +2252,14 @@ public class LocalExecutionPlanner {
                 }
             }
         }
-        return new MetricsInfoMetadataTracker(metricsByDataStream, dimensionFieldsByDataStream);
+        return new MetricsInfoOperator.Factory(
+            fieldLookup,
+            dataStreamsByIndex,
+            metadataSourceChannel,
+            indexChannel,
+            metricsByDataStream,
+            dimensionFieldsByDataStream
+        );
     }
 
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {

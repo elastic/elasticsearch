@@ -27,12 +27,15 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
@@ -137,24 +140,93 @@ public class MetricsInfoOperator implements Operator {
     private static final int COL_DIMENSION_FIELDS = 5;
 
     /**
-     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
-     *
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param dataStreamsByIndex   backing index names mapped to their parent data streams, including cluster qualifiers
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
-     * @param indexChannel         channel index for {@code _index} block
-     * @param metadataTracker      shared proof of metadata completeness, or null when metadata cannot be bounded
+     * Creates INITIAL operators with shared completion state so any driver's complete metadata can finish the data-node plan.
      */
-    public record Factory(
-        MetricFieldLookup fieldLookup,
-        Map<String, String> dataStreamsByIndex,
-        int metadataSourceChannel,
-        int indexChannel,
-        @Nullable MetricsInfoMetadataTracker metadataTracker
-    ) implements OperatorFactory {
+    public static final class Factory implements OperatorFactory {
+        private final MetricFieldLookup fieldLookup;
+        private final Map<String, String> dataStreamsByIndex;
+        private final int metadataSourceChannel;
+        private final int indexChannel;
+        @Nullable
+        private final Map<MetricInfoKey, MetricInfo> expectedByKey;
+        private final Map<String, Set<String>> dimensionFieldsByDataStream;
+        private final Set<MetricInfoKey> completedKeys = ConcurrentHashMap.newKeySet();
+        private final AtomicInteger remainingMetrics;
+
         /** Consumes all input when no mapping bounds are available to prove metadata completeness. */
         public Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int metadataSourceChannel, int indexChannel) {
-            this(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel, null);
+            this(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel, null, Map.of());
+        }
+
+        /**
+         * Enables exact early termination using mapping bounds. Each metric and data-stream pair must have a complete
+         * contribution from one driver. Mapping fields are never added to the result without matching documents.
+         *
+         * @param fieldLookup on-demand lookup for metric field metadata
+         * @param dataStreamsByIndex backing indices mapped to their parent data streams, including cluster qualifiers
+         * @param metadataSourceChannel input channel for {@code _timeseries_metadata}
+         * @param indexChannel input channel for {@code _index}
+         * @param metricsByDataStream all mapped metric definitions, or null when metadata cannot be bounded
+         * @param dimensionFieldsByDataStream every possible metadata leaf name for each data stream
+         */
+        public Factory(
+            MetricFieldLookup fieldLookup,
+            Map<String, String> dataStreamsByIndex,
+            int metadataSourceChannel,
+            int indexChannel,
+            @Nullable Map<String, List<MetricFieldInfo>> metricsByDataStream,
+            Map<String, Set<String>> dimensionFieldsByDataStream
+        ) {
+            this.fieldLookup = fieldLookup;
+            this.dataStreamsByIndex = dataStreamsByIndex;
+            this.metadataSourceChannel = metadataSourceChannel;
+            this.indexChannel = indexChannel;
+            Map<String, Set<String>> dimensions = new HashMap<>();
+            dimensionFieldsByDataStream.forEach((dataStream, fields) -> dimensions.put(dataStream, Set.copyOf(fields)));
+            this.dimensionFieldsByDataStream = Map.copyOf(dimensions);
+            Map<MetricInfoKey, MetricInfo> expected = new HashMap<>();
+            if (metricsByDataStream != null) {
+                metricsByDataStream.forEach((dataStream, metrics) -> {
+                    for (MetricFieldInfo metric : metrics) {
+                        MetricInfo info = expected.computeIfAbsent(
+                            new MetricInfoKey(metric.name(), dataStream),
+                            key -> new MetricInfo(key.metricName(), key.indexAbstractionName())
+                        );
+                        if (metric.unit() != null) {
+                            info.units.add(metric.unit());
+                        }
+                        info.fieldTypes.add(metric.fieldType());
+                        info.metricTypes.add(metric.metricType());
+                    }
+                });
+            }
+            // Changing signatures can regroup intermediate rows. Keep the full scan for those mappings.
+            boolean changingSignatures = expected.values()
+                .stream()
+                .anyMatch(info -> info.units.size() > 1 || info.fieldTypes.size() > 1 || info.metricTypes.size() > 1);
+            expectedByKey = metricsByDataStream == null || changingSignatures ? null : Map.copyOf(expected);
+            remainingMetrics = new AtomicInteger(expected.size());
+        }
+
+        private void observe(MetricInfo info) {
+            if (expectedByKey == null) {
+                return;
+            }
+            MetricInfoKey key = new MetricInfoKey(info.name, info.indexAbstractionName);
+            MetricInfo expected = expectedByKey.get(key);
+            if (expected != null
+                && completedKeys.contains(key) == false
+                && expected.units.equals(info.units)
+                && expected.fieldTypes.equals(info.fieldTypes)
+                && expected.metricTypes.equals(info.metricTypes)
+                && dimensionFieldsByDataStream.getOrDefault(info.indexAbstractionName, Set.of()).equals(info.dimensionFieldKeys)
+                && completedKeys.add(key)) {
+                remainingMetrics.decrementAndGet();
+            }
+        }
+
+        private boolean isComplete() {
+            return expectedByKey != null && remainingMetrics.get() == 0;
         }
 
         @Override
@@ -167,7 +239,7 @@ public class MetricsInfoOperator implements Operator {
                 metadataSourceChannel,
                 indexChannel,
                 null,
-                metadataTracker
+                this
             );
         }
 
@@ -223,7 +295,7 @@ public class MetricsInfoOperator implements Operator {
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
     @Nullable
-    private final MetricsInfoMetadataTracker metadataTracker;
+    private final Factory initialFactory;
 
     private boolean finished = false;
     private boolean outputProduced = false;
@@ -240,7 +312,7 @@ public class MetricsInfoOperator implements Operator {
         int metadataSourceChannel,
         int indexChannel,
         int[] channels,
-        @Nullable MetricsInfoMetadataTracker metadataTracker
+        @Nullable Factory initialFactory
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -250,7 +322,7 @@ public class MetricsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
-        this.metadataTracker = metadataTracker;
+        this.initialFactory = initialFactory;
     }
 
     @Override
@@ -259,7 +331,7 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private boolean inputFinished() {
-        return finished || (metadataTracker != null && metadataTracker.isComplete());
+        return finished || (initialFactory != null && initialFactory.isComplete());
     }
 
     @Override
@@ -417,15 +489,8 @@ public class MetricsInfoOperator implements Operator {
         if (prefix == null) {
             for (MetricInfo info : touchedMetrics) {
                 trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
-                if (metadataTracker != null) {
-                    metadataTracker.observe(
-                        info.name,
-                        info.indexAbstractionName,
-                        info.units,
-                        info.fieldTypes,
-                        info.metricTypes,
-                        info.dimensionFieldKeys
-                    );
+                if (initialFactory != null) {
+                    initialFactory.observe(info);
                 }
             }
         }

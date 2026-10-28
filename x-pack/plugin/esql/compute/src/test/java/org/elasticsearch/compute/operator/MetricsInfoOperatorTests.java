@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -1649,15 +1651,15 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialModeStopsWhenMetadataIsComplete() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
             Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
             Map.of("my-index", Set.of("host"))
         );
-        try (
-            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
-                driverContext()
-            )
-        ) {
+        try (Operator op = factory.get(driverContext())) {
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
             assertTrue(op.needsInput());
             assertNull(op.getOutput());
@@ -1677,15 +1679,15 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialModeWaitsForEveryDimensionField() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
             Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"))),
             Map.of("my-index", Set.of("host", "region"))
         );
-        try (
-            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
-                driverContext()
-            )
-        ) {
+        try (Operator op = factory.get(driverContext())) {
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
             assertTrue(op.needsInput());
             assertNull(op.getOutput());
@@ -1703,15 +1705,15 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialModeDoesNotInventMappedMetrics() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
             Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
             Map.of("my-index", Set.of("host"))
         );
-        try (
-            Operator op = new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
-                driverContext()
-            )
-        ) {
+        try (Operator op = factory.get(driverContext())) {
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "my-index"));
             assertTrue(op.needsInput());
             op.finish();
@@ -1726,7 +1728,11 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialDriversShareMetadataCompletion() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
             Map.of(
                 "index-a",
                 List.of(SIMPLE_LOOKUP.lookup("index-a", "cpu_usage")),
@@ -1734,13 +1740,6 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
                 List.of(SIMPLE_LOOKUP.lookup("index-b", "cpu_usage"))
             ),
             Map.of("index-a", Set.of("host"), "index-b", Set.of("host"))
-        );
-        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
-            SIMPLE_LOOKUP,
-            Map.of(),
-            METADATA_CHANNEL,
-            INDEX_CHANNEL,
-            tracker
         );
         try (
             Operator first = factory.get(driverContext());
@@ -1776,15 +1775,15 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         MetricsInfoOperator.MetricFieldLookup lookup = (index, field) -> "cpu_usage".equals(field)
             ? (index.equals(firstIndex) ? firstField : secondField)
             : null;
-        MetricsInfoMetadataTracker tracker = new MetricsInfoMetadataTracker(
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            lookup,
+            DATA_STREAMS_BY_INDEX,
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
             Map.of("k8s", List.of(firstField, secondField)),
             Map.of("k8s", Set.of("host"))
         );
-        try (
-            Operator op = new MetricsInfoOperator.Factory(lookup, DATA_STREAMS_BY_INDEX, METADATA_CHANNEL, INDEX_CHANNEL, tracker).get(
-                driverContext()
-            )
-        ) {
+        try (Operator op = factory.get(driverContext())) {
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", firstIndex));
             assertTrue(op.needsInput());
             op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"b\"}", secondIndex));
@@ -1798,6 +1797,98 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             } finally {
                 output.releaseBlocks();
             }
+        }
+    }
+
+    public void testEachMetricMustObserveItsOwnDimensions() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
+            Map.of("my-index", Set.of("host", "region"))
+        );
+        try (Operator op = factory.get(driverContext())) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\", \"region\": \"eu\"}", "my-index"));
+            op.addInput(buildPage(blockFactory, "{\"disk_io\": 10, \"host\": \"a\"}", "my-index"));
+            assertTrue(op.needsInput());
+            op.addInput(buildPage(blockFactory, "{\"disk_io\": 10, \"region\": \"eu\"}", "my-index"));
+            assertFalse(op.needsInput());
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(2));
+                for (int row = 0; row < output.getPositionCount(); row++) {
+                    assertThat(collectMultiValues(output, 5, row), equalTo(Set.of("host", "region")));
+                }
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testUnexpectedMetadataDoesNotFinishInput() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"))),
+            Map.of("my-index", Set.of("host"))
+        );
+        try (Operator op = factory.get(driverContext())) {
+            op.addInput(buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\", \"extra\": \"present\"}", "my-index"));
+            assertTrue(op.needsInput());
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("host", "extra")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    public void testConcurrentInitialDriversCompleteOnce() throws InterruptedException {
+        MetricsInfoOperator.Factory factory = new MetricsInfoOperator.Factory(
+            SIMPLE_LOOKUP,
+            Map.of(),
+            METADATA_CHANNEL,
+            INDEX_CHANNEL,
+            Map.of("my-index", List.of(SIMPLE_LOOKUP.lookup("my-index", "cpu_usage"), SIMPLE_LOOKUP.lookup("my-index", "disk_io"))),
+            Map.of("my-index", Set.of("host"))
+        );
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread[] threads = new Thread[between(2, 8)];
+        for (int i = 0; i < threads.length; i++) {
+            DriverContext ctx = driverContext();
+            threads[i] = new Thread(() -> {
+                try (Operator op = factory.get(ctx)) {
+                    start.await();
+                    if (op.needsInput()) {
+                        op.addInput(buildPage(ctx.blockFactory(), "{\"cpu_usage\": 0.5, \"disk_io\": 10, \"host\": \"a\"}", "my-index"));
+                    }
+                    op.finish();
+                    op.getOutput().releaseBlocks();
+                } catch (Throwable e) {
+                    failure.compareAndSet(null, e);
+                }
+            });
+            threads[i].start();
+        }
+        start.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        if (failure.get() != null) {
+            throw new AssertionError("initial driver failed", failure.get());
+        }
+        try (Operator op = factory.get(driverContext())) {
+            assertFalse(op.needsInput());
+            op.getOutput().releaseBlocks();
         }
     }
 

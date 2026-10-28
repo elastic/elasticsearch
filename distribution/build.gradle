@@ -260,6 +260,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
   apply plugin: 'elasticsearch.repositories'
+  apply plugin: 'elasticsearch.native-library-collection'
 
   int bundledJdkMajor = BundledJdkPlatforms.bundledJdkMajor(buildParams)
 
@@ -328,7 +329,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherNativeX64', 'libsServerLauncherNativeAarch64', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -377,10 +378,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
-    // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
-    // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
-    libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
     libsEntitlementAgent project(':libs:entitlement:agent')
     libsEntitlementBridge project(':libs:entitlement:bridge')
   }
@@ -438,7 +435,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsAnsiConsole)
         }
         into('platform') {
-          from(configurations.libsNative)
+          // The native libraries of every project applying elasticsearch.native-library-build, including
+          // libraries loaded only by modules and plugins.
+          from(configurations.allNativeLibraries)
+          includeEmptyDirs = false
+          filePermissions {
+            unix(0644)
+          }
+          dirPermissions {
+            unix(0755)
+          }
           if (os != null) {
             include(os + '-' + architecture + '/*')
           }

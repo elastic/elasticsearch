@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.internal.test.TestUtil
 import org.elasticsearch.gradle.OS
 
 /*
@@ -146,11 +145,12 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  dependsOn "copyExpression", "copyPainless", configurations.nativeLib, ":libs:native:native-libraries:extractLibs"
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  def nativeLibsPath = TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
-  systemProperty 'es.nativelibs.path', nativeLibsPath
+  // The benchmarks run in JVMs forked by JMH, so the native library
+  // path must be a JVM option, not a program argument.
+  nativeLibraryPath.configure(it, configurations.runtimeClasspath)
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
@@ -165,9 +165,8 @@ tasks.named("run").configure {
     : ''
   if (vectorArgs) {
     jvmArgs '--add-modules=jdk.incubator.vector'
+    args '-jvmArgsAppend', vectorArgs.trim()
   }
-  // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
-  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}${vectorArgs}"
 }
 
 tasks.named('test').configure {

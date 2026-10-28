@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractProjectBuilderPluginSpec
 import org.elasticsearch.gradle.internal.info.BuildParameterService
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathArgumentProvider
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ProjectDependency
@@ -81,6 +82,14 @@ class BenchmarkPluginSpec extends AbstractProjectBuilderPluginSpec {
         task instanceof JavaExec
         ((JavaExec) task).mainClass.get() == "org.openjdk.jmh.Main"
         task.group == "benchmark"
+    }
+
+    def "the benchmark task passes es.nativelibs.path to its JVM"() {
+        when:
+        def task = (JavaExec) consumer.tasks.getByName(BenchmarkPlugin.BENCHMARK_TASK)
+
+        then:
+        task.jvmArgumentProviders.count { it instanceof NativeLibraryPathArgumentProvider } == 1
     }
 
     def "registers a benchmarkTest Test task"() {

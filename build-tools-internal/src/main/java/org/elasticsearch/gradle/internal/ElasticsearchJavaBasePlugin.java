@@ -13,18 +13,19 @@ import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
-import org.elasticsearch.gradle.internal.test.TestUtil;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -33,9 +34,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.Callable;
 
 import javax.inject.Inject;
 
@@ -141,49 +142,31 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
     }
 
+    /**
+     * When a {@code Test} task forks a JVM, makes the task pass down the list of directories the JVM uses to load
+     * native libraries ({@code es.nativelibs.path}, see {@link NativeLibraryPathExtension}).
+     * For each Test task, this plugin builds the list from the runtime classpath of the source
+     * set with the same name as the task. If no source set has that name, the plugin uses the
+     * runtime classpaths of all the source sets instead.
+     * This function goes through each project on that classpath that builds native libraries
+     * and adds the directory containing its native libraries to the list.
+     */
     private static void configureNativeLibraryPath(Project project) {
-        String nativeProject = ":libs:native:native-libraries";
-        // Skip on the producer itself: that project already declares its own (consumable) `nativeLibs`
-        // configuration, and there is no test JVM in that project that needs `es.nativelibs.path`.
-        // Without this guard the names collide ("a configuration with that name already exists").
-        if (project.getPath().equals(nativeProject)) {
-            return;
-        }
-        // Gradle 9.x enforces strict configuration roles: a single configuration cannot both declare
-        // dependencies and be resolved. We therefore use a pair:
-        // - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
-        // - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
-        // We intentionally request the producer's dedicated `nativeLibs` consumable variant by name
-        // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
-        // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
-        // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
-        //
-        // The project-path dependency is added lazily via `defaultDependencies` so that builds which
-        // apply this plugin but do not contain `:libs:native:native-libraries` as a local project
-        // (e.g. the elasticsearch-serverless composite build, where the producer lives in an included
-        // build and is supplied via the module coordinate `org.elasticsearch:native-libraries`) can
-        // override the dependency before resolution. Adding it eagerly would fail at plugin-apply
-        // time with "Project with path ':libs:native:native-libraries' could not be found".
-        Configuration nativeLibsDeclared = project.getConfigurations()
-            .dependencyScope(
-                "nativeLibsDeclared",
-                c -> c.defaultDependencies(
-                    deps -> deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")))
-                )
-            )
-            .get();
-        Configuration nativeConfig = project.getConfigurations()
-            .resolvable("resolvedNativeLibs", c -> c.extendsFrom(nativeLibsDeclared))
-            .get();
-        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
-        FileCollection nativeConfigFiles = nativeConfig;
+        NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
+        SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
+        ConfigurationContainer configurations = project.getConfigurations();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
-            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
-
-            test.dependsOn(nativeConfigFiles);
-            systemProperties.systemProperty("es.nativelibs.path", libraryPath);
+            String taskName = test.getName();
+            Callable<List<FileCollection>> libraryDirectories = () -> {
+                SourceSet sourceSetNamedLikeTask = sourceSets.findByName(taskName);
+                Collection<SourceSet> sourceSetsToUse = sourceSetNamedLikeTask != null ? List.of(sourceSetNamedLikeTask) : sourceSets;
+                return sourceSetsToUse.stream()
+                    .map(sourceSet -> configurations.getByName(sourceSet.getRuntimeClasspathConfigurationName()))
+                    .map(nativeLibraryPath::libraryDirectoriesOf)
+                    .toList();
+            };
+            nativeLibraryPath.configureWithDirectories(test, libraryDirectories);
         });
     }
 

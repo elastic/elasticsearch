@@ -810,9 +810,9 @@ Dynamic float array mapping
 
 {applies_to}`stack: preview 9.6+`
 
-The `vectordb_columnar` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) combines the vector search defaults of [`vectordb_document`](#dense-vector-vectordb-document-mode) with the [columnar](/reference/elasticsearch/columnar/index.md) storage model. Fields are stored once, as doc values, and `_source` is reconstructed from them, which reduces the storage footprint of the non-vector fields that accompany your vectors.
+The `vectordb_columnar` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) combines the vector search defaults of [`vectordb_document`](#dense-vector-vectordb-document-mode) with the [columnar](/reference/elasticsearch/columnar/index.md) storage model. Columnar modes store each field once, as doc values, and reconstruct `_source` from them, which reduces the storage footprint of the non-vector fields that accompany your vectors. Unlike the other columnar modes, `vectordb_columnar` is optimized for search rather than analytics, so `dense_vector` and `text` fields are also indexed by default. This makes it suitable for both vector search and hybrid search that combines text with vectors.
 
-Unlike the other columnar modes, `vectordb_columnar` is optimized for search rather than analytics: it keeps the structures that vector and full-text retrieval depend on, making it suitable for both vector search and hybrid search that combines text with vectors.
+`vectordb_columnar` is a good fit for vector search, especially when your documents carry many non-vector, non-text fields. If your searches return many fields for many hits, consider the [`columnar_stored`](/reference/elasticsearch/columnar/index.md#columnar-source) `_source` mode to speed up retrieval. Choose `vectordb_document` when you need `_source` returned with its original structure, such as arrays of objects or unmapped content.
 
 You must set the mode at index creation time:
 

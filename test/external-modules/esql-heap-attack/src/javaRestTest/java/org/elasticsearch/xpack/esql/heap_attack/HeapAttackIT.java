@@ -570,13 +570,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testTooManyEval_withViewDefined() throws IOException {
+        initManyLongs(10);
+
         // When a view is defined, ViewResolver can do signifcant work with a large stack.
         Request r = new Request("PUT", "/_query/view/my_view");
         r.setJsonEntity("""
             { "query": "FROM manylongs" }""");
         client().performRequest(r);
 
-        initManyLongs(10);
         // 490 is plenty to fail on most nodes
         assertCircuitBreaks(attempt -> manyEval(attempt * 490));
     }

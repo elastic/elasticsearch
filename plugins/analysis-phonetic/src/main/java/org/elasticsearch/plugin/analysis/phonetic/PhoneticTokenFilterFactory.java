@@ -34,6 +34,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -44,6 +45,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private NameType nametype;
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
+    private final Object sharingKey;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -105,6 +107,17 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
+        // The commons-codec encoders are built with their defaults, so the class identifies the encoding; the
+        // language set is used as a set, so its order and duplicates do not matter.
+        this.sharingKey = new Key(
+            encoder == null ? null : encoder.getClass(),
+            replace,
+            maxcodelength,
+            languageset == null ? null : Set.copyOf(languageset),
+            nametype,
+            ruletype,
+            isDaitchMokotoff
+        );
     }
 
     @Override
@@ -133,4 +146,19 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        Class<? extends Encoder> encoder,
+        boolean replace,
+        int maxCodeLength,
+        Set<String> languageSet,
+        NameType nameType,
+        RuleType ruleType,
+        boolean daitchMokotoff
+    ) {}
 }

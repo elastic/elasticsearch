@@ -300,9 +300,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * @param totalIndices              total indices in the cluster, per the caller's cluster-state view
      * @param largeIndexingOpsHeapBytes heap needed for recently rejected large indexing ops — not resident heap; local callers pass 0
      * @param mergeMemoryEstimateBytes  pending-merge heap estimate; a future supplier must stay at or below the master's value
-     * @param ingestModelHeapBytes      heap required to load ingest trained models; populated on the master via
-     *                                  {@link IngestModelMemoryProvider}. Index-node callers pass 0 until that value is published
-     *                                  to them
+     * @param ingestModelHeapBytes      heap required to load ingest trained models
      * @param shardMappingSizes         the hosted shards' sizes
      * @return the node's estimated heap usage
      */
@@ -340,8 +338,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     }
 
     /**
-     * JVM heap required to load trained models referenced by ingest pipelines. The master populates
-     * {@link IngestModelMemoryProvider}; the no-op provider reports zero when the ML plugin is absent.
+     * JVM heap required to load trained models referenced by ingest pipelines.
+     * The master populates {@link IngestModelMemoryProvider}, but when the ML plugin is absent, 0 bytes are reported
      */
     private static long ingestModelHeapBytes() {
         return IngestModelMemoryProvider.getInstance().getRequiredHeapBytes().heapBytes();

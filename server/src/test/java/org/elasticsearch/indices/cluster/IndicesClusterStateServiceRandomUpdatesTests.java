@@ -446,7 +446,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             primaryTerm,
             new Exception("dummy"),
             indicesCSSvc.indicesService.getShardOrNull(shardId).recoveryState(),
-            new IndicesClusterStateService.PendingAllocationState.CreatingShard(0, 0)
+            new IndicesClusterStateService.PendingAllocationState.CreatingShard(0, 0, primaryTerm)
         );
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 

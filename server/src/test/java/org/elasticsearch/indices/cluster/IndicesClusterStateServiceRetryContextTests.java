@@ -382,6 +382,50 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         assertNotSame(originalCreatingShard, newTicket);
     }
 
+    public void testAwaitingRecoveryRetryResetsLocalRetriesWhenPrimaryTermBumped() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        handleRecoveryFailureWithRetry(shardRouting);
+        assertThat(awaitingRecoveryRetryCount(shardRouting), equalTo(1));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
+        // The sweep in updatePendingAllocationStates must evict the retry ticket,
+        // or the next attempt would inherit the stale (pre-bump) retry count.
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+
+        assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(0));
+    }
+
+    public void testCreatingShardTicketResetWhenPrimaryTermBumpedDuringLockWait() throws Exception {
+        ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();
+
+        // Force the very first createShard attempt to hit shard-lock contention -> lock-wait retry loop
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
+        applyState(initial);
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
+
+        final var originalCreatingShard = currentCreatingShard(shardRouting);
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // The sweep in updatePendingAllocationStates must evict the stale ticket,
+        // or the eventual lock-wait wakeup could act on a superseded term.
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
+        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting));
+        assertThat(newTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.CreatingShard.class));
+        assertNotSame(originalCreatingShard, newTicket);
+
+        // The orphaned lock-wait retry (still holding the old, now-evicted ticket) must give up quietly
+        // rather than clobber the new attempt's ticket.
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+        assertSame(newTicket, indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)));
+    }
+
     public void testPendingAllocationStateClearedWhenReplicaPromoted() {
         String indexName = randomIndexName();
         ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
@@ -589,7 +633,7 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
         // Seed a fresher marker, as if a newer attempt had already recorded more retries.
         indicesClusterStateService.pendingAllocationStates.put(
             allocationKey(shardRouting),
-            new IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(5)
+            new IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(5, primaryTerm(shardRouting))
         );
         int tasksBefore = pendingApplierTasks.size();
 
@@ -812,7 +856,9 @@ public class IndicesClusterStateServiceRetryContextTests extends AbstractIndices
 
     private Integer awaitingRecoveryRetryCount(ShardRouting routing) {
         var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
-        return current instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(var n) ? n : null;
+        return current instanceof IndicesClusterStateService.PendingAllocationState.AwaitingRecoveryRetry(var n, var ignoredTerm)
+            ? n
+            : null;
     }
 
     private boolean isFailureReported(ShardRouting routing) {

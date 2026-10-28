@@ -7,16 +7,42 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -77,5 +103,102 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
 
         QueryBuilder expected = unscore(existsQuery("network.eth0.tx"));
         assertThat(queryExec.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * A metric mapped as {@code double} in raw indices and {@code aggregate_metric_double} in downsampled ones is read through
+     * union-typed attributes. Their converters are null-in/null-out, so the null filter is pushed as {@code exists} on the mapped field.
+     */
+    public void testPushdownOfMixedAggregateMetricDoubleAndDoubleMetric() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
+        String query = """
+            TS k8s,k8s-downsampled
+            | STATS avg(avg_over_time(network.eth0.rx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = mixedDownsampledPlanner().plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        // avg_over_time is split into sum_over_time and count_over_time, each reading its own union-typed attribute over the field
+        QueryBuilder expected = boolQuery().should(unscore(existsQuery("network.eth0.rx"))).should(unscore(existsQuery("network.eth0.rx")));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+        assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
+    }
+
+    /**
+     * The implicit {@code aggregate_metric_double} cast is extracted into an {@code EVAL} below the aggregation. The null filter
+     * on the metric field behind it is pushed as {@code exists}.
+     */
+    public void testPushdownOfAggregateMetricDoubleMetric() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
+        String query = """
+            TS k8s-downsampled
+            | STATS avg(avg_over_time(network.eth0.rx)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        EsIndex esIndex = EsIndexGenerator.esIndex(
+            "k8s-downsampled",
+            loadMapping("k8s-downsampled-mappings.json"),
+            Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
+        );
+        PhysicalPlan actualPlan = planner(esIndex).plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        QueryBuilder expected = unscore(existsQuery("network.eth0.rx"));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+        assertThat(actualPlan.collect(node -> node instanceof FilterExec), empty());
+    }
+
+    /**
+     * Planner over {@code k8s,k8s-downsampled}, where {@code network.eth0.rx} is a gauge mapped as {@code double} in {@code k8s} and
+     * as {@code aggregate_metric_double} in {@code k8s-downsampled}, the way {@code IndexResolver} reports such a conflict.
+     */
+    private TestPlannerOptimizer mixedDownsampledPlanner() {
+        Map<String, EsField> mapping = Map.of(
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+            "pod",
+            new EsField("pod", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+            "network.eth0.rx",
+            new InvalidMappedField(
+                "network.eth0.rx",
+                Map.of("aggregate_metric_double", Set.of("k8s-downsampled"), "double", Set.of("k8s")),
+                EsField.TimeSeriesFieldType.METRIC
+            )
+        );
+        return planner(
+            new EsIndex(
+                "k8s,k8s-downsampled",
+                mapping,
+                Map.of(
+                    "k8s",
+                    new IndexProperties(IndexMode.TIME_SERIES, 0),
+                    "k8s-downsampled",
+                    new IndexProperties(IndexMode.TIME_SERIES, 0)
+                ),
+                Map.of(),
+                Map.of()
+            )
+        );
+    }
+
+    private TestPlannerOptimizer planner(EsIndex esIndex) {
+        Analyzer analyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                TEST_FUNCTION_REGISTRY,
+                indexResolutions(IndexResolution.valid(esIndex)),
+                new EnrichResolution(),
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+        return new TestPlannerOptimizer(
+            config,
+            analyzer,
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+        );
     }
 }

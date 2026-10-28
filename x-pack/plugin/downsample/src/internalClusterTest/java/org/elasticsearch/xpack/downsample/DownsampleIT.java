@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
@@ -20,7 +21,10 @@ import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,11 +41,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DownsampleIT extends DownsamplingIntegTestCase {
 
@@ -546,6 +554,98 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
 
         testEsqlMetrics(dataStreamName, secondBackingIndex);
+    }
+
+    public void testNullMetricFilterPushedDownAfterDownsampling() throws Exception {
+        String dataStreamName = "metrics-prometheusreceiver.otel-default";
+        Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
+        putTSDBIndexTemplate("my-template", List.of(dataStreamName), settings, """
+            {
+              "properties": {
+                "host": {
+                  "type": "keyword",
+                  "time_series_dimension": true
+                },
+                "auth_helper_build_info": {
+                  "type": "double",
+                  "time_series_metric": "gauge"
+                }
+              }
+            }
+            """, null, null);
+        final Instant now = Instant.now();
+        bulkIndex(dataStreamName, () -> buildInfoDoc(now.minusSeconds(60 * 60), now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT - 1))), 50);
+        String rawIndex = rolloverAndDownsample(
+            dataStreamName,
+            new DownsampleConfig(new DateHistogramInterval("5m"), DownsampleConfig.SamplingMethod.AGGREGATE)
+        );
+        bulkIndex(
+            dataStreamName,
+            () -> buildInfoDoc(
+                now.plusSeconds(60 * (LOOK_AHEAD_TIME_DEFAULT + 1)),
+                now.plusSeconds(60 * (2 * LOOK_AHEAD_TIME_DEFAULT - 1))
+            ),
+            50
+        );
+        var response = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
+                .path("/_query")
+                .capabilities(AGGREGATE_METRIC_DOUBLE_V0.capabilityName())
+        ).actionGet();
+        assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
+
+        String downsampledIndex = safeGet(
+            client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
+            )
+        ).getDataStreams()
+            .getFirst()
+            .getDataStream()
+            .getIndices()
+            .stream()
+            .map(Index::getName)
+            .filter(n -> n.equals(rawIndex) == false)
+            .findFirst()
+            .orElseThrow();
+        RangeQueryBuilder timeRange = new RangeQueryBuilder("@timestamp").gte(now.minusSeconds(60 * 60).toEpochMilli())
+            .lte(now.plusSeconds(60 * 60 * 2).toEpochMilli());
+        for (String target : List.of(dataStreamName, rawIndex, downsampledIndex)) {
+            // documents_found counts what the Lucene source emitted: with the null filter pushed down as exists, that is only the
+            // documents carrying the metric; otherwise every document in range, including the host3 series without it.
+            long allDocs = countDocs(target, timeRange);
+            long docsWithMetric = countDocs(target, boolQuery().filter(timeRange).filter(existsQuery("auth_helper_build_info")));
+            assertThat(target, docsWithMetric, greaterThan(0L));
+            assertThat(target, docsWithMetric, lessThan(allDocs));
+
+            EsqlQueryRequest request = new EsqlQueryRequest().query(
+                "TS " + target + " | STATS AVG(AVG_OVER_TIME(`auth_helper_build_info`)) BY TBUCKET(100)"
+            );
+            request.filter(timeRange);
+            try (var resp = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS)) {
+                assertThat(target, resp.documentsFound(), equalTo(docsWithMetric));
+            }
+        }
+    }
+
+    private static long countDocs(String target, QueryBuilder query) {
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch(target).setQuery(query).setSize(0).setTrackTotalHits(true));
+    }
+
+    private XContentBuilder buildInfoDoc(Instant from, Instant to) {
+        try {
+            String host = randomFrom("host1", "host2", "host3");
+            XContentBuilder doc = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("@timestamp", randomDateForRange(from.toEpochMilli(), to.toEpochMilli()))
+                .field("host", host);
+            if (host.equals("host3") == false) {
+                doc.field("auth_helper_build_info", randomDouble());
+            }
+            return doc.endObject();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void testEsqlMetrics(String dataStreamName, String nonDownsampledIndex) throws Exception {

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
@@ -25,10 +26,14 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
@@ -132,12 +137,35 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (field() instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField union) {
+            // Values are converted on load; only the null-in/null-out metric cast makes exists on the mapped field sufficient. Where
+            // the field isn't mapped, exists matches nothing, which is what IS NOT NULL on an all-null column does too.
+            return union.getUnmappedConversionExpression() == null && isNullPreservingMetricCast(union)
+                ? Translatable.YES
+                : Translatable.NO;
+        }
         return IsNull.isTranslatable(field(), pushdownPredicates);
+    }
+
+    /**
+     * Whether every converter is one the analyzer installs for the implicit {@code aggregate_metric_double}/numeric metric cast.
+     */
+    private static boolean isNullPreservingMetricCast(UnionTypeEsField union) {
+        return union.getConversionExpressions().stream().allMatch(e -> switch (e) {
+            case FromAggregateMetricDouble ignored -> true;
+            case ToDouble toDouble -> toDouble.field().dataType().isNumeric();
+            case MvCount mvCount -> mvCount.field().dataType().isNumeric();
+            default -> false;
+        });
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new ExistsQuery(source(), handler.nameOf(field()));
+        // Union-typed attributes have synthetic names; query the mapped field.
+        String name = field() instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField
+            ? fa.fieldName().string()
+            : handler.nameOf(field());
+        return new ExistsQuery(source(), name);
     }
 
     record IsNotNullEvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {

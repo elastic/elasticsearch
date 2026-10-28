@@ -43,11 +43,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.query.ScriptLongValueSource;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.lucene.queries.MinDocQuery;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -369,18 +367,14 @@ public class OptOutQueryCacheTests extends ESTestCase {
                     innerCacheable &= inner.cacheable();
                 }
 
-                int kind = between(0, 2);
-                boolean constant = kind == 0;
-                LongValuesSource minimumNumberMatch = switch (kind) {
-                    case 0 -> LongValuesSource.constant(between(1, numQueries));
-                    case 1 -> LongValuesSource.fromLongField(randomFrom(randomBoolean() ? allowedFields : disallowedFields));
-                    case 2 -> new ScriptLongValueSource(new Script("1"), ctx -> { throw new AssertionError("not evaluated"); }, null);
-                    default -> throw new AssertionError("unexpected " + kind);
-                };
+                boolean constant = randomBoolean();
+                LongValuesSource minimumNumberMatch = constant
+                    ? LongValuesSource.constant(between(1, numQueries))
+                    : LongValuesSource.fromLongField(randomFrom(randomBoolean() ? allowedFields : disallowedFields));
 
                 // A constant minimum is rewritten to a boolean query, so only the inner clauses matter. That rewrite drops match-none
                 // SHOULD clauses, and if fewer than the minimum remain it collapses to a MatchNoDocsQuery, which is always cacheable.
-                // CoveringQuery doesn't report the field its minimum match count comes from, so field and script sources are never
+                // CoveringQuery doesn't report the field its minimum match count comes from, so field sources are never
                 // cacheable, even when the field is granted.
                 Query rewritten = searcher.rewrite(new CoveringQuery(queries, minimumNumberMatch));
                 yield new RandomQuery(rewritten, constant && (rewritten instanceof MatchNoDocsQuery || innerCacheable));

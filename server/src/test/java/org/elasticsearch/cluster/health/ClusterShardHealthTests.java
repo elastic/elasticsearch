@@ -167,8 +167,14 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
     /// (because it is in an unexceptional recovery) becomes `RED`.
     public void testInactivePrimaryHealthWithLocalRecoveryRetries() {
         List<ShardRouting> shardRoutings = List.of(
-            inactivePrimary(RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
-            inactivePrimary(RecoverySource.LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
+            inactivePrimary(
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            ),
+            inactivePrimary(
+                RecoverySource.LocalShardsRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            ),
             inactivePrimary(RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null))
         );
         for (ShardRouting shardRouting : shardRoutings) {

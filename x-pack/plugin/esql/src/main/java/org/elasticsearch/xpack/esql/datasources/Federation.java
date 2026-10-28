@@ -108,11 +108,16 @@ public final class Federation {
      * {@value #REGISTER_PROPERTY} to {@code false} this key is unknown and rejected at startup.
      *
      * <p>The default is a function of the node settings rather than a constant because it depends on
-     * {@code stateless.enabled}; every caller passes the full node settings, so the function sees that key.
+     * {@code stateless.enabled}; every production caller passes the full node settings, so the function sees that key.
+     * The one exception is {@code GET _cluster/settings?include_defaults=true}, which renders a node-scoped default by
+     * evaluating it against the cluster-state settings when the key is set in neither place; those never carry
+     * {@code stateless.enabled}, so a stateless release node reports the default as {@code true} while its effective
+     * default is {@code false}. That is a framework-wide quirk of settings-dependent defaults, not something this setting
+     * can correct.
      */
     public static final Setting<Boolean> FEDERATION_ENABLED = Setting.boolSetting(
         "esql.federation.enabled",
-        settings -> Boolean.toString(defaultEnabled(DiscoveryNode.isStateless(settings), Build.current().isSnapshot())),
+        settings -> Boolean.toString(defaultEnabled(settings, Build.current().isSnapshot())),
         Setting.Property.NodeScope
     );
 
@@ -167,15 +172,28 @@ public final class Federation {
     }
 
     /**
+     * The default for {@link #FEDERATION_ENABLED} as read from the node settings, which carry the node type; see
+     * {@link #defaultEnabled(boolean, boolean)} for the rule.
+     */
+    static boolean defaultEnabled(Settings nodeSettings, boolean snapshot) {
+        return defaultEnabled(DiscoveryNode.isStateless(nodeSettings), snapshot);
+    }
+
+    /**
      * The default for {@link #FEDERATION_ENABLED}: on for a stateful node, and the build's own default (on only in
-     * a snapshot build) for a stateless one, where turning the feature on in production is a deliberate act. The
-     * platform plays no part in the default; a Windows release build vetoes the effective value instead, see
-     * {@link #enabled}.
+     * a snapshot build) for a stateless one, where turning the feature on in production is a deliberate act.
+     *
+     * <p>The platform plays no part in the default; a Windows release build vetoes the effective value instead, see
+     * {@link #enabled}. This is a deliberate change from the first Windows gate, which also kept the default off on a
+     * Windows snapshot build: the reason for the gate is that external data sources cannot be metered on Windows, and a
+     * snapshot build is never a billed deployment, so the release veto alone protects production. Keeping the default
+     * platform-neutral lets a Windows snapshot build, which is what Windows CI runs, exercise the feature the way every
+     * other platform does.
      *
      * @param stateless whether this is a stateless node ({@code stateless.enabled})
      * @param snapshot  whether this is a snapshot build
      */
-    static boolean defaultEnabled(boolean stateless, boolean snapshot) {
+    public static boolean defaultEnabled(boolean stateless, boolean snapshot) {
         return stateless == false || snapshot;
     }
 

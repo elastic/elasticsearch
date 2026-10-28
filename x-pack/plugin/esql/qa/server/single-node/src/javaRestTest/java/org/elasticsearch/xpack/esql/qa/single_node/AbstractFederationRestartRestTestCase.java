@@ -18,7 +18,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.S3BackendFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
+import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -30,6 +32,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -57,7 +60,8 @@ import static org.hamcrest.Matchers.not;
  * flag and these suites also run against release builds; the data source carries the fixture's credentials, so the
  * encrypted secret in cluster state round-trips through a node that boots without the feature as well. The read is a
  * projection rather than an aggregation, because an ungrouped {@code COUNT}/{@code MIN}/{@code MAX} can be answered from
- * split statistics without ever reading the file.
+ * split statistics without ever reading the file. The rows alone do not prove the credentials were used, because the
+ * fixture serves an unsigned request too, so each read is also checked to have reached the fixture signed.
  *
  * <p>Asserted after federation is off (it must look like it never existed):
  * <ul>
@@ -116,7 +120,9 @@ public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCa
         putDataset(dataset, source, backend.resourceUri(DATASET_PREFIX + "/*.csv"));
         assertThat(datasourceNames(), contains(source));
         assertThat(datasetNames(), contains(dataset));
+        long baselineRead = System.currentTimeMillis();
         assertThat(queryRows(dataset), equalTo(EXPECTED_ROWS));
+        assertSignedReads(baselineRead);
 
         // Phase 2: federation off. The node must start, and the feature must look absent.
         setFederation(false);
@@ -147,7 +153,9 @@ public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCa
 
         assertThat(datasourceNames(), contains(source));
         assertThat(datasetNames(), contains(dataset));
+        long restoredRead = System.currentTimeMillis();
         assertThat(queryRows(dataset), equalTo(EXPECTED_ROWS));
+        assertSignedReads(restoredRead);
 
         // The routes are back, so the state can be cleaned up over REST again.
         assertThat(
@@ -164,6 +172,25 @@ public abstract class AbstractFederationRestartRestTestCase extends ESRestTestCa
         cluster().restart(false);
         closeClients();
         initClient();
+    }
+
+    /**
+     * Asserts that the dataset file was fetched from the fixture since {@code since}, and that every fetch carried an
+     * {@code Authorization} header. The fixture answers an unsigned request as well, so the rows alone prove only that the
+     * stored endpoint resolved and that no wrong key was sent; this proves the stored credentials were actually used,
+     * which is what a restart is most likely to break, the encrypted secret in cluster state.
+     */
+    private static void assertSignedReads(long since) {
+        List<S3RequestLog> reads = S3FixtureUtils.getRequestLogs()
+            .stream()
+            .filter(
+                log -> log.getTimestamp() >= since && log.getRequestType().equals("GET_OBJECT") && log.getPath().contains(DATASET_PREFIX)
+            )
+            .toList();
+        assertThat("the dataset file must be fetched from the fixture", reads, not(empty()));
+        for (S3RequestLog read : reads) {
+            assertTrue("fetched without the stored credentials: " + read, read.isSigned());
+        }
     }
 
     /**

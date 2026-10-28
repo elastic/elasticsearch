@@ -39,6 +39,10 @@ To use {{esql}} Data Federation, make sure the feature is enabled in {{es}} and 
 ```yaml
 esql.federation.enabled: false
 ```
+
+:::{note}
+During a rolling upgrade from 9.5, the feature is enabled on the upgraded nodes and disabled on the others. Until the upgrade finishes, a query on a dataset succeeds or fails with `Unknown index`, depending on which node coordinates it. Nothing is lost, and the cluster settles once every node is upgraded. To avoid the inconsistency, set `esql.federation.enabled` explicitly on every node before the upgrade, or wait until the upgrade finishes before creating or querying datasets.
+:::
 ::::
 
 ::::{applies-item} stack: experimental =9.5

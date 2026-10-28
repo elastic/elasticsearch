@@ -34,6 +34,8 @@ $$$esql-federation-enabled$$$
       - {applies_to}`stack: experimental =9.5` `false`
     - **Valid values:** `true`, `false`
 
+    Turning the feature off doesn't delete your data sources and datasets. They stay in the cluster state, but the data source and dataset APIs are unavailable, and a query on a dataset fails as if the index didn't exist. When you turn the feature back on, they're available again.
+
     {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows, where this setting has no effect. If you set it to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits

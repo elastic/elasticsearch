@@ -62,7 +62,8 @@ public class Clusters {
      * A cluster with the feature registered but no {@link Federation#FEDERATION_ENABLED} in {@code elasticsearch.yml},
      * so the node takes the default: on for a stateful node, except on a Windows release build, which cannot serve the
      * feature. Used by {@link FederationBuildDefaultRestIT}, whose subject is the default itself. Every other suite here
-     * pins the setting, or unregisters the feature, so that its outcome does not depend on the default.
+     * pins the setting, or unregisters the feature, so that its outcome does not depend on the default; the one exception
+     * is {@link FederationSettingRestartRestIT}, which takes the default for its first phase only.
      */
     public static ElasticsearchCluster clusterWithoutFederationSettings() {
         return testCluster(CsvTestUtils.createCsvDataDirectory(), config -> {}, false, false);

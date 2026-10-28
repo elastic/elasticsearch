@@ -58,6 +58,11 @@ public class FederationTests extends ESTestCase {
         return Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
     }
 
+    /** Node settings of a stateless node with an explicit {@link Federation#FEDERATION_ENABLED}. */
+    private static Settings stateless(boolean enabled) {
+        return Settings.builder().put(stateless()).put(Federation.FEDERATION_ENABLED.getKey(), enabled).build();
+    }
+
     public void testRegisteredByDefaultWhenPropertyAbsent() {
         assertTrue(Federation.readRegistered(key -> null));
     }
@@ -80,13 +85,28 @@ public class FederationTests extends ESTestCase {
     }
 
     /**
-     * The wiring of {@link Federation#defaultEnabled} to the node settings: a stateful node (no {@code stateless.enabled})
-     * is on out of the box whatever the build, and a stateless node follows the build.
+     * The wiring of {@link Federation#defaultEnabled(boolean, boolean)} to the node settings: a stateful node (no
+     * {@code stateless.enabled}) is on out of the box whatever the build, and a stateless node follows the build. The
+     * build is a parameter of the {@link Federation#defaultEnabled(Settings, boolean)} seam, so both node types are
+     * told apart on a snapshot build too, where the setting itself reads {@code true} for either.
      */
     public void testDefaultFollowsNodeTypeAndBuild() {
+        assertTrue("stateful release", Federation.defaultEnabled(Settings.EMPTY, false));
+        assertTrue("stateful snapshot", Federation.defaultEnabled(Settings.EMPTY, true));
+        assertFalse("stateless release", Federation.defaultEnabled(stateless(), false));
+        assertTrue("stateless snapshot", Federation.defaultEnabled(stateless(), true));
+
         assertTrue("stateful nodes are on by default", Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
         assertEquals(Build.current().isSnapshot(), Federation.FEDERATION_ENABLED.get(stateless()));
         assertFalse("the default is not an explicit value", Federation.FEDERATION_ENABLED.exists(Settings.EMPTY));
+    }
+
+    /** An explicit value wins over the default on every node type, in both directions and whatever the build. */
+    public void testExplicitValueWinsOnEveryNodeType() {
+        assertTrue("stateful explicit on", Federation.FEDERATION_ENABLED.get(enabled(true)));
+        assertFalse("stateful explicit off", Federation.FEDERATION_ENABLED.get(enabled(false)));
+        assertTrue("stateless explicit on, even where the default is off", Federation.FEDERATION_ENABLED.get(stateless(true)));
+        assertFalse("stateless explicit off, even where the default is on", Federation.FEDERATION_ENABLED.get(stateless(false)));
     }
 
     /** The platform plays no part in the default; only the node type and, for a stateless node, the build do. */
@@ -218,20 +238,25 @@ public class FederationTests extends ESTestCase {
 
     /**
      * An unregistered node never has the setting in its configuration, so what it feeds in as {@code configured} is the
-     * default, which is {@code true} on a stateful node; the value must not change what is logged.
+     * default, which is {@code true} on a stateful node; neither that value nor whether it is explicit must change what is
+     * logged. Every cell is exercised rather than a random one per seed, so a regression fails every run.
      */
     public void testLogsNotRegisteredAtInfo() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(false, randomBoolean(), false, false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "not registered",
-                Federation.class.getCanonicalName(),
-                Level.INFO,
-                "*not registered*" + Federation.REGISTER_PROPERTY + "*"
-            ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
-        );
+        for (boolean configured : new boolean[] { true, false }) {
+            for (boolean explicit : new boolean[] { true, false }) {
+                MockLog.assertThatLogger(
+                    () -> Federation.logEffectiveState(false, configured, explicit, false, true),
+                    Federation.class,
+                    new MockLog.SeenEventExpectation(
+                        "not registered",
+                        Federation.class.getCanonicalName(),
+                        Level.INFO,
+                        "*not registered*" + Federation.REGISTER_PROPERTY + "*"
+                    ),
+                    new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+                );
+            }
+        }
     }
 
     /**
@@ -257,36 +282,55 @@ public class FederationTests extends ESTestCase {
         );
     }
 
+    /**
+     * Every platform and build that can serve the feature logs it at INFO when it is on, whether on by default or
+     * explicitly. That is every cell but a Windows release build, which has its own tests below; the release cells are
+     * the ones a stateful node now lands in by default, and the Windows snapshot cell is the one Windows CI lands in.
+     */
     public void testLogsEnabledAtInfo() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, true, randomBoolean(), false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "enabled",
-                Federation.class.getCanonicalName(),
-                Level.INFO,
-                "*is enabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
-            ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
-        );
+        for (boolean[] platform : new boolean[][] { { false, false }, { false, true }, { true, true } }) {
+            for (boolean explicit : new boolean[] { true, false }) {
+                boolean windows = platform[0];
+                boolean snapshot = platform[1];
+                MockLog.assertThatLogger(
+                    () -> Federation.logEffectiveState(true, true, explicit, windows, snapshot),
+                    Federation.class,
+                    new MockLog.SeenEventExpectation(
+                        "enabled",
+                        Federation.class.getCanonicalName(),
+                        Level.INFO,
+                        "*is enabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+                    ),
+                    new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+                );
+            }
+        }
     }
 
+    /** A registered node with the setting off is inert on every platform and build, and whether or not it was asked to be. */
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
         reason = "a registered node with federation off is inert, so it is logged at DEBUG"
     )
     public void testLogsDisabledAtDebug() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, false, randomBoolean(), false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "disabled",
-                Federation.class.getCanonicalName(),
-                Level.DEBUG,
-                "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
-            ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
-        );
+        for (boolean windows : new boolean[] { true, false }) {
+            for (boolean snapshot : new boolean[] { true, false }) {
+                for (boolean explicit : new boolean[] { true, false }) {
+                    MockLog.assertThatLogger(
+                        () -> Federation.logEffectiveState(true, false, explicit, windows, snapshot),
+                        Federation.class,
+                        new MockLog.SeenEventExpectation(
+                            "disabled",
+                            Federation.class.getCanonicalName(),
+                            Level.DEBUG,
+                            "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+                        ),
+                        new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*"),
+                        new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
+                    );
+                }
+            }
+        }
     }
 
     /**

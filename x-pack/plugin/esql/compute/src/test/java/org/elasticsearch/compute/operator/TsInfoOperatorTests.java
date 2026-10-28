@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -127,7 +128,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     private Operator createFinalOperator(int[] channels) {
-        return new TsInfoOperator.FinalFactory(channels).get(driverContext());
+        return new TsInfoOperator.FinalFactory(channels, TsInfoOperator.NO_LIMIT).get(driverContext());
     }
 
     public void testInitialModeSingleTsidSingleMetric() {
@@ -675,7 +676,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS).get(ctx)) {
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT).get(ctx)) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -739,6 +740,98 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             Page output = op.getOutput();
             assertNotNull(output);
             output.releaseBlocks();
+        }
+    }
+
+    public void testFinalModeLimitsDistinctMetricDimensions() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS, 2).get(ctx)) {
+            Page cpuA = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host"),
+                "{}"
+            );
+            Page cpuB = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-b"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host"),
+                "{}"
+            );
+            Page diskA = buildFinalPage(
+                blockFactory,
+                "disk_io",
+                Set.of("ds-a"),
+                Set.of("bytes"),
+                Set.of("counter"),
+                Set.of("long"),
+                Set.of("host"),
+                "{}"
+            );
+            Page memA = buildFinalPage(
+                blockFactory,
+                "memory",
+                Set.of("ds-a"),
+                Set.of("bytes"),
+                Set.of("gauge"),
+                Set.of("long"),
+                Set.of("host"),
+                "{}"
+            );
+            op.addInput(cpuA);
+            op.addInput(new Page(3, concat(blockFactory, cpuB, diskA, memA)));
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(2));
+            assertThat(readValues(output.getBlock(0), 0), equalTo(Set.of("cpu_usage")));
+            assertThat(readValues(output.getBlock(0), 1), equalTo(Set.of("disk_io")));
+            assertThat(readValues(output.getBlock(1), 0), equalTo(Set.of("ds-a", "ds-b")));
+            assertThat(readValues(output.getBlock(1), 1), equalTo(Set.of("ds-a")));
+            output.releaseBlocks();
+            assertThat(op.toString(), equalTo("TsInfoOperator[mode=FINAL, limit=2]"));
+            TsInfoOperator.Status status = (TsInfoOperator.Status) op.status();
+            assertThat(status.rowsReceived(), equalTo(4L));
+            assertThat(status.rowsEmitted(), equalTo(2L));
+        }
+    }
+
+    private static Set<String> readValues(BytesRefBlock block, int position) {
+        Set<String> values = new HashSet<>();
+        int start = block.getFirstValueIndex(position);
+        for (int i = start; i < start + block.getValueCount(position); i++) {
+            values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+        }
+        return values;
+    }
+
+    private static Block[] concat(BlockFactory blockFactory, Page... pages) {
+        Block[] blocks = new Block[pages[0].getBlockCount()];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(pages.length)) {
+                    for (Page page : pages) {
+                        BytesRefBlock block = page.getBlock(i);
+                        builder.copyFrom(block, 0, block.getPositionCount());
+                    }
+                    blocks[i] = builder.build();
+                }
+            }
+            return blocks;
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
         }
     }
 

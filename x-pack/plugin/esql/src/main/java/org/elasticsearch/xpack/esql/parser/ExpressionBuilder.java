@@ -72,6 +72,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -144,16 +146,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     protected final ParsingContext context;
 
     /**
-     * @param maxCommandCount maximum number of commands in a statement, counting the main query and all its subqueries together
-     * @param maxBranchCount maximum number of leaf branches of the query, each FORK repeating its input once per branch
+     * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
+     * @param flags the cluster-wide ES|QL settings
      */
     public record ParsingContext(
         QueryParams params,
         InferenceSettings inferenceSettings,
         String viewName,
-        int maxCommandCount,
-        int maxBranchCount
-    ) {}
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+
+        /** Maximum number of commands in a statement, counting the main query and all its subqueries together. */
+        public int maxCommandCount() {
+            return pragmas.maxCommandCount(flags.maxCommandCount());
+        }
+
+        /** Maximum number of leaf branches of the query, each FORK repeating its input once per branch. */
+        public int maxBranchCount() {
+            return pragmas.maxBranchCount(flags.maxBranchCount());
+        }
+
+        /** Label of the pragma or cluster setting that supplied {@link #maxBranchCount()}, for errors. */
+        public String maxBranchCountSource() {
+            return pragmas.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
+        }
+    }
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;

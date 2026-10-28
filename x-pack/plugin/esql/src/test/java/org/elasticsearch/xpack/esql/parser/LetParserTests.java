@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -271,7 +273,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
             "my_view",
-            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
@@ -291,7 +294,8 @@ public class LetParserTests extends AbstractStatementParserTests {
             new QueryParams(),
             new InferenceSettings(Settings.EMPTY),
             "my_view",
-            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
         );
         expectThrows(
             VerificationException.class,

@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
@@ -1503,13 +1504,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    private static QueryPragmas pragma(Setting<Integer> pragma, int value) {
+        return new QueryPragmas(Settings.builder().put(pragma.getKey(), value).build());
+    }
+
     public void testMaxCommandCountIsConfigurable() {
         String query = "from foo, (from bar" + " | where a > 0".repeat(3) + ")" + " | where a > 0".repeat(2);
-        TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 5);
+        TEST_PARSER.parse(
+            query,
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            pragma(QueryPragmas.MAX_COMMAND_COUNT, 5),
+            EsqlFlags.DEFAULTS
+        );
         expectThrows(
             ParsingException.class,
             containsString("ES|QL statement exceeded the maximum of [4] commands allowed, including the commands in its subqueries"),
-            () -> TEST_PARSER.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), 4)
+            () -> TEST_PARSER.parse(
+                query,
+                new QueryParams(),
+                new InferenceSettings(Settings.EMPTY),
+                pragma(QueryPragmas.MAX_COMMAND_COUNT, 4),
+                EsqlFlags.DEFAULTS
+            )
         );
     }
 
@@ -4296,17 +4313,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testForksWithinTheBranchCountParse() {
         assertThat(query("FROM a" + " | EVAL x = 1".repeat(400) + " | FORK (WHERE x > 0) (WHERE x < 0)"), instanceOf(Fork.class));
         assertThat(query(nestedForks(2)), instanceOf(Fork.class));
+        InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
         assertThat(
             TEST_PARSER.parse(
                 nestedForks(3),
                 new QueryParams(),
-                new InferenceSettings(Settings.EMPTY),
-                EsqlParser.DEFAULT_MAX_COMMAND_COUNT,
-                30
+                inferenceSettings,
+                pragma(QueryPragmas.MAX_BRANCH_COUNT, 30),
+                EsqlFlags.DEFAULTS
             ).plan(),
             instanceOf(Fork.class)
         );
         expectVerificationError(nestedForks(3), MAX_BRANCH_COUNT_ERROR);
+        expectThrows(
+            VerificationException.class,
+            containsString("query resolved to 30 branches in total, exceeding the limit of 29 set by the [max_branch_count] query pragma"),
+            () -> TEST_PARSER.parse(
+                nestedForks(3),
+                new QueryParams(),
+                inferenceSettings,
+                pragma(QueryPragmas.MAX_BRANCH_COUNT, 29),
+                EsqlFlags.DEFAULTS
+            )
+        );
     }
 
     public void testSecondForkOnOnePipelineInExplainRejectedAfterParsing() {

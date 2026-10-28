@@ -124,7 +124,7 @@ public class InSubqueryResolver {
      * traversals.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
-        PlanSize planSize = new PlanSize(Integer.MAX_VALUE);
+        PlanSize planSize = PlanSize.unlimited();
         LogicalPlan resolved = resolveInSubqueries(plan, planSize);
         verify(resolved);
         return resolved;

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -3364,6 +3364,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 this::parse,
                 ViewBoundaryPreservation.NONE,
                 maxPlanNodesCount,
+                PlanSize.CLUSTER_SETTING_SOURCE,
                 listener
             )
         );
@@ -3517,7 +3518,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private EsqlStatement parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /**

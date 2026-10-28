@@ -25,28 +25,47 @@ import java.util.Map;
  * resolution callbacks, with cross-thread visibility provided by the ActionListener plumbing like the other threaded state.
  */
 public class PlanSize {
+    /** Where the limit comes from when no query pragma sets it, named in the error. */
+    public static final String CLUSTER_SETTING_SOURCE = QueryPragmas.EMPTY.maxCommandCountLimitSource(
+        EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey()
+    );
+
     private final int max;
+    private final String maxSource;
     private int size;
     private final Map<LogicalPlan, Integer> sizes = new IdentityHashMap<>();
     private final Map<LogicalPlan, UnionAll.UnionStats> unionStats = new IdentityHashMap<>();
 
-    public PlanSize(int max) {
-        this.size = 0;
-        this.max = max;
+    /**
+     * A size that is counted but never checked, for plans that another limit bounds: the ones the parser builds, and IN subqueries.
+     */
+    public static PlanSize unlimited() {
+        return new PlanSize(Integer.MAX_VALUE, CLUSTER_SETTING_SOURCE);
     }
 
     /**
-     * Starts the total at the nodes of {@code initial}, failing if they already exceed the maximum.
+     * Starts the total node count at 0.
+     *
+     * @param maxSource the pragma or cluster setting that supplied {@code max}, named in the error
      */
-    public PlanSize(LogicalPlan initial, int max) {
-        this.size = countNodes(initial);
+    public PlanSize(int max, String maxSource) {
+        this.size = 0;
         this.max = max;
+        this.maxSource = maxSource;
     }
 
-    // Used in testing
+    /**
+     * Starts the total at the nodes of {@code initial} without checking whether this is past the {@code max} threshold.
+     */
+    public PlanSize(LogicalPlan initial, int max, String maxSource) {
+        this(max, maxSource);
+        this.size = countNodes(initial);
+    }
+
+    // Only for testing
     public PlanSize(int initialSize, int max) {
+        this(max, CLUSTER_SETTING_SOURCE);
         this.size = initialSize;
-        this.max = max;
     }
 
     /**
@@ -59,7 +78,7 @@ public class PlanSize {
     private void addNodes(int addedNodes) {
         size = (int) Math.min((long) size + addedNodes, Integer.MAX_VALUE);
         if (size > max) {
-            throw exceeded(size);
+            throw maxPlanNodesExceeded(size);
         }
     }
 
@@ -74,22 +93,22 @@ public class PlanSize {
      * Fails if the leaf branches of {@code plan}, counted once per path as {@link UnionAll#unionStats} does, exceed
      * {@code maxBranchCount}
      */
-    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount) {
+    public void checkPlanWidth(LogicalPlan plan, int maxBranchCount, String maxBranchCountSource) {
         UnionAll.UnionStats stats = UnionAll.unionStats(plan, unionStats);
         if (stats.leaves() > maxBranchCount) {
-            String source = QueryPragmas.EMPTY.maxBranchCountLimitSource(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey());
             throw new VerificationException(
-                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, source))
+                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
             );
         }
     }
 
-    private VerificationException exceeded(int found) {
+    private VerificationException maxPlanNodesExceeded(int found) {
         return new VerificationException(
             "ES|QL query exceeded the maximum of [{}] plan nodes allowed after expanding views, subqueries and FORKs. "
-                + "Found at least [{}] plan nodes.",
+                + "Found at least [{}] plan nodes. The maximum is set by the {}.",
             max,
-            found
+            found,
+            maxSource
         );
     }
 

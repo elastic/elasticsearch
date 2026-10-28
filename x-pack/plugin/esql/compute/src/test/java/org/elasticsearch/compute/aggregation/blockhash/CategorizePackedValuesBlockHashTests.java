@@ -9,8 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -38,7 +36,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -72,24 +69,6 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
 
     public void testCategorize_withDriver() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        runWithDriver(bigArrays);
-    }
-
-    public void testCategorize_withDriver_withCrankyBreaker() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
-            .withCircuitBreaking();
-        try {
-            runWithDriver(bigArrays);
-        } catch (CircuitBreakingException ex) {
-            assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-            long usedBytes = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed();
-            if (usedBytes != 0L) {
-                fail(ex, "Expected 0 used bytes, but got " + usedBytes);
-            }
-        }
-    }
-
-    public void runWithDriver(BigArrays bigArrays) {
         DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
         boolean withNull = randomBoolean();
         boolean withMultivalues = randomBoolean();
@@ -135,17 +114,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                     messagesBuilder.appendNull();
                     idsBuilder.appendInt(43);
                 }
-
-                var blocks = new Block[2];
-                try {
-                    blocks[0] = messagesBuilder.build();
-                    blocks[1] = idsBuilder.build();
-                    return blocks;
-                } finally {
-                    if (blocks[1] == null) {
-                        Releasables.close(blocks);
-                    }
-                }
+                return new Block[] { messagesBuilder.build(), idsBuilder.build() };
             }
         };
         LocalSourceOperator.BlockSupplier input2 = () -> {

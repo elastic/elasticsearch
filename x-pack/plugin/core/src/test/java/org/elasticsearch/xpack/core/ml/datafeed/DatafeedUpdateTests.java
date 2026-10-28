@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
@@ -129,6 +130,9 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
         }
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomBoolean() ? -1 : randomIntBetween(10, 100));
+        }
+        if (randomBoolean()) {
+            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
             builder.setIndicesOptions(
@@ -408,7 +412,7 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(1, 13)) {
+        switch (between(1, 14)) {
             case 1:
                 builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
                 break;
@@ -535,10 +539,35 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setProjectRouting(randomAlphaOfLength(20));
                 }
                 break;
+            case 14:
+                if (instance.getMaxConsecutiveExtractionFailures() == null) {
+                    builder.setMaxConsecutiveExtractionFailures(randomFrom(-1, 10));
+                } else if (instance.getMaxConsecutiveExtractionFailures() == -1) {
+                    builder.setMaxConsecutiveExtractionFailures(10);
+                } else {
+                    builder.setMaxConsecutiveExtractionFailures(instance.getMaxConsecutiveExtractionFailures() + 100);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    public void testApplyMaxConsecutiveExtractionFailures() {
+        DatafeedConfig datafeed = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
+            .setMaxConsecutiveExtractionFailures(null)
+            .build();
+        assertThat(datafeed.getMaxConsecutiveExtractionFailures(), is(nullValue()));
+
+        DatafeedUpdate update = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(25).build();
+        DatafeedConfig updated = update.apply(datafeed, Collections.emptyMap(), clusterState);
+        assertThat(updated.getMaxConsecutiveExtractionFailures(), equalTo(25));
+
+        // -1 resets the setting back to its default, so a user can clear a configured value via the _update API.
+        DatafeedUpdate reset = new DatafeedUpdate.Builder(datafeed.getId()).setMaxConsecutiveExtractionFailures(-1).build();
+        DatafeedConfig wasReset = reset.apply(updated, Collections.emptyMap(), clusterState);
+        assertThat(wasReset.getMaxConsecutiveExtractionFailures(), is(nullValue()));
     }
 
     public void testApplyWithProjectRouting() {
@@ -588,6 +617,45 @@ public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<Dat
                 in.setTransportVersion(TransportVersion.current());
                 DatafeedUpdate deserialized = new DatafeedUpdate(in);
                 assertThat(deserialized.getProjectRouting(), equalTo(projectRouting));
+            }
+        }
+    }
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnPreFeatureTransportVersion() throws IOException {
+        // Before the field existed it is not on the wire, so it drains to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion.minimumCompatible(), false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnFeatureEraTransportVersion() throws IOException {
+        // Original feature-era peers, predating the revert, carry the field.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES, true);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresOmittedOnRevertedTransportVersion() throws IOException {
+        // Within the reverted window the field is drained from the wire, so it deserializes to null.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_REMOVED, false);
+    }
+
+    public void testMaxConsecutiveExtractionFailuresRoundTripsOnReAddedTransportVersion() throws IOException {
+        // Re-introduced peers carry the field again.
+        assertMaxConsecutiveExtractionFailuresWireRoundTrip(DatafeedConfig.DATAFEED_MAX_CONSECUTIVE_EXTRACTION_FAILURES_READDED, true);
+    }
+
+    private void assertMaxConsecutiveExtractionFailuresWireRoundTrip(TransportVersion version, boolean expectedOnWire) throws IOException {
+        int value = randomBoolean() ? -1 : randomIntBetween(1, 100);
+        DatafeedUpdate update = new DatafeedUpdate.Builder("test-datafeed").setMaxConsecutiveExtractionFailures(value).build();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(version);
+            update.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(version);
+                DatafeedUpdate deserialized = new DatafeedUpdate(in);
+                if (expectedOnWire) {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), equalTo(value));
+                } else {
+                    assertThat(deserialized.getMaxConsecutiveExtractionFailures(), nullValue());
+                }
             }
         }
     }

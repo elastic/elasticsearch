@@ -26,6 +26,7 @@ import java.io.Reader;
 public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final Normalizer2 normalizer;
+    private final Object sharingKey;
 
     public IcuAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -42,6 +43,7 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
         this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
+        this.sharingKey = new Key(method, mode, settings.get("unicode_set_filter"));
     }
 
     @Override
@@ -60,4 +62,11 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
             }
         };
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String method, String mode, String unicodeSetFilter) {}
 }

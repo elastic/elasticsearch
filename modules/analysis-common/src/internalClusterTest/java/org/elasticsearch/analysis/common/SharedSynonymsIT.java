@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -92,7 +93,7 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
      * A non-updateable lenient filter whose map trips the circuit breaker falls back to an empty map. Nothing reloads a
      * non-updateable analyzer, so an index created once the breaker clears must build its own rather than share the fallback.
      */
-    public void testIndexAfterCircuitBreakerFallbackDoesNotShareIt() {
+    public void testIndexAfterCircuitBreakerFallbackDoesNotShareIt() throws Exception {
         assumeTrue("analyzer sharing feature flag disabled", AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled());
 
         Settings index = Settings.builder()
@@ -116,6 +117,10 @@ public class SharedSynonymsIT extends ESSingleNodeTestCase {
         createIndex("b", index);
         assertNotSame(underlyingAnalyzer("a"), underlyingAnalyzer("b"));
         assertThat(analyze("b", "hello"), contains("hello", "hi"));
+
+        // The detached fallback is released, not leaked, once its index goes.
+        assertAcked(indicesAdmin().prepareDelete("a", "b"));
+        assertBusy(() -> getInstanceFromNode(IndicesService.class).getAnalysis().assertNoCachedEntries());
     }
 
     public void testIndexJoiningEmptyFallbackRetriesLoad() throws IOException {

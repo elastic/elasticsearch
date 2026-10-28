@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -159,6 +160,10 @@ public final class AnalysisRegistry implements Closeable {
 
     private final LongAdder cacheHits = new LongAdder();
     private final LongAdder cacheMisses = new LongAdder();
+
+    // Entries removed from their cache because their build was degraded (CacheEntry#detached) but still held by indices.
+    // Tracked so close() and assertNoCachedEntries() still see them. Whoever removes an entry from here closes it.
+    private final Set<CacheEntry> detachedEntries = ConcurrentHashMap.newKeySet();
 
     private final Environment environment;
     private final Map<String, AnalysisProvider<CharFilterFactory>> charFilters;
@@ -301,7 +306,7 @@ public final class AnalysisRegistry implements Closeable {
     /**
      * @return number of unique cached analyzer instances (sharing target). Together with the total
      *         live references across {@code IndexAnalyzers} this gives the per-node sharing factor
-     *         (references / unique).
+     *         (references / unique). Excludes detached entries, which are not shared (see CacheEntry#detached).
      */
     public int analyzerCacheSize() {
         return analyzerCache.size();
@@ -324,7 +329,8 @@ public final class AnalysisRegistry implements Closeable {
      *         reference per analyzer cache entry it uses, so this is the numerator of the analyzer
      *         sharing factor (total references / {@link #analyzerCacheSize() unique entries}); a ratio
      *         of 1.0 means no sharing, higher means more indices share each instance. Keeping the
-     *         numerator and denominator over the same cache makes that ratio meaningful.
+     *         numerator and denominator over the same cache makes that ratio meaningful. Excludes detached
+     *         entries, like {@link #analyzerCacheSize()}.
      */
     public long totalReferences() {
         long total = 0;
@@ -352,17 +358,20 @@ public final class AnalysisRegistry implements Closeable {
      * should invoke it in {@code @After} to guard against regressions in their own setup or in
      * the code under test.
      *
-     * @throws AssertionError if any of the three caches still contains entries, with a message
-     *         enumerating the leaked recipes.
+     * @throws AssertionError if any of the three caches still contains entries, or a detached entry
+     *         is still held, with a message enumerating the leaked recipes.
      */
     public void assertNoCachedEntries() {
-        if (analyzerCache.isEmpty() && normalizerCache.isEmpty() && whitespaceNormalizerCache.isEmpty()) {
+        if (analyzerCache.isEmpty() && normalizerCache.isEmpty() && whitespaceNormalizerCache.isEmpty() && detachedEntries.isEmpty()) {
             return;
         }
         StringBuilder msg = new StringBuilder("AnalysisRegistry has cached entries that were never released:\n");
         leakedEntries(msg, "  analyzer", analyzerCache);
         leakedEntries(msg, "  normalizer", normalizerCache);
         leakedEntries(msg, "  whitespace-normalizer", whitespaceNormalizerCache);
+        for (CacheEntry e : detachedEntries) {
+            msg.append("  detached refCount=").append(e.refCount.get()).append('\n');
+        }
         throw new AssertionError(msg.toString());
     }
 
@@ -405,6 +414,11 @@ public final class AnalysisRegistry implements Closeable {
                             toClose.add(a);
                         }
                     }
+                }
+            }
+            for (CacheEntry entry : detachedEntries) {
+                if (detachedEntries.remove(entry) && entry.evictable != null) {
+                    toClose.add(entry.evictable);
                 }
             }
             IOUtils.close(toClose);
@@ -1153,6 +1167,7 @@ public final class AnalysisRegistry implements Closeable {
                 // A lenient fallback (e.g. a synonym map that tripped the circuit breaker) must not be served to
                 // indices built later, which may build the full analyzer. Concurrent joiners of this build keep it.
                 entry.detached = true;
+                detachedEntries.add(entry);
                 cache.remove(key, entry);
             }
             entry.futureAnalyzer.complete(scoped);
@@ -1169,7 +1184,7 @@ public final class AnalysisRegistry implements Closeable {
      * entry has been retired. Used by the fast-path cache hit where the entry is already
      * (typically) materialized.
      */
-    private static InternedAnalyzer acquireIfLive(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
+    private InternedAnalyzer acquireIfLive(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         if (entry.tryAcquire() == false) {
             return null;
         }
@@ -1183,7 +1198,7 @@ public final class AnalysisRegistry implements Closeable {
      * RuntimeException — the cache entry has already been removed by the failing builder, so a
      * retry will rebuild.
      */
-    private static InternedAnalyzer materialize(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
+    private InternedAnalyzer materialize(AnalyzerKey key, CacheEntry entry, Map<AnalyzerKey, CacheEntry> cache) {
         NamedAnalyzer analyzer;
         try {
             analyzer = entry.futureAnalyzer.join();
@@ -1219,8 +1234,9 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /** Releases a reference on an entry no longer in the cache, closing its analyzer with the last one. */
-    private static void releaseDetached(AnalyzerKey key, CacheEntry entry) {
-        if (entry.refCount.decrementAndGet() > 0) {
+    private void releaseDetached(AnalyzerKey key, CacheEntry entry) {
+        // Skip the close if close() already claimed the entry.
+        if (entry.refCount.decrementAndGet() > 0 || detachedEntries.remove(entry) == false) {
             return;
         }
         try {

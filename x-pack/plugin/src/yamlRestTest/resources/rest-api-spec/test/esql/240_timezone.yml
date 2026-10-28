@@ -9,6 +9,14 @@ setup:
       test_runner_features: [ capabilities ]
       reason: "Check timezone capability"
   - do:
+      indices.create:
+        index: tzs
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+  - do:
       bulk:
         index: tzs
         refresh: true

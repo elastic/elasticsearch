@@ -38,7 +38,6 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.FailingQueryPlugin;
 import org.elasticsearch.xpack.rank.ShardFailingQueryBuilder;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
@@ -117,7 +116,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             """;
         int shardCount = randomIntBetween(1, 5);
         createIndex(INDEX, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardCount).build());
-        admin().indices().preparePutMapping(INDEX).setSource(mapping, XContentType.JSON).get();
+        admin().indices().preparePutMapping(INDEX).setSource(mapping).get();
         indexDoc(INDEX, "doc_1", DOC_FIELD, "doc_1", TOPIC_FIELD, "technology", TEXT_FIELD, "term");
         indexDoc(
             INDEX,

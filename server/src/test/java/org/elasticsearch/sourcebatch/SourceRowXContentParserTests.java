@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -162,6 +163,24 @@ public class SourceRowXContentParserTests extends ESTestCase {
                 assertFalse(parser.booleanValue());
 
                 assertToken(parser, Token.END_OBJECT);
+            }
+        }
+    }
+
+    /**
+     * JSON carries binary values as base64 strings, which the encoder stores in a string column, so
+     * {@link XContentParser#binaryValue()} must decode the string the way a JSON parser does.
+     */
+    public void testBase64StringBinaryValue() throws IOException {
+        byte[] value = randomByteArrayOfLength(between(1, 64));
+        BytesReference source = new BytesArray("{\"bin\": \"" + Base64.getEncoder().encodeToString(value) + "\"}");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "bin");
+                assertToken(parser, Token.VALUE_STRING);
+                assertArrayEquals(value, parser.binaryValue());
             }
         }
     }
@@ -371,6 +390,42 @@ public class SourceRowXContentParserTests extends ESTestCase {
                 int trailingLeaf = schema.findLeaf("trailing", 0);
                 assertEquals(Token.VALUE_NUMBER, parser.positionAtLeafValue(trailingLeaf));
                 assertEquals(9, parser.intValue());
+                assertNull(parser.nextToken());
+            }
+        }
+    }
+
+    public void testAbsentObjectNodeIsNotEmitted() throws IOException {
+        BytesReference withUser = new BytesArray("""
+            {"title": "doc1", "user": {"name": "alice"}}""");
+        BytesReference withoutUser = new BytesArray("""
+            {"title": "doc2"}""");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(withUser, withoutUser), XContentType.JSON)) {
+            SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(0))) {
+                assertToken(parser, Token.START_OBJECT);
+                // buildObjectNode adds object children before leaf children, so "user" appears before "title"
+                assertFieldName(parser, "user");
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "name");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("alice", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+                assertFieldName(parser, "title");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("doc1", parser.text());
+                assertToken(parser, Token.END_OBJECT);
+                assertNull(parser.nextToken());
+            }
+
+            // Row 1 has no user field: the parser must not emit "user": {} for the absent object.
+            try (SourceRowXContentParser parser = new SourceRowXContentParser(tree, batch.row(1))) {
+                assertToken(parser, Token.START_OBJECT);
+                assertFieldName(parser, "title");
+                assertToken(parser, Token.VALUE_STRING);
+                assertEquals("doc2", parser.text());
+                assertToken(parser, Token.END_OBJECT);
                 assertNull(parser.nextToken());
             }
         }

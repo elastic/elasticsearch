@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160351
+summary: KNN on runtime expression infer similarity function
+type: enhancement

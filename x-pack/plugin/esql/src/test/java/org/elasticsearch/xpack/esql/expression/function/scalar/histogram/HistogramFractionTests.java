@@ -108,7 +108,7 @@ public class HistogramFractionTests extends AbstractScalarFunctionTestCase {
         } else if (histogram instanceof TDigestHolder tdigest) {
             try (
                 TDigest scratch = TDigest.createMergingDigest(
-                    new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("histogram-fraction-tests")),
+                    new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE),
                     TDigestStates.COMPRESSION
                 )
             ) {
@@ -258,7 +258,7 @@ public class HistogramFractionTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MemoryTrackingTDigestArrays newTDigestArrays() {
-        return new MemoryTrackingTDigestArrays(new NoopCircuitBreaker("histogram-fraction-tests"));
+        return new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE);
     }
 
     @Override

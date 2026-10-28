@@ -11,10 +11,11 @@ package org.elasticsearch.repositories.azure;
 
 import reactor.core.publisher.BaseSubscriber;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.empty;
@@ -38,10 +40,13 @@ import static org.hamcrest.Matchers.empty;
 /**
  * Verifies that the {@link Flux} of upload buffers built by {@link AzureBlobStore#toFlux} delivers every buffer exactly once and in order
  * when it is consumed the way reactor-netty consumes a request body: {@code MonoSendMany} requests 128 buffers up front and then, from the
- * Netty event loop, 64 more every time 64 buffers have been written. With the {@code repository_azure} backed scheduler that
- * {@link AzureClientProvider} installs, those refill requests run on a different thread than the one producing the buffers, so the
- * operators in the chain must tolerate concurrent demand. A duplicated or dropped buffer here corresponds to a corrupt blob in the object
- * store, because the body length still matches.
+ * Netty event loop, 64 more every time 64 buffers have been written. A duplicated or dropped buffer here corresponds to a corrupt blob in
+ * the object store, because the body length still matches.
+ * <p>
+ * The flux is exercised on two schedulers. With {@link Schedulers#fromExecutor}, which {@link AzureClientProvider} used to install, a
+ * refill request runs on a different pool thread than the one producing the buffers, so the operators in the chain themselves must tolerate
+ * concurrent demand; this keeps {@link AzureBlobStore#toFlux} safe regardless of the scheduler it runs on. The scheduler
+ * {@link AzureClientProvider} installs today serializes each worker's tasks and is covered as the production composition.
  */
 public class AzureBlobStoreToFluxTests extends ESTestCase {
 
@@ -61,9 +66,6 @@ public class AzureBlobStoreToFluxTests extends ESTestCase {
             AzureRepositoryPlugin.executorBuilder(Settings.EMPTY),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
-        AzureClientProvider.installSchedulersFactory(
-            new ReactorScheduledExecutorService(threadPool, AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME)
-        );
     }
 
     @After
@@ -72,7 +74,34 @@ public class AzureBlobStoreToFluxTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testBuffersAreDeliveredOnceAndInOrderUnderConcurrentDemand() throws Exception {
+    public void testBuffersAreDeliveredOnceAndInOrderWithConcurrentWorkers() throws Exception {
+        // workers of this scheduler may run two tasks concurrently, so the refill requests race with the production of buffers
+        final Scheduler concurrentWorkers = Schedulers.fromExecutor(threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
+        Schedulers.setFactory(new Schedulers.Factory() {
+            @Override
+            public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
+                return concurrentWorkers;
+            }
+
+            @Override
+            public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
+                return concurrentWorkers;
+            }
+
+            @Override
+            public Scheduler newSingle(ThreadFactory threadFactory) {
+                return concurrentWorkers;
+            }
+        });
+        assertBuffersAreDeliveredOnceAndInOrderUnderConcurrentDemand();
+    }
+
+    public void testBuffersAreDeliveredOnceAndInOrderWithTheInstalledScheduler() throws Exception {
+        AzureClientProvider.installSchedulersFactory(threadPool, AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+        assertBuffersAreDeliveredOnceAndInOrderUnderConcurrentDemand();
+    }
+
+    private void assertBuffersAreDeliveredOnceAndInOrderUnderConcurrentDemand() throws Exception {
         final int fullBuffers = 2000;
         final long length = (long) fullBuffers * BUFFER_SIZE + randomIntBetween(8, BUFFER_SIZE);
         final int subscriptions = 1000;
@@ -89,7 +118,7 @@ public class AzureBlobStoreToFluxTests extends ESTestCase {
                 subscribers.add(subscriber);
                 AzureBlobStore.toFlux(() -> new SelfDescribingStream(length, seed), length, BUFFER_SIZE).subscribe(subscriber);
             }
-            assertTrue("uploads did not complete", done.await(60, TimeUnit.SECONDS));
+            safeAwait(done, TimeValue.timeValueSeconds(60));
             for (RecordingSubscriber subscriber : subscribers) {
                 subscriber.verify(length, problems);
             }

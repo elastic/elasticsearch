@@ -18,7 +18,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -164,7 +163,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
-                    return FieldData.singleton(new SingleHalfFloatValues(single));
+                    return SortedNumericDoubleValues.singleton(new SingleHalfFloatValues(single), single);
                 } else {
                     return new MultiHalfFloatValues(raw);
                 }
@@ -258,7 +257,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
-                    return FieldData.singleton(new SingleFloatValues(single));
+                    return SortedNumericDoubleValues.singleton(new SingleFloatValues(single), single);
                 } else {
                     return new MultiFloatValues(raw);
                 }

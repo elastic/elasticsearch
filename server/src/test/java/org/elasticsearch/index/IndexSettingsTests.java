@@ -10,7 +10,9 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -27,9 +29,12 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -544,6 +549,20 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxResultWindow());
     }
 
+    public void testPostFilterSelectivityThresholdIsDynamic() {
+        String key = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(key, 0.5f).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(0.5f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, 1.0f).build()));
+        assertEquals(1.0f, settings.getPostFilterSelectivityThreshold(), 0f);
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD, settings.getPostFilterSelectivityThreshold(), 0f);
+    }
+
     public void testMaxInnerResultWindow() {
         IndexMetadata metadata = newIndexMeta(
             "index",
@@ -849,6 +868,65 @@ public class IndexSettingsTests extends ESTestCase {
         assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 
+    public void testUpdateNonIndexedFieldMaxValueLengthFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateSettings(
+                Settings.builder().put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "20mb").build(),
+                Settings.builder(),
+                Settings.builder(),
+                "index"
+            )
+        );
+        assertThat(error.getMessage(), equalTo("final index setting [index.mapping.non_indexed_field.max_value_length], not updateable"));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthSetting() {
+        assertThat(
+            newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(1024 * 1024)
+        );
+        Settings custom = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        assertThat(
+            newIndexSettings(newIndexMeta("index", custom), Settings.EMPTY).getNonIndexedFieldMaxValueLength(),
+            equalTo(2 * 1024 * 1024)
+        );
+
+        Settings belowTermLimit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH - 1 + "b")
+            .build();
+        expectThrows(IllegalArgumentException.class, () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(belowTermLimit));
+    }
+
+    public void testNonIndexedFieldMaxValueLengthRequiresColumnarMode() {
+        IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        Settings explicit = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), nonColumnarMode.getName())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "2mb")
+            .build();
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(explicit)
+        );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "The setting [index.mapping.non_indexed_field.max_value_length] is only permitted when [index.mode] is a columnar "
+                    + "index mode. Current mode: ["
+                    + nonColumnarMode.getName()
+                    + "]."
+            )
+        );
+
+        Settings defaulted = Settings.builder().put(IndexSettings.MODE.getKey(), nonColumnarMode.getName()).build();
+        assertThat(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.get(defaulted), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
     public void testSoftDeletesDefaultSetting() {
         // enabled by default on 7.0+ or later
         IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
@@ -926,6 +1004,7 @@ public class IndexSettingsTests extends ESTestCase {
         IndexMetadata idxMetaData = newIndexMeta("test", settings);
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             Settings.EMPTY,
+            null,
             null,
             xContentRegistry(),
             new MapperRegistry(
@@ -1642,5 +1721,75 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
+    }
+
+    public void testBatchIndexingDefaultsToStrictColumnarMode() {
+        for (IndexMode mode : IndexMode.values()) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
+            if (mode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
+            }
+            Settings settings = builder.build();
+            assertThat(
+                "mode " + mode,
+                IndexSettings.BATCH_INDEXING.get(settings),
+                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && mode.isStrictColumnar())
+            );
+        }
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
+    }
+
+    public void testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting() {
+        Settings tsdbOptIn = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .build();
+        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+
+        // an explicit opt-out through the old key overrides the strict-columnar default
+        Settings columnarOptOut = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(columnarOptOut));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+    }
+
+    public void testBatchIndexingExplicitSettingWinsOverFallback() {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(settings));
+    }
+
+    public void testBatchIndexingRejectedWithoutFeatureFlag() {
+        assumeFalse("only applies when the feature flag is off", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings on = Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(on));
+        assertThat(e.getMessage(), containsString("batch_indexing feature flag"));
+
+        // defaults resolve to false rather than tripping the validator
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build()));
+        assertFalse(
+            IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
+        );
+        assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+    }
+
+    public void testBatchIndexingIsAlwaysRegistered() {
+        assertTrue(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.BATCH_INDEXING));
+    }
+
+    public void testIsBatchIndexingEnabledRequiresFeatureFlag() {
+        assumeTrue("setting is only registered with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        IndexSettings enabled = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true).build()
+        );
+        assertTrue(enabled.isBatchIndexingEnabled());
+        assertFalse(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY).isBatchIndexingEnabled());
     }
 }

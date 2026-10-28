@@ -995,7 +995,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
         // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
         for (DatasetSource source : testCase.datasetSources) {
-            if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
+            if (source.resource().contains(MULTIFILE_SUFFIX)
+                || source.resource().contains(HIVE_SHADOW_SUFFIX)
+                || (source.resource().contains(HIVE_SUFFIX) && source.resource().contains(HIVE_FILE_SUFFIX) == false)) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
         }
@@ -1316,6 +1318,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
+     * Suffix that triggers a two-file UBN fixture where file A stores {@code qty} as {@code INTEGER}
+     * and file B as {@code DOUBLE}. UBN widens {@code INTEGER} to {@code DOUBLE} (one-way), causing
+     * {@code mapFilters} to withhold the {@code qty > N} conjunct for file A and leave only the YES
+     * LIKE filter in the adapted push-down. Used to verify that the late-mat evaluator correctly drops
+     * rows whose city does not match the pattern even though the RECHECK conjunct alone would keep them.
+     */
+    private static final String MULTIFILE_UBN_LIKE_RECHECK_SUFFIX = "_multifile_ubn_like_recheck";
+    /**
      * Suffix that triggers a multi-file glob whose files share the same columns in different
      * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
      * cross-file column-order reconciliation against silent value swaps.
@@ -1346,6 +1356,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String HIVE_SHADOW_SUFFIX = "_hive_shadow";
 
     /**
+     * Hive-partitioned fixture resolved to one concrete file under {@code lang=1/}, so the single-file
+     * rail binds the partition column. Checked before {@link #HIVE_SUFFIX} because the name still
+     * contains {@code _hive}; HTTP must not treat it as a glob.
+     */
+    private static final String HIVE_FILE_SUFFIX = "_hive_file";
+
+    /**
      * Resolve a template name to an actual path based on storage backend and format.
      *
      * @param templateName the template name (e.g., "employees", "employees_multifile", or "employees_multifile_ubn")
@@ -1360,6 +1377,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
             // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
             relativePath = "multifile_perm/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_UBN_LIKE_RECHECK_SUFFIX)) {
+            relativePath = "multifile_ubn_like_recheck/*." + format;
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
@@ -1374,6 +1393,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(HIVE_SHADOW_SUFFIX)) {
             // Hive layout whose partition key shadows a same-named payload column.
             relativePath = "hive-partitioned-shadow/**/*." + format;
+        } else if (templateName.endsWith(HIVE_FILE_SUFFIX)) {
+            String stem = templateName.substring(0, templateName.length() - HIVE_FILE_SUFFIX.length());
+            relativePath = "hive-partitioned/lang=1/" + stem + "." + format;
         } else if (templateName.endsWith(HIVE_SUFFIX)) {
             // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
             // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector

@@ -8,6 +8,11 @@
 
 #define CACHE_LINE_SIZE 64
 
+// pdep deposits the single bit (1 << k) at the position of the k-th set bit of mask
+static inline int32_t mask_select(const uint32_t mask, const int32_t k) {
+    return (int32_t)_tzcnt_u32(_pdep_u32(1u << k, mask));
+}
+
 static inline void prefetch(const void* ptr, int lines) {
     const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(ptr);
     for (int k = 0; k < lines; ++k) {
@@ -166,12 +171,14 @@ static inline int64_t mm256_reduce_epi64(const __m256i a) {
  *   mapper:   resolves the i-th vector to a direct pointer
  *   inner_op: computes the full vector operation for all dims (including tail)
  *   batches:  number of vectors per batch (default 2 for AVX2, prefer 4 for AVX-512)
+ *   out_mapper: resolves the result slot of the i-th vector
  */
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int32_t(*inner_op)(const int8_t*, const int8_t*, const int32_t),
-    int batches = 2
+    int batches = 2,
+    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
 >
 static inline void call_i8_bulk(
     const TData* a,
@@ -199,7 +206,7 @@ static inline void call_i8_bulk(
         }
 
         apply_indexed<batches>([&](auto I) {
-            results[c + I] = (f32_t)inner_op(current_vecs[I], b, dims);
+            results[out_mapper(offsets, c + I)] = (f32_t)inner_op(current_vecs[I], b, dims);
         });
 
         if (has_next) {
@@ -210,7 +217,7 @@ static inline void call_i8_bulk(
     // Tail-handling: remaining vectors (fewer than batches)
     for (; c < count; c++) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[c] = (f32_t)inner_op(a0, b, dims);
+        results[out_mapper(offsets, c)] = (f32_t)inner_op(a0, b, dims);
     }
 }
 

@@ -210,8 +210,13 @@ public class DatafeedJobBuilder {
         );
     }
 
-    private void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
+    // visible for testing
+    void checkRemoteIndicesAreAvailable(DatafeedConfig datafeedConfig) {
         if (remoteClusterClient == false) {
+            // ES|QL sources are in esql_query, not indices; remote checks live in EsqlDatafeedQueryValidator (#160858).
+            if (datafeedConfig.getIndices() == null) {
+                return;
+            }
             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(

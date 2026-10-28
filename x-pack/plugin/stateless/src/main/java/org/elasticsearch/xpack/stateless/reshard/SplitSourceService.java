@@ -674,7 +674,7 @@ public class SplitSourceService {
         Releasable releasable;
         @Nullable
         SubscribableListener<Releasable> onAcquired;
-        long acquireStartMillis;
+        long blockedStartMillis;
 
         RefCountedAcquirer(Consumer<ActionListener<Releasable>> acquirer, LongSupplier nowInMillis, LongConsumer onReleased) {
             this.acquirer = acquirer;
@@ -698,9 +698,9 @@ public class SplitSourceService {
                     // create a listener that will first acquire, and if that succeeds, squirrel away
                     // the returned releasable to be dropped when the refcount goes to zero, and then
                     // complete any listeners that may be listening for it.
+                    this.blockedStartMillis = nowInMillis.getAsLong();
                     this.onAcquired = SubscribableListener.newForked(l -> acquirer.accept(l.delegateFailure((inner, releasable) -> {
                         this.releasable = releasable;
-                        this.acquireStartMillis = nowInMillis.getAsLong();
                         inner.onResponse(this::release);
                     })));
                 }
@@ -716,11 +716,14 @@ public class SplitSourceService {
 
         public void release() {
             Releasable releasable = null;
+            long blockedStartMillis = 0;
             synchronized (this) {
                 if (refCount.decrementAndGet() == 0) {
                     releasable = this.releasable;
                     this.releasable = null;
                     onAcquired = null;
+                    // Snapshot before leaving the lock so a new acquisition cannot overwrite the start time
+                    blockedStartMillis = this.blockedStartMillis;
                 }
             }
 
@@ -728,8 +731,7 @@ public class SplitSourceService {
             if (releasable != null) {
                 // release outside of lock, since operation may take time
                 releasable.close();
-                long acquiredDurationMillis = nowInMillis.getAsLong() - this.acquireStartMillis;
-                onReleased.accept(acquiredDurationMillis);
+                onReleased.accept(nowInMillis.getAsLong() - blockedStartMillis);
             }
         }
     }
@@ -803,9 +805,16 @@ public class SplitSourceService {
             permitAcquirer = new RefCountedAcquirer(
                 releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE),
                 SplitSourceService.this.indicesService.clusterService().threadPool().relativeTimeInMillisSupplier(),
-                acquiredDuration -> SplitSourceService.this.reshardIndexService.getReshardMetrics()
-                    .indexingBlockedDurationHistogram()
-                    .record(acquiredDuration)
+                blockedMillis -> {
+                    logger.info(
+                        "[{}] indexing blocked for [{}] during reshard",
+                        sourceShard.shardId(),
+                        TimeValue.timeValueMillis(blockedMillis)
+                    );
+                    SplitSourceService.this.reshardIndexService.getReshardMetrics()
+                        .indexingBlockedDurationHistogram()
+                        .record(blockedMillis);
+                }
             );
         }
 

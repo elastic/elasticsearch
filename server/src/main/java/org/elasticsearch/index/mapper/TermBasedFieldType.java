@@ -14,9 +14,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 
 import java.util.Collection;
 import java.util.List;
@@ -69,10 +72,18 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
         failIfNotIndexed();
         List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
-        return new TermInSetQuery(name(), bytesRefs);
+        TermInSetQuery query = new TermInSetQuery(name(), bytesRefs);
+        if (context != null) {
+            context.addCircuitBreakerMemory(
+                new TermsQueryCostEstimator(query.ramBytesUsed()).estimate(),
+                ChildMemoryCircuitBreaker.CATEGORY_TERMS
+            );
+            context.markQueryMemoryPreCharged(query);
+        }
+        return query;
     }
 
 }

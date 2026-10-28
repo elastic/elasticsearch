@@ -11,6 +11,9 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.io.Closeable;
+import java.io.IOException;
+
 /**
  * Where a page of a string column is handed to whoever asked for it.
  *
@@ -43,7 +46,22 @@ public interface StringBlockSink {
 
     /**
      * A page as its values, for a page that repeats too little for ordinals into a dictionary as long as the page to
-     * save anything. Shaped as above, and valid until the next call.
+     * save anything. The values are appended to what this returns one at a time, in document order, and are shaped
+     * as above: {@code valueCount} of them across {@code docCount} documents.
      */
-    void appendValues(BytesRef[] values, int valueCount, int[] valueCounts, int docCount);
+    Values values(int valueCount, int[] valueCounts, int docCount);
+
+    /** A page's values, taken one at a time in document order. */
+    interface Values extends Closeable {
+
+        /** The next value, valid only until this returns. */
+        void append(BytesRef value) throws IOException;
+
+        /** Every value has been appended, so the page is complete. */
+        void finish();
+
+        /** Releases what a page that was not finished holds. */
+        @Override
+        void close();
+    }
 }

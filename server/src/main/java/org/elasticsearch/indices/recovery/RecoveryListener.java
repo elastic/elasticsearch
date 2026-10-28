@@ -28,7 +28,7 @@ public interface RecoveryListener {
         ) {}
 
         @Override
-        public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {}
+        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {}
     };
 
     /// Called when recovery finishes successfully.
@@ -39,7 +39,7 @@ public interface RecoveryListener {
     );
 
     /// Called when recovery fails with an exception.
-    void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy);
+    void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy);
 
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
@@ -55,9 +55,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try (ThreadContext.StoredContext ignore = context.get()) {
-                    listener.onRecoveryFailure(e, failureStrategy);
+                    listener.onRecoveryFailure(state, e, failureStrategy);
                 }
             }
         };
@@ -80,9 +80,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
-                    listener.onRecoveryFailure(e, failureStrategy);
+                    listener.onRecoveryFailure(state, e, failureStrategy);
                 } finally {
                     runAfter.run();
                 }
@@ -107,11 +107,11 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     runBefore.run();
                 } finally {
-                    listener.onRecoveryFailure(e, failureStrategy);
+                    listener.onRecoveryFailure(state, e, failureStrategy);
                 }
             }
         };
@@ -135,8 +135,8 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
-                listener.onRecoveryFailure(e, failureStrategy);
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
+                listener.onRecoveryFailure(state, e, failureStrategy);
             }
         };
     }
@@ -155,11 +155,11 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 try {
                     beforeFailure.accept(e);
                 } finally {
-                    listener.onRecoveryFailure(e, failureStrategy);
+                    listener.onRecoveryFailure(state, e, failureStrategy);
                 }
             }
         };
@@ -195,10 +195,10 @@ public interface RecoveryListener {
                 }
 
                 @Override
-                public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+                public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                     assertFirstRun();
                     try {
-                        delegate.onRecoveryFailure(e, failureStrategy);
+                        delegate.onRecoveryFailure(state, e, failureStrategy);
                     } catch (RuntimeException ex) {
                         if (e != null && ex != e) {
                             ex.addSuppressed(e);

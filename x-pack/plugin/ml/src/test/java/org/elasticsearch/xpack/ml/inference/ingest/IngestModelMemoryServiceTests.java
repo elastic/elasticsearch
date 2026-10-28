@@ -239,6 +239,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             assertThat(modelSize, notNullValue());
             assertThat(modelSize.isPresent(), is(false));
             assertThat(service.getRequiredHeapBytes().isExact(), is(false));
+            assertThat(service.isFetchScheduledForTests("model-a"), is(false));
         });
 
         service.clusterChanged(new ClusterChangedEvent("test", current, current));
@@ -298,8 +299,13 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
         assertBusy(() -> {
             assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(500L));
             assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+            verify(trainedModelProvider, times(2)).getTrainedModel(
+                eq("model-a"),
+                eq(GetTrainedModelsAction.Includes.empty()),
+                any(),
+                any()
+            );
         });
-        verify(trainedModelProvider, times(2)).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
     }
 
     public void testResolvedZeroShouldNotBePeriodicallyRefetched() throws Exception {

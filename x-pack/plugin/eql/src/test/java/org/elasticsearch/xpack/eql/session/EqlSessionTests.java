@@ -64,7 +64,7 @@ public class EqlSessionTests extends ESTestCase {
             new Verifier(new Metrics()),
             new Optimizer(),
             new Planner(),
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
     }
 

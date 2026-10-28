@@ -19,10 +19,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
-import org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
@@ -30,8 +28,6 @@ import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider
 
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
 public class APMMeterService extends AbstractLifecycleComponent {
 
@@ -45,7 +41,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     protected volatile boolean enabled;
 
     public APMMeterService(Settings settings, Path diskBufferPath, @Nullable MetricReaderProvider metricReaderProvider) {
-        this(settings, createOtelMeterSupplier(settings, diskBufferPath, metricReaderProvider), new NoOpMeterSupplier());
+        this(settings, new OtelSdkExportMeterSupplier(settings, diskBufferPath, metricReaderProvider), new NoOpMeterSupplier());
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
@@ -57,19 +53,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.systemMetrics = new SystemMetrics(meterRegistry, OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING.get(settings));
     }
 
-    private static MeterSupplier createOtelMeterSupplier(
-        Settings settings,
-        Path diskBufferPath,
-        @Nullable MetricReaderProvider metricReaderProvider
-    ) {
-        boolean otelMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false"));
-        if (otelMetricsEnabled) {
-            return new OtelSdkExportMeterSupplier(settings, diskBufferPath, metricReaderProvider);
-        } else {
-            return new AgentExportMeterSupplier(settings);
-        }
-    }
-
     public APMMeterRegistry getMeterRegistry() {
         return meterRegistry;
     }
@@ -77,19 +60,14 @@ public class APMMeterService extends AbstractLifecycleComponent {
     /**
      * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
      * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
-     * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
+     * Returns {@link MeterProvider#noop()} when {@code telemetry.export.endpoint} is not configured.
      */
     MeterProvider getHealthMeterProvider() {
         return otelMeterSupplier.getMeterProvider();
     }
 
     /**
-     * Export buffered metrics on a best-effort basis.
-     * <p>
-     * For OpenTelemetry SDK metrics, pushes buffered data to the exporter. For Elastic APM agent metrics,
-     * sleeps for {@code 2 * telemetry.agent.metrics_interval} because the agent has no
-     * programmatic flush; observable export (e.g. first HTTP to {@code telemetry.agent.server_url}) may still
-     * take substantially longer than this sleep.
+     * Pushes buffered metrics to the OTLP exporter on a best-effort basis.
      */
     public CompletableResultCode attemptFlushMetrics() {
         if (enabled) {

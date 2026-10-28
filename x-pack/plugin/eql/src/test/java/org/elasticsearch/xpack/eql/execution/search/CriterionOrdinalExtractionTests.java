@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.test.ESTestCase;
@@ -16,6 +17,8 @@ import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
+import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.junit.After;
@@ -33,6 +36,7 @@ import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchLongSortValue
 import static org.elasticsearch.xpack.eql.EqlTestUtils.randomSearchSortValues;
 import static org.elasticsearch.xpack.eql.execution.search.OrdinalTests.randomTimestamp;
 import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
 
@@ -83,8 +87,20 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, FULL);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
         SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), badExtractor, null, null, false, false);
-        EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
-        assertTrue(exception.getMessage().startsWith("Expected timestamp"));
+        assertBadRequest(() -> criterion.ordinal(hit), "Expected timestamp field [timestamp] to be mapped as");
+    }
+
+    public void testTimeMultiValued() throws Exception {
+        HitExtractor dateExtractor = new TimestampFieldHitExtractor(new FieldHitExtractor(tsField, DataTypes.DATETIME, null, null, FULL));
+        SearchHit hit = searchHit(List.of("1580733296000", "1580733297000"), null);
+        SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), dateExtractor, null, null, false, false);
+        assertBadRequest(() -> criterion.ordinal(hit), "Expected timestamp field [timestamp] to be mapped as");
+    }
+
+    public void testTimeWithoutValue() throws Exception {
+        SearchHit hit = searchHit(null, null);
+        SequenceCriterion criterion = new SequenceCriterion(0, null, emptyList(), tsExtractor, null, null, false, false);
+        assertBadRequest(() -> criterion.timestamp(hit), "Expected timestamp field [timestamp] to have a value but got none");
     }
 
     public void testImplicitTiebreakerMissing() throws Exception {
@@ -117,6 +133,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
         );
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
         assertTrue(exception.getMessage().startsWith("Expected _shard_doc/implicit tiebreaker as long but got [test string]"));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, exception.status());
     }
 
     public void testTiebreakerNotComparable() throws Exception {
@@ -151,8 +168,18 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
             false,
             false
         );
-        EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));
-        assertTrue(exception.getMessage().startsWith("Expected tiebreaker"));
+        assertBadRequest(() -> criterion.ordinal(hit), "Expected tiebreaker field [");
+    }
+
+    public void testTiebreakerMultiValued() throws Exception {
+        SearchHit hit = searchHit(randomTimestamp(), List.of(randomLong(), randomLong()));
+        assertBadRequest(() -> ordinal(hit, true), "Expected tiebreaker field [tiebreaker]");
+    }
+
+    private static void assertBadRequest(ThrowingRunnable extraction, String messagePrefix) {
+        InvalidArgumentException exception = expectThrows(InvalidArgumentException.class, extraction);
+        assertEquals(RestStatus.BAD_REQUEST, exception.status());
+        assertThat(exception.getMessage(), startsWith(messagePrefix));
     }
 
     private SearchHit searchHit(Object timeValue, Object tiebreakerValue) {
@@ -165,13 +192,19 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
 
     private SearchHit searchHit(Object timeValue, Object tiebreakerValue, Supplier<SearchSortValues> searchSortValues) {
         Map<String, DocumentField> fields = new HashMap<>();
-        fields.put(tsField, new DocumentField(tsField, singletonList(timeValue)));
-        fields.put(tbField, new DocumentField(tsField, singletonList(tiebreakerValue)));
+        addField(fields, tsField, timeValue);
+        addField(fields, tbField, tiebreakerValue);
         SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         searchHit.addDocumentFields(fields, Map.of());
         searchHit.sortValues(searchSortValues.get());
         pooledHitsToRelease.add(searchHit);
         return searchHit;
+    }
+
+    private static void addField(Map<String, DocumentField> fields, String name, Object value) {
+        if (value != null) {
+            fields.put(name, new DocumentField(name, value instanceof List<?> list ? new ArrayList<>(list) : singletonList(value)));
+        }
     }
 
     private Ordinal ordinal(SearchHit hit, boolean withTiebreaker) {

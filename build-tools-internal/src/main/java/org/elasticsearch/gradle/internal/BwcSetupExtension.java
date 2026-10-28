@@ -131,8 +131,13 @@ public class BwcSetupExtension {
             }
 
             if (useUniqueUserHome) {
+                String uniqueGradleUserHome = project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName();
                 loggedExec.dependsOn("setupGradleUserHome");
-                loggedExec.args("-g", project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
+                // The wrapper resolves/downloads the distribution before Gradle proper processes
+                // command-line arguments like `-g`, so the unique user home must also be forwarded
+                // via the environment for the seeded wrapper cache to be visible.
+                loggedExec.getNonTrackedEnvironment().put("GRADLE_USER_HOME", uniqueGradleUserHome);
+                loggedExec.args("-g", uniqueGradleUserHome);
             }
 
             if (project.getGradle().getStartParameter().isOffline()) {

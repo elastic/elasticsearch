@@ -126,7 +126,15 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "BinaryDocValuesRangeQuery(fieldName=" + field + ",from=" + originalFrom + ",to=" + originalTo + ")";
+        return "BinaryDocValuesRangeQuery(fieldName="
+            + fieldName
+            + ",queryType="
+            + queryType
+            + ",from="
+            + originalFrom
+            + ",to="
+            + originalTo
+            + ")";
     }
 
     @Override

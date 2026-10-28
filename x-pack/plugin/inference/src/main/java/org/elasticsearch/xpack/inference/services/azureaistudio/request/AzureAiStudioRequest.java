@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
@@ -34,7 +34,7 @@ public abstract class AzureAiStudioRequest implements OutboundRequest {
         this.isRealtimeEndpoint = (model.endpointType() == AzureAiStudioEndpointType.REALTIME);
     }
 
-    protected void setAuthHeader(HttpEntityEnclosingRequestBase request, AzureAiStudioModel model) {
+    protected void setAuthHeader(SimpleHttpRequest request, AzureAiStudioModel model) {
         var apiKey = model.getSecretSettings().apiKey();
 
         if (isOpenAiRequest) {

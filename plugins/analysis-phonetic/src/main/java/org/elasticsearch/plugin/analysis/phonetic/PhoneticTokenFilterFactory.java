@@ -42,11 +42,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
+    private int maxVariations;
     private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
-    private int maxVariations;
     private final Object sharingKey;
     private boolean legacyHaaseVariations;
 
@@ -115,18 +115,19 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
-        // The commons-codec encoders are built with their defaults, so the class identifies the encoding; the
-        // language set is used as a set, so its order and duplicates do not matter.
+        // The commons-codec encoders are built with their defaults, except the Koelner variants which take
+        // max_variations, so the class plus the keyed limits identifies the encoding; the language set is
+        // used as a set, so its order and duplicates do not matter.
         this.sharingKey = new Key(
             encoder == null ? null : encoder.getClass(),
             replace,
             maxcodelength,
+            maxVariations,
             languageset == null ? null : Set.copyOf(languageset),
             nametype,
             ruletype,
             isDaitchMokotoff,
-            legacyHaaseVariations,
-            maxVariations
+            legacyHaaseVariations
         );
     }
 
@@ -182,13 +183,12 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         Class<? extends Encoder> encoder,
         boolean replace,
         int maxCodeLength,
+        int maxVariations,
         Set<String> languageSet,
         NameType nameType,
         RuleType ruleType,
         boolean daitchMokotoff,
         // Derived from the index version rather than a setting: the encoder class alone can't tell legacy and fixed haasephonetik apart.
-        boolean legacyHaaseVariations,
-        // 0 for encoders that do not generate variations, so they still share across differing max_variations.
-        int maxVariations
+        boolean legacyHaaseVariations
     ) {}
 }

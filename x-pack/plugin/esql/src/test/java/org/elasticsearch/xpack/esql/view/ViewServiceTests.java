@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,9 +20,14 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -32,6 +39,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
@@ -73,7 +81,7 @@ public class ViewServiceTests extends ESTestCase {
                 event.getNewState().nodes().forEach(node -> ackListener.onNodeAck(node, null));
             }), ackListener);
         });
-        viewService = new ViewService(clusterService, TEST_PARSER);
+        viewService = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
     }
 
     @After
@@ -329,6 +337,54 @@ public class ViewServiceTests extends ESTestCase {
         viewService.validatePutView(project, view);
     }
 
+    public void testValidateViewWarnsWhenQueryIsNotValid() {
+        var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
+
+        validateView(service, new View("v", "FROM missing", null, false));
+
+        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
+        assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
+    }
+
+    /**
+     * These failures say nothing about the query, so they must not look like a problem with it.
+     */
+    public void testValidateViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
+        for (Exception failure : List.<Exception>of(
+            new EsRejectedExecutionException("rejected"),
+            new TaskCancelledException("Cancelled"),
+            new CircuitBreakingException("too big", CircuitBreaker.Durability.TRANSIENT),
+            new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
+            new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
+        )) {
+            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
+            ensureNoWarnings();
+        }
+    }
+
+    public void testValidateViewDoesNotWarnWhenQueryIsValid() {
+        validateView(viewService, new View("v", "FROM some-index", null, false));
+        ensureNoWarnings();
+    }
+
+    public void testPutViewDoesNotAnalyze() {
+        var service = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> fail("must not analyze"));
+
+        putView(service, new View("v", "FROM missing", null, false));
+
+        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    private ViewService viewServiceFailingAnalysisWith(Exception failure) {
+        return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
+    }
+
+    private void validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<Void>();
+        service.validateView(ProjectId.DEFAULT, view, future);
+        future.actionGet(10, TimeUnit.SECONDS);
+    }
+
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
         viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);
@@ -336,8 +392,12 @@ public class ViewServiceTests extends ESTestCase {
     }
 
     private void putView(View view) {
+        putView(viewService, view);
+    }
+
+    private void putView(ViewService service, View view) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
-        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+        service.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
         future.actionGet(10, TimeUnit.SECONDS);
     }
 

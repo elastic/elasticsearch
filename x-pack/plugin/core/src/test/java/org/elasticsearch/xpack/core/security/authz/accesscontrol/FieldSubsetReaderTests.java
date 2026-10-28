@@ -2717,6 +2717,49 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
+    public void testMappedSourceGeometryMultiFieldRemainsAccessible() throws Exception {
+        var mapperService = createMapperService(mapping(b -> {
+            b.startObject("title");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("source_geometry").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("title", "visible")));
+        doc.updateSeqID(0, 0);
+        doc.version().setLongValue(0);
+
+        var filter = new CharacterRunAutomaton(
+            FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "title" })
+        );
+
+        try (
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()))
+        ) {
+            writer.addDocuments(doc.docs());
+
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(writer)),
+                    filter,
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                    name -> mapper.mappers().getFieldType(name) != null
+                )
+            ) {
+                LeafReader leaf = reader.leaves().get(0).reader();
+
+                assertNull(leaf.terms("title"));
+                Terms terms = leaf.terms("title.source_geometry");
+                assertNotNull(terms);
+                assertTrue(terms.iterator().seekExact(new BytesRef("visible")));
+            }
+        }
+    }
+
     private static final String DOC_TEST_ITEM = """
         {
           "field_text" : "text",

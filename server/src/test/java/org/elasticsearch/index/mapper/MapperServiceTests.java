@@ -198,6 +198,36 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array of objects gives a field in the objects one value per object, so a {@code multi_value=false} field rejects it, and never
+     * holds more than one value in a document. This is so for {@code object} and for {@code nested} parents. For {@code nested} it is
+     * stricter than needed, since each nested object is its own Lucene document with one value: the values are counted per top-level
+     * document. That only rejects more documents, so the single-value guarantee still holds.
+     */
+    public void testMultiValueFalseRejectsArrayOfObjects() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        for (String parentType : List.of("object", "nested")) {
+            DocumentMapper mapper = createMapperService(columnar, mapping(b -> {
+                b.startObject("parent").field("type", parentType).startObject("properties");
+                b.startObject("child").field("type", "keyword").field("multi_value", false).endObject();
+                b.endObject().endObject();
+            })).documentMapper();
+
+            mapper.parse(source(b -> b.startObject("parent").field("child", "1").endObject()));
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+                b.startArray("parent");
+                b.startObject().field("child", "1").endObject();
+                b.startObject().field("child", "2").endObject();
+                b.endArray();
+            })));
+            assertThat(
+                parentType,
+                e.getCause().getMessage(),
+                containsString("Field [parent.child] is configured with [multi_value=false] but encountered multiple values")
+            );
+        }
+    }
+
+    /**
      * An alias has the guarantee of its target: it is reported when the target is, and not when the target is not.
      */
     public void testStaticallySingleValuedThroughAlias() throws IOException {

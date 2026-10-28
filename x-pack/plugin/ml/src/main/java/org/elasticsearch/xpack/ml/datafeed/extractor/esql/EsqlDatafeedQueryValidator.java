@@ -107,12 +107,14 @@ public class EsqlDatafeedQueryValidator {
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            try {
+            // The response is ref-counted and only its column metadata is needed, so release it before completing the listener.
+            try (response) {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
-                listener.onResponse(Boolean.TRUE);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(Boolean.TRUE);
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
@@ -149,12 +151,13 @@ public class EsqlDatafeedQueryValidator {
         List<EsqlQueryParam> params = List.of(new EsqlQueryParam("sourceTimeField", sourceTimeField, IDENTIFIER));
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
-            try {
+            try (response) {
                 checkSourceTimeFieldType(response.response().columns(), sourceTimeField, datafeedId);
-                listener.onResponse(Boolean.TRUE);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(Boolean.TRUE);
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {

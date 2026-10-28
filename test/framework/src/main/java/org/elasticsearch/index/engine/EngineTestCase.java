@@ -1750,8 +1750,18 @@ public abstract class EngineTestCase extends ESTestCase {
         }
 
         final BytesRef seqNoBytes = new BytesRef(new byte[docCount * 8]);
+        final BytesRef primaryTermBytes = new BytesRef(new byte[docCount * 8]);
+        final BytesRef versionBytes = new BytesRef(new byte[docCount * 8]);
         for (int d = 0; d < docCount; d++) {
-            ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoBytes.bytes, d * 8);
+            if (origin == Engine.Operation.Origin.REPLICA) {
+                // replica ops carry the seqNo, term and version assigned by the primary, as IndexOperationBatch stamps them
+                final Engine.Index op = operations.get(d);
+                ByteUtils.writeLongLE(op.seqNo(), seqNoBytes.bytes, d * 8);
+                ByteUtils.writeLongLE(op.primaryTerm(), primaryTermBytes.bytes, d * 8);
+                ByteUtils.writeLongLE(op.version(), versionBytes.bytes, d * 8);
+            } else {
+                ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, seqNoBytes.bytes, d * 8);
+            }
         }
 
         return new IndexOperationBatch(
@@ -1774,8 +1784,8 @@ public abstract class EngineTestCase extends ESTestCase {
             isRetry,
             sourceBatch,
             seqNoBytes,
-            new BytesRef(new byte[docCount * 8]),
-            new BytesRef(new byte[docCount * 8])
+            primaryTermBytes,
+            versionBytes
         );
     }
 }

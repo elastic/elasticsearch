@@ -12,11 +12,19 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,11 +46,14 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardFieldStats;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
@@ -56,6 +67,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalCommitsTracker;
 import org.elasticsearch.xpack.stateless.commits.ShardLocalReadersTracker;
@@ -63,6 +75,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.junit.After;
@@ -70,8 +83,10 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -597,6 +612,161 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             expectThrows(IllegalStateException.class, () -> engine.indexBatch(engineBatch(batchOps, encodeAsEscfBatch(batchOps))));
             assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
         }
+    }
+
+    public void testReplicaBatchWithSeqNoGapIsReplicatedAsContiguousRecords() throws Exception {
+        // Only promotable shards receive replica batches and stateless search shards are not promotable, so this engine never
+        // indexes one today. The translog replicator still expands every record it is handed into the record's full seqNo range,
+        // so if a replica batch ever reached it, the engine must have cut the batch at every gap first. This is that path.
+        final EngineConfig baseConfig = indexConfig();
+        final ShardId shardId = baseConfig.getShardId();
+        final Path translogStorePath = createTempDir();
+        final BlobContainer translogBlobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, translogStorePath, false),
+            BlobPath.EMPTY,
+            translogStorePath
+        );
+        final TranslogReplicator translogReplicator = new TranslogReplicator(
+            baseConfig.getThreadPool(),
+            Settings.builder()
+                .put(TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(10))
+                .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(50))
+                .build(),
+            translogObjectStoreService(translogBlobContainer),
+            immediateConsistencyService(),
+            false,
+            ignored -> 1L
+        );
+        translogReplicator.start();
+        // as in StatelessPlugin#getEngineFactory: the local translog hands every record it writes to the replicator
+        final TranslogConfig baseTranslogConfig = baseConfig.getTranslogConfig();
+        final EngineConfig config = EngineConfig.builder(baseConfig)
+            .translogConfig(
+                new TranslogConfig(
+                    shardId,
+                    baseTranslogConfig.getTranslogPath(),
+                    baseTranslogConfig.getIndexSettings(),
+                    baseTranslogConfig.getBigArrays(),
+                    baseTranslogConfig.getBufferSize(),
+                    baseTranslogConfig.getDiskIoBufferPool(),
+                    translogReplicator.listenerFor(shardId),
+                    false
+                )
+            )
+            .build();
+        final List<Long> persistedSeqNos = Collections.synchronizedList(new ArrayList<>());
+        try (var engine = newIndexEngine(config, translogReplicator)) {
+            // as in StatelessIndexNodeLifecycleListener#afterIndexShardCreated: an upload marks its seqNos persisted in the engine
+            translogReplicator.register(shardId, 1L, seqNos -> {
+                for (int i = seqNos.offset; i < seqNos.offset + seqNos.length; i++) {
+                    persistedSeqNos.add(seqNos.longs[i]);
+                }
+                engine.objectStorePersistedSeqNoConsumer().accept(seqNos);
+            });
+
+            // the primary split this batch at a contended id, and another bulk reserved 3 and 4 in between
+            final List<Engine.Index> ops = new ArrayList<>();
+            for (long seqNo : new long[] { 0, 1, 2, 5, 6 }) {
+                ops.add(replicaDoc("d" + seqNo, seqNo));
+            }
+            final List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
+            for (Engine.IndexResult result : results) {
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            }
+            // the engine ended a sub-batch at the gap, so the replicator was handed two records: [0, 1, 2] and [5, 6]
+            final Translog.Location firstRecord = results.get(0).getTranslogLocation();
+            assertThat(results.get(1).getTranslogLocation(), equalTo(firstRecord));
+            assertThat(results.get(2).getTranslogLocation(), equalTo(firstRecord));
+            assertThat(results.get(3).getTranslogLocation(), not(equalTo(firstRecord)));
+            assertThat(results.get(4).getTranslogLocation(), equalTo(results.get(3).getTranslogLocation()));
+
+            engine.syncTranslog();
+            // the node buffer expanded each record into exactly its own rows: 3 and 4 were neither counted nor reported persisted
+            assertThat(persistedSeqNos.stream().sorted().toList(), equalTo(List.of(0L, 1L, 2L, 5L, 6L)));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(2L));
+            assertReplicatedTranslog(translogBlobContainer, shardId, Map.of(0L, "d0", 1L, "d1", 2L, "d2", 5L, "d5", 6L, "d6"));
+
+            // the ops that fill the gap belong to the other bulk and arrive through its own replication request
+            assertThat(engine.index(replicaDoc("d3", 3)).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            assertThat(engine.index(replicaDoc("d4", 4)).getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            engine.syncTranslog();
+            assertThat(persistedSeqNos.stream().sorted().toList(), equalTo(List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L)));
+            assertThat(engine.getPersistedLocalCheckpoint(), equalTo(6L));
+            assertReplicatedTranslog(
+                translogBlobContainer,
+                shardId,
+                Map.of(0L, "d0", 1L, "d1", 2L, "d2", 3L, "d3", 4L, "d4", 5L, "d5", 6L, "d6")
+            );
+        }
+    }
+
+    /** A replica's copy of a document the primary indexed at the given seqNo, in term 1 at version 1. */
+    private static Engine.Index replicaDoc(String id, long seqNo) throws IOException {
+        final Engine.Index doc = randomDoc(id);
+        return new Engine.Index(
+            doc.uid(),
+            doc.parsedDoc(),
+            seqNo,
+            1L,
+            1L,
+            null,
+            Engine.Operation.Origin.REPLICA,
+            doc.startTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
+    }
+
+    /** Reads the shard's translog back from the object store the way recovery does and checks it holds exactly these operations. */
+    private static void assertReplicatedTranslog(BlobContainer translogBlobContainer, ShardId shardId, Map<Long, String> expectedIdsBySeqNo)
+        throws IOException {
+        final Map<Long, String> replicated = new HashMap<>();
+        try (TranslogReplicatorReader reader = new TranslogReplicatorReader(translogBlobContainer, shardId)) {
+            // the count comes from the node buffer's per-record accounting; a densified gap would surface here as extra operations
+            assertThat(reader.totalOperations(), equalTo(expectedIdsBySeqNo.size()));
+            Translog.Operation op;
+            while ((op = reader.next()) != null) {
+                final String id = Uid.decodeId(((Translog.Index) op).uid());
+                assertNull("seqNo [" + op.seqNo() + "] was replicated twice", replicated.put(op.seqNo(), id));
+            }
+        }
+        assertThat(replicated, equalTo(expectedIdsBySeqNo));
+    }
+
+    /**
+     * The replicator needs the object store for two things only: uploading compound translogs and handing out the container they
+     * are read back from. The real {@link ObjectStoreService} needs a repository and a cluster, so those two calls are stubbed on top
+     * of a real {@link FsBlobContainer}, which keeps the read-back on the real {@link TranslogReplicatorReader}.
+     */
+    private static ObjectStoreService translogObjectStoreService(BlobContainer translogBlobContainer) {
+        final ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        when(objectStoreService.getTranslogBlobContainer()).thenReturn(translogBlobContainer);
+        doAnswer(invocation -> {
+            final String fileName = invocation.getArgument(0);
+            final BytesReference bytes = invocation.getArgument(1);
+            translogBlobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, bytes, true);
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        return objectStoreService;
+    }
+
+    /** Before an upload the replicator checks the cluster state against the root blob, which needs a master; this answers at once. */
+    private static StatelessClusterConsistencyService immediateConsistencyService() {
+        final StatelessClusterConsistencyService consistencyService = mock(StatelessClusterConsistencyService.class);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(0).onResponse(null);
+            return null;
+        }).when(consistencyService).ensureClusterStateConsistentWithRootBlob(any(), any());
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Void>>getArgument(0).onResponse(null);
+            return null;
+        }).when(consistencyService).delayedEnsureClusterStateConsistentWithRootBlob(any());
+        when(consistencyService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        return consistencyService;
     }
 
     /**

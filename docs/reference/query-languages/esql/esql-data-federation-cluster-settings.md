@@ -2,7 +2,7 @@
 navigation_title: "Cluster settings"
 description: "Reference for ES|QL Data Federation cluster settings. Tune object limits, control request concurrency, and adjust file discovery and caching."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -32,7 +32,7 @@ $$$esql-federation-enabled$$$
     - **Default:** `false`
     - **Valid values:** `true`, `false`
 
-    {applies_to}`stack: experimental 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
+    {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 
 ## Object limits
 
@@ -76,7 +76,7 @@ $$$esql-external-throttle-max-retry-duration$$$
 
 $$$esql-external-max-concurrent-segmenters$$$
 
-`esql.external.max_concurrent_segmenters` {applies_to}`stack: experimental 9.6+`
+`esql.external.max_concurrent_segmenters` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Maximum number of file segmentation tasks that run concurrently.
 
     - {applies_to}`stack: experimental =9.5` **Previous name:** `esql.external.max_concurrent_segmentators`
@@ -85,11 +85,23 @@ $$$esql-external-max-concurrent-segmenters$$$
 
 $$$esql-external-admission-rescue-enabled$$$
 
-`esql.external.admission.rescue.enabled` {applies_to}`stack: experimental 9.6+`
+`esql.external.admission.rescue.enabled` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) When a byte-budget FIFO head has waited without a grant, admit it over the cap as a plain hold so the queue can progress. At most one rescued hold is live. Disable to observe a hang for diagnosis.
 
     - **Default:** `true`
     - **Valid values:** `true`, `false`
+
+## Cluster state catch-up
+
+A node that has just joined the cluster, or that is behind a dataset change, can receive external reads before it has applied the cluster state the query was planned from. When another node can take the work, the coordinator sends it to the next node that can run it, trying each other node in turn. When no further node can take it, the node that has it waits for the state. This setting bounds that wait.
+
+$$$esql-external-worker-ready-timeout$$$
+
+`esql.external.worker_ready_timeout` {applies_to}`stack: preview 9.7+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits to catch up with the cluster state before failing the query with a retryable `503` error whose `external_condition` is `worker_not_ready`. The wait applies only when no other node can run the query's external reads. If you see these errors while nodes join the cluster, increase this value or retry the query.
+
+    - **Default:** `10s`
+    - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` disables waiting, so the query fails immediately.
 
 ## Glob and file-discovery limits
 
@@ -97,7 +109,7 @@ These settings limit how many files and objects glob patterns can discover. Not 
 
 $$$esql-external-max-listed-objects$$$
 
-`esql.external.max_listed_objects` {applies_to}`stack: experimental 9.6+`
+`esql.external.max_listed_objects` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on objects visited while listing a glob, including keys that don't match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings, and a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 
     - **Default:** `1000000`
@@ -125,7 +137,7 @@ These settings limit how much CPU and read-thread time a single compressed objec
 
 $$$esql-external-max-decompression-ratio$$$
 
-`esql.external.max_decompression_ratio` {applies_to}`stack: experimental 9.6+`
+`esql.external.max_decompression_ratio` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum ratio of decompressed to compressed bytes for gzip and other stream-only codecs. A read fails with a 400 error if the object expands beyond this multiple of its compressed size.
 
     - **Default:** `200`
@@ -133,7 +145,7 @@ $$$esql-external-max-decompression-ratio$$$
 
 $$$esql-external-max-decompression-ratio-zstd$$$
 
-`esql.external.max_decompression_ratio.zstd` {applies_to}`stack: experimental 9.6+`
+`esql.external.max_decompression_ratio.zstd` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum decompression ratio for zstd-compressed objects. Overrides `esql.external.max_decompression_ratio` for zstd, which can legitimately reach higher ratios than gzip.
 
     - **Default:** `2000`
@@ -141,7 +153,7 @@ $$$esql-external-max-decompression-ratio-zstd$$$
 
 $$$esql-external-schema-max-fields$$$
 
-`esql.external.schema_max_fields` {applies_to}`stack: experimental 9.6+`
+`esql.external.schema_max_fields` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Default maximum number of fields or columns a file's schema can have. For NDJSON, it counts objects as well as leaf fields. For CSV, TSV, and Parquet, it counts columns. If a file's schema exceeds this limit, the query fails with an HTTP 400 error. A dataset overrides it with its `schema_max_fields` setting.
 
     - **Default:** `1000`
@@ -155,7 +167,7 @@ These settings control which authentication modes data sources can use, and whic
 
 $$$esql-external-managed-identity-enabled$$$
 
-`esql.external.managed_identity.enabled` {applies_to}`stack: experimental 9.6+`
+`esql.external.managed_identity.enabled` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables `auth: "managed_identity"`, which uses the node's own cloud identity through the instance metadata service (IMDS). Intended for single-cloud, single-tenant deployments. Never enable it in multi-tenant clusters. When the {{operator-feature}} is enabled, only operator users can update this setting. Refer to the managed identity row in [authentication models](esql-data-federation-sources.md#authentication) for guidance.
 
     - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.datasource.managed_identity.enabled`, still accepted with a deprecation warning
@@ -165,7 +177,7 @@ $$$esql-external-managed-identity-enabled$$$
 
 $$$esql-external-allowed-endpoint-hosts$$$
 
-`esql.external.allowed_endpoint_hosts` {applies_to}`stack: experimental 9.6+`
+`esql.external.allowed_endpoint_hosts` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) `host:port` patterns for endpoint hosts that data sources can use in addition to the supported AWS endpoints. A listed host is also accepted over plain `http` for `endpoint`. The `sts_endpoint` setting always requires `https`, because its host receives the node's OIDC token, so only list hosts on trusted network paths. For the endpoint rules, refer to [S3 endpoint requirements](esql-data-federation-data-source-settings.md#s3-endpoint-requirements).
 
     - **Default:** Empty
@@ -177,7 +189,7 @@ These settings control the external-source cache, which stores inferred schemas,
 
 $$$esql-external-cache-enabled$$$
 
-`esql.external.cache.enabled` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.enabled` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables the external-source cache for inferred schemas and file listings.
 
     - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.enabled`, still accepted with a deprecation warning
@@ -186,12 +198,12 @@ $$$esql-external-cache-enabled$$$
 
 $$$esql-external-cache-size$$$
 
-`esql.external.cache.size` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.size` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Memory budget for the cache.
 
     - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.size`, still accepted with a deprecation warning
     - **Default:**
-      - {applies_to}`stack: experimental 9.6+` 0.5% of heap
+      - {applies_to}`stack: preview 9.6+` 0.5% of heap
       - {applies_to}`stack: experimental =9.5` 0.4% of heap
 
 $$$esql-source-cache-schema-ttl$$$
@@ -199,23 +211,23 @@ $$$esql-source-cache-schema-ttl$$$
 `esql.source.cache.schema.ttl` {applies_to}`stack: deprecated 9.5+`
 :   Deprecated and ignored.
 
-    {applies_to}`stack: experimental 9.6+` Use `esql.external.cache.schema.ttl` instead. It doesn't inherit this key's value.
+    {applies_to}`stack: preview 9.6+` Use `esql.external.cache.schema.ttl` instead. It doesn't inherit this key's value.
 
 $$$esql-external-cache-listing-ttl$$$
 
-`esql.external.cache.listing.ttl` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.listing.ttl` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How long a file listing stays fresh after it's written. A file added or removed becomes visible on the next query once this elapses. Lower it when changes must be visible sooner.
 
     - {applies_to}`stack: deprecated 9.6+, experimental =9.5` **Previous name:** `esql.source.cache.listing.ttl`, still accepted with a deprecation warning
     - **Default:**
-      - {applies_to}`stack: experimental 9.6+` `5m`
+      - {applies_to}`stack: preview 9.6+` `5m`
       - {applies_to}`stack: experimental =9.5` `30s`
 
-    {applies_to}`stack: experimental 9.6+` A file overwritten in place is also noticed then. A cached dataset row count also expires on this interval.
+    {applies_to}`stack: preview 9.6+` A file overwritten in place is also noticed then. A cached dataset row count also expires on this interval.
 
 $$$esql-external-cache-schema-ttl$$$
 
-`esql.external.cache.schema.ttl` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.schema.ttl` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How long a schema inferred from a file is reused before it's inferred again. Statistics measured by reading a text file aren't covered: they're reused while their entry is held.
 
     - **Default:** `20m`
@@ -223,7 +235,7 @@ $$$esql-external-cache-schema-ttl$$$
 
 $$$esql-external-cache-footer-size$$$
 
-`esql.external.cache.footer.size` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.footer.size` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Memory budget for cached raw footer bytes (for example, Parquet footers), which are reused across the resolution, split discovery, and execution phases of a query and across back-to-back queries. The budget applies per columnar format reader.
 
     - **Default:** 0.5% of heap
@@ -231,7 +243,7 @@ $$$esql-external-cache-footer-size$$$
 
 $$$esql-external-cache-footer-parsed-size$$$
 
-`esql.external.cache.footer.parsed.size` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.footer.parsed.size` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Memory budget for cached deserialized footers, which avoid re-parsing a footer in every query phase. A parsed footer costs several times its serialized form and grows with column count rather than file size, so raise this when querying wide schemas across large file sets. Applies per columnar format reader, like `esql.external.cache.footer.size`.
 
     - **Default:** 1% of heap
@@ -239,7 +251,7 @@ $$$esql-external-cache-footer-parsed-size$$$
 
 $$$esql-external-cache-footer-ttl$$$
 
-`esql.external.cache.footer.ttl` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.footer.ttl` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) How long a cached footer is kept after it was last read. Shared by the raw and parsed footer caches.
 
     - **Default:** `5m`
@@ -249,14 +261,14 @@ $$$esql-external-cache-footer-ttl$$$
 
 $$$esql-external-cache-footer-coalesce$$$
 
-`esql.external.cache.footer.coalesce` {applies_to}`stack: experimental 9.6+`
+`esql.external.cache.footer.coalesce` {applies_to}`stack: preview 9.6+`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) When `true`, concurrent queries that load the same Parquet footer share one object-store GET.
 
     - **Default:** `true`
     - **Valid values:** `true`, `false`
 
 :::{note}
-:applies_to: stack: experimental 9.6+
+:applies_to: stack: preview 9.6+
 The `esql.source.cache.*` keys are accepted as deprecated fallbacks and emit a deprecation warning. You can set them in `elasticsearch.yml`, but you can't update them through the cluster settings API. Use the `esql.external.cache.*` keys for new configuration.
 :::
 
@@ -266,7 +278,7 @@ These settings supply the default for an {{esql}} query setting when a query doe
 
 $$$esql-query-settings-wildcards-match-datasets$$$
 
-`esql.query.settings.wildcards_match_datasets` {applies_to}`stack: experimental 9.6+`
+`esql.query.settings.wildcards_match_datasets` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Whether a wildcard in `FROM` also matches registered datasets. When `false`, a wildcard resolves to indices, data streams, aliases, and views, and a dataset is reached by its exact name. A query overrides this in the `_query` request body or with `SET wildcards_match_datasets`. Refer to [query across datasets and indices](esql-data-federation-querying.md#query-across-datasets-and-indices).
 
     - **Default:** `false`

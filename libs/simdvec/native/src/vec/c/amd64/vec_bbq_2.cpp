@@ -106,29 +106,6 @@ static inline int64_t dotd2q4_inner_avx512(const int8_t* a, const int8_t* q, con
     return _mm512_reduce_add_epi64(acc);
 }
 
-// Bulk 2-bit doc x 4-bit query: vectors are scored one after another. There is no software prefetch: on
-// the CPUs measured, prefetching the next vectors was slower than relying on the hardware prefetchers for
-// sequential blocks, and did not help sparse selections either.
-template <
-    typename TData,
-    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output
->
-static inline void dotd2q4_inner_bulk(
-    const TData* a,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    for (int c = 0; c < count; c++) {
-        const int8_t* a0 = mapper(a, c, offsets, pitch);
-        results[out_mapper(offsets, c)] = (f32_t)dotd2q4_inner_avx512(a0, query, length);
-    }
-}
-
 // Packed bulk: process 4 vectors at a time for length<=16 (dims<=128)
 static inline void dotd1q4_bulk_packed4(
     const int8_t* a,
@@ -386,7 +363,7 @@ EXPORT void vec_dotd2q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
+    dotd2q4_inner_bulk<int8_t, sequential_mapper, dotd2q4_inner_avx512>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_masked_2(
@@ -397,7 +374,7 @@ EXPORT void vec_dotd2q4_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, masked_mapper, masked_output>(
+    dotd2q4_inner_bulk<int8_t, masked_mapper, dotd2q4_inner_avx512, masked_output>(
         a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
 }
 
@@ -407,7 +384,7 @@ EXPORT void vec_dotd2q4_bulk_sparse_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<const int8_t*, sparse_mapper>
+    dotd2q4_inner_bulk<const int8_t*, sparse_mapper, dotd2q4_inner_avx512>
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 

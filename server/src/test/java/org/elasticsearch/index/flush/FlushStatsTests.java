@@ -28,71 +28,45 @@ public class FlushStatsTests extends AbstractWireSerializingTestCase<FlushStats>
 
     @Override
     protected FlushStats createTestInstance() {
-        long failedShardClosed = randomLongBetween(0, Integer.MAX_VALUE);
-        long failedEngineClosed = randomLongBetween(0, Integer.MAX_VALUE);
-        long failedPendingTranslogRecovery = randomLongBetween(0, Integer.MAX_VALUE);
         return new FlushStats(
             randomNonNegativeLong() / 2,
             randomNonNegativeLong() / 2,
             randomNonNegativeLong() / 2,
             randomNonNegativeLong() / 2,
-            failedShardClosed + failedEngineClosed + failedPendingTranslogRecovery + randomLongBetween(0, Integer.MAX_VALUE),
-            failedShardClosed,
-            failedEngineClosed,
-            failedPendingTranslogRecovery
+            randomLongBetween(0, Integer.MAX_VALUE)
         );
     }
 
     @Override
     protected FlushStats mutateInstance(FlushStats instance) {
-        long failed = instance.getFailed();
-        long failedShardClosed = instance.getFailedShardClosed();
-        long failedEngineClosed = instance.getFailedEngineClosed();
-        long failedPendingTranslogRecovery = instance.getFailedPendingTranslogRecovery();
-        switch (between(0, 3)) {
-            case 0 -> failed++;
-            case 1 -> failedShardClosed++;
-            case 2 -> failedEngineClosed++;
-            case 3 -> failedPendingTranslogRecovery++;
-            default -> throw new AssertionError("unexpected branch");
-        }
         return new FlushStats(
             instance.getTotal(),
             instance.getPeriodic(),
             instance.getTotalTimeInMillis(),
             instance.getTotalTimeExcludingWaitingOnLockMillis(),
-            failed,
-            failedShardClosed,
-            failedEngineClosed,
-            failedPendingTranslogRecovery
+            instance.getFailed() + 1
         );
     }
 
-    public void testFailureCountsAreNotSentToOldNodes() throws IOException {
-        FlushStats stats = new FlushStats(1, 2, 3, 4, 5, 6, 7, 8);
+    public void testFailureCountIsNotSentToOldNodes() throws IOException {
+        FlushStats stats = new FlushStats(1, 2, 3, 4, 5);
 
         FlushStats readByOldNode = copyInstance(stats, TransportVersion.minimumCompatible());
 
-        assertThat(readByOldNode, equalTo(new FlushStats(1, 2, 3, 4, 0, 0, 0, 0)));
+        assertThat(readByOldNode, equalTo(new FlushStats(1, 2, 3, 4, 0)));
     }
 
     public void testAddTotalsSumsFailureCounts() {
-        FlushStats sum = new FlushStats(1, 1, 1, 1, 6, 1, 2, 3);
+        FlushStats sum = new FlushStats(1, 1, 1, 1, 6);
 
-        sum.addTotals(new FlushStats(1, 1, 1, 1, 10, 2, 3, 4));
+        sum.addTotals(new FlushStats(1, 1, 1, 1, 10));
 
         assertThat(sum.getFailed(), equalTo(16L));
-        assertThat(sum.getFailedShardClosed(), equalTo(3L));
-        assertThat(sum.getFailedEngineClosed(), equalTo(5L));
-        assertThat(sum.getFailedPendingTranslogRecovery(), equalTo(7L));
     }
 
-    public void testFailureCountsAreRenderedAsXContent() {
-        String json = Strings.toString(new FlushStats(1, 2, 3, 4, 5, 6, 7, 8), false, false);
+    public void testFailureCountIsRenderedAsXContent() {
+        String json = Strings.toString(new FlushStats(1, 2, 3, 4, 5), false, false);
 
         assertThat(json, containsString("\"failed\":5"));
-        assertThat(json, containsString("\"failed_shard_closed\":6"));
-        assertThat(json, containsString("\"failed_engine_closed\":7"));
-        assertThat(json, containsString("\"failed_pending_translog_recovery\":8"));
     }
 }

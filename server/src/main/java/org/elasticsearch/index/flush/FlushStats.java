@@ -29,9 +29,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
     private long totalTimeInMillis;
     private long totalTimeExcludingWaitingOnLockInMillis;
     private long failed;
-    private long failedShardClosed;
-    private long failedEngineClosed;
-    private long failedPendingTranslogRecovery;
 
     public FlushStats() {
 
@@ -44,30 +41,15 @@ public class FlushStats implements Writeable, ToXContentFragment {
         totalTimeExcludingWaitingOnLockInMillis = in.readVLong();
         if (in.getTransportVersion().supports(FLUSH_STATS_INCLUDE_FAILURES)) {
             failed = in.readVLong();
-            failedShardClosed = in.readVLong();
-            failedEngineClosed = in.readVLong();
-            failedPendingTranslogRecovery = in.readVLong();
         }
     }
 
-    public FlushStats(
-        long total,
-        long periodic,
-        long totalTimeInMillis,
-        long totalTimeExcludingWaitingOnLockInMillis,
-        long failed,
-        long failedShardClosed,
-        long failedEngineClosed,
-        long failedPendingTranslogRecovery
-    ) {
+    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingOnLockInMillis, long failed) {
         this.total = total;
         this.periodic = periodic;
         this.totalTimeInMillis = totalTimeInMillis;
         this.totalTimeExcludingWaitingOnLockInMillis = totalTimeExcludingWaitingOnLockInMillis;
         this.failed = failed;
-        this.failedShardClosed = failedShardClosed;
-        this.failedEngineClosed = failedEngineClosed;
-        this.failedPendingTranslogRecovery = failedPendingTranslogRecovery;
     }
 
     public void add(long total, long periodic, long totalTimeInMillis, long totalTimeWithoutWaitingInMillis) {
@@ -90,9 +72,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         this.totalTimeInMillis += flushStats.totalTimeInMillis;
         this.totalTimeExcludingWaitingOnLockInMillis += flushStats.totalTimeExcludingWaitingOnLockInMillis;
         this.failed += flushStats.failed;
-        this.failedShardClosed += flushStats.failedShardClosed;
-        this.failedEngineClosed += flushStats.failedEngineClosed;
-        this.failedPendingTranslogRecovery += flushStats.failedPendingTranslogRecovery;
     }
 
     /**
@@ -131,36 +110,12 @@ public class FlushStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The number of flushes that failed for any reason, including the expected failures counted by {@link #getFailedShardClosed()},
-     * {@link #getFailedEngineClosed()} and {@link #getFailedPendingTranslogRecovery()}. The flush that an engine runs as it closes is not
-     * counted.
+     * The number of flushes that failed for a reason that is not expected during normal operation, counted by the engine so that the
+     * flushes the engine starts itself are included. Flushes rejected because the shard or engine is closed, or because translog recovery
+     * is still pending, are not counted.
      */
     public long getFailed() {
         return failed;
-    }
-
-    /**
-     * The number of flushes that failed because the shard was closed (a subset of {@link #getFailed()}). This is a best-effort count: a
-     * shard counts these failures only after it is closed, which is after its stats are added to the node totals, so node level stats
-     * do not include them.
-     */
-    public long getFailedShardClosed() {
-        return failedShardClosed;
-    }
-
-    /**
-     * The number of flushes that failed because the engine was closed without a failure, for example during relocation or shutdown
-     * (a subset of {@link #getFailed()}).
-     */
-    public long getFailedEngineClosed() {
-        return failedEngineClosed;
-    }
-
-    /**
-     * The number of flushes that failed because the translog recovery was pending (a subset of {@link #getFailed()}).
-     */
-    public long getFailedPendingTranslogRecovery() {
-        return failedPendingTranslogRecovery;
     }
 
     @Override
@@ -169,9 +124,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         builder.field(Fields.TOTAL, total);
         builder.field(Fields.PERIODIC, periodic);
         builder.field(Fields.FAILED, failed);
-        builder.field(Fields.FAILED_SHARD_CLOSED, failedShardClosed);
-        builder.field(Fields.FAILED_ENGINE_CLOSED, failedEngineClosed);
-        builder.field(Fields.FAILED_PENDING_TRANSLOG_RECOVERY, failedPendingTranslogRecovery);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.humanReadableField(
             Fields.TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS,
@@ -187,9 +139,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         static final String TOTAL = "total";
         static final String PERIODIC = "periodic";
         static final String FAILED = "failed";
-        static final String FAILED_SHARD_CLOSED = "failed_shard_closed";
-        static final String FAILED_ENGINE_CLOSED = "failed_engine_closed";
-        static final String FAILED_PENDING_TRANSLOG_RECOVERY = "failed_pending_translog_recovery";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String TOTAL_TIME_EXCLUDING_WAITING = "total_time_excluding_waiting";
@@ -204,9 +153,6 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalTimeExcludingWaitingOnLockInMillis);
         if (out.getTransportVersion().supports(FLUSH_STATS_INCLUDE_FAILURES)) {
             out.writeVLong(failed);
-            out.writeVLong(failedShardClosed);
-            out.writeVLong(failedEngineClosed);
-            out.writeVLong(failedPendingTranslogRecovery);
         }
     }
 
@@ -219,23 +165,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
             && totalTimeInMillis == that.totalTimeInMillis
             && periodic == that.periodic
             && totalTimeExcludingWaitingOnLockInMillis == that.totalTimeExcludingWaitingOnLockInMillis
-            && failed == that.failed
-            && failedShardClosed == that.failedShardClosed
-            && failedEngineClosed == that.failedEngineClosed
-            && failedPendingTranslogRecovery == that.failedPendingTranslogRecovery;
+            && failed == that.failed;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            total,
-            totalTimeInMillis,
-            periodic,
-            totalTimeExcludingWaitingOnLockInMillis,
-            failed,
-            failedShardClosed,
-            failedEngineClosed,
-            failedPendingTranslogRecovery
-        );
+        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingOnLockInMillis, failed);
     }
 }

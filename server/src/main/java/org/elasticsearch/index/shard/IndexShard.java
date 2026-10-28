@@ -103,7 +103,6 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
-import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -293,9 +292,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
     private final CounterMetric flushFailedMetric = new CounterMetric();
-    private final CounterMetric flushFailedShardClosedMetric = new CounterMetric();
-    private final CounterMetric flushFailedEngineClosedMetric = new CounterMetric();
-    private final CounterMetric flushFailedPendingTranslogRecoveryMetric = new CounterMetric();
     private final MergeMetrics mergeMetrics;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
@@ -1557,10 +1553,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 periodicFlushMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
                 engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L,
-                flushFailedMetric.count(),
-                flushFailedShardClosedMetric.count(),
-                flushFailedEngineClosedMetric.count(),
-                flushFailedPendingTranslogRecoveryMetric.count()
+                flushFailedMetric.count()
             )
         );
     }
@@ -1735,11 +1728,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
-        final ActionListener<Engine.FlushResult> countingListener = listener.delegateResponse((l, e) -> {
-            countFlushFailure(e);
-            l.onFailure(e);
-        });
-        ActionListener.run(countingListener, l -> {
+        ActionListener.run(listener, l -> {
             /*
              * We allow flushes while recovery since we allow operations to happen while recovering and we want to keep the translog under
              * control (up to deletes, which we do not GC). Yet, we do not use flush internally to clear deletes and flush the index writer
@@ -1751,22 +1740,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert engine.get() != null : "engine is null";
             engine.get().flush(force, waitIfOngoing, ActionListener.runBefore(l, () -> flushMetric.inc(System.nanoTime() - startTime)));
         });
-    }
-
-    /**
-     * Counts every flush failure, and also counts separately each failure type that is expected during normal operation (relocation,
-     * shutdown, recovery) rather than a fault. An {@link AlreadyClosedException} with a cause comes from a failed engine (tragic event),
-     * so it is only counted as a failure.
-     */
-    private void countFlushFailure(Exception e) {
-        flushFailedMetric.inc();
-        if (e instanceof IndexShardClosedException) {
-            flushFailedShardClosedMetric.inc();
-        } else if (e instanceof AlreadyClosedException && e.getCause() == null) {
-            flushFailedEngineClosedMetric.inc();
-        } else if (e instanceof PendingTranslogRecoveryException) {
-            flushFailedPendingTranslogRecoveryMetric.inc();
-        }
     }
 
     /**
@@ -4092,6 +4065,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     logger.warn("exception while notifying engine failure", inner);
                 }
             }
+        }
+
+        // called by every engine this shard creates, so the count is kept when the engine is replaced
+        @Override
+        public void onFlushFailed() {
+            flushFailedMetric.inc();
         }
     }
 

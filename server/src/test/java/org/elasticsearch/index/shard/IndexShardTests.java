@@ -25,6 +25,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
@@ -161,6 +162,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -223,6 +225,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
@@ -1765,71 +1768,220 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
-    public void testFlushFailureIsCountedAsRealFailure() throws IOException {
-        AtomicBoolean failCommit = new AtomicBoolean();
-        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+    /**
+     * Lucene fails to sync the files of a new commit during the flush the engine runs itself after a force merge. The failure must be
+     * counted. A failed commit fails the engine, so a later flush is rejected up front and must not count the same incident again.
+     */
+    public void testRealLuceneCommitFailureInEngineInternalFlushIsCountedOnce() throws IOException {
+        allowShardFailures();
+        AtomicBoolean failSync = new AtomicBoolean();
+        IndexShard shard = newStartedShardWithDirectory(directory -> new FilterDirectory(directory) {
             @Override
-            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
-                if (failCommit.get()) {
-                    throw new IOException("test flush failure");
+            public void sync(Collection<String> names) throws IOException {
+                if (failSync.get()) {
+                    throw new IOException("simulated disk failure on sync");
                 }
-                super.commitIndexWriter(writer, translog);
+                super.sync(names);
             }
         });
         indexDoc(shard, "_doc", "1");
-        flushShard(shard);
-        assertThat(shard.flushStats().getFailed(), equalTo(0L));
+        failSync.set(true);
 
-        failCommit.set(true);
-        assertThat(flushFailure(shard), instanceOf(FlushFailedEngineException.class));
+        Exception failure = expectThrows(
+            FlushFailedEngineException.class,
+            () -> shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true))
+        );
+        assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), equalTo("simulated disk failure on sync"));
+        assertFlushFailureCount(shard, 1L);
 
-        assertFlushFailureCounts(shard, 1L, 0L, 0L, 0L);
-        failCommit.set(false);
-        closeShards(shard);
+        assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
+        assertFlushFailureCount(shard, 1L);
+        IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
     }
 
-    public void testFlushOnClosedShardIsCountedAsShardClosedFailure() throws IOException {
+    /**
+     * Lucene fails to write a new segment during a shard flush. The failure must be counted. A failed commit fails the engine, so a
+     * later flush is rejected up front and must not count the same incident again.
+     */
+    public void testRealLuceneSegmentWriteFailureInShardFlushIsCountedOnce() throws IOException {
+        allowShardFailures();
+        AtomicBoolean failSegmentWrites = new AtomicBoolean();
+        IndexShard shard = newStartedShardWithDirectory(directory -> new FilterDirectory(directory) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                if (failSegmentWrites.get() && name.startsWith("_")) {
+                    throw new IOException("simulated disk failure writing [" + name + "]");
+                }
+                return super.createOutput(name, context);
+            }
+        });
+        indexDoc(shard, "_doc", "1");
+        failSegmentWrites.set(true);
+
+        Exception failure = flushFailure(shard);
+        assertThat(failure, instanceOf(FlushFailedEngineException.class));
+        assertThat(ExceptionsHelper.unwrap(failure, IOException.class).getMessage(), startsWith("simulated disk failure writing"));
+        assertFlushFailureCount(shard, 1L);
+
+        assertThat(flushFailure(shard), instanceOf(AlreadyClosedException.class));
+        assertFlushFailureCount(shard, 1L);
+        IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
+    }
+
+    /**
+     * Starts a primary shard on a real file system directory, wrapped by the given function so that tests can make Lucene fail.
+     */
+    private IndexShard newStartedShardWithDirectory(Function<Directory, Directory> directoryWrapper) throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 0);
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).build();
+        final IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1).build();
+        final Store store = createStore(
+            shardId,
+            new IndexSettings(metadata, Settings.EMPTY),
+            directoryWrapper.apply(newFSDirectory(shardPath.resolveIndex()))
+        );
+        final IndexShard shard = newShard(
+            shardRouting,
+            null,
+            shardPath,
+            metadata,
+            i -> store,
+            null,
+            new InternalEngineFactory(),
+            NOOP_GCP_SYNCER,
+            RetentionLeaseSyncer.EMPTY,
+            IndexEventListener.NOOP
+        );
+        recoverShardFromStore(shard);
+        return shard;
+    }
+
+    public void testFlushOnClosedShardIsNotCountedAsFailure() throws IOException {
         IndexShard shard = newStartedShard(true);
         closeShards(shard);
 
         assertThat(flushFailure(shard), instanceOf(IndexShardClosedException.class));
 
-        assertFlushFailureCounts(shard, 1L, 1L, 0L, 0L);
+        assertFlushFailureCount(shard, 0L);
     }
 
+    /**
+     * The failure is thrown from {@code ensureCanFlush()} so that it surfaces inside the engine's flush, where failures are counted.
+     * A pending translog recovery is expected and must not count. An {@link AlreadyClosedException} while the engine is not closing
+     * can only come from a tragically closed index writer or translog, so it counts like any other failure.
+     */
     public void testFlushFailureClassification() throws IOException {
-        AtomicReference<Exception> engineFailure = new AtomicReference<>();
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
         IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
                 if (engineFailure.get() != null) {
-                    listener.onFailure(engineFailure.get());
-                } else {
-                    super.flushHoldingLock(force, waitIfOngoing, listener);
+                    throw engineFailure.get();
                 }
             }
         });
 
         engineFailure.set(new PendingTranslogRecoveryException("pending translog recovery"));
         flushFailure(shard);
-        assertFlushFailureCounts(shard, 1L, 0L, 0L, 1L);
+        assertFlushFailureCount(shard, 0L);
 
-        engineFailure.set(new AlreadyClosedException("engine closed"));
+        engineFailure.set(new AlreadyClosedException("index writer closed while the engine is open"));
         flushFailure(shard);
-        assertFlushFailureCounts(shard, 2L, 0L, 1L, 1L);
-
-        engineFailure.set(new AlreadyClosedException("tragic event", new IOException("disk failure")));
-        flushFailure(shard);
-        assertFlushFailureCounts(shard, 3L, 0L, 1L, 1L);
+        assertFlushFailureCount(shard, 1L);
 
         engineFailure.set(new IllegalStateException("unexpected"));
         flushFailure(shard);
-        assertFlushFailureCounts(shard, 4L, 0L, 1L, 1L);
+        assertFlushFailureCount(shard, 2L);
 
         engineFailure.set(null);
         flushShard(shard);
-        assertFlushFailureCounts(shard, 4L, 0L, 1L, 1L);
+        assertFlushFailureCount(shard, 2L);
         closeShards(shard);
+    }
+
+    /**
+     * Flush failure counts must not drop when a stateful shard rolls back its engine (replicas after a primary term change), because
+     * a drop looks like a counter reset to metric consumers. Failures on the new engine must add to the same counts.
+     */
+    public void testFlushFailureCountsSurviveEngineRollback() throws Exception {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            protected void ensureCanFlush() {
+                super.ensureCanFlush();
+                if (engineFailure.get() != null) {
+                    throw engineFailure.get();
+                }
+            }
+        });
+        final Engine engineBeforeRollback = getEngine(shard);
+        failOneFlush(shard, engineFailure);
+        assertFlushFailureCount(shard, 1L);
+
+        final PlainActionFuture<Releasable> onPermitsAcquired = new PlainActionFuture<>();
+        shard.acquireAllPrimaryOperationsPermits(onPermitsAcquired, TimeValue.timeValueMinutes(1L));
+        try (Releasable ignored = safeGet(onPermitsAcquired)) {
+            shard.rollbackEngineToGlobalCheckpoint();
+        }
+
+        assertThat(getEngine(shard), not(sameInstance(engineBeforeRollback)));
+        assertFlushFailureCount(shard, 1L);
+        failOneFlush(shard, engineFailure);
+        assertFlushFailureCount(shard, 2L);
+        closeShards(shard);
+    }
+
+    /**
+     * Flush failure counts must not drop when the shard resets its engine, as stateless does when it hollows or unhollows a shard.
+     * Like stateless, the reset switches to a different engine type, because two {@link InternalEngine}s cannot hold the index writer
+     * lock at the same time.
+     */
+    public void testFlushFailureCountsSurviveEngineReset() throws Exception {
+        AtomicReference<RuntimeException> engineFailure = new AtomicReference<>();
+        AtomicInteger enginesCreated = new AtomicInteger();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> {
+            if (enginesCreated.getAndIncrement() > 0) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            }
+            return new InternalEngine(config) {
+                @Override
+                protected void ensureCanFlush() {
+                    super.ensureCanFlush();
+                    if (engineFailure.get() != null) {
+                        throw engineFailure.get();
+                    }
+                }
+
+                @Override
+                public void prepareForEngineReset() {}
+            };
+        });
+        failOneFlush(shard, engineFailure);
+        assertFlushFailureCount(shard, 1L);
+
+        final PlainActionFuture<Releasable> onPermitsAcquired = new PlainActionFuture<>();
+        shard.acquireAllPrimaryOperationsPermits(onPermitsAcquired, TimeValue.timeValueMinutes(1L));
+        try (Releasable ignored = safeGet(onPermitsAcquired)) {
+            shard.resetEngine(newEngine -> assertThat(newEngine, instanceOf(ReadOnlyEngine.class)));
+        }
+
+        assertFlushFailureCount(shard, 1L);
+        closeShards(shard);
+    }
+
+    private void failOneFlush(IndexShard shard, AtomicReference<RuntimeException> engineFailure) {
+        engineFailure.set(new IllegalStateException("unexpected"));
+        try {
+            flushFailure(shard);
+        } finally {
+            engineFailure.set(null);
+        }
     }
 
     private Exception flushFailure(IndexShard shard) {
@@ -1842,18 +1994,8 @@ public class IndexShardTests extends IndexShardTestCase {
         return failure.get();
     }
 
-    private static void assertFlushFailureCounts(
-        IndexShard shard,
-        long failed,
-        long failedShardClosed,
-        long failedEngineClosed,
-        long failedPendingTranslogRecovery
-    ) {
-        FlushStats flushStats = shard.flushStats();
-        assertThat(flushStats.getFailed(), equalTo(failed));
-        assertThat(flushStats.getFailedShardClosed(), equalTo(failedShardClosed));
-        assertThat(flushStats.getFailedEngineClosed(), equalTo(failedEngineClosed));
-        assertThat(flushStats.getFailedPendingTranslogRecovery(), equalTo(failedPendingTranslogRecovery));
+    private static void assertFlushFailureCount(IndexShard shard, long failed) {
+        assertThat(shard.flushStats().getFailed(), equalTo(failed));
     }
 
     public void testIndexingErrors() throws IOException {

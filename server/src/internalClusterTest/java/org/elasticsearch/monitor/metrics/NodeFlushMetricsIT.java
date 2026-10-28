@@ -9,7 +9,6 @@
 
 package org.elasticsearch.monitor.metrics;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -21,7 +20,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.PendingTranslogRecoveryException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -42,9 +40,9 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeFlushMetricsIT extends ESIntegTestCase {
 
-    private static final AtomicReference<Exception> flushFailure = new AtomicReference<>();
+    private static final AtomicReference<RuntimeException> flushFailure = new AtomicReference<>();
 
-    private static void failFlushes(IndexShard shard, int times, Exception failure) {
+    private static void failFlushes(IndexShard shard, int times, RuntimeException failure) {
         flushFailure.set(failure);
         for (int i = 0; i < times; i++) {
             shard.flush(
@@ -78,7 +76,7 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testFailedFlushesAreReportedPerCategory() {
+    public void testOnlyUnexpectedFlushFailuresAreReported() {
         final String dataNode = internalCluster().startNode();
         ensureStableCluster(1);
 
@@ -94,12 +92,10 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
             .indexServiceSafe(resolveIndex("test"))
             .getShard(0);
 
-        // a different count per category, so that swapped or missing metric wiring fails the assertions
+        // a pending translog recovery is expected, so only the unexpected failures must be reported
         try {
-            failFlushes(shard, 1, new IndexShardClosedException(shard.shardId()));
-            failFlushes(shard, 2, new AlreadyClosedException("engine closed"));
-            failFlushes(shard, 3, new PendingTranslogRecoveryException("pending translog recovery"));
-            failFlushes(shard, 4, new IllegalStateException("unexpected"));
+            failFlushes(shard, 2, new PendingTranslogRecoveryException("pending translog recovery"));
+            failFlushes(shard, 3, new IllegalStateException("unexpected"));
         } finally {
             flushFailure.set(null);
         }
@@ -107,14 +103,12 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
         // simulate async apm `polling` call for metrics
         plugin.collect();
 
-        assertThat(recordedValue(plugin, "es.flush.failed.total"), equalTo(10L));
-        assertThat(recordedValue(plugin, "es.flush.failed.shard_closed.total"), equalTo(1L));
-        assertThat(recordedValue(plugin, "es.flush.failed.engine_closed.total"), equalTo(2L));
-        assertThat(recordedValue(plugin, "es.flush.failed.pending_translog_recovery.total"), equalTo(3L));
+        assertThat(recordedValue(plugin, "es.flush.failed.total"), equalTo(3L));
     }
 
     /**
-     * Installs an engine whose flushes fail on demand, so that failure categories can be produced without breaking real storage.
+     * Installs an engine whose flushes fail on demand from inside the engine's flush, where failures are counted, without breaking
+     * real storage.
      */
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
         @Override
@@ -129,12 +123,11 @@ public class NodeFlushMetricsIT extends ESIntegTestCase {
         }
 
         @Override
-        protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
-            final Exception failure = flushFailure.get();
+        protected void ensureCanFlush() {
+            super.ensureCanFlush();
+            final RuntimeException failure = flushFailure.get();
             if (failure != null) {
-                listener.onFailure(failure);
-            } else {
-                super.flushHoldingLock(force, waitIfOngoing, listener);
+                throw failure;
             }
         }
     }

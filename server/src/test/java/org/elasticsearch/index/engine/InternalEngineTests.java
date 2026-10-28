@@ -629,9 +629,16 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        engine = new InternalEngine(engine.config());
+        final AtomicInteger failedFlushes = new AtomicInteger();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).eventListener(new Engine.EventListener() {
+            @Override
+            public void onFlushFailed() {
+                failedFlushes.incrementAndGet();
+            }
+        }).build());
         expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
         expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
+        assertThat("a pending translog recovery is expected and must not count", failedFlushes.get(), equalTo(0));
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {

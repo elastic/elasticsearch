@@ -1797,6 +1797,11 @@ public abstract class Engine implements Closeable {
          * Called when a fatal exception occurred
          */
         default void onFailedEngine(String reason, @Nullable Exception e) {}
+
+        /**
+         * Called when a flush failed for a reason that is not expected during normal operation
+         */
+        default void onFlushFailed() {}
     }
 
     public abstract static class SearcherSupplier implements Releasable {

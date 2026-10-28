@@ -639,51 +639,13 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         metrics.add(
             registry.registerLongAsyncCounter(
                 "es.flush.failed.total",
-                "Total number of failed flushes, excluding the flush an engine runs as it closes",
+                "Total number of flushes that failed for a reason not expected during normal operation; "
+                    + "flushes rejected due to a closed shard or engine, or a pending translog recovery, are not counted",
                 "operations",
                 () -> Optional.ofNullable(stats.getOrRefresh())
                     .map(NodeStats::getIndices)
                     .map(NodeIndicesStats::getFlush)
                     .map(FlushStats::getFailed)
-                    .orElse(0L)
-            )
-        );
-
-        metrics.add(
-            registry.registerLongAsyncCounter(
-                "es.flush.failed.shard_closed.total",
-                "Best-effort total number of failed flushes due to a closed shard (a subset of es.flush.failed.total)",
-                "operations",
-                () -> Optional.ofNullable(stats.getOrRefresh())
-                    .map(NodeStats::getIndices)
-                    .map(NodeIndicesStats::getFlush)
-                    .map(FlushStats::getFailedShardClosed)
-                    .orElse(0L)
-            )
-        );
-
-        metrics.add(
-            registry.registerLongAsyncCounter(
-                "es.flush.failed.engine_closed.total",
-                "Total number of failed flushes due to an engine closed without a failure (a subset of es.flush.failed.total)",
-                "operations",
-                () -> Optional.ofNullable(stats.getOrRefresh())
-                    .map(NodeStats::getIndices)
-                    .map(NodeIndicesStats::getFlush)
-                    .map(FlushStats::getFailedEngineClosed)
-                    .orElse(0L)
-            )
-        );
-
-        metrics.add(
-            registry.registerLongAsyncCounter(
-                "es.flush.failed.pending_translog_recovery.total",
-                "Total number of failed flushes due to a pending translog recovery (a subset of es.flush.failed.total)",
-                "operations",
-                () -> Optional.ofNullable(stats.getOrRefresh())
-                    .map(NodeStats::getIndices)
-                    .map(NodeIndicesStats::getFlush)
-                    .map(FlushStats::getFailedPendingTranslogRecovery)
                     .orElse(0L)
             )
         );

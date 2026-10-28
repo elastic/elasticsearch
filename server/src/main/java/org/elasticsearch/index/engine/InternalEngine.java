@@ -3112,9 +3112,11 @@ public class InternalEngine extends Engine {
                 listener.afterFlushWithLock(generation);
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
+                countFlushFailure(ex);
                 listener.onFailure(ex);
                 return;
             } catch (Exception e) {
+                countFlushFailure(e);
                 listener.onFailure(e);
                 return;
             } finally {
@@ -4087,6 +4089,19 @@ public class InternalEngine extends Engine {
     @Override
     public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
         return TimeUnit.NANOSECONDS.toMillis(totalFlushTimeExcludingWaitingOnLock.sum());
+    }
+
+    /**
+     * Reports a flush failure unless it is expected during normal operation. A pending translog recovery is expected. So is an
+     * {@link AlreadyClosedException} while the engine is closing and has not failed, for example during a relocation or shutdown. An
+     * {@link AlreadyClosedException} on an engine that is not closing comes from a tragically closed index writer or translog, so it
+     * is reported even if the engine is not yet marked as failed.
+     */
+    private void countFlushFailure(Exception e) {
+        final boolean closedCleanly = e instanceof AlreadyClosedException && failedEngine.get() == null && (isClosed.get() || isClosing());
+        if (closedCleanly == false && e instanceof PendingTranslogRecoveryException == false) {
+            eventListener.onFlushFailed();
+        }
     }
 
     @Override

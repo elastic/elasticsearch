@@ -20,6 +20,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -109,10 +111,31 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            List.of(),
+            randomBoolean(),
+            randomNonNegativeLong()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
+    }
+
+    /**
+     * An old coordinator sends neither readiness field. The worker then waits for the state it lacks rather than declining
+     * (the old coordinator cannot reroute) and consults no version.
+     */
+    public void testReadinessFieldsDefaultOnOldVersions() throws IOException {
+        DataNodeRequest request = createTestInstance();
+        DataNodeRequest copy = copyInstance(
+            request,
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
+        );
+        assertFalse(copy.declineIfNotReady());
+        assertThat(copy.requiredClusterStateVersion(), equalTo(0L));
+
+        DataNodeRequest current = copyInstance(request, TransportVersion.current());
+        assertThat(current.declineIfNotReady(), equalTo(request.declineIfNotReady()));
+        assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {
@@ -178,9 +201,11 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var runNodeLevelReduction = in.runNodeLevelReduction();
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
+        var declineIfNotReady = in.declineIfNotReady();
+        var requiredClusterStateVersion = in.requiredClusterStateVersion();
         TaskId parentTask = in.getParentTask();
 
-        switch (between(0, 11)) {
+        switch (between(0, 13)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, () -> randomAlphaOfLength(20));
             case 1 -> configuration = randomValueOtherThan(configuration, () -> randomConfiguration());
             case 2 -> shards = randomValueOtherThan(
@@ -229,7 +254,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 reductionLateMaterialization = reductionLateMaterialization == false;
             }
             case 10 -> singleNodeOptimizations = singleNodeOptimizations == false;
-            case 11 -> queryId = new TaskId(
+            case 11 -> declineIfNotReady = declineIfNotReady == false;
+            case 12 -> requiredClusterStateVersion = randomValueOtherThan(requiredClusterStateVersion, ESTestCase::randomNonNegativeLong);
+            case 13 -> queryId = new TaskId(
                 randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
                 randomNonNegativeLong()
             );
@@ -248,7 +275,10 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
-            singleNodeOptimizations
+            singleNodeOptimizations,
+            List.of(),
+            declineIfNotReady,
+            requiredClusterStateVersion
         );
         request.setParentTask(parentTask);
         return request;

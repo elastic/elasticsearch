@@ -7,11 +7,22 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -30,6 +41,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -217,6 +230,95 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         assertThat(dispatched.unresolved(), empty());
         assertThat(dispatched.resolved(), hasSize(1));
         assertThat(dispatched.resolved().get(0).splits(), contains(all.get(0)));
+    }
+
+    /**
+     * A worker that declines its splits hands them to the next resolved worker, wrapping around, so that a walk visits every
+     * other worker once and concurrent leaves whose placement the strategy offset do not all fall back onto the same node;
+     * a lone worker has nowhere to go and waits.
+     */
+    public void testWalkVisitsEveryOtherWorkerOnceInRingOrder() {
+        ResolvedExternalNode node0 = new ResolvedExternalNode(node("node-0"), connection(), splits(1));
+        ResolvedExternalNode node1 = new ResolvedExternalNode(node("node-1"), connection(), splits(1));
+        ResolvedExternalNode node2 = new ResolvedExternalNode(node("node-2"), connection(), splits(1));
+        List<ResolvedExternalNode> resolved = List.of(node0, node1, node2);
+
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 0, 1), sameInstance(node1));
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 0, 2), sameInstance(node2));
+        assertNull(DataNodeComputeHandler.nextWorker(resolved, 0, 3));
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 1, 1), sameInstance(node2));
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 1, 2), sameInstance(node0));
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 2, 1), sameInstance(node0));
+        assertThat(DataNodeComputeHandler.nextWorker(resolved, 2, 2), sameInstance(node1));
+        assertNull(DataNodeComputeHandler.nextWorker(resolved, 2, 0));
+        assertThat(DataNodeComputeHandler.nextWorker(List.of(node0, node1), 1, 1), sameInstance(node0));
+        assertNull(DataNodeComputeHandler.nextWorker(List.of(node0, node1), 1, 2));
+        assertNull(DataNodeComputeHandler.nextWorker(List.of(node0), 0, 1));
+    }
+
+    /** Every attempt of a walk but its last asks the worker to decline when not ready; the last, or a lone worker, waits. */
+    public void testOnlyTheLastAttemptOfAWalkWaits() {
+        assertFalse(DataNodeComputeHandler.declineIfNotReady(0, 1));
+        assertTrue(DataNodeComputeHandler.declineIfNotReady(0, 2));
+        assertFalse(DataNodeComputeHandler.declineIfNotReady(1, 2));
+        assertTrue(DataNodeComputeHandler.declineIfNotReady(0, 3));
+        assertTrue(DataNodeComputeHandler.declineIfNotReady(1, 3));
+        assertFalse(DataNodeComputeHandler.declineIfNotReady(2, 3));
+    }
+
+    /**
+     * A dataset refusal is lag only when the worker's applied state is older than the one the coordinator planned from;
+     * a refusal on a state at or above it is a real miss, an old coordinator (no version) is never second-guessed, and
+     * nothing but a 400 status exception counts as a refusal.
+     */
+    public void testDatasetRefusalWhileBehind() {
+        ElasticsearchStatusException refusal = DatasetConfigResolver.notRegistered("hits");
+        long required = randomLongBetween(2, 1000);
+
+        assertTrue(DataNodeComputeHandler.isDatasetRefusalWhileBehind(refusal, request(required), state(required - 1)));
+        assertTrue(DataNodeComputeHandler.isDatasetRefusalWhileBehind(refusal, request(required), state(0)));
+        assertFalse(DataNodeComputeHandler.isDatasetRefusalWhileBehind(refusal, request(required), state(required)));
+        assertFalse(DataNodeComputeHandler.isDatasetRefusalWhileBehind(refusal, request(required), state(required + 1)));
+        assertFalse(
+            "an old coordinator sends no version",
+            DataNodeComputeHandler.isDatasetRefusalWhileBehind(refusal, request(0), state(0))
+        );
+
+        Exception[] notRefusals = new Exception[] {
+            new ElasticsearchStatusException("forbidden", RestStatus.FORBIDDEN),
+            new ElasticsearchStatusException("server", RestStatus.INTERNAL_SERVER_ERROR),
+            new ElasticsearchTimeoutException("timed out while waiting for cluster to unblock"),
+            new ClusterBlockException(Set.of(GatewayService.STATE_NOT_RECOVERED_BLOCK)),
+            new TaskCancelledException("cancelled"),
+            new IllegalArgumentException("bad glob") };
+        for (Exception e : notRefusals) {
+            assertFalse(e.toString(), DataNodeComputeHandler.isDatasetRefusalWhileBehind(e, request(required), state(required - 1)));
+        }
+    }
+
+    private static DataNodeRequest request(long requiredClusterStateVersion) {
+        // No plan: the readiness predicate reads nothing but the version, as DataNodeRequestTests does for the indices.
+        return new DataNodeRequest(
+            "session",
+            TaskId.EMPTY_TASK_ID,
+            randomConfiguration("from test", randomTables()),
+            "",
+            List.of(),
+            Map.of(),
+            null,
+            new String[0],
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            false,
+            false,
+            false,
+            splits(1),
+            randomBoolean(),
+            requiredClusterStateVersion
+        );
+    }
+
+    private static ClusterState state(long version) {
+        return ClusterState.builder(ClusterName.DEFAULT).version(version).build();
     }
 
     private static ExternalDispatchResolution dispatch(

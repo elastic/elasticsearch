@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -33,8 +34,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -220,6 +223,7 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
@@ -231,6 +235,7 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
+        ComputeExecutor computeExecutor,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
@@ -243,6 +248,7 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
@@ -1964,7 +1970,6 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
@@ -1992,7 +1997,7 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                parallelWorkerExecutor,
+                computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2131,13 +2136,11 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            QueryScheduler.QueryExecutor driverExecutor = searchService.queryScheduler()
-                .executor(
-                    context.queryId(),
-                    transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                    // only data drivers read the slices of the shards; the node reduce shares the search contexts
-                    context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
-                );
+            QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
+                context.queryId(),
+                // only data drivers read the slices of the shards; the node reduce shares the search contexts
+                context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
+            );
             try {
                 driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                     if (hookExecInfo != null) {
@@ -2317,6 +2320,42 @@ public class ComputeService {
     /**
      * The shards the drivers search, skipping contexts already closed.
      */
+    /**
+     * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
+     * and when they resume.
+     */
+    private final class QueryDriverExecutor implements DriverExecutor, Releasable {
+        private final QueryScheduler.QueryExecutor normal;
+        private final QueryScheduler.QueryExecutor resumed;
+
+        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
+            QueryScheduler scheduler = searchService.queryScheduler();
+            this.normal = scheduler.executor(queryId, computeExecutor, shards);
+            this.resumed = scheduler.executor(queryId, task -> {
+                if (task instanceof AbstractRunnable runnable) {
+                    computeExecutor.executeResumed(runnable);
+                } else {
+                    computeExecutor.execute(task);
+                }
+            }, shards);
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            normal.execute(task);
+        }
+
+        @Override
+        public void executeResumed(AbstractRunnable task) {
+            resumed.execute(task);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(normal, resumed);
+        }
+    }
+
     static List<QueryScheduler.SearchedShard> searchedShards(IndexedByShardId<ComputeSearchContext> searchContexts) {
         List<QueryScheduler.SearchedShard> shards = new ArrayList<>();
         for (ComputeSearchContext context : searchContexts.iterable()) {

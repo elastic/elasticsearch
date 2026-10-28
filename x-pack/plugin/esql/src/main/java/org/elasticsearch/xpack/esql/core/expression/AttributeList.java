@@ -57,7 +57,7 @@ public final class AttributeList extends AbstractList<Attribute> implements Rand
      *
      * @throws IllegalArgumentException if two attributes share a name or an id
      */
-    public static AttributeList of(List<? extends Attribute> attributes) {
+    static AttributeList of(List<? extends Attribute> attributes) {
         if (attributes instanceof AttributeList list) {
             return list;
         }
@@ -135,7 +135,7 @@ public final class AttributeList extends AbstractList<Attribute> implements Rand
      * @throws IllegalArgumentException if an attribute in {@code extra} has the name or id of another attribute in
      * {@code extra} or in this list
      */
-    public AttributeList append(List<? extends Attribute> extra) {
+    AttributeList append(List<? extends Attribute> extra) {
         AttributeList appended = tryAppend(extra);
         if (appended == null) {
             throw new IllegalArgumentException("duplicate attributes appending " + extra);

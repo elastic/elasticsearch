@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 public class NamedExpressions {
+    private static final boolean SHARED = AttributeList.SHARED_OUTPUT_FEATURE_FLAG.isEnabled();
+
     /**
      * Calculates the actual output of a command given the new attributes plus the existing inputs that are emitted as outputs.
      * With {@link AttributeList#SHARED_OUTPUT_FEATURE_FLAG} enabled, the result shares storage with {@code childOutput} when it
@@ -30,7 +32,7 @@ public class NamedExpressions {
         List<? extends NamedExpression> fields,
         List<? extends NamedExpression> childOutput
     ) {
-        if (AttributeList.SHARED_OUTPUT_FEATURE_FLAG.isEnabled() == false) {
+        if (SHARED == false) {
             return Expressions.asAttributes(mergeOutputExpressions(fields, childOutput));
         }
         List<? extends Attribute> added = fields instanceof AttributeList list ? list : Expressions.asAttributes(fields);

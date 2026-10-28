@@ -55,8 +55,8 @@ public class NamedExpressionsTests extends ESTestCase {
     }
 
     public void testMergeOutputAttributesWithAttributeListFields() {
-        AttributeList child = AttributeList.of(List.of(attribute("a"), attribute("b")));
-        AttributeList fields = AttributeList.of(List.of(attribute("c"), attribute("b")));
+        List<Attribute> child = output(List.of(attribute("a"), attribute("b")));
+        List<Attribute> fields = output(List.of(attribute("c"), attribute("b")));
 
         List<Attribute> output = NamedExpressions.mergeOutputAttributes(fields, child);
         assertEquals(expected(fields, child), output);
@@ -89,7 +89,9 @@ public class NamedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * Whatever the mix of shadowed, repeated and duplicated names and ids, the output equals the original algorithm's.
+     * Whatever the mix of shadowed, repeated and duplicated names and ids, the output equals the original algorithm's. The child
+     * is either arbitrary or a command's output, which takes the path that shares the child's storage, and any
+     * {@link AttributeList} output has distinct names and ids, which {@code PlanConsistencyChecker} relies on.
      */
     public void testMergeOutputAttributesMatchesMergeOutputExpressions() {
         for (int run = 0; run < 200; run++) {
@@ -97,9 +99,14 @@ public class NamedExpressionsTests extends ESTestCase {
             for (int i = 0; i < 6; i++) {
                 pool.add(attribute("n" + i));
             }
-            List<Attribute> child = randomAttributes(pool, between(0, 12));
+            List<Attribute> child = randomBoolean() ? randomAttributes(pool, between(0, 12)) : output(randomSubsetOf(pool));
             List<Attribute> fields = randomAttributes(pool, between(0, 4));
-            assertEquals(expected(fields, child), NamedExpressions.mergeOutputAttributes(fields, child));
+            List<Attribute> output = NamedExpressions.mergeOutputAttributes(fields, child);
+            assertEquals(expected(fields, child), output);
+            if (output instanceof AttributeList) {
+                assertEquals(output.size(), output.stream().map(Attribute::name).distinct().count());
+                assertEquals(output.size(), output.stream().map(Attribute::id).distinct().count());
+            }
         }
     }
 
@@ -150,6 +157,13 @@ public class NamedExpressionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code attributes} as a command that only adds them would output them.
+     */
+    private static List<Attribute> output(List<Attribute> attributes) {
+        return NamedExpressions.mergeOutputAttributes(attributes, List.of());
+    }
+
     private static List<Attribute> expected(List<? extends NamedExpression> fields, List<? extends NamedExpression> child) {
         return Expressions.asAttributes(NamedExpressions.mergeOutputExpressions(fields, child));
     }
@@ -170,7 +184,8 @@ public class NamedExpressionsTests extends ESTestCase {
                     base.id(),
                     false
                 );
-                default -> attribute("u" + between(0, 1000));
+                case 3 -> attribute("u" + between(0, 1000));
+                default -> throw new AssertionError("unexpected case");
             });
         }
         return attributes;

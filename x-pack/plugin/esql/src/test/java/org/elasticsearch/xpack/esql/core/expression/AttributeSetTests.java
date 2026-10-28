@@ -51,20 +51,20 @@ public class AttributeSetTests extends ESTestCase {
         assertNotEquals(AttributeMap.emptyAttributeMap(), AttributeSet.EMPTY);
     }
 
-    public void testListBackedEqualsMapBacked() {
+    public void testSetOfListEqualsSetOfAttributes() {
         Attribute a1 = a("1");
         Attribute a2 = a("2");
-        AttributeSet mapBacked = AttributeSet.of(a1, a2);
-        AttributeSet listBacked = AttributeSet.of(AttributeList.of(List.of(a2)).append(List.of(a1)));
+        AttributeSet ofAttributes = AttributeSet.of(a1, a2);
+        AttributeSet ofList = AttributeSet.of(AttributeList.of(List.of(a2)).append(List.of(a1)));
 
-        assertEquals(mapBacked, listBacked);
-        assertEquals(listBacked, mapBacked);
-        assertEquals(mapBacked.hashCode(), listBacked.hashCode());
-        assertNotEquals(AttributeSet.of(AttributeList.of(List.of(a1))), mapBacked);
-        assertNotEquals(mapBacked, AttributeSet.of(AttributeList.of(List.of(a1))));
+        assertEquals(ofAttributes, ofList);
+        assertEquals(ofList, ofAttributes);
+        assertEquals(ofAttributes.hashCode(), ofList.hashCode());
+        assertNotEquals(AttributeSet.of(AttributeList.of(List.of(a1))), ofAttributes);
+        assertNotEquals(ofAttributes, AttributeSet.of(AttributeList.of(List.of(a1))));
     }
 
-    public void testListBackedSet() {
+    public void testSetOfList() {
         Attribute a1 = a("1");
         Attribute a2 = a("2");
         Attribute a3 = a("3");
@@ -98,9 +98,9 @@ public class AttributeSetTests extends ESTestCase {
     public void testContainsName() {
         Attribute a1 = a("1");
         Attribute a2 = a("2");
-        AttributeSet mapBacked = AttributeSet.of(a1, a2);
-        AttributeSet listBacked = AttributeSet.of(AttributeList.of(List.of(a1, a2)));
-        for (AttributeSet set : List.of(mapBacked, listBacked)) {
+        AttributeSet ofAttributes = AttributeSet.of(a1, a2);
+        AttributeSet ofList = AttributeSet.of(AttributeList.of(List.of(a1, a2)));
+        for (AttributeSet set : List.of(ofAttributes, ofList)) {
             assertTrue(set.containsName("1"));
             assertTrue(set.containsName("2"));
             assertFalse(set.containsName("3"));
@@ -108,24 +108,24 @@ public class AttributeSetTests extends ESTestCase {
         assertFalse(AttributeSet.EMPTY.containsName("1"));
     }
 
-    public void testAlgebraAcrossRepresentations() {
+    public void testAlgebraAcrossSetsOfListsAndAttributes() {
         Attribute a1 = a("1");
         Attribute a2 = a("2");
         Attribute a3 = a("3");
-        AttributeSet listBacked = AttributeSet.of(AttributeList.of(List.of(a1, a2)));
-        AttributeSet mapBacked = AttributeSet.of(a2, a3);
+        AttributeSet ofList = AttributeSet.of(AttributeList.of(List.of(a1, a2)));
+        AttributeSet ofAttributes = AttributeSet.of(a2, a3);
 
-        assertEquals(AttributeSet.of(a1, a2, a3), listBacked.combine(mapBacked));
-        assertEquals(AttributeSet.of(a1, a2, a3), mapBacked.combine(listBacked));
-        assertEquals(AttributeSet.of(a1), listBacked.subtract(mapBacked));
-        assertEquals(AttributeSet.of(a3), mapBacked.subtract(listBacked));
-        assertEquals(AttributeSet.of(a2), listBacked.intersect(mapBacked));
-        assertEquals(AttributeSet.of(a2), mapBacked.intersect(listBacked));
-        assertTrue(AttributeSet.of(a2).subsetOf(listBacked));
-        assertTrue(AttributeSet.of(AttributeList.of(List.of(a2))).subsetOf(mapBacked));
-        assertFalse(listBacked.subsetOf(mapBacked));
-        assertEquals(AttributeSet.of(a1, a2), listBacked.asBuilder().build());
-        assertEquals(AttributeSet.of(a1, a2, a3), AttributeSet.builder().addAll(listBacked).add(a3).build());
+        assertEquals(AttributeSet.of(a1, a2, a3), ofList.combine(ofAttributes));
+        assertEquals(AttributeSet.of(a1, a2, a3), ofAttributes.combine(ofList));
+        assertEquals(AttributeSet.of(a1), ofList.subtract(ofAttributes));
+        assertEquals(AttributeSet.of(a3), ofAttributes.subtract(ofList));
+        assertEquals(AttributeSet.of(a2), ofList.intersect(ofAttributes));
+        assertEquals(AttributeSet.of(a2), ofAttributes.intersect(ofList));
+        assertTrue(AttributeSet.of(a2).subsetOf(ofList));
+        assertTrue(AttributeSet.of(AttributeList.of(List.of(a2))).subsetOf(ofAttributes));
+        assertFalse(ofList.subsetOf(ofAttributes));
+        assertEquals(AttributeSet.of(a1, a2), ofList.asBuilder().build());
+        assertEquals(AttributeSet.of(a1, a2, a3), AttributeSet.builder().addAll(ofList).add(a3).build());
     }
 
     public void testAlgebraKeepsOrder() {
@@ -166,7 +166,8 @@ public class AttributeSetTests extends ESTestCase {
 
     public void testBuilderAcrossLinearScanLimit() {
         List<Attribute> members = new ArrayList<>();
-        for (int i = 0; i < AttributeSegments.LINEAR_SCAN_LIMIT + between(-3, 5); i++) {
+        int count = AttributeSegments.LINEAR_SCAN_LIMIT + between(-3, 5);
+        for (int i = 0; i < count; i++) {
             members.add(a("m" + i));
         }
         AttributeSet.Builder builder = AttributeSet.builder();
@@ -222,7 +223,8 @@ public class AttributeSetTests extends ESTestCase {
 
     public void testLargeSets() {
         List<Attribute> members = new ArrayList<>();
-        for (int i = 0; i < between(9, 2000); i++) {
+        int count = between(9, 2000);
+        for (int i = 0; i < count; i++) {
             members.add(a("m" + i));
         }
         AttributeSet set = AttributeSet.of(members);

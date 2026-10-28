@@ -23,8 +23,11 @@ import java.util.function.ToIntFunction;
  * O(attributes × sequences) for a copy each.
  * <p>
  * Lookups by id ({@link Attribute#semanticEquals}) and by name probe each segment; a segment builds its lookup tables on first
- * use, and every sequence containing it shares them. This is the storage of both {@link AttributeList} and
- * {@link AttributeSet}; the uniqueness rules are theirs to enforce.
+ * use, and every sequence containing it shares them. Segments are never merged: a chain of commands adds at most one per
+ * command, and {@link org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder#MAX_QUERY_DEPTH} bounds the commands. At
+ * that depth, planning a chain of single-column EVALs is as fast as copying each command's output.
+ * <p>
+ * This is the storage of both {@link AttributeList} and {@link AttributeSet}; the uniqueness rules are theirs to enforce.
  */
 final class AttributeSegments extends AbstractList<Attribute> implements RandomAccess {
 

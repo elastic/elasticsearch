@@ -73,6 +73,8 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  internalClusterTestImplementation project(xpackModule('enrich'))
+  internalClusterTestImplementation project(':modules:ingest-common')
   api "com.unboundid:unboundid-ldapsdk:${versions.ldapsdk}"
 
   internalClusterTestImplementation project(path: ':modules:lang-painless')

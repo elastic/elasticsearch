@@ -12,6 +12,9 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -20,8 +23,12 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -244,6 +251,65 @@ public class SharingKeyTests extends ESTestCase {
         writeConfigFile("one.txt", "a, b");
         Settings chain = synonymChain("synonyms_path", "one.txt", true);
         assertNotSame(build(IndexVersion.current(), chain), build(IndexVersion.current(), chain));
+    }
+
+    /** A wrapper must report a wrapped filter's lenient fallback, which only the wrapped filter can see. */
+    public void testWrappersReportDegradedSynonymFilter() throws IOException {
+        CircuitBreaker tripping = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                throw new CircuitBreakingException("tripped", CircuitBreaker.Durability.TRANSIENT);
+            }
+        };
+        CircuitBreakerService breakers = new NoneCircuitBreakerService() {
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return tripping;
+            }
+        };
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(newScriptService())
+            .circuitBreakerService(breakers)
+            .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), configDir.getParent()).build();
+        AnalysisRegistry trippingRegistry = new AnalysisModule(
+            TestEnvironment.newEnvironment(nodeSettings),
+            List.of(plugin),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry();
+        try {
+            Settings.Builder synonyms = Settings.builder()
+                .put("index.analysis.analyzer.a.tokenizer", "standard")
+                .putList("index.analysis.analyzer.a.filter", "w")
+                .put("index.analysis.filter.syn.type", synonymType)
+                .putList("index.analysis.filter.syn.synonyms", "a, b")
+                .put("index.analysis.filter.syn.lenient", true);
+            Settings multiplexer = Settings.builder()
+                .put(synonyms.build())
+                .put("index.analysis.filter.w.type", "multiplexer")
+                .putList("index.analysis.filter.w.filters", "syn")
+                .build();
+            Settings condition = Settings.builder()
+                .put(synonyms.build())
+                .put("index.analysis.filter.w.type", "condition")
+                .put("index.analysis.filter.w.script.source", "token.position > 1")
+                .putList("index.analysis.filter.w.filter", "syn")
+                .build();
+            for (Settings wrapper : List.of(multiplexer, condition)) {
+                Settings s = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(wrapper).build();
+                try (
+                    IndexAnalyzers ia = trippingRegistry.build(
+                        IndexService.IndexCreationContext.CREATE_INDEX,
+                        IndexSettingsModule.newIndexSettings("test", s)
+                    )
+                ) {
+                    TokenFilterFactory[] filters = ((CustomAnalyzer) ia.get("a").analyzer()).getComponents().getTokenFilters();
+                    assertTrue(wrapper.get("index.analysis.filter.w.type"), filters[0].isDegraded());
+                }
+            }
+            trippingRegistry.assertNoCachedEntries();
+        } finally {
+            trippingRegistry.close();
+        }
     }
 
     /** Since Lucene 10 the persian analyzer also stems, so the version fork must be part of the key. */

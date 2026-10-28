@@ -27,8 +27,13 @@ import java.util.stream.Collectors;
 
 public class UnionAll extends MergePlan {
 
-    public static final String TOTAL_BRANCH_COUNT_ERROR =
+    private static final String TOTAL_BRANCH_COUNT_ERROR =
         "query resolved to {} branches in total, exceeding the limit of {} set by the {}. "
+            + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
+            + " or split this into multiple queries.";
+
+    public static final String PARTIAL_BRANCH_COUNT_ERROR =
+        "query resolved to at least {} branches, exceeding the limit of {} set by the {}. "
             + "Reduce the number of sources - forks, subqueries, patterns expanding to several indices, or views,"
             + " or split this into multiple queries.";
 

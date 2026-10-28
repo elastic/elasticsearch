@@ -336,7 +336,7 @@ public class LetResolverTests extends ESTestCase {
         String statement = "LET q = (FROM a); " + outsideLet;
         expectThrows(
             VerificationException.class,
-            containsString("query resolved to 30 branches in total, exceeding the limit of 20"),
+            containsString("query resolved to at least 30 branches, exceeding the limit of 20"),
             () -> parseAndResolveLet(statement)
         );
     }

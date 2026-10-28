@@ -305,6 +305,30 @@ public class ViewServiceTests extends ESTestCase {
         viewService.validatePutView(project, view);
     }
 
+    /**
+     * A PUT request carries no pragmas, so the cluster setting is the only source of the branch limit when a view is validated;
+     * the parser applies it to each FORK of the definition, and reads the setting as it stands at validation time.
+     */
+    public void testPutViewValidatesAgainstConfiguredBranchLimit() {
+        String body = "FROM some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        for (int i = 0; i < 3; i++) {
+            body = "FROM (" + body + "), some-index | FORK (WHERE a > 0) (WHERE a < 0)";
+        }
+        View view = new View("forky-view", body, null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting"
+            ),
+            () -> viewService.validatePutView(project, view)
+        );
+
+        clusterService.getClusterSettings().applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey(), 30).build());
+        viewService.validatePutView(project, view);
+    }
+
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
         viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);

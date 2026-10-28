@@ -1292,6 +1292,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
+    /**
+     * Each view FORKs over the previous one, so the expanded plan doubles at every level and goes over the plan size limit well
+     * before the view depth limit. The view-side twin of {@code LetResolverTests#testBigForkExpansionRejected}.
+     */
+    public void testMaxPlanNodesCountWithChainedForkViews() {
+        addView("fork_view_0", "FROM emp | FORK (WHERE a > 0) (WHERE a < 0)");
+        for (int i = 1; i < 9; i++) {
+            addView("fork_view_" + i, "FROM fork_view_" + (i - 1) + " | FORK (WHERE a > 0) (WHERE a < 0)");
+        }
+        replaceViews(query("FROM fork_view_3"));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM fork_view_8")));
+    }
+
     public void testMaxQueryDepthOfViewWithoutRelation() {
         addView("row_view", "ROW a = 1" + pipes(300));
         addView("outer_view", "FROM row_view" + pipes(150));

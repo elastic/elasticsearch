@@ -21,8 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Running total of plan nodes in the query being expanded, checked against the maximum allowed. Written from inside the async
- * resolution callbacks, with cross-thread visibility provided by the ActionListener plumbing like the other threaded state.
+ * Running total of plan nodes in the query being expanded, checked against the maximum allowed, and the width of the plans built
+ * so far, checked against the maximum leaf branches. Both walks cache what they have counted by node identity, so a plan whose
+ * FORK branches share their input is walked once rather than once per path. Written from inside the async resolution callbacks,
+ * with cross-thread visibility provided by the ActionListener plumbing like the other threaded state.
  */
 public class PlanSize {
     /** Where the limit comes from when no query pragma sets it, named in the error. */
@@ -97,7 +99,7 @@ public class PlanSize {
         UnionAll.UnionStats stats = UnionAll.unionStats(plan, unionStats);
         if (stats.leaves() > maxBranchCount) {
             throw new VerificationException(
-                List.of(Failure.fail(plan, UnionAll.TOTAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
+                List.of(Failure.fail(plan, UnionAll.PARTIAL_BRANCH_COUNT_ERROR, stats.leaves(), maxBranchCount, maxBranchCountSource))
             );
         }
     }

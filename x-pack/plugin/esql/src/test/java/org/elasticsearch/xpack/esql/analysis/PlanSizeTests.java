@@ -68,7 +68,7 @@ public class PlanSizeTests extends ESTestCase {
         planSize.checkPlanWidth(sharedInputForks(4), 16, "test");
         expectThrows(
             VerificationException.class,
-            containsString("query resolved to 16 branches in total, exceeding the limit of 15 set by the test"),
+            containsString("query resolved to at least 16 branches, exceeding the limit of 15 set by the test"),
             () -> planSize.checkPlanWidth(sharedInputForks(4), 15, "test")
         );
     }
@@ -87,7 +87,7 @@ public class PlanSizeTests extends ESTestCase {
         LogicalPlan deepest = plan;
         expectThrows(
             VerificationException.class,
-            containsString("query resolved to " + Integer.MAX_VALUE + " branches in total"),
+            containsString("query resolved to at least " + Integer.MAX_VALUE + " branches"),
             () -> planSize.checkPlanWidth(deepest, Integer.MAX_VALUE - 1, "test")
         );
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -4872,6 +4873,17 @@ public class AnalyzerTests extends AnalyzerTestCase {
             as(completion.prompt(), Concat.class).children(),
             equalTo(List.of(string("Translate this text in French\n"), getAttributeByName(esRelation.output(), "description")))
         );
+    }
+
+    public void testResolveCompletionTimeout() {
+        LogicalPlan plan = books().query("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate this text in French\\n", description)
+              WITH { "inference_id" : "completion-inference-id", "timeout" : "1ms" }
+            """);
+
+        Completion completion = as(as(plan, Limit.class).child(), Completion.class);
+        assertThat(completion.timeout(), equalTo(TimeValue.timeValueMillis(1)));
     }
 
     public void testResolveCompletionPromptInvalidType() {

@@ -532,6 +532,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163562
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793

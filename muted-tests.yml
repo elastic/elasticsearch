@@ -582,3 +582,8 @@ tests:
   - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
   method: test {agg-ordering.testMultipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_1}
   issue: https://github.com/elastic/elasticsearch/issues/163662
+- class: org.elasticsearch.index.codec.columnar.ColumnarKeywordCodecTests
+  tasks:
+  - :server:test
+  method: testIndexSortedByKeywordWithOneValuePerDocument
+  issue: https://github.com/elastic/elasticsearch/issues/163664

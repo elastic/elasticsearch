@@ -2,7 +2,7 @@
 navigation_title: "Manage in UI"
 description: "Create, view, and edit ES|QL Data Federation datasets with the Add dataset wizard in Kibana."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -31,7 +31,7 @@ The following example shows two datasets that read from the same data source:
 
 ## Add a new dataset
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 Click **Add dataset** to open a four-step wizard. A progress bar at the top of the page shows each step:
@@ -107,7 +107,7 @@ Click **Add dataset** to create the dataset.
 
 ## Edit a dataset
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 To change a dataset:

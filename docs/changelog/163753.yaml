@@ -7,6 +7,6 @@ issues:
  - 162371
  - 162369
  - 159710
-pr: 162471
+pr: 163753
 summary: Make delta() independent of partial-state merge order
 type: bug

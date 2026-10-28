@@ -26,6 +26,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -86,6 +87,9 @@ public class SnapshotShardContextHelper {
             // to correctly propagate this failure to SnapshotsService using existing listener
             // in case resharding starts in the middle of the snapshot.
             // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+            // Note that the master already fails a shard snapshot whose index is being resharded at the time it assigns
+            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus), but this check is still needed for
+            // resharding operations that start or complete after the shard snapshot was assigned.
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.
@@ -100,7 +104,7 @@ public class SnapshotShardContextHelper {
                 indexShard.indexSettings().getIndexMetadata(),
                 maximumShardIdForIndexInTheSnapshot
             )) {
-                throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
+                throw new IndexShardSnapshotFailedException(shardId, SnapshotsService.SHARD_BEING_RESHARDED_REASON);
             }
 
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok

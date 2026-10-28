@@ -1015,6 +1015,7 @@ public class SnapshotsServiceUtils {
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
+                            indexMetadata,
                             snapshotsInProgress::isNodeIdForRemoval,
                             partial,
                             restoreInProgress
@@ -1033,6 +1034,7 @@ public class SnapshotsServiceUtils {
      *
      * @param shardRepoGeneration    repository generation of the shard in the repository
      * @param primary                primary routing entry for the shard
+     * @param indexMetadata          current metadata of the shard's index, or {@code null} if the index no longer exists
      * @param nodeIdRemovalPredicate tests whether a node ID is currently marked for removal from the cluster
      * @param partial                whether the snapshot was created with {@code partial=true}; when {@code true}, an
      *                               actively-restoring INITIALIZING primary causes the shard to be recorded as
@@ -1045,6 +1047,7 @@ public class SnapshotsServiceUtils {
     public static SnapshotsInProgress.ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
+        @Nullable IndexMetadata indexMetadata,
         Predicate<String> nodeIdRemovalPredicate,
         boolean partial,
         RestoreInProgress restoreInProgress
@@ -1102,6 +1105,19 @@ public class SnapshotsServiceUtils {
             );
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+        }
+        if (indexMetadata != null && indexMetadata.getReshardingMetadata() != null && shardSnapshotStatus.state().completed() == false) {
+            // The data node will fail every shard snapshot of an index with resharding metadata (see
+            // SnapshotShardContextHelper#acquireSnapshotIndexCommit), fail it proactively here instead of waiting for
+            // it to start.
+            // This avoids keeping the snapshot open while split targets are still recovering. Shard snapshots that are
+            // already completed (e.g. MISSING) keep their state.
+            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
+                shardSnapshotStatus.nodeId(),
+                SnapshotsInProgress.ShardState.FAILED,
+                shardRepoGeneration,
+                SnapshotsService.SHARD_BEING_RESHARDED_REASON
+            );
         }
         return shardSnapshotStatus;
     }

@@ -12,8 +12,10 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -34,8 +36,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 
@@ -954,6 +958,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.ShardSnapshotStatus status = SnapshotsServiceUtils.initShardSnapshotStatus(
             null,           // shardRepoGeneration
             primary,
+            null,           // indexMetadata
             n -> false,     // nodeIdRemovalPredicate
             true,           // partial
             restoreInProgress
@@ -980,6 +985,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.ShardSnapshotStatus status = SnapshotsServiceUtils.initShardSnapshotStatus(
             null,           // shardRepoGeneration
             primary,
+            null,           // indexMetadata
             n -> false,     // nodeIdRemovalPredicate
             false,          // partial
             restoreInProgress
@@ -1003,6 +1009,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.ShardSnapshotStatus status = SnapshotsServiceUtils.initShardSnapshotStatus(
             null,              // shardRepoGeneration
             primary,
+            null,              // indexMetadata
             n -> false,        // nodeIdRemovalPredicate
             true,              // partial
             RestoreInProgress.EMPTY
@@ -1026,6 +1033,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.ShardSnapshotStatus status = SnapshotsServiceUtils.initShardSnapshotStatus(
             null,              // shardRepoGeneration
             primary,
+            null,              // indexMetadata
             n -> false,        // nodeIdRemovalPredicate
             true,              // partial
             RestoreInProgress.EMPTY
@@ -1049,6 +1057,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.ShardSnapshotStatus status = SnapshotsServiceUtils.initShardSnapshotStatus(
             null,              // shardRepoGeneration
             primary,
+            null,              // indexMetadata
             n -> false,        // nodeIdRemovalPredicate
             true,              // partial
             RestoreInProgress.EMPTY
@@ -1205,5 +1214,146 @@ public class SnapshotsServiceTests extends ESTestCase {
 
         // Assert: shard is WAITING because partial=false — the snapshot must capture the shard after restore completes.
         assertThat(startedSnapshot.shards().get(routingShardId).state(), is(SnapshotsInProgress.ShardState.WAITING));
+    }
+
+    /**
+     * Shards of an index that is being resharded are failed by the master when the snapshot is created rather than
+     * waiting for split targets to start only to be failed by the data node. Shards with an unassigned primary keep the
+     * {@link SnapshotsInProgress.ShardState#MISSING} state and shards of other indices are unaffected.
+     */
+    public void testShardsOfReshardingIndexFailOnSnapshotCreation() {
+        final var nodeId = uuid();
+        final var reshardingIndexName = "resharding-index";
+        final var otherIndexName = "other-index";
+        final var settings = Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current());
+        final var reshardingIndexMetadata = IndexMetadata.builder(reshardingIndexName)
+            .settings(settings)
+            .numberOfShards(4)
+            .numberOfReplicas(0)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final var otherIndexMetadata = IndexMetadata.builder(otherIndexName)
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        final var reshardingIndex = reshardingIndexMetadata.getIndex();
+        final var otherIndex = otherIndexMetadata.getIndex();
+
+        final var reshardingIndexRouting = IndexRoutingTable.builder(reshardingIndex);
+        for (int shard = 0; shard < 2; shard++) {
+            final var sourceShardId = new ShardId(reshardingIndex, shard);
+            reshardingIndexRouting.addShard(TestShardRouting.newShardRouting(sourceShardId, nodeId, true, ShardRoutingState.STARTED));
+        }
+        // A split target that is still recovering from its source.
+        final var initializingTargetShardId = new ShardId(reshardingIndex, 2);
+        reshardingIndexRouting.addShard(
+            TestShardRouting.shardRoutingBuilder(initializingTargetShardId, nodeId, true, ShardRoutingState.INITIALIZING)
+                .withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(new ShardId(reshardingIndex, 0)))
+                .build()
+        );
+        // A split target that is not assigned yet.
+        final var unassignedTargetShardId = new ShardId(reshardingIndex, 3);
+        reshardingIndexRouting.addShard(
+            TestShardRouting.shardRoutingBuilder(unassignedTargetShardId, null, true, ShardRoutingState.UNASSIGNED)
+                .withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(new ShardId(reshardingIndex, 1)))
+                .build()
+        );
+        final var otherShardId = new ShardId(otherIndex, 0);
+
+        final var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(reshardingIndexMetadata, false).put(otherIndexMetadata, false))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(reshardingIndexRouting)
+                    .add(
+                        IndexRoutingTable.builder(otherIndex)
+                            .addShard(TestShardRouting.newShardRouting(otherShardId, nodeId, true, ShardRoutingState.STARTED))
+                    )
+                    .build()
+            )
+            .build();
+
+        final var shards = SnapshotsServiceUtils.shards(
+            SnapshotsInProgress.EMPTY,
+            SnapshotDeletionsInProgress.EMPTY,
+            state.projectState(),
+            List.of(indexId(reshardingIndexName), indexId(otherIndexName)),
+            true,
+            RepositoryData.EMPTY,
+            "repo",
+            true
+        );
+
+        for (int shard = 0; shard < 3; shard++) {
+            final var status = shards.get(new ShardId(reshardingIndex, shard));
+            assertThat(status.state(), is(SnapshotsInProgress.ShardState.FAILED));
+            assertThat(status.reason(), equalTo(SnapshotsService.SHARD_BEING_RESHARDED_REASON));
+            assertThat(status.nodeId(), equalTo(nodeId));
+            assertThat(status.generation(), equalTo(ShardGenerations.NEW_SHARD_GEN));
+        }
+        assertThat(shards.get(unassignedTargetShardId).state(), is(SnapshotsInProgress.ShardState.MISSING));
+        assertThat(shards.get(otherShardId).state(), is(SnapshotsInProgress.ShardState.INIT));
+    }
+
+    /**
+     * A queued shard snapshot that is unblocked by the completion of an earlier shard snapshot after resharding started is failed
+     * by the master instead of being sent to the data node, which would fail it anyway.
+     */
+    public void testQueuedShardSnapshotOfReshardingIndexFailsWhenStarted() throws Exception {
+        final var repoName = "test-repo";
+        final var indexName = "index-1";
+        final var dataNodeId = uuid();
+        final var indexId = indexId(indexName);
+
+        // Both snapshots were created before the split 1 -> 2 started, so they only contain shard 0.
+        final var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
+        final var sourceShardId = new ShardId(indexMetadata.getIndex(), 0);
+        final var targetShardId = new ShardId(indexMetadata.getIndex(), 1);
+        final var stateWithIndex = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(TestShardRouting.newShardRouting(sourceShardId, dataNodeId, true, ShardRoutingState.STARTED))
+                            .addShard(
+                                TestShardRouting.shardRoutingBuilder(targetShardId, dataNodeId, true, ShardRoutingState.INITIALIZING)
+                                    .withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(sourceShardId))
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        final var runningSnapshot = snapshot(repoName, "running-snapshot");
+        final var queuedSnapshot = snapshot(repoName, "queued-snapshot");
+        final var state = stateWithSnapshots(
+            stateWithIndex,
+            repoName,
+            snapshotEntry(runningSnapshot, Map.of(indexName, indexId), Map.of(sourceShardId, initShardStatus(dataNodeId))),
+            snapshotEntry(
+                queuedSnapshot,
+                Map.of(indexName, indexId),
+                Map.of(sourceShardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+            )
+        );
+
+        // The running shard snapshot acquired its commit before the split started, so it completes successfully.
+        final var updatedState = applyUpdates(state, successUpdate(runningSnapshot, sourceShardId, dataNodeId));
+
+        final SnapshotsInProgress snapshotsInProgress = updatedState.custom(SnapshotsInProgress.TYPE);
+        final var startedSnapshot = snapshotsInProgress.forRepo(repoName).get(1);
+        assertThat(startedSnapshot.snapshot(), equalTo(queuedSnapshot));
+        final var shardSnapshotStatus = startedSnapshot.shards().get(sourceShardId);
+        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.FAILED));
+        assertThat(shardSnapshotStatus.reason(), equalTo(SnapshotsService.SHARD_BEING_RESHARDED_REASON));
+        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
     }
 }

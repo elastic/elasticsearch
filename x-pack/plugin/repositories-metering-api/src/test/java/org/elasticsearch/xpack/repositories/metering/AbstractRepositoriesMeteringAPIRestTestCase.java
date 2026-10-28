@@ -374,7 +374,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
         return (T) XContentMapValues.extractValue(path, map);
     }
 
-    protected String getProperty(String propertyName) {
+    protected static String getProperty(String propertyName) {
         final String property = System.getProperty(propertyName);
         assertThat(property, not(blankOrNullString()));
         return property;

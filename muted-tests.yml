@@ -404,11 +404,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/163039
-- class: org.elasticsearch.test.rest.yaml.CcsSearchYamlTestSuiteIT
-  tasks:
-  - :qa:ccs-common-rest:yamlRestTest
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/163082
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureBccWriteStallIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -536,14 +531,12 @@ tests:
   tasks:
   - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
   - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcCurrentCoordinator
+  - :x-pack:plugin:esql-datasource-orc:qa:v9.6.0#esqlDataSourceBwcOldCoordinator
   issue: https://github.com/elastic/elasticsearch/issues/163608
-- class: org.elasticsearch.xpack.eql.qa.mixed_node.EqlSearchIT
-  tasks:
-  - :x-pack:plugin:eql:qa:mixed-node:v9.6.0#javaRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/163660
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163565
 - class: org.elasticsearch.index.IndexSettingsTests
   tasks:
@@ -565,3 +558,23 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSetLevel
   issue: https://github.com/elastic/elasticsearch/issues/163699
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testStressWithRelocationFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148129
+- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
+  issue: https://github.com/elastic/elasticsearch/issues/163761
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsNoSkipUnavailableIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163773
+- class: org.elasticsearch.compute.operator.DriverTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testRunsThroughComputeExecutor
+  issue: https://github.com/elastic/elasticsearch/issues/163778

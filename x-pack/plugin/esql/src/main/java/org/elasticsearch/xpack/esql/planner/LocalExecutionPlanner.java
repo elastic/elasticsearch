@@ -2089,6 +2089,10 @@ public class LocalExecutionPlanner {
         // Step 2: Dedup by _tsid
         int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
         PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
+        int sampleRows = tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+        if (sampleRows != TsInfoOperator.NO_LIMIT) {
+            dedupedSource = dedupedSource.with(new LimitOperator.Factory(sampleRows), dedupedSource.layout);
+        }
 
         // Step 3: Extract _timeseries metadata and _index
         FieldAttribute metadataSourceAttr = new FieldAttribute(
@@ -2140,6 +2144,14 @@ public class LocalExecutionPlanner {
         );
     }
 
+    private static int tsInfoSampleRows(Integer limit, PlannerSettings plannerSettings) {
+        if (limit == null) {
+            return TsInfoOperator.NO_LIMIT;
+        }
+        long sampleRows = Math.max(plannerSettings.tsInfoSampleMinRows(), (long) limit * plannerSettings.tsInfoSampleLimitMultiplier());
+        return (int) Math.min(sampleRows, Integer.MAX_VALUE);
+    }
+
     /**
      * FINAL mode: runs on the coordinator. Reads the 7-column TsInfo output from the
      * exchange (produced by data-node INITIAL phases) and merges rows by ts signature.
@@ -2156,7 +2168,12 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(outputAttrs);
 
-        return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
+        int limit = switch (tsInfoExec.mode()) {
+            case FINAL -> tsInfoExec.limit() == null ? TsInfoOperator.NO_LIMIT : tsInfoExec.limit();
+            case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
+            case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
+        };
+        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
     }
 
     private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {

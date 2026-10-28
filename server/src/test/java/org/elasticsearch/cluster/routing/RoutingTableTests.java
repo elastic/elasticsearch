@@ -486,6 +486,44 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
+    public void testAddReplicaRecoveryPriority() {
+        final var index = new Index("index", "uuid");
+        final var shardId = new ShardId(index, 0);
+        final var builder = new IndexRoutingTable.Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, index);
+        builder.addShard(TestShardRouting.newShardRouting(shardId, "node1", true, STARTED));
+
+        final ShardRouting existingReplica;
+        if (rarely()) {
+            existingReplica = null;
+        } else {
+            final var existingReplicaState = randomFrom(UNASSIGNED, INITIALIZING, STARTED);
+            existingReplica = TestShardRouting.newShardRouting(
+                shardId,
+                existingReplicaState == UNASSIGNED ? null : "node2",
+                false,
+                existingReplicaState
+            );
+            builder.addShard(existingReplica);
+        }
+        builder.addReplica(ShardRouting.Role.DEFAULT);
+        final var addedReplica = builder.build()
+            .shard(0)
+            .replicaShards()
+            .stream()
+            .filter(shard -> shard != existingReplica)
+            .findFirst()
+            .orElseThrow();
+        assertThat(addedReplica.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.REPLICA_ADDED));
+        assertThat(
+            addedReplica.recoveryPriority(),
+            equalTo(
+                existingReplica != null && existingReplica.started()
+                    ? ShardRouting.RecoveryPriority.UNASSIGNED_SEARCH_SCALING
+                    : ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            )
+        );
+    }
+
     public void testRoutingNodesRoundtrip() {
         final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
         final GlobalRoutingTable fromNodes = originalTable.rebuild(clusterState.getRoutingNodes(), clusterState.metadata());

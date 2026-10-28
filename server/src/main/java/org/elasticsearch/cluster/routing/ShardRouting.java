@@ -59,6 +59,28 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NO].
         RELOCATION_CAN_REMAIN_NO(true, false),
 
+        /// A shard which is unassigned because it is being restored from a snapshot.
+        ///
+        /// This is lower priority than [#RELOCATION_CAN_REMAIN_NO] because the restored index is not available yet,
+        /// so delaying the restore does not reduce availability, whereas delaying a relocation away from a node which
+        /// must be vacated (e.g. because it is shutting down) may do so.
+        UNASSIGNED_RESTORING(false, true),
+
+        /// A shard which is unassigned because it is a replica added to a shard which already has an active replica, so
+        /// it just adds search capacity.
+        ///
+        /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because the shard is already
+        /// fully available without this new replica.
+        UNASSIGNED_SEARCH_SCALING(false, true),
+
+        /// A shard which is unassigned because it is the target of a reshard split, or a replica of such a target.
+        ///
+        /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because the index is
+        /// fully available from the source shards while the split is in progress, so the new shard only improves performance.
+        /// It is also lower priority than [#UNASSIGNED_SEARCH_SCALING] because a split is expected to take longer than starting
+        /// a new replica, and holds its recovery slot on the target while the source does most of the work.
+        UNASSIGNED_RESHARDING(false, true),
+
         /// A shard which is assigned, and is being relocated because
         /// [org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders#canRemain] returned
         /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NOT_PREFERRED].
@@ -81,10 +103,24 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
 
         public static RecoveryPriority readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION)) {
                 return in.readEnum(RecoveryPriority.class);
+            } else if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                // Deserialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING,
+                // UNASSIGNED_RESHARDING and UNASSIGNED_SEARCH_SCALING values
+                int ordinal = in.readVInt();
+                return switch (ordinal) {
+                    case 0 -> UNASSIGNED_NEW_PRIMARY;
+                    case 1 -> UNASSIGNED_UNEXPECTED;
+                    case 2 -> UNASSIGNED_EXPECTED;
+                    case 3 -> RELOCATION_CAN_REMAIN_NO;
+                    case 4 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                    case 5 -> RELOCATE_REBALANCING;
+                    case 6 -> UNKNOWN;
+                    default -> throw new IllegalArgumentException("Unexpected value for previous RecoveryPriority ordinal: " + ordinal);
+                };
             } else {
-                // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
+                // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values
                 int legacyOrdinal = in.readVInt();
                 return switch (legacyOrdinal) {
                     case 0 -> UNASSIGNED_UNEXPECTED;
@@ -109,14 +145,27 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION)) {
                 out.writeEnum(this);
+            } else if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
+                // Serialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING,
+                // UNASSIGNED_RESHARDING and UNASSIGNED_SEARCH_SCALING values, or the nearest fallbacks
+                int ordinal = switch (this) {
+                    case UNASSIGNED_NEW_PRIMARY -> 0;
+                    case UNASSIGNED_UNEXPECTED -> 1;
+                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING -> 2;
+                    case RELOCATION_CAN_REMAIN_NO -> 3;
+                    case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 4;
+                    case RELOCATE_REBALANCING -> 5;
+                    case UNKNOWN -> 6;
+                };
+                out.writeVInt(ordinal);
             } else {
                 // Serialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values,
-                // or the nearest fallbacks:
+                // or the nearest fallbacks
                 int legacyOrdinal = switch (this) {
                     case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> 0;
-                    case UNASSIGNED_EXPECTED -> 1;
+                    case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_SEARCH_SCALING, UNASSIGNED_RESHARDING -> 1;
                     case RELOCATION_CAN_REMAIN_NO -> 2;
                     case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> 3;
                     case RELOCATE_REBALANCING, UNKNOWN -> 4;
@@ -135,8 +184,16 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     static final TransportVersion RECOVERY_PRIORITY_TRANSPORT_VERSION = TransportVersion.fromName("recovery_priority_in_shard_routing");
 
     /// Introduced along with [RecoveryPriority#UNKNOWN] and [RecoveryPriority#UNASSIGNED_NEW_PRIMARY]
-    private static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion
-        .fromName("recovery_priority_unknown_and_unassigned_new_primary");
+    // visible for testing
+    static final TransportVersion RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_unknown_and_unassigned_new_primary"
+    );
+
+    /// Introduced along with [RecoveryPriority#UNASSIGNED_RESTORING], [RecoveryPriority#UNASSIGNED_RESHARDING] and
+    /// [RecoveryPriority#UNASSIGNED_SEARCH_SCALING]
+    private static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_unassigned_deferrable"
+    );
 
     private final ShardId shardId;
     private final String currentNodeId;

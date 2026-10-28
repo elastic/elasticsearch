@@ -541,7 +541,7 @@ public class ReshardIndexService {
                     recoverySource,
                     new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
                     routingTableBuilder.getShardRoutingRoleStrategy().newEmptyRole(j),
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                    ShardRouting.RecoveryPriority.UNASSIGNED_RESHARDING
                 );
                 indexShardRoutingBuilder.addShard(shardRouting);
             }

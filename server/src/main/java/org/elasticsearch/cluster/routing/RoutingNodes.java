@@ -910,9 +910,21 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private ShardRouting moveFailedShardToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED);
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, failedShardRecoveryPriority(shard));
         unassignedShards.add(unassigned);
         return unassigned;
+    }
+
+    /// Returns the priority with which to recover a shard which has failed. If the shard was active then the failure
+    /// has reduced availability, so it takes priority [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
+    /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
+    /// just a retry, so it keeps the last priority it had.
+    private static ShardRouting.RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard) {
+        if (failedShard.initializing()) {
+            assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
+            return failedShard.recoveryPriority();
+        }
+        return ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED;
     }
 
     /**

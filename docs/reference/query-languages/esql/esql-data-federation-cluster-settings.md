@@ -36,7 +36,9 @@ $$$esql-federation-enabled$$$
 
     Configure the same value on every node and restart each node after changing it. This setting can't be updated with the cluster settings API. The {{kib}} UI setting is separate and doesn't change this setting. Refer to [](esql-data-federation.md#enable-the-feature).
 
-    {applies_to}`stack: preview 9.6+` When this setting is `false`, the data source and dataset APIs aren't available, and a query on a dataset fails with `Unknown index [<dataset>]`. Existing data sources and datasets aren't deleted. They stay in the cluster state, and when you set it back to `true`, they're available again with their stored credentials. During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [`Unknown index` error for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
+    When this setting is `false`, the data source and dataset APIs aren't available, and a query on a dataset fails with `Unknown index [<dataset>]`. Existing data sources and datasets aren't deleted. They stay in the cluster state, and when you set it back to `true`, they're available again with their stored credentials.
+
+    {applies_to}`stack: preview 9.6+` During a rolling upgrade from 9.5, upgraded nodes have this setting on by default and older nodes have it off. Refer to [`Unknown index` error for a dataset that exists](esql-data-federation-querying.md#unknown-index-dataset).
 
     {applies_to}`stack: preview 9.6+` {{esql}} Data Federation isn't available on Windows. If this setting is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts.
 

@@ -513,11 +513,6 @@ tests:
   tasks:
   - :server:test
   issue: https://github.com/elastic/elasticsearch/issues/163500
-- class: org.elasticsearch.xpack.stateless.cache.SearchShardRecoveryWarmingTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testSearchRecoveryWarmingListenerRecordsTimedOutOutcome
-  issue: https://github.com/elastic/elasticsearch/issues/163504
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#yamlRestTest

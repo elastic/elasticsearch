@@ -105,12 +105,12 @@ SET wildcards_match_views = true;
 FROM my-view-*
 ```
 
-You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`. A value set in the query overrides the request body.
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`. A value set in the query overrides the request body, but neither value enters a referenced view. Refer to [Settings across view boundaries](#settings-across-view-boundaries) for the limits and warnings.
 
-{applies_to}`stack: ga 9.6+` On Elastic Stack, you can change the cluster-wide
-default by setting `esql.query.settings.wildcards_match_views` in
-`elasticsearch.yml` or through the cluster settings API. The request body
-overrides the cluster default.
+{applies_to}`stack: ga 9.6+` As an alternative, set the cluster-wide default
+with `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or
+through the cluster settings API. The cluster default applies both outside and
+inside views.
 
 :::
 :::{applies-item} stack: preview 9.4-9.5
@@ -308,8 +308,19 @@ one branch point:
 
 When a view definition contains branches, such as subqueries or references to
 other views, query compaction tries to flatten the inner branches into the outer
-branch set. It produces a single-level plan when the flattened width is within
-`esql.query.max_branch_count` (20 by default).
+branch set.
+
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+Compaction produces a single-level plan when the flattened width is within
+`esql.query.max_branch_count` (20 by default). If flattening would exceed the
+limit, {{esql}} keeps the nested plan.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+Compaction produces the single branch point these versions require when the
+flattened plan has at most 8 branches. Otherwise, the query fails.
+:::
+::::
 
 The following example shows how compaction works. Two views are each defined as a pair of subqueries:
 

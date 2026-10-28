@@ -550,8 +550,7 @@ returns an `Unknown index` error, and wildcard expressions don't match remote
 views.
 :::
 :::{applies-item} stack: preview 9.4-9.5
-A query fails if its source expression matches a remote view. It also fails if a
-remote index matches the name of a local view.
+A query fails if its source expression matches a remote view.
 :::
 ::::
 

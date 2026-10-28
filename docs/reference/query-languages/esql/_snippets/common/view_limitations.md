@@ -30,7 +30,7 @@ Views can reference remote indices in [cross-cluster search](/reference/query-la
 Remote views are invisible to source resolution. An exact reference such as `FROM cluster:view` returns an `Unknown index` error.
 :::
 :::{applies-item} stack: preview 9.4-9.5
-A query fails if its source expression matches a remote view. A query also fails if a remote index matches a local view name.
+A query fails if its source expression matches a remote view.
 :::
 ::::
 
@@ -64,8 +64,7 @@ stack: experimental 9.5+
 serverless: unavailable
 ```
 
-A view definition can read from a dataset. An exact dataset name is resolved
-regardless of the `wildcards_match_datasets` setting.
+A view definition can read from a dataset.
 
 {applies_to}`stack: experimental 9.6+` A wildcard in the view definition
 matches datasets only when the view definition sets `wildcards_match_datasets`
@@ -80,9 +79,12 @@ Only the following settings are supported in a view definition:
 
 | Setting | Supported values |
 |---|---|
-| [`unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) | `DEFAULT`, `NULLIFY`, and `LOAD`. `LOAD_ALL` is not supported. |
+| [`unmapped_fields`](/reference/query-languages/esql/directives/set.md#esql-unmapped_fields) | `DEFAULT`, `NULLIFY`, and `LOAD` |
 | [`wildcards_match_views`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_views) | `true` and `false` |
 | [`wildcards_match_datasets`](/reference/query-languages/esql/directives/set.md#esql-wildcards_match_datasets) {applies_to}`stack: experimental 9.6+` | `true` and `false` |
+
+{applies_to}`{"stack": "preview 9.6+", "serverless": "preview"}` `LOAD_ALL`
+is not supported in a view definition.
 
 All other settings, including `time_zone`, are rejected in a view definition.
 :::
@@ -92,15 +94,15 @@ A view definition can't contain a `SET` directive.
 ::::
 
 ##### Settings across view boundaries
-```yaml {applies_to}
-stack: ga 9.6+
-serverless: ga
-```
 
-The three settings supported in view definitions are scoped to each view.
-Values from the calling query, request body, cluster default, or an enclosing
-view don't enter the view. The view uses the value in its definition, or the
-built-in default if unset, and that value doesn't enter a nested view.
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+The three settings supported in view definitions are scoped at every view
+boundary. Values from the calling query, request body, or an enclosing view
+don't enter the view. The cluster setting is used to set the default throughout
+the query, both inside and outside views. A value in a view definition overrides
+that default for its body, but doesn't enter a nested view. If neither is
+configured, the built-in default applies.
 
 Other query settings are rejected in a view definition, but aren't scoped to
 individual views. Their effective value for the calling query can apply while
@@ -108,14 +110,22 @@ evaluating a view. For example, `time_zone` can apply inside a view.
 
 At a view boundary:
 
-* `unmapped_fields`: Fields loaded by an outer query, including with `LOAD_ALL`,
-  are `null` for rows from a view unless the view produces those fields itself.
+* `unmapped_fields`: Fields loaded by an outer query are `null` for rows from a
+  view unless the view produces those fields itself. If an outer setting would
+  have loaded fields that the view doesn't produce, the response warning
+  identifies the view and the fields that are `null`.
 * For each supported wildcard setting, exact names work regardless of the
   setting. A wildcard matches the corresponding target type only when the view
   definition sets the setting to `true`. If a `true` value from outside the view
   stops at the boundary and the wildcard would otherwise have matched targets,
   the response returns a warning that identifies the view and the missed
   matches.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+The effective query settings apply throughout the query, including inside view
+bodies.
+:::
+::::
 
 #### Query parameters
 
@@ -141,10 +151,14 @@ rejected, and a wildcard source expression skips matching views.
 #### Validation and dependencies
 
 When you create or update a view, Elasticsearch validates its name, size, query
-syntax, settings that are allowed in a view definition, and requirements such
-as a `STATS` command after `TS`. It doesn't resolve or execute the query, and it
-doesn't check whether referenced indices, fields, datasets, or views exist, or
-whether nested views form a cycle. Creation doesn't return warnings for those
-problems. Elasticsearch reports them when you query the view.
+syntax, and the settings that are allowed in a view definition.
+
+{applies_to}`{"stack": "ga 9.6+", "serverless": "ga"}` For a time series
+view, Elasticsearch also validates that `TS` is followed by `STATS`.
+
+Elasticsearch doesn't resolve or execute the query, and it doesn't check
+whether referenced indices, fields, datasets, or views exist, or whether nested
+views form a cycle. Creation doesn't return warnings for those problems.
+Elasticsearch reports them when you query the view.
 
 Deleting a resource doesn't check whether a view depends on it. Deleting an index, data stream, alias, dataset, or nested view can therefore cause existing views to fail when queried.

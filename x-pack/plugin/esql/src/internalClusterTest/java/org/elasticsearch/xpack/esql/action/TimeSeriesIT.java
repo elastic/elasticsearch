@@ -20,6 +20,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
 import org.elasticsearch.core.TimeValue;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -1201,6 +1203,70 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat(rows, not(empty()));
         }
+    }
+
+    public void testAggregationEmitPartialResultPeriodically() {
+        assumeTrue("query pragmas require a snapshot build", canUseQueryPragmas());
+        String query = "TS hosts | STATS sum(max_over_time(cpu)) BY host, bucket(@timestamp, 1 minute)";
+        Settings basePragma = Settings.builder()
+            .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
+            .build();
+
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(query);
+        request.profile(true);
+        request.acceptedPragmaRisks(true);
+        // low keys threshold: non-rate time-series aggs emit periodically (uniqueness is always 0)
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder().put(basePragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5).build()
+            )
+        );
+        try (var result = run(request)) {
+            assertThat(timeSeriesAggEmitCount(result.profile()), greaterThan(4L));
+        }
+        // high keys threshold disables periodic emit completely (one finish emit per data driver)
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(basePragma)
+                    .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), Integer.MAX_VALUE)
+                    .build()
+            )
+        );
+        try (var result = run(request)) {
+            assertThat(timeSeriesAggEmitCount(result.profile()), equalTo(dataDriverCount(result.profile())));
+        }
+        // rate must not emit periodically even with a low keys threshold
+        request.query("TS hosts | STATS sum(rate(request_count)) BY host, bucket(@timestamp, 1 minute)");
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder().put(basePragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5).build()
+            )
+        );
+        try (var result = run(request)) {
+            assertThat(timeSeriesAggEmitCount(result.profile()), equalTo(dataDriverCount(result.profile())));
+        }
+    }
+
+    private static long dataDriverCount(EsqlQueryResponse.Profile profile) {
+        return profile.drivers().stream().filter(d -> d.description().equals("data")).count();
+    }
+
+    private static long timeSeriesAggEmitCount(EsqlQueryResponse.Profile profile) {
+        List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
+        assertThat(dataNodes, not(empty()));
+        long emitCount = 0;
+        for (DriverProfile dataNode : dataNodes) {
+            List<OperatorStatus> hashOperator = dataNode.operators()
+                .stream()
+                .filter(o -> o.status() instanceof TimeSeriesAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            emitCount += ((HashAggregationOperator.Status) hashOperator.get(0).status()).emitCount();
+        }
+        return emitCount;
     }
 
     private static double round(double value) {

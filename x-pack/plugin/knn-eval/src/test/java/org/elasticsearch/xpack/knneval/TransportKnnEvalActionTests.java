@@ -81,6 +81,7 @@ import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -991,6 +992,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new CircuitBreakingException("too much memory", CircuitBreaker.Durability.TRANSIENT),
             new TaskCancelledException("cancelled"),
             new ElasticsearchSecurityException("forbidden", RestStatus.FORBIDDEN),
+            new ShardRestoringException("index", randomUUID()),
             new IndexNotFoundException("no such index", "index"),
             new SearchPhaseExecutionException(
                 "query",
@@ -998,6 +1000,22 @@ public class TransportKnnEvalActionTests extends ESTestCase {
                 new ShardSearchFailure[] { new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))) }
             )
         );
+        assertStopsTheSweep(cause);
+    }
+
+    /**
+     * A shard being restored from a snapshot fails every query alike, whether the search reports it as its failure or as the failure
+     * of a shard, so it stops the evaluation as a shard with no copy does.
+     */
+    public void testShardRestoringStopsTheSweep() {
+        final var restoring = new ShardRestoringException("index", randomUUID());
+        assertStopsTheSweep(restoring);
+        assertStopsTheSweep(
+            new SearchPhaseExecutionException("query", "all shards failed", new ShardSearchFailure[] { new ShardSearchFailure(restoring) })
+        );
+    }
+
+    private void assertStopsTheSweep(Exception cause) {
         RecordingClient client = new RecordingClient();
         client.searchFailure = cause;
 

@@ -8,9 +8,14 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -41,7 +46,18 @@ abstract class SearchPhase {
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected static void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
+    /**
+     * With partial results disallowed, rejects the search if any shard has no copy to search. {@code clusterState} is used to find out
+     * whether the missing shards are being restored: when every missing shard belongs to a restore that asked for its shards to be
+     * reported, the thrown {@link SearchPhaseExecutionException} carries a {@link ShardRestoringException} as its cause, so its status is
+     * HTTP 403 instead of 503. Pass {@code null} for {@code clusterState} to always get the 503, for callers that have no cluster state.
+     */
+    protected static void doCheckNoMissingShards(
+        String phaseName,
+        SearchRequest request,
+        List<SearchShardIterator> shardsIts,
+        @Nullable ClusterState clusterState
+    ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
@@ -58,9 +74,57 @@ abstract class SearchPhase {
             if (missingShards.isEmpty() == false) {
                 // Status red - shard is missing all copies and would produce partial results for an index search
                 final String msg = makeMissingShardsError(missingShards);
-                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
+                throw new SearchPhaseExecutionException(
+                    phaseName,
+                    msg,
+                    restoringCause(shardsIts, clusterState),
+                    ShardSearchFailure.EMPTY_ARRAY
+                );
             }
         }
+    }
+
+    /**
+     * Returns the {@link ShardRestoringException} to reject a search with when every shard that has no copy to search is being restored
+     * by a restore that reports its shards, and {@code null} otherwise: if any shard is missing for another reason, waiting for the
+     * restores would not let the search proceed, so the rejection stays the 503 it has always been.
+     */
+    @Nullable
+    private static ShardRestoringException restoringCause(List<SearchShardIterator> shardsIts, @Nullable ClusterState clusterState) {
+        ShardRestoringException firstException = null;
+        for (SearchShardIterator shardIt : shardsIts) {
+            if (shardIt.size() > 0) {
+                continue;
+            }
+            final ShardRestoringException shardException = restoringShardException(shardIt, clusterState);
+            if (shardException == null) {
+                return null;
+            }
+            if (firstException == null) {
+                firstException = shardException;
+            }
+        }
+        return firstException;
+    }
+
+    /**
+     * Returns the {@link ShardRestoringException} to report for a shard that has no copy to search, or {@code null} if the shard is not
+     * being restored by a restore that asked for its shards to be reported, or if its cluster state is not known.
+     *
+     * <p>The cluster alias is not checked. A cross-cluster search coordinator holds shards of remote clusters, whose restores are not in
+     * its cluster state, but the lookup is by {@link Index}, name and UUID, so a remote shard never matches a local restore and is not
+     * reported.
+     */
+    @Nullable
+    protected static ShardRestoringException restoringShardException(SearchShardIterator shardIt, @Nullable ClusterState clusterState) {
+        if (clusterState == null) {
+            return null;
+        }
+        final Index index = shardIt.shardId().getIndex();
+        return clusterState.metadata()
+            .lookupProject(index)
+            .map(project -> RestoreService.reportableRestoreException(project.id(), shardIt.shardId(), clusterState))
+            .orElse(null);
     }
 
     /**

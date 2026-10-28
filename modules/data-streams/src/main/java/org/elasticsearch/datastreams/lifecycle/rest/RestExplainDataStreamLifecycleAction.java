@@ -31,7 +31,8 @@ public class RestExplainDataStreamLifecycleAction extends BaseRestHandler {
 
     private static final Set<String> CAPABILITIES = Set.of(
         DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
-        "frozen_transition_explain"
+        "frozen_transition_explain",
+        "explain_unmanaged_reason"
     );
 
     @Override

@@ -95,7 +95,7 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                 LeafReaderContext ctx = getOnlyLeafReader(reader).getContext();
                 List<String> capturedMessages = new ArrayList<>();
                 var loader = new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields(), (cls, msg) -> capturedMessages.add(msg));
-                var breaker = new NoopCircuitBreaker("test");
+                var breaker = NoopCircuitBreaker.INSTANCE;
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
 
                 try (BlockLoader.ColumnAtATimeReader r = loader.reader(breaker, ctx)) {
@@ -129,7 +129,7 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                 LeafReaderContext ctx = getOnlyLeafReader(reader).getContext();
                 List<String> capturedMessages = new ArrayList<>();
                 var loader = new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields(), (cls, msg) -> capturedMessages.add(msg));
-                var breaker = new NoopCircuitBreaker("test");
+                var breaker = NoopCircuitBreaker.INSTANCE;
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
 
                 try (BlockLoader.ColumnAtATimeReader r = loader.reader(breaker, ctx)) {

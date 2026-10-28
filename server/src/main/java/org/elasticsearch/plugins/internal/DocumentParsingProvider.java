@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -38,9 +37,11 @@ public interface DocumentParsingProvider {
     }
 
     /**
-     * @return an observer
+     * @return an observer for the document that is about to be parsed. This is used for documents that are ingested, as well as for
+     * documents that are re-parsed when operations are replayed from the translog. A {@link DocumentSizeReporter} can tell them apart
+     * using the operation origin.
      */
-    default <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+    default XContentMeteringParserDecorator newMeteringParserDecorator() {
         return XContentMeteringParserDecorator.NOOP;
     }
 }

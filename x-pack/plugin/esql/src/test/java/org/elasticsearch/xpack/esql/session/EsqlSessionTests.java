@@ -41,6 +41,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TestDatasetIdentities;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -189,7 +192,7 @@ public class EsqlSessionTests extends ESTestCase {
         );
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, "parquet", "", config);
+            SchemaCacheKey key = SchemaCacheKey.build(drift, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("x"),
                 2L,
@@ -214,7 +217,8 @@ public class EsqlSessionTests extends ESTestCase {
 
             SchemaCacheEntry cached = cache.getSchemaIfPresent(key);
             assertNotNull(cached);
-            Map<String, Object> metadata = cached.safeMetadata();
+            assertNotNull(cached);
+            Map<String, Object> metadata = servedMetadata(cache, key, cached);
             nativeStats.forEach((stat, value) -> assertEquals(stat, value, metadata.get(stat)));
             assertEquals(dropRowCount ? null : 2L, metadata.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
             assertEquals(
@@ -264,7 +268,7 @@ public class EsqlSessionTests extends ESTestCase {
         assertEquals(2L, strippedContribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
 
         try (ExternalSourceCacheService cache = new ExternalSourceCacheService(Settings.EMPTY)) {
-            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, "parquet", "", config);
+            SchemaCacheKey key = SchemaCacheKey.build(path, 0L, TestDatasetIdentities.identity("parquet", "", config), false);
             Map<String, Object> nativeStats = Map.of(
                 SourceStatisticsSerializer.columnValueCountKey("val"),
                 2L,
@@ -283,7 +287,8 @@ public class EsqlSessionTests extends ESTestCase {
 
             SchemaCacheEntry cached = cache.getSchemaIfPresent(key);
             assertNotNull(cached);
-            Map<String, Object> metadata = cached.safeMetadata();
+            assertNotNull(cached);
+            Map<String, Object> metadata = servedMetadata(cache, key, cached);
             nativeStats.forEach((stat, value) -> assertEquals(stat, value, metadata.get(stat)));
             // Unpinned row_count from a dropRowCount=false pin must land, proving overlay ran.
             assertEquals(2L, metadata.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -1085,6 +1090,7 @@ public class EsqlSessionTests extends ESTestCase {
                 Map<String, org.elasticsearch.cluster.metadata.DatasetMapping> declaredMappings,
                 Set<String> pathsRequiringStats,
                 Set<String> pathsReadingNoRows,
+                Map<String, FolderRangePredicate> folderRanges,
                 ActionListener<ExternalSourceResolution> listener
             ) {
                 resolveCalled.set(true);
@@ -1112,7 +1118,7 @@ public class EsqlSessionTests extends ESTestCase {
         PlainActionFuture<EsqlSession.PreAnalysisResult> future = new PlainActionFuture<>();
         EsqlSession.preAnalyzeExternalSources(capturingResolver, plan, preAnalysis, result, future, TEST_CFG, new EsqlFunctionRegistry());
         future.actionGet();
-        assertTrue("resolve must be invoked when icebergPaths is non-empty", resolveCalled.get());
+        assertTrue("resolve must be invoked when externalSourcePaths is non-empty", resolveCalled.get());
         return new CapturedExternalResolve(capturedStats.get(), capturedNoRows.get(), capturedHints.get());
     }
 
@@ -1131,5 +1137,27 @@ public class EsqlSessionTests extends ESTestCase {
         QuerySetting projectRouting = new QuerySetting(EMPTY, new Alias(EMPTY, "project_routing", Literal.keyword(EMPTY, "p")));
         EsqlStatement statement = new EsqlStatement(null, List.of(projectRouting));
         assertThat(EsqlSession.suppliedSettingNames(request, statement), equalTo(Set.of("time_zone", "project_routing")));
+    }
+
+    /**
+     * What a warm serve would compose for {@code key}: the schema record's own file facts with the
+     * measurements committed under that record's read layered over them.
+     * <p>
+     * The two kinds of fact are separate stores, so a measurement is no longer read off the schema record.
+     * These cases assert on what is served, which is the composition, so composing here the way
+     * {@code ExternalSourceResolver#buildMetadataFromCache} does keeps them testing the served answer rather
+     * than the storage layout.
+     */
+    private static Map<String, Object> servedMetadata(ExternalSourceCacheService cache, SchemaCacheKey key, SchemaCacheEntry record) {
+        String stamp = record.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String str && str.isEmpty() == false
+            ? str
+            : null;
+        Map<String, Object> statistics = cache.getStatistics(StatisticsKey.of(key, stamp));
+        if (statistics == null || statistics.isEmpty()) {
+            return record.safeMetadata();
+        }
+        Map<String, Object> composed = new HashMap<>(record.safeMetadata());
+        composed.putAll(statistics);
+        return composed;
     }
 }

@@ -26,8 +26,10 @@ import org.apache.lucene.search.DocAndFloatFeatureBuffer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -766,6 +768,71 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertEquals("score for doc " + docId + " must scale by boost", baseScores[docId] * boost, boostedScores[docId], 1e-5f);
                 }
+            }
+        }
+    }
+
+    /**
+     * Regression test for <a href="https://github.com/elastic/elasticsearch/issues/159517">#159517</a>: a filtered
+     * exact-knn search over <b>sparse</b> vector values (some docs lack the vector) where the filter matches only
+     * documents that do not have a vector value.
+     *
+     * <p>When the filter is served through the query cache as a {@link org.apache.lucene.util.BitSetIterator} whose cost
+     * exceeds the vector iterator's cost, {@code ConjunctionDISI} keeps it as an un-advanced side bit set (queried via
+     * {@code Bits#get}) while the vector iterator is driven to {@code NO_MORE_DOCS} looking for a (non-existent) match.
+     * {@code VectorScorer#bulk} then builds its own conjunction over these now-desynced iterators, which used to throw
+     * {@code IllegalArgumentException: Sub-iterators of ConjunctionDISI are not on the same document!}. The expected
+     * behavior is simply zero hits.
+     *
+     * <p>An {@link LRUQueryCache} with an always-cache policy is installed on the searcher so the filter is served as a
+     * bit set; no other {@code IndexSearcher} customization is needed to trigger the failure.
+     */
+    public void testFilteredExactKnnOverSparseVectorsWithCachedFilter() throws IOException {
+        int dimension = 4;
+        int numVectorDocs = 100;
+        // More non-vector docs than vector docs, so the cached filter's cost exceeds the vector iterator's cost, which is
+        // what makes ConjunctionDISI keep the filter as an un-advanced side bit set (the trigger for the original bug).
+        int numNonVectorDocs = 500;
+
+        try (Directory d = newDirectoryForTest()) {
+            try (IndexWriter writer = new IndexWriter(d, new IndexWriterConfig())) {
+                for (int i = 0; i < numVectorDocs; i++) {
+                    Document withVector = new Document();
+                    withVector.add(getKnnVectorField("field", randomVector(dimension), VectorSimilarityFunction.EUCLIDEAN));
+                    withVector.add(new StringField("tag", "vec", Field.Store.NO));
+                    writer.addDocument(withVector);
+                }
+                for (int i = 0; i < numNonVectorDocs; i++) {
+                    Document withoutVector = new Document();
+                    // No vector value: this is what makes the vector values sparse and is what the filter matches.
+                    withoutVector.add(new StringField("tag", "novec", Field.Store.NO));
+                    writer.addDocument(withoutVector);
+                }
+                // Single segment so the vectors are sparse within one leaf and the filter/vector cost relationship holds.
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(d)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                // Force the filter to be served as a cached bit set (a BitSetIterator).
+                searcher.setQueryCache(new LRUQueryCache(1000, 10_000_000, context -> true, 1f));
+                searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+                    @Override
+                    public void onUse(Query query) {}
+
+                    @Override
+                    public boolean shouldCache(Query query) {
+                        return true;
+                    }
+                });
+
+                // The filter matches all "novec" docs, none of which has a vector value -> empty intersection.
+                Query filter = new TermQuery(new Term("tag", "novec"));
+                // Warm the cache so the filter is resolved as a bit set before the knn query runs.
+                searcher.count(filter);
+                searcher.count(filter);
+
+                Query knnQuery = getDenseVectorQuery("field", randomVector(dimension), filter);
+                assertEquals(0, searcher.search(knnQuery, numVectorDocs + numNonVectorDocs).scoreDocs.length);
             }
         }
     }

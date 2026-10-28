@@ -13,6 +13,35 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.5.5 [connectors-9.5.5-release-notes]
+
+### Features and enhancements [connectors-9.5.5-features-enhancements]
+* Added a **Sync all mail folders** advanced option to the Outlook connector (default off). When enabled, the connector also indexes mail folders beyond Inbox, Sent, Junk, and Archive as `Mail` documents with a `folder_name` field. [#4487](https://github.com/elastic/connectors/pull/4487), [#4486](https://github.com/elastic/connectors/issues/4486)
+* Trimmed Outlook mail messages to their body and a minimal set of headers before indexing, reducing indexed payload size. A new `include_full_raw_message` toggle (default `false`) restores the previous full raw MIME behavior. [#4479](https://github.com/elastic/connectors/pull/4479), [#4033](https://github.com/elastic/connectors/issues/4033)
+
+### Fixes [connectors-9.5.5-fixes]
+* Fix the Outlook connector aborting long syncs when the LDAP admin-user query ran on a stale Active Directory connection. User enumeration now opens a fresh connection per search and retries transient network failures. [#4441](https://github.com/elastic/connectors/pull/4441)
+* Fix the Outlook connector failing long syncs when Exchange temporarily returned `ErrorMailboxStoreUnavailable` while reading mail, calendar, task, or contact folders. These reads are now retried with exponential backoff before the sync fails. [#4529](https://github.com/elastic/connectors/pull/4529), [#4528](https://github.com/elastic/connectors/issues/4528)
+* Fix SharePoint Online Document Level Security returning unpublished (draft) pages to users who only had view access. Unpublished pages are now restricted to owners and editors, and `site_page` documents include a `published` field. [#4437](https://github.com/elastic/connectors/pull/4437), [#3645](https://github.com/elastic/connectors/issues/3645)
+* Fix SharePoint Online Document Level Security exhausting Elasticsearch memory when large site groups were expanded onto each document's access control list. An opt-in compact mode stores a site group token instead: disable **Expand site group members** to enable it. Changing the setting requires a full content sync and access control sync. [#4396](https://github.com/elastic/connectors/pull/4396)
+* Fix ServiceNow access control syncs in compact Document Level Security mode stalling for days on large tenants. User role assignments are now fetched with keyset pagination, and progress is logged every 10,000 rows. [#4509](https://github.com/elastic/connectors/pull/4509)
+* Fix sync progress logs omitting extracted, filtered, and skipped document counts, which made agentless connector logs show misleading duplicate progress lines during fast-skipping syncs. [#4471](https://github.com/elastic/connectors/pull/4471), [#4469](https://github.com/elastic/connectors/issues/4469)
+* Fix the connectors CLI failing to show `--help` output before a local `.cli/config.yml` exists. Commands that need a configuration now point users to `connectors login`. [#4075](https://github.com/elastic/connectors/pull/4075), [#3700](https://github.com/elastic/connectors/issues/3700)
+
+## 9.4.8 [connectors-9.4.8-release-notes]
+
+### Features and enhancements [connectors-9.4.8-features-enhancements]
+* Added a **Sync all mail folders** advanced option to the Outlook connector (default off). When enabled, the connector also indexes mail folders beyond Inbox, Sent, Junk, and Archive as `Mail` documents with a `folder_name` field. [#4487](https://github.com/elastic/connectors/pull/4487), [#4486](https://github.com/elastic/connectors/issues/4486)
+
+### Fixes [connectors-9.4.8-fixes]
+* Fix the Outlook connector aborting long syncs when the LDAP admin-user query ran on a stale Active Directory connection. User enumeration now opens a fresh connection per search and retries transient network failures. [#4441](https://github.com/elastic/connectors/pull/4441)
+* Fix the Outlook connector failing long syncs when Exchange temporarily returned `ErrorMailboxStoreUnavailable` while reading mail, calendar, task, or contact folders. These reads are now retried with exponential backoff before the sync fails. [#4529](https://github.com/elastic/connectors/pull/4529), [#4528](https://github.com/elastic/connectors/issues/4528)
+* Fix SharePoint Online Document Level Security returning unpublished (draft) pages to users who only had view access. Unpublished pages are now restricted to owners and editors, and `site_page` documents include a `published` field. [#4437](https://github.com/elastic/connectors/pull/4437), [#3645](https://github.com/elastic/connectors/issues/3645)
+* Fix SharePoint Online Document Level Security exhausting Elasticsearch memory when large site groups were expanded onto each document's access control list. An opt-in compact mode stores a site group token instead: disable **Expand site group members** to enable it. Changing the setting requires a full content sync and access control sync. [#4396](https://github.com/elastic/connectors/pull/4396)
+* Fix ServiceNow access control syncs in compact Document Level Security mode stalling for days on large tenants. User role assignments are now fetched with keyset pagination, and progress is logged every 10,000 rows. [#4509](https://github.com/elastic/connectors/pull/4509)
+* Fix sync progress logs omitting extracted, filtered, and skipped document counts, which made agentless connector logs show misleading duplicate progress lines during fast-skipping syncs. [#4471](https://github.com/elastic/connectors/pull/4471), [#4469](https://github.com/elastic/connectors/issues/4469)
+* Fix the connectors CLI failing to show `--help` output before a local `.cli/config.yml` exists. Commands that need a configuration now point users to `connectors login`. [#4075](https://github.com/elastic/connectors/pull/4075), [#3700](https://github.com/elastic/connectors/issues/3700)
+
 ## 9.5.4 [connectors-9.5.4-release-notes]
 
 ### Fixes [connectors-9.5.4-fixes]

@@ -22,6 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeotile;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeotile;
 
 @FunctionName("to_geotile")
 public class ToGeotileTests extends AbstractScalarFunctionTestCase {
@@ -33,12 +37,31 @@ public class ToGeotileTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         final String attribute = "Attribute[channel=0]";
         final String evaluator = "ToGeotileFromStringEvaluator[in=Attribute[channel=0]]";
+        final String fromLong = "ToGeotileFromLongEvaluator[in=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.GEOTILE, DataType.GEOTILE, v -> v, List.of());
-        TestCaseSupplier.forUnaryGeoGrid(suppliers, attribute, DataType.LONG, DataType.GEOTILE, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoGrid(suppliers, fromLong, DataType.LONG, DataType.GEOTILE, v -> v, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.KEYWORD, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());
         TestCaseSupplier.forUnaryGeoGrid(suppliers, evaluator, DataType.TEXT, DataType.GEOTILE, ToGeotileTests::valueOf, List.of());
+
+        // Invalid values produce a warning and null, instead of failing later when rendering the results
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            fromLong,
+            DataType.LONG,
+            DataType.GEOTILE,
+            List.of(1L, 50L, -1L, Long.MIN_VALUE, 30L << 58),
+            v -> expectThrows(IllegalArgumentException.class, () -> longToGeotile((Long) v))
+        );
+        TestCaseSupplier.forUnaryGeoGridInvalid(
+            suppliers,
+            evaluator,
+            DataType.KEYWORD,
+            DataType.GEOTILE,
+            Stream.of("0/0/1", "0/0/-1", "30/0/0", "1/2/0", "not a tile").<Object>map(BytesRef::new).toList(),
+            v -> expectThrows(IllegalArgumentException.class, () -> stringToGeotile(((BytesRef) v).utf8ToString()))
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

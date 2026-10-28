@@ -25,8 +25,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
     public static LuceneSourceOperator.Status simple() {
         return new LuceneSourceOperator.Status(
             2,
-            Set.of("*:*"),
-            new TreeSet<>(List.of("a:0", "a:1")),
+            List.of("*:*"),
+            List.of("a:0", "a:1"),
             1002,
             0,
             1,
@@ -76,8 +76,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
     public void testToXContentWithMinCompetitive() {
         LuceneSourceOperator.Status status = new LuceneSourceOperator.Status(
             2,
-            Set.of("*:*"),
-            new TreeSet<>(List.of("a:0", "a:1")),
+            List.of("*:*"),
+            List.of("a:0", "a:1"),
             1002,
             0,
             1,
@@ -165,22 +165,22 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             );
     }
 
-    private static Set<String> randomProcessedQueries() {
+    private static List<String> randomProcessedQueries() {
         int size = between(0, 10);
         Set<String> set = new TreeSet<>();
         while (set.size() < size) {
             set.add(randomAlphaOfLength(5));
         }
-        return set;
+        return List.copyOf(set);
     }
 
-    private static Set<String> randomProcessedShards() {
+    private static List<String> randomProcessedShards() {
         int size = between(0, 10);
         Set<String> set = new TreeSet<>();
         while (set.size() < size) {
             set.add(randomAlphaOfLength(3) + ":" + between(0, 10));
         }
-        return set;
+        return List.copyOf(set);
     }
 
     private static Map<String, LuceneSliceQueue.PartitioningStrategy> randomPartitioningStrategies() {
@@ -198,8 +198,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
     @Override
     protected LuceneSourceOperator.Status mutateInstance(LuceneSourceOperator.Status instance) {
         int processedSlices = instance.processedSlices();
-        Set<String> processedQueries = instance.processedQueries();
-        Set<String> processedShards = instance.processedShards();
+        List<String> processedQueries = instance.processedQueries();
+        List<String> processedShards = instance.processedShards();
         long processNanos = instance.processNanos();
         int sliceIndex = instance.sliceIndex();
         int totalSlices = instance.totalSlices();

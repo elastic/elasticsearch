@@ -1,0 +1,6 @@
+area: Security
+issues:
+ - 161197
+pr: 161254
+summary: Fix deadlock in Microsoft Graph authz realm token acquisition
+type: bug

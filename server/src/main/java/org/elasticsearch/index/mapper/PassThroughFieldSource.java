@@ -24,6 +24,13 @@ import java.util.Map;
 public sealed interface PassThroughFieldSource permits PassThroughObjectMapper, FlattenedFieldMapper {
 
     /**
+     * Whether passthrough behavior is enabled for this source. Some implementers, such as {@code FlattenedFieldMapper},
+     * implement this interface unconditionally but only act as a passthrough source when explicitly configured.
+     * When this returns {@code false}, {@link #passThroughSubFields()} is empty and {@link #priority()} is unspecified.
+     */
+    boolean isPassthrough();
+
+    /**
      * The non-negative priority used to resolve conflicts when multiple passthrough sources expose
      * sub-fields with the same leaf name at the root level. Higher priority wins.
      */

@@ -114,6 +114,40 @@ final class GlobMatcher {
         return recursive;
     }
 
+    /**
+     * Whether any key beneath {@code relativeDirectory} could match.
+     * <p>
+     * For a caller enumerating directories rather than keys. A directory excluded by the pattern at its own depth
+     * holds nothing the pattern can match however deep it goes, so that caller can skip it instead of spending a
+     * request on it. Conservative in the safe direction: a globstar makes every remaining depth possible, and a
+     * {@code true} here is permission to look rather than a promise of a match.
+     */
+    boolean couldContainMatch(String relativeDirectory) {
+        if (relativeDirectory == null || relativeDirectory.isEmpty()) {
+            // The listing prefix itself, which every match sits under. Not a special case for the caller's
+            // convenience: split("") yields one empty name, and a segment beginning with a literal cannot match it,
+            // so without this the root answers that it contains nothing.
+            return true;
+        }
+        List<String> path = split(relativeDirectory);
+        int pi = 0;
+        for (String name : path) {
+            if (pi == segments.size()) {
+                // The pattern ran out while the directory goes deeper, so nothing below it is addressable.
+                return false;
+            }
+            Segment segment = segments.get(pi);
+            if (segment.globstar()) {
+                return true;
+            }
+            if (matchName(segment.tokens(), name) == false) {
+                return false;
+            }
+            pi++;
+        }
+        return true;
+    }
+
     String glob() {
         return glob;
     }

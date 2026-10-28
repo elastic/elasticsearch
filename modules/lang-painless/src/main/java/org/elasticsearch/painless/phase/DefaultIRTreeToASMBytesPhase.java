@@ -112,7 +112,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRecordAllocationMetrics;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
@@ -423,7 +422,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.visitCode();
 
         boolean instanceCancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
-        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         boolean staticScriptCapture = irFunctionNode.hasCondition(IRCStaticScriptCapture.class);
         boolean hasThis = irFunctionNode.hasCondition(IRCStatic.class) == false;
         long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
@@ -440,8 +438,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
         }
 
-        // Cancellation entry poll via #scriptThis (defined above, or parameter 0 for static cancellation lambdas).
-        if (instanceCancellation || staticCancellation) {
+        // Cancellation entry poll via #scriptThis, defined above.
+        if (instanceCancellation) {
             Variable scriptThis = writeScope.getInternalVariable("scriptThis");
             Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
             methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
@@ -1233,15 +1231,20 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ISTORE), right.getSlot());
 
                 loadScriptPointer(writeScope, methodWriter);
-                methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
                 if (leftType.isPrimitive()) {
-                    methodWriter.box(MethodWriter.getType(leftType));
+                    // A primitive side has a fixed cost known now, so pass that instead of boxing the value to measure it.
+                    methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
+                    methodWriter.push(AllocSizes.stringConcatPrimitiveBytes(leftType));
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_PRIMITIVE_ALLOC);
+                } else if (rightType.isPrimitive()) {
+                    methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                    methodWriter.push(AllocSizes.stringConcatPrimitiveBytes(rightType));
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_PRIMITIVE_ALLOC);
+                } else {
+                    methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
+                    methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
+                    methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_ALLOC);
                 }
-                methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
-                if (rightType.isPrimitive()) {
-                    methodWriter.box(MethodWriter.getType(rightType));
-                }
-                methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.CHECK_DEF_CONCAT_ALLOC);
 
                 methodWriter.visitVarInsn(left.getAsmType().getOpcode(Opcodes.ILOAD), left.getSlot());
                 methodWriter.visitVarInsn(right.getAsmType().getOpcode(Opcodes.ILOAD), right.getSlot());
@@ -1908,6 +1911,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Variable captured = writeScope.getVariable(irTypedCaptureReferenceNode.getDecorationValue(IRDCaptureNames.class).get(0));
         Class<?> expressionType = irTypedCaptureReferenceNode.getDecorationValue(IRDExpressionType.class);
         String expressionCanonicalTypeName = irTypedCaptureReferenceNode.getDecorationString(IRDExpressionType.class);
+        boolean pushesScript = irTypedCaptureReferenceNode.hasCondition(IRCInstanceCapture.class);
+        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
+
+        // The capture object holds the receiver and, when pushed, the script. Charged like the other reference forms.
+        writeAllocationCheck(writeScope, AllocSizes.captureSize(pushesScript ? 2 : 1));
 
         methodWriter.visitVarInsn(captured.getAsmType().getOpcode(Opcodes.ILOAD), captured.getSlot());
 
@@ -1915,11 +1923,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(captured.getAsmType());
         }
 
-        boolean chargesAllocation = irTypedCaptureReferenceNode.hasCondition(IRCChargeAllocation.class);
-
-        if (chargesAllocation) {
-            // Charging def-receiver bound ref: push the script (typed CLASS_TYPE) after the receiver. Def.lookupReference drops
-            // the script capture and charges when the target resolved for the runtime receiver is annotated.
+        if (pushesScript) {
+            // The script (typed CLASS_TYPE) goes after the receiver, which the REFERENCE call site dispatches on.
             writeInstanceScriptCapture(writeScope, methodWriter);
         }
 
@@ -1928,6 +1933,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             MethodWriter.getType(expressionType),
             captured.getAsmType(),
             expressionCanonicalTypeName,
+            pushesScript,
             chargesAllocation
         );
     }
@@ -1967,11 +1973,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     public void visitLoadDotDef(LoadDotDefNode irLoadDotDefNode, WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irLoadDotDefNode.getLocation());
-        Type methodType = Type.getMethodType(
-            MethodWriter.getType(irLoadDotDefNode.getDecorationValue(IRDExpressionType.class)),
-            MethodWriter.getType(def.class)
-        );
-        methodWriter.invokeDefCall(irLoadDotDefNode.getDecorationValue(IRDValue.class), methodType, DefBootstrap.LOAD);
+        Type returnType = MethodWriter.getType(irLoadDotDefNode.getDecorationValue(IRDExpressionType.class));
+        String name = irLoadDotDefNode.getDecorationValue(IRDValue.class);
+
+        if (irLoadDotDefNode.hasCondition(IRCScriptAware.class)) {
+            // The name may resolve to a @script_aware getter: pass the script after the receiver and tell the bootstrap.
+            methodWriter.loadThis();
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), WriterConstants.CLASS_TYPE);
+            methodWriter.invokeDefCall(name, methodType, DefBootstrap.LOAD, 1);
+        } else {
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class));
+            methodWriter.invokeDefCall(name, methodType, DefBootstrap.LOAD);
+        }
     }
 
     @Override
@@ -1998,6 +2011,26 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irDotSubShortcutNode.getLocation());
 
         PainlessMethod getterPainlessMethod = irDotSubShortcutNode.getDecorationValue(IRDMethod.class);
+
+        // A @script_aware getter takes the script before the receiver, which is already on the stack.
+        if (getterPainlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
+            methodWriter.loadThis();
+            methodWriter.swap();
+        }
+
+        // The stack now holds the getter's Java signature. Charge its @allocates estimator before the read, as a call site does.
+        java.lang.reflect.Method getterEstimator = irDotSubShortcutNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (getterEstimator != null && isAllocationTrackingActive(writeScope)) {
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "getterOperand",
+                getterPainlessMethod.methodType().parameterArray(),
+                getterEstimator
+            );
+            loadCallOperands(methodWriter, operands);
+        }
+
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
         if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
@@ -2011,6 +2044,20 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irLoadListShortcutNode.getLocation());
 
         PainlessMethod getterPainlessMethod = irLoadListShortcutNode.getDecorationValue(IRDMethod.class);
+
+        // The stack holds the receiver and the index. Charge the get(int) estimator before the read, as a call site does.
+        java.lang.reflect.Method getterEstimator = irLoadListShortcutNode.getDecorationValue(IRDAllocationEstimator.class);
+        if (getterEstimator != null && isAllocationTrackingActive(writeScope)) {
+            Variable[] operands = writeDynamicAllocationCheck(
+                writeScope,
+                methodWriter,
+                "listOperand",
+                getterPainlessMethod.methodType().parameterArray(),
+                getterEstimator
+            );
+            loadCallOperands(methodWriter, operands);
+        }
+
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
         if (getterPainlessMethod.returnType() != getterPainlessMethod.javaMethod().getReturnType()) {
@@ -2052,12 +2099,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     public void visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, WriteScope writeScope) {
         MethodWriter methodWriter = writeScope.getMethodWriter();
         methodWriter.writeDebugInfo(irLoadBraceDefNode.getLocation());
-        Type methodType = Type.getMethodType(
-            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class)),
-            MethodWriter.getType(def.class),
-            MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class))
-        );
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        Type returnType = MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDExpressionType.class));
+        Type indexType = MethodWriter.getType(irLoadBraceDefNode.getDecorationValue(IRDIndexType.class));
+
+        if (irLoadBraceDefNode.hasCondition(IRCScriptAware.class)) {
+            // The read may hit a list get(int) that needs the script: pass it after the index and tell the bootstrap.
+            methodWriter.loadThis();
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), indexType, WriterConstants.CLASS_TYPE);
+            methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD, 1);
+        } else {
+            Type methodType = Type.getMethodType(returnType, MethodWriter.getType(def.class), indexType);
+            methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        }
     }
 
     @Override
@@ -2250,9 +2303,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 defCallRecipe.append(encoding);
                 capturedCount += captureNames.size();
 
+                // The reference boxes a primitive receiver as it captures it, so the call site must name the boxed type.
+                boolean boxFirstCapture = defInterfaceReferenceNode.hasCondition(IRCCaptureBox.class);
                 for (String captureName : captureNames) {
                     Variable captureVariable = writeScope.getVariable(captureName);
-                    typeParameters.add(captureVariable.getType());
+                    Class<?> captureType = captureVariable.getType();
+                    typeParameters.add(boxFirstCapture ? PainlessLookupUtility.typeToBoxedType(captureType) : captureType);
+                    boxFirstCapture = false;
                 }
             }
         }

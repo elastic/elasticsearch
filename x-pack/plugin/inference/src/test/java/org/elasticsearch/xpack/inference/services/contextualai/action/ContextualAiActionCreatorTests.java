@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -142,7 +141,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             var request = webServer.requests().getFirst();
             assertThat(request.getUri().getQuery(), is(nullValue()));
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaTypeWithoutParameters()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer " + TEST_API_KEY));
 
             var requestMap = entityAsMap(request.getBody());

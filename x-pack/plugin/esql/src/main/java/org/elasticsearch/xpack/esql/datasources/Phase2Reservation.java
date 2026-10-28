@@ -19,9 +19,10 @@ import java.util.Set;
  * <p>
  * Here rather than with either charger because two of them count over the same files and must not drift. The
  * coordinator charges before discovery from the list the plan carries; the provider charges for the file set it
- * discovered itself, when that list was only a prefix. {@link FileList#isTruncated()} decides which of the two
- * runs, and {@link #bytesFor} returning zero for a truncated list is how it says so - a prefix's structures are
- * never built, because discovery replaces the list before anything is allocated over it.
+ * discovered itself, when that list was only a prefix. {@link FileList#isTruncated()} and
+ * {@link FileList#isInferenceAnchor()} decide which of the two runs, and {@link #bytesFor} returning zero for
+ * those lists is how it says so - a prefix's structures are never built, because discovery replaces the list
+ * before anything is allocated over it. An inference-anchor listing is a schema stash; Phase 2 scans nothing.
  */
 public final class Phase2Reservation {
 
@@ -45,10 +46,10 @@ public final class Phase2Reservation {
      * Survivor-map bytes plus one shell per file. Directory-constant keys are billed once per shared partition
      * row. No metadata, or one row per file, bills those keys per file (an upper bound: filters may drop files
      * after this charge). A source that retains nothing bills shells only. Zero for a listing nothing will be
-     * built over: absent, unresolved, empty, or a prefix.
+     * built over: absent, unresolved, empty, a truncated prefix, or an inference-anchor schema stash.
      */
     public static long bytesFor(List<Attribute> output, @Nullable FileList list) {
-        if (list == null || list.isResolved() == false || list.isTruncated()) {
+        if (list == null || list.isResolved() == false || list.isTruncated() || list.isInferenceAnchor()) {
             return 0L;
         }
         return bytesForFileSet(

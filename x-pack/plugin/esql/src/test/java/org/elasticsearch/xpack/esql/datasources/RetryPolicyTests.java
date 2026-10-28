@@ -537,7 +537,7 @@ public class RetryPolicyTests extends ESTestCase {
     // --- Budget-governed throttle arm tests ---
 
     public void testThrottleRetriesAreNotTruncatedByTheDurationBudget() {
-        // Acceptance test: esql-planning#1658.
+        // Acceptance test for retry classification.
         // Production config: RetryPolicy.DEFAULT + 30s budget (what StorageProviderRegistry.buildRetryPolicy
         // produces from esql.external.throttle_max_retry_duration). A fast injected clock lets the test run
         // without real sleeps. The loop advances the clock by each decision's delay and counts retries until

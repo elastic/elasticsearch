@@ -17,6 +17,10 @@ import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -65,6 +69,28 @@ public class RowSourceTests extends ESTestCase {
             expectThrows(NullPointerException.class, () -> new RowSource(null, row, XContentType.JSON));
             expectThrows(NullPointerException.class, () -> new RowSource(schemaTree, null, XContentType.JSON));
             expectThrows(NullPointerException.class, () -> new RowSource(schemaTree, row, null));
+        }
+    }
+
+    /**
+     * Mappers such as the percolator resolve named objects (e.g. queries) from the document parser, so the
+     * parser a {@link RowSource} hands out must carry the registry of the {@link XContentParserConfiguration}
+     * it was asked to honour, as {@link BytesSource} does.
+     */
+    public void testParserHonoursConfigurationRegistry() throws IOException {
+        final NamedXContentRegistry registry = new NamedXContentRegistry(
+            List.of(new NamedXContentRegistry.Entry(String.class, new ParseField("greeting"), p -> "hello"))
+        );
+        final XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(registry);
+        final BytesReference source = new BytesArray("""
+            {"host": "server-1"}""");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            final SourceRowXContentParser.SchemaNode schemaTree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            final RowSource rowSource = new RowSource(schemaTree, batch.row(0), XContentType.JSON);
+
+            try (XContentParser parser = rowSource.parser(configuration)) {
+                assertThat(parser.namedObject(String.class, "greeting", null), equalTo("hello"));
+            }
         }
     }
 

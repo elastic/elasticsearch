@@ -11,8 +11,11 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -27,15 +30,25 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public class ViewService {
 
@@ -67,6 +80,7 @@ public class ViewService {
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
+    private volatile int maxCommandCount;
 
     public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
@@ -78,6 +92,7 @@ public class ViewService {
         );
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
+        clusterService.getClusterSettings().initializeAndWatch(EsqlFlags.ESQL_MAX_COMMAND_COUNT, v -> this.maxCommandCount = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -97,9 +112,8 @@ public class ViewService {
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final View view = request.view();
-        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
-            validatePutView(metadata, view);
+            validatePutView(clusterService.state().metadata().getProject(projectId), view);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -115,7 +129,7 @@ public class ViewService {
                     return currentState;
                 }
                 // Validate the view again, because it could have become invalid between the pre-task submission and post-task submission.
-                validatePutView(metadata, view);
+                validatePutView(currentState.metadata().getProject(projectId), view);
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 updatedViews.put(view.name(), view);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);
@@ -135,19 +149,31 @@ public class ViewService {
         Collection<String> viewNames,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
-        final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
-        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
-        if (notFoundView.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
+        deleteViews(projectId, masterNodeTimeout, ackTimeout, viewNames, false, listener);
+    }
+
+    /**
+     * Removes views from the cluster state.
+     */
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        boolean canDeleteReservedViews,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        try {
+            validateDeleteViews(clusterService.state().metadata().getProject(projectId), viewNames, canDeleteReservedViews);
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
-
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
+                validateDeleteViews(project, viewNames, canDeleteReservedViews);
                 final ViewMetadata viewMetadata = getMetadata(project);
                 if (viewNames.stream().allMatch(v -> viewMetadata.getView(v) == null)) {
                     // The update is a no-op, because none of the views that we're trying to remove exist.
@@ -155,7 +181,7 @@ public class ViewService {
                     return currentState;
                 }
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
-                viewNames.forEach(updatedViews::remove);
+                updatedViews.keySet().removeAll(viewNames);
                 var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
@@ -182,12 +208,16 @@ public class ViewService {
         }
         final ViewMetadata views = getMetadata(metadata);
         final View existing = views.getView(view.name());
+        if (view.isReserved() == false && existing != null && existing.isReserved()) {
+            // it is impossible to supply a reserved view from the rest api.
+            // this block prevents users updating definition or downgrading reserved views to a regular ones
+            throw new IllegalArgumentException("cannot modify reserved view [" + view.name() + "]");
+        }
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
 
-        final Map<String, IndexAbstraction> indicesLookup = getIndicesLookup(metadata);
-        indicesLookup.entrySet()
+        getIndicesLookup(metadata).entrySet()
             .stream()
             .filter(entry -> entry.getKey().equals(view.name()))
             .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.VIEW)
@@ -199,8 +229,54 @@ public class ViewService {
                     entry.getValue().getType().getDisplayName()
                 );
             });
-        // Parse the query to ensure it's syntactically valid; parseView rejects any SET statements
-        parser.parseView(view.query(), new QueryParams(), new InferenceSettings(Settings.EMPTY), view.name());
+
+        // Parse the query to ensure it's syntactically valid. A definition may SET only the settings scoped at view
+        // boundaries; anything else, including unmapped_fields=LOAD_ALL, is rejected here. TS must be followed by STATS.
+        // A PUT request carries no pragmas, so the command limit comes from the cluster setting only.
+        var statement = parser.parseView(
+            view.query(),
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            view.name(),
+            maxCommandCount
+        );
+        validateTsView(view.name(), statement.plan());
+    }
+
+    /**
+     * Rejects views that use TS without a following STATS.
+     * The parser turns the first STATS after TS into a TimeSeriesAggregate, so its absence means TS is not aggregated.
+     * PROMQL is also a time series source, but it is always aggregated: it is transpiled to TS followed by STATS.
+     * Subqueries are not checked yet.
+     */
+    private static void validateTsView(String viewName, LogicalPlan plan) {
+        if (hasOuterMatch(plan, p -> p instanceof UnresolvedRelation ur && ur.indexMode().isTsdb())
+            && hasOuterMatch(plan, p -> p instanceof TimeSeriesAggregate || p instanceof PromqlCommand) == false) {
+            throw new IllegalArgumentException("view [" + viewName + "] uses TS, which must be followed by a STATS command");
+        }
+    }
+
+    private static boolean hasOuterMatch(LogicalPlan plan, Predicate<LogicalPlan> predicate) {
+        if (plan instanceof Subquery || plan instanceof UnionAll) {
+            return false;
+        }
+        return predicate.test(plan) || plan.children().stream().anyMatch(child -> hasOuterMatch(child, predicate));
+    }
+
+    /**
+     * Validates that views could be deleted
+     */
+    void validateDeleteViews(ProjectMetadata metadata, Collection<String> viewNames, boolean canDeleteReservedViews) {
+        final ViewMetadata viewMetadata = getMetadata(metadata);
+        for (String viewName : viewNames) {
+            var view = viewMetadata.getView(viewName);
+            if (view == null) {
+                throw new ResourceNotFoundException("view [{}] not found", viewName);
+            }
+            if (canDeleteReservedViews == false && view.isReserved()) {
+                throw new IllegalArgumentException("cannot delete reserved view [" + viewName + "]");
+            }
+        }
     }
 
     /**
@@ -219,5 +295,104 @@ public class ViewService {
      */
     public Set<String> list(ProjectId projectId) {
         return getMetadata(projectId).views().keySet();
+    }
+
+    /**
+     * Ensures a reserved view with the given definition exists. Creates it, or updates it if the query or description differ.
+     * <p>
+     * This registers a one-shot {@link ClusterStateListener} and returns immediately. The work happens on the first cluster state
+     * that is recovered, has this node as master and supports reserved views. The listener is then removed.
+     * It is not re-evaluated on later cluster state changes.
+     * <p>
+     * Call it early during component wiring (e.g. from {@code Plugin#createComponents}), before the node joins a cluster
+     * and the first cluster state is applied. Otherwise, the first qualifying cluster state may already be gone,
+     * and the view is only checked later after undetermined amount of time. Only the master node acts;
+     * calls on other nodes are no-ops until (and unless) they become master.
+     * <p>
+     * The {@code listener} is completed once, after the view is confirmed to exist in the cluster state.
+     * Use it to run logic that depends on the view being present.
+     * It fails with {@link ResourceAlreadyExistsException} if a non-reserved view with the same name already exists.
+     * <p>
+     * {@code listener.onFailure} must not interrupt the node startup. The caller should only notify about the problem,
+     * preferably by logging it, and let the node continue to start.
+     * <p>
+     * Example:
+     * <pre>{@code
+     * public class MyService {
+     *     public MyService(ViewService viewService) {
+     *         viewService.ensureReservedViewExists(
+     *             ProjectId.DEFAULT,
+     *             new View("my-reserved-view", "FROM my-index | WHERE active", "Description shown to users", true),
+     *             ActionListener.wrap(
+     *                 ack -> logger.debug("reserved view is ready"),
+     *                 e -> logger.warn("failed to create reserved view", e)
+     *             )
+     *         );
+     *     }
+     * }
+     * }</pre>
+     */
+    public void ensureReservedViewExists(ProjectId projectId, View view, ActionListener<AcknowledgedResponse> listener) {
+        ensureReservedViewExists(projectId, view, project -> true, listener);
+    }
+
+    /**
+     * Like {@link #ensureReservedViewExists(ProjectId, View, ActionListener)}, but a missing view is only created once
+     * {@code shouldCreate} holds for the project metadata. Until then, the listener stays registered and the condition is
+     * re-evaluated on every cluster state change, so it should be cheap. A view that already exists is brought up to date
+     * regardless of the condition. Use it for views that only make sense when some data is present.
+     */
+    public void ensureReservedViewExists(
+        ProjectId projectId,
+        View view,
+        Predicate<ProjectMetadata> shouldCreate,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        assert view.isReserved() : "ensureReservedViewExists should create reserved views only";
+        clusterService.addListener(new ClusterStateListener() {
+            private final AtomicBoolean initializing = new AtomicBoolean(false);
+
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                    return;
+                }
+                if (event.localNodeMaster() == false) {
+                    return;
+                }
+                if (event.state().getMinTransportVersion().supports(View.VIEW_RESERVED_VERSION) == false) {
+                    return;
+                }
+                var project = event.state().metadata().getProject(projectId);
+                var existing = getMetadata(project).getView(view.name());
+                if (existing == null && shouldCreate.test(project) == false) {
+                    return;
+                }
+                if (existing != null && existing.isReserved() == false) {
+                    listener.onFailure(new ResourceAlreadyExistsException("view [{}] already exists", view.name()));
+                } else if (existing == null || Objects.equals(view, existing) == false) {
+                    if (initializing.compareAndSet(false, true)) {
+                        clusterService.threadPool()
+                            .generic()
+                            .submit(
+                                () -> putView(
+                                    projectId,
+                                    new PutViewAction.Request(
+                                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                                        view
+                                    ),
+                                    listener
+                                )
+                            );
+                    }
+                } else {
+                    if (initializing.compareAndSet(false, true)) {
+                        listener.onResponse(AcknowledgedResponse.TRUE); // already initialized
+                    }
+                }
+                clusterService.removeListener(this);
+            }
+        });
     }
 }

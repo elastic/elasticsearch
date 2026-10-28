@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
 import java.util.List;
+import java.util.RandomAccess;
 
 /**
  * {@code @allocates} estimators for the EQL string functions in {@code eql_whitelist.txt}. Each is a
@@ -59,13 +60,28 @@ public final class EqlAllocationEstimators {
             return newStringBytes(0);
         }
         long chars = 0;
-        for (Object value : values) {
-            chars += value instanceof CharSequence cs ? cs.length() : 128; // fallback for non-CharSequence elements
-            if (chars > Integer.MAX_VALUE) {
-                break; // already large enough to trip any limit; avoid overflow
+        if (values instanceof RandomAccess) {
+            // Index the list so the estimator itself allocates nothing.
+            for (int i = 0, size = values.size(); i < size; i++) {
+                chars += elementChars(values.get(i));
+                if (chars > Integer.MAX_VALUE) {
+                    break; // already large enough to trip any limit; avoid overflow
+                }
+            }
+        } else {
+            for (Object value : values) {
+                chars += elementChars(value);
+                if (chars > Integer.MAX_VALUE) {
+                    break;
+                }
             }
         }
         return newStringBytes(chars);
+    }
+
+    /** Chars one element adds to the concat: its real length for text, a fixed guess for anything else. */
+    private static long elementChars(Object value) {
+        return value instanceof CharSequence cs ? cs.length() : 128;
     }
 
     /** {@code substring}: a new String no longer than {@code value}. */

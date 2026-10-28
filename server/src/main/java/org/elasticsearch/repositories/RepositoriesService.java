@@ -59,6 +59,7 @@ import org.elasticsearch.repositories.VerifyNodeRepositoryAction.Request;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1164,13 +1165,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         return createRepository(null, repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
-    public Collection<LongWithAttributes> getShardSnapshotsInProgress() {
-        return repositories.values()
-            .stream()
-            .flatMap(repositories -> repositories.values().stream())
-            .map(Repository::getShardSnapshotsInProgress)
-            .filter(Objects::nonNull)
-            .toList();
+    public void recordShardSnapshotsInProgress(LongAsyncMeasurement measurement) {
+        for (Map<String, Repository> projectRepositories : repositories.values()) {
+            for (Repository repository : projectRepositories.values()) {
+                final LongWithAttributes inProgress = repository.getShardSnapshotsInProgress();
+                if (inProgress != null) {
+                    measurement.record(inProgress.value(), inProgress.attributes());
+                }
+            }
+        }
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(ProjectId projectId, RepositoryMetadata repositoryMetadata) {

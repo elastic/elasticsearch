@@ -89,3 +89,101 @@
         index: $backing_index_frozen
   - match: { indices.$backing_index_frozen.managed_by_lifecycle: true }
   - match: { indices.$backing_index_frozen.frozen_transition_status: 'waiting' }
+
+---
+"Explain unmanaged backing index without lifecycle":
+  - requires:
+      reason: "Explain reports why an index is unmanaged"
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
+      capabilities:
+        - method: GET
+          path: /{index}/_lifecycle/explain
+          capabilities: [ "explain_unmanaged_reason" ]
+  - do:
+      allowed_warnings:
+        - "index template [template-unmanaged-no-lifecycle-ds] has index patterns [unmanaged-no-lifecycle-ds] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-unmanaged-no-lifecycle-ds] will take precedence during new index creation"
+      indices.put_index_template:
+        name: template-unmanaged-no-lifecycle-ds
+        body:
+          index_patterns: [ unmanaged-no-lifecycle-ds ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: unmanaged-no-lifecycle-ds
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "unmanaged-no-lifecycle-ds"
+  - set:
+      data_streams.0.indices.0.index_name: backing_index
+
+  - do:
+      indices.explain_data_lifecycle:
+        index: $backing_index
+  - match: { indices.$backing_index.managed_by_lifecycle: false }
+  - match: { indices.$backing_index.unmanaged_reason: "Index [${backing_index}] belongs to data stream [unmanaged-no-lifecycle-ds] which does not have data stream lifecycle configuration." }
+
+---
+"Explain unmanaged backing index with disabled lifecycle":
+  - requires:
+      reason: "Explain reports why an index is unmanaged"
+      test_runner_features: [ "capabilities", "allowed_warnings" ]
+      capabilities:
+        - method: GET
+          path: /{index}/_lifecycle/explain
+          capabilities: [ "explain_unmanaged_reason" ]
+  - do:
+      allowed_warnings:
+        - "index template [template-unmanaged-disabled-ds] has index patterns [unmanaged-disabled-ds] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-unmanaged-disabled-ds] will take precedence during new index creation"
+      indices.put_index_template:
+        name: template-unmanaged-disabled-ds
+        body:
+          index_patterns: [ unmanaged-disabled-ds ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              enabled: false
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: unmanaged-disabled-ds
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "unmanaged-disabled-ds"
+  - set:
+      data_streams.0.indices.0.index_name: backing_index
+
+  - do:
+      indices.explain_data_lifecycle:
+        index: $backing_index
+  - match: { indices.$backing_index.managed_by_lifecycle: false }
+  - match: { indices.$backing_index.unmanaged_reason: "Index [${backing_index}] belongs to data stream [unmanaged-disabled-ds] which has disabled data stream lifecycle." }
+
+---
+"Explain unmanaged index that is not part of a data stream":
+  - requires:
+      reason: "Explain reports why an index is unmanaged"
+      test_runner_features: [ "capabilities" ]
+      capabilities:
+        - method: GET
+          path: /{index}/_lifecycle/explain
+          capabilities: [ "explain_unmanaged_reason" ]
+  - do:
+      indices.create:
+        index: standalone-index
+        body:
+          settings:
+            index.number_of_replicas: 0
+
+  - do:
+      indices.explain_data_lifecycle:
+        index: standalone-index
+  - match: { indices.standalone-index.managed_by_lifecycle: false }
+  - match: { indices.standalone-index.unmanaged_reason: "Index [standalone-index] does not belong to a data stream, so it cannot be managed by data stream lifecycle." }

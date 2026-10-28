@@ -56,7 +56,8 @@ setup:
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views.0.name: "dogs" }
   - match: { views.0.query: 'FROM test | WHERE animal == "dog"' }
@@ -81,7 +82,8 @@ setup:
         name: dogs
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views: [] }
   - length: { views: 0 }
@@ -144,7 +146,8 @@ setup:
           query: 'FROM test | WHERE animal == "fox"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -153,7 +156,8 @@ setup:
         name: dogs,cats
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "foxes" }
@@ -163,7 +167,8 @@ setup:
         name: foxes
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -188,7 +193,8 @@ setup:
           query: 'FROM test | WHERE animal == "office_appliance"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 3 }
 
@@ -197,7 +203,8 @@ setup:
         name: animals-*
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 1 }
   - match: { views.0.name: "faxes" }
@@ -217,16 +224,18 @@ setup:
           query: 'FROM test | WHERE animal == "cat"'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 2 }
 
   - do:
       esql.delete_view:
-        name: _all
+        name: "*,-.*"
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - length: { views: 0 }
 
@@ -249,6 +258,16 @@ setup:
         name: dogs
 
   - match: { views.0.name: "dogs" }
+
+---
+"reserved-view-can-not-be-created-via-api":
+  - do:
+      catch: /\[view\] unknown field \[reserved\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+          reserved: true
 
 ---
 "invalid-views":
@@ -315,7 +334,8 @@ setup:
           query: 'FROM test | WHERE animal == ?1'
 
   - do:
-      esql.get_view: { }
+      esql.get_view:
+        name: "*,-.*"
 
   - match: { views: [] }
 

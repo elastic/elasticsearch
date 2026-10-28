@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162130
+summary: Fix TS nulling converted metrics in multi-metric STATS
+type: bug

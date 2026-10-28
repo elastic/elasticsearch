@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
@@ -85,6 +86,7 @@ public class PromqlFunctionRegistry {
         //
         Delta.PROMQL_DEFINITION,
         Idelta.PROMQL_DEFINITION,
+        Changes.PROMQL_DEFINITION,
         Increase.PROMQL_DEFINITION,
         Irate.PROMQL_DEFINITION,
         Rate.PROMQL_DEFINITION,
@@ -118,9 +120,12 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.TOPK,
         PromqlBuiltinFunctionDefinitions.BOTTOMK,
         PromqlBuiltinFunctionDefinitions.LIMITK,
+        PromqlBuiltinFunctionDefinitions.LIMIT_RATIO,
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        PromqlBuiltinFunctionDefinitions.SORT,
+        PromqlBuiltinFunctionDefinitions.SORT_DESC,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -181,9 +186,6 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    /**
-     * Carries the PromQL evaluation context needed by function builders to construct ES|QL expressions.
-     */
     public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
 
     // PromQL function names not yet implemented
@@ -192,12 +194,7 @@ public class PromqlFunctionRegistry {
         // Across-series aggregations (not yet available in ESQL)
         "group",
         "count_values",
-        // Ratio-based series sampling: requires knowing per-group cardinality at plan time to compute
-        // ceil(r * count), which is not available without a two-phase execution plan or new primitives.
-        "limit_ratio",
-
         // Range vector functions (not yet implemented)
-        "changes",
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
         "double_exponential_smoothing",
         "holt_winters",
@@ -209,8 +206,6 @@ public class PromqlFunctionRegistry {
         "absent",
         // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
         "info",
-        "sort",
-        "sort_desc",
         // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
         "sort_by_label",
         "sort_by_label_desc",
@@ -264,13 +259,22 @@ public class PromqlFunctionRegistry {
         }
     }
 
+    /**
+     * Builds the ES|QL expression for scalar, aggregate, and value-transformation functions.
+     * Functions translated directly by the translator ({@code limit_ratio} lowers to a sampling
+     * filter, metadata functions to dedicated nodes) must go through
+     * {@code PromqlFunctionCall#buildEsqlFunction} or the translator instead.
+     */
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
         PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
             return metadata.esqlBuilder().build(source, target, ctx, extraParams);
+        } catch (ParsingException e) {
+            throw e;
         } catch (Exception e) {
-            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, e.getMessage());
+            String message = e.getMessage() != null ? e.getMessage() : e.toString();
+            throw new ParsingException(source, "Error building ESQL function for [{}]: {}", name, message);
         }
     }
 }

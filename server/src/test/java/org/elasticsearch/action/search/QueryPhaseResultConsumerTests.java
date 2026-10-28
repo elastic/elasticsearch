@@ -166,7 +166,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 executor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 searchPhaseController,
                 () -> false,
                 searchProgressListener,
@@ -297,7 +297,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             searchRequest,
             executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             searchPhaseController,
             () -> false,
             SearchProgressListener.NOOP,
@@ -326,7 +326,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             searchRequest,
             executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             searchPhaseController,
             () -> false,
             SearchProgressListener.NOOP,
@@ -452,7 +452,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             var consumer = new QueryPhaseResultConsumer(
                 request,
                 taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 searchPhaseController,
                 () -> false,
                 SearchProgressListener.NOOP,
@@ -507,7 +507,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             var consumer = new QueryPhaseResultConsumer(
                 request,
                 taskQueue.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 searchPhaseController,
                 () -> false,
                 SearchProgressListener.NOOP,
@@ -674,7 +674,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = productionLikeController.newSearchPhaseResults(
                 executor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 () -> false,
                 SearchProgressListener.NOOP,
                 request,

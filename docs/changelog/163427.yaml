@@ -1,0 +1,17 @@
+area: Packaging
+deprecation:
+  area: Packaging
+  details: |-
+    Running Elasticsearch with Java 21-24 is deprecated. A future
+    Elasticsearch 9.x release will require Java 25 or later.
+  impact: |-
+    If you run Elasticsearch with your own JDK through `ES_JAVA_HOME`, nodes running
+    with Java 21-24 emit a critical deprecation warning at startup. There is
+    no other impact in the current version. In a future 9.x release, running
+    Elasticsearch with Java 25 or later will be required. Nodes using the bundled JDK
+    are not affected, as it already meets this requirement.
+  title: Deprecate running with Java 21-24
+issues: []
+pr: 163427
+summary: Deprecate running with Java 21-24
+type: deprecation

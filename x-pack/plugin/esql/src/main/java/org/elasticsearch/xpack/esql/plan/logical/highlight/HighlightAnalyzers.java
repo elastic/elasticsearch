@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.highlight;
 
+import org.elasticsearch.compute.operator.HighlightConfig;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -34,18 +35,21 @@ import static org.elasticsearch.xpack.esql.planner.HighlightQueryBuilders.DEFAUL
 
 /**
  * Analyzer used to tokenize each HIGHLIGHT ON field.
- * WITH {@code analyzer} applies to every field. Otherwise a mapped text field, or a FORK or UNION ALL column merged
- * from mapped fields, uses {@link TextEsField#analyzerName}, a TO_TEXT column uses its declared analyzer, and anything
- * else uses {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is
- * available, each index uses its own analyzer.
+ * WITH {@code analyzer} applies to every field. Otherwise a mapped text field, a {@code RENAME} or plain {@code EVAL}
+ * copy of one, or a {@code FORK} or {@code UNION ALL} column merged from mapped fields, uses
+ * {@link TextEsField#analyzerName}. A {@code TO_TEXT} column uses its declared analyzer, and anything else uses
+ * {@code standard}. When the queried indices disagree on a field's analyzer and the row's {@code _index} is available,
+ * each index uses its own. Without it, see {@link #analyzerMismatch} for when the query fails instead.
  * <p>
- * A mapped field that RENAME or EVAL turned into a {@link org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute}
- * is "anything else": it uses {@code standard} without a warning, even when its mapping names another analyzer.
+ * An expression over a mapped field counts as anything else: {@code standard}, with no warning, even when the field's
+ * mapping names another analyzer. {@code EVAL t = title} does not; that copy keeps the mapping.
  */
 public final class HighlightAnalyzers {
 
     private static final String INDEX_LOCAL_REASON = "its analyzer is defined in the index settings, which no node can rebuild by name";
     private static final String NOT_REPORTED_REASON = "its analyzer was not reported under a name any node can rebuild";
+    private static final String CONFLICT_REASON = "the queried indices disagree on the analyzer for this field";
+    private static final String BRANCH_CONFLICT_REASON = "the FORK or UNION ALL branches disagree on the analyzer for this column";
 
     private HighlightAnalyzers() {}
 
@@ -62,7 +66,9 @@ public final class HighlightAnalyzers {
      * A mapping analyzer that fails to resolve on this node falls back to {@code standard} and emits a warning
      * through {@code warnings}. Names typed by the user ({@code WITH}, {@code TO_TEXT}) still throw.
      *
-     * @param fieldMappings the mapping of each ON column that FORK or UNION ALL merged from mapped fields, by name
+     * @param fieldMappings the mapping of each ON column that no longer carries its own, by name. Such a column is a
+     *                      RENAME or EVAL copy of a mapped text field, or a column that FORK or UNION ALL merged from
+     *                      mapped fields.
      * @param perIndex whether the operator will know each row's index, so disagreeing indices can each use their own
      *                 analyzer instead of falling back to {@code standard}
      */
@@ -132,6 +138,29 @@ public final class HighlightAnalyzers {
         }
     }
 
+    /**
+     * Why the rows of {@code field} need different analyzers that HIGHLIGHT cannot tell apart, or {@code null} when they
+     * do not. Without the row's index every row uses {@code standard}, so any index that names an analyzer counts, even
+     * next to index-local and unreported analyzers, which fall back to {@code standard} either way.
+     *
+     * @param perIndex whether the operator will know each row's index
+     */
+    public static @Nullable String analyzerMismatch(NamedExpression field, Map<String, TextEsField> fieldMappings, boolean perIndex) {
+        TextEsField text = mappingOf(field, fieldMappings);
+        if (text == null) {
+            return null;
+        }
+        return switch (text.unknownAnalyzer()) {
+            case NONE, INDEX_LOCAL, NOT_REPORTED -> null;
+            case CONFLICT -> {
+                List<IndexAnalyzerGroup> groups = text.analyzerGroups();
+                boolean fits = groups != null && (perIndex || groups.stream().allMatch(g -> g.analyzerName() == null));
+                yield fits ? null : CONFLICT_REASON;
+            }
+            case BRANCH_CONFLICT -> BRANCH_CONFLICT_REASON;
+        };
+    }
+
     /** Which indices use which analyzer when the queried indices disagree on a mapped text field, otherwise {@code null}. */
     public static @Nullable List<IndexAnalyzerGroup> analyzerGroups(NamedExpression field, Map<String, TextEsField> fieldMappings) {
         TextEsField text = mappingOf(field, fieldMappings);
@@ -139,8 +168,9 @@ public final class HighlightAnalyzers {
     }
 
     /**
-     * The text mapping {@code field} is analyzed with: a mapped field's own, or the one {@code fieldMappings} carries for
-     * a column FORK or UNION ALL merged from mapped fields. {@code null} for any other column.
+     * Text mapping {@code field} is analyzed with. A field attribute uses its own. A {@code RENAME}, a plain {@code EVAL}
+     * copy, or a merged {@code FORK} or {@code UNION ALL} column uses the one in {@code fieldMappings}. {@code null} for
+     * anything else.
      */
     public static @Nullable TextEsField mappingOf(NamedExpression field, Map<String, TextEsField> fieldMappings) {
         EsField esField = field instanceof FieldAttribute fa ? fa.field() : fieldMappings.get(field.name());
@@ -157,16 +187,14 @@ public final class HighlightAnalyzers {
         @Nullable AnalysisRegistry analysisRegistry,
         Consumer<String> warnings
     ) {
-        // RENAME and EVAL produce a ReferenceAttribute, which keeps a TO_TEXT analyzer but not a mapping one, so a
-        // renamed mapped field falls back to standard.
         TextEsField text = mappingOf(field, fieldMappings);
         if (text != null) {
             String fallbackReason = switch (text.unknownAnalyzer()) {
                 case NONE -> null;
-                case CONFLICT -> "the queried indices disagree on the analyzer for this field";
+                case CONFLICT -> CONFLICT_REASON;
                 case INDEX_LOCAL -> INDEX_LOCAL_REASON;
                 case NOT_REPORTED -> NOT_REPORTED_REASON;
-                case BRANCH_CONFLICT -> "the FORK or UNION ALL branches disagree on the analyzer for this column";
+                case BRANCH_CONFLICT -> BRANCH_CONFLICT_REASON;
             };
             return mappingAnalyzer(
                 field.name(),
@@ -209,7 +237,7 @@ public final class HighlightAnalyzers {
                 "HIGHLIGHT on ["
                     + fieldName
                     + "] falls back to [standard]"
-                    + (indices.isEmpty() ? "" : " for indices " + new TreeSet<>(indices))
+                    + (indices.isEmpty() ? "" : " for indices " + HighlightConfig.describeIndices(new TreeSet<>(indices)))
                     + ": "
                     + fallbackReason
                     + ". Highlights may differ from what matched; specify WITH {\"analyzer\": <registered analyzer>} to control this."

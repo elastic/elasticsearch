@@ -135,7 +135,14 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
                 numPartitions,
                 partitionDistribution
             );
-            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+            return new PartitionDataGenerator(
+                docs,
+                config.numDocs(),
+                queries,
+                config.numQueries(),
+                partitionConfiguration,
+                config.usesSlicedIvf()
+            );
         }
 
         @Override
@@ -225,7 +232,14 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
                 numPartitions,
                 partitionDistribution
             );
-            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+            return new PartitionDataGenerator(
+                docs,
+                config.numDocs(),
+                queries,
+                config.numQueries(),
+                partitionConfiguration,
+                config.usesSlicedIvf()
+            );
         }
 
         @Override
@@ -317,7 +331,14 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
                 numPartitions,
                 partitionDistribution
             );
-            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+            return new PartitionDataGenerator(
+                docs,
+                config.numDocs(),
+                queries,
+                config.numQueries(),
+                partitionConfiguration,
+                config.usesSlicedIvf()
+            );
 
         }
 

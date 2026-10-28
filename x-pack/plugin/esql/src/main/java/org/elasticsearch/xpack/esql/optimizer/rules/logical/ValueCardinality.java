@@ -79,22 +79,41 @@ enum ValueCardinality {
         return ofAttribute(attribute, plan, 0);
     }
 
+    /**
+     * Follows {@code attribute} down {@code plan}, one node at a time, to the node that produced it. The question at each node is
+     * "is this attribute single-valued as it comes out of {@code plan}?". Each case below is one kind of node, with a query that reaches
+     * it. In the examples, the key of the last {@code STATS} is the attribute that is asked about.
+     */
     private static ValueCardinality ofAttribute(Attribute attribute, LogicalPlan plan, int depth) {
         if (depth > MAX_DEPTH) {
+            // A very long chain of aliases: give up, see MAX_DEPTH.
             return MAYBE_MULTI;
         }
         // Each case either finds the producer of the attribute or hands the question to the child. Plan nodes that are not
         // listed may rewrite columns, so they end the search.
         if (plan instanceof Eval eval) {
+            // EVAL: the attribute is either a field that this EVAL defines, or a column that passes through it.
+            // FROM test | EVAL a = MV_MAX(languages), k = a | STATS BY k
+            // For k, this EVAL defines k = a, so we go on and ask about the expression "a". For a column that this EVAL does not
+            // define, such as languages in "EVAL a = 1 | STATS BY languages", we ask the child.
             Alias definition = definitionOf(attribute, eval.fields());
-            // A field may read the fields before it in the same Eval, so its definition is resolved against this Eval, not its child.
+            // A field may read the fields before it in the same Eval (k = a above), so its definition is resolved against this Eval, not
+            // its child.
             return definition != null ? ofExpression(definition.child(), eval, depth + 1) : ofAttribute(attribute, eval.child(), depth + 1);
         }
         if (plan instanceof Row row) {
+            // ROW: the attribute is a field of the row. Nothing is below a ROW, so a column that it does not define is unknown.
+            // ROW x = 1 | STATS BY x -> the definition is the constant 1, so SINGLE
+            // ROW x = [1, 2] | STATS BY x -> the definition is a multi-valued literal, so unknown
             Alias definition = definitionOf(attribute, row.fields());
             return definition != null ? ofExpression(definition.child(), plan, depth + 1) : MAYBE_MULTI;
         }
         if (plan instanceof Project project) {
+            // KEEP, DROP and RENAME produce a Project, a list of kept columns and renamed columns.
+            // FROM test | EVAL a = MV_MAX(languages) | RENAME a AS k | STATS BY k
+            // A rename is an Alias with a new id (k = a). Its source is a column of the child, so it is resolved against the child. The
+            // projections do not read each other (RENAME a AS b, b AS a swaps two columns), so never against this node.
+            // A kept column keeps its id, so the child is asked about it.
             for (NamedExpression projection : project.projections()) {
                 if (projection.id().equals(attribute.id())) {
                     return projection instanceof Alias alias
@@ -102,36 +121,57 @@ enum ValueCardinality {
                         : ofAttribute(attribute, project.child(), depth + 1);
                 }
             }
+            // The attribute is not an output of this node.
             return MAYBE_MULTI;
         }
         if (plan instanceof MvExpand mvExpand) {
+            // MV_EXPAND puts each value of a multi-valued column on a row of its own, so the expanded column holds one value per row.
+            // FROM test | MV_EXPAND languages | STATS BY languages -> SINGLE
+            // Any other column is a column of the child, so the child is asked about it:
+            // FROM test | MV_EXPAND languages | STATS BY salary
             return mvExpand.expanded().id().equals(attribute.id()) ? SINGLE : ofAttribute(attribute, mvExpand.child(), depth + 1);
         }
         if (plan instanceof Aggregate aggregate) {
+            // An earlier STATS: the attribute is one of its output columns. See ofAggregateOutput.
+            // FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
             return ofAggregateOutput(attribute, aggregate);
         }
         if (plan instanceof EsRelation) {
-            // A field is single-valued only if the mapping of every resolved index says so. A field that may be read from _source or
-            // converted is not a plain mapped field, so its EsField never carries the flag.
+            // FROM: the search reached the source. A field is single-valued only if the mapping of every resolved index says so. A field
+            // that may be read from _source or converted is not a plain mapped field, so its EsField never carries the flag.
+            // FROM test | STATS BY languages
             return attribute instanceof FieldAttribute field && field.field().isStaticallySingleValued() ? SINGLE : MAYBE_MULTI;
         }
         if (plan instanceof Filter || plan instanceof Limit || plan instanceof OrderBy) {
+            // WHERE, LIMIT and SORT keep, drop or reorder rows and do not change columns, so the child is asked.
+            // FROM test | EVAL k = MV_MIN(languages) | WHERE k > 1 | SORT k | LIMIT 5 | STATS BY k
             return ofAttribute(attribute, plan.children().get(0), depth + 1);
         }
+        // Any other node, such as LOOKUP JOIN or GROK, may rewrite columns, so nothing is known.
         return MAYBE_MULTI;
     }
 
+    /**
+     * The same question for the right-hand side of a definition, such as the {@code MV_MAX(languages)} in
+     * {@code EVAL a = MV_MAX(languages)}. {@code plan} is where to look for the columns that the expression reads.
+     */
     private static ValueCardinality ofExpression(Expression expression, LogicalPlan plan, int depth) {
         if (depth > MAX_DEPTH) {
             return MAYBE_MULTI;
         }
         if (isScalarFoldable(expression)) {
+            // A constant: it folds to null or to one value, but not to a list.
+            // FROM test | EVAL k = 1 | STATS BY k -> SINGLE
+            // FROM test | EVAL k = [1, 2] | STATS BY k -> a multi-valued literal folds to a list, so unknown
             return SINGLE;
         }
         if (expression instanceof Alias alias) {
+            // A definition that is itself an alias: look at what it names.
             return ofExpression(alias.child(), plan, depth + 1);
         }
         if (expression instanceof Attribute attribute) {
+            // A copy of another column: ask about that column.
+            // FROM test | EVAL a = MV_MAX(languages) | EVAL k = a | STATS BY k
             return ofAttribute(attribute, plan, depth + 1);
         }
         if (expression instanceof MvMin
@@ -139,11 +179,20 @@ enum ValueCardinality {
             || expression instanceof MvFirst
             || expression instanceof MvLast
             || expression instanceof MvCount) {
+            // These functions turn any input, even a list, into at most one value.
+            // FROM test | EVAL k = MV_MAX(languages) | STATS BY k
             return SINGLE;
         }
+        // Any other function is unknown. A function of a single value is not assumed single: SPLIT returns a list from one input.
+        // FROM test | EVAL k = languages + 1 | STATS BY k
+        // FROM test | EVAL k = SPLIT(first_name, "a") | STATS BY k
         return MAYBE_MULTI;
     }
 
+    /**
+     * The same question for a column that an earlier {@code STATS} outputs. The outputs are its aggregate functions and its grouping
+     * keys.
+     */
     private static ValueCardinality ofAggregateOutput(Attribute attribute, Aggregate aggregate) {
         for (NamedExpression output : aggregate.aggregates()) {
             if (output.id().equals(attribute.id()) == false) {
@@ -152,18 +201,30 @@ enum ValueCardinality {
             }
             Expression unwrapped = Alias.unwrap(output);
             if (unwrapped instanceof Count) {
+                // COUNT returns one number per group.
+                // FROM test | STATS c = COUNT(*) BY first_name | STATS n = COUNT(*) BY c
                 return SINGLE;
             }
             // Other aggregate functions can return a list (VALUES, TOP, ...), so only the key itself is proven. A grouping
             // key holds one value per group even when the input column was a list, because the aggregation unrolls the list.
+            // FROM test | STATS c = COUNT(*) BY languages | STATS n = COUNT(*) BY languages
+            // -> languages is a key: SINGLE
+            // FROM test | STATS v = VALUES(languages) BY first_name | STATS n = COUNT(*) BY v
+            // -> VALUES returns a list: unknown
             return isGroupKey(aggregate, output) ? SINGLE : MAYBE_MULTI;
         }
+        // The attribute is not an output of this STATS.
         return MAYBE_MULTI;
     }
 
+    /**
+     * Whether {@code output} is one of the grouping keys of {@code aggregate}, rather than an aggregate function.
+     */
     private static boolean isGroupKey(Aggregate aggregate, NamedExpression output) {
         Expression unwrappedOutput = Alias.unwrap(output);
         for (Expression grouping : aggregate.groupings()) {
+            // BY x + 1: the output is an alias of the same expression as the grouping.
+            // BY languages: the grouping is the column languages, and the output has the same id.
             if (unwrappedOutput.semanticEquals(Alias.unwrap(grouping))
                 || (grouping instanceof NamedExpression named && named.id().equals(output.id()))) {
                 return true;
@@ -172,6 +233,9 @@ enum ValueCardinality {
         return false;
     }
 
+    /**
+     * The field of an {@code EVAL} or {@code ROW} that defines {@code attribute}, found by id, or {@code null} if it defines none.
+     */
     private static Alias definitionOf(Attribute attribute, List<Alias> fields) {
         for (Alias field : fields) {
             if (field.id().equals(attribute.id())) {

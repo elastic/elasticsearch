@@ -568,3 +568,13 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
   issue: https://github.com/elastic/elasticsearch/issues/163761
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsNoSkipUnavailableIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163773
+- class: org.elasticsearch.compute.operator.DriverTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testRunsThroughComputeExecutor
+  issue: https://github.com/elastic/elasticsearch/issues/163778

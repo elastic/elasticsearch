@@ -54,6 +54,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -70,6 +71,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -134,6 +136,30 @@ public class Analysis {
         entry("_turkish_", TurkishAnalyzer.getDefaultStopSet())
     );
 
+    /**
+     * {@link #NAMED_STOP_WORDS} as seen by indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}: identical except
+     * that {@code _thai_} resolves to the Lucene 10.5 list. Held in a nested class so the legacy resource is only read once an old
+     * index actually resolves named stopwords.
+     */
+    private static final class LegacyNamedStopWords {
+        private static final Map<String, Set<?>> MAP;
+
+        static {
+            Map<String, Set<?>> map = new HashMap<>(NAMED_STOP_WORDS);
+            map.put("_thai_", LegacyThaiStopWords.DEFAULT_STOP_SET);
+            MAP = Map.copyOf(map);
+        }
+    }
+
+    /**
+     * The named stopword sets ({@code _english_}, {@code _thai_}, ...) that apply to an index created at {@code indexCreatedVersion}.
+     * Named sets must follow the index's creation version because a set that changes under an existing index would remove different
+     * terms at query time than were removed at index time.
+     */
+    private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6) ? LegacyNamedStopWords.MAP : NAMED_STOP_WORDS;
+    }
+
     public static CharArraySet parseWords(
         Environment env,
         Settings settings,
@@ -168,7 +194,7 @@ public class Analysis {
         CharArraySet defaultCommonWords,
         boolean ignoreCase
     ) {
-        return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
+        return parseWords(env, settings, "common_words", defaultCommonWords, namedStopWords(indexCreatedVersion), ignoreCase);
     }
 
     /**
@@ -212,7 +238,7 @@ public class Analysis {
         CharArraySet defaultStopWords,
         boolean ignoreCase
     ) {
-        return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
+        return parseWords(env, settings, "stopwords", defaultStopWords, namedStopWords(indexCreatedVersion), ignoreCase);
     }
 
     /**

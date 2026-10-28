@@ -303,6 +303,10 @@ public class IndexVersions {
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_7_0 = def(9_400_00_0, Version.LUCENE_10_7_0);
+    // Placeholder id on lucene_snapshot, like the two above: renumber all three together when merging to main, keeping this
+    // one at or above the first id that ships with the Thai gate. Indices created on snapshot builds at the two ids above
+    // were analyzed with the new chain but are treated as legacy; that only affects unreleased builds.
+    public static final IndexVersion THAI_ANALYSIS_LUCENE_10_6 = def(9_401_0_00, Version.LUCENE_10_7_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -14,24 +14,35 @@ import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 /**
- * Factory for {@link ThaiTokenizer}
+ * Factory for {@link ThaiTokenizer}. Indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} get
+ * {@link LegacyThaiTokenizer} so that their tokenization does not change after an upgrade.
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
+    private final boolean legacy;
+
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
+        this.legacy = indexSettings.getIndexVersionCreated().before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
     }
 
     @Override
     public Tokenizer create() {
-        return new ThaiTokenizer();
+        return legacy ? new LegacyThaiTokenizer() : new ThaiTokenizer();
     }
 
+    /**
+     * Includes the side of the {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} gate so that indices on either side never share
+     * an analyzer built from this factory.
+     */
     @Override
     public Object sharingKey() {
-        return getClass();
+        return new Key(legacy);
     }
+
+    private record Key(boolean legacy) {}
 }

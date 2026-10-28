@@ -1763,6 +1763,17 @@ PUT /thai_example
 
 1. The default stopwords can be overridden with the `stopwords` or `stopwords_path` parameters.
 
+#### Behavior by index version [thai-analyzer-index-version]
+
+Lucene 10.6 changed the `thai` analyzer. The `thai` char filter, the `thai_normalization` and `thai_repeat` token filters, and a shorter default stop word list (87 words, previously 115) are new, and the [`thai` tokenizer](/reference/text-analysis/analysis-thai-tokenizer.md#analysis-thai-tokenizer-index-version) changed where it splits long text. The custom analyzer above rebuilds the current behavior.
+
+Because text is only analyzed when it is indexed, an index whose analysis changed would hold documents analyzed two different ways, and queries would stop matching older documents. {{es}} therefore applies the analyzer that matches the index's creation version:
+
+* Indices created before {{es}} upgraded to Lucene 10.6 keep the previous analyzer for both indexing and search, including for documents indexed after an upgrade: the `thai` tokenizer, followed by the `lowercase` and `decimal_digit` filters and a `stop` filter using the previous 115-word `_thai_` list, with no `thai` char filter, `thai_normalization` or `thai_repeat`.
+* Indices created on or after the upgrade use the current analyzer.
+
+The same rule applies to the [`_thai_` stop word list](/reference/text-analysis/analysis-stop-tokenfilter.md#thai-stop-words) wherever it is used, and the [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) uses the current behavior when no index is specified. To adopt the current behavior for an existing index, [reindex](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) it into a new index. To use any of the new components on an index created before the upgrade, add the `thai` char filter or the `thai_normalization` and `thai_repeat` token filters to a `custom` analyzer explicitly; this changes how new documents and queries are analyzed, so reindex existing documents as well.
+
 
 
 

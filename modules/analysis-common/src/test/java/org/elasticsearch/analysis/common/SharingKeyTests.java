@@ -10,6 +10,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Analyzer-sharing cases in analysis-common that {@code CommonAnalysisFactoryTests}' settings contract
@@ -181,6 +183,49 @@ public class SharingKeyTests extends ESTestCase {
         Analyzer current = build(IndexVersion.current(), persian);
         assertSame(current, build(IndexVersion.current(), persian));
         assertNotSame("persian analyzer behavior differs by index version and must not share", current, build(legacy, persian));
+    }
+
+    /**
+     * Every Thai entry point changed output in Lucene 10.6 and is gated on {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}, so
+     * indices on opposite sides of the gate must never share an analyzer built from it, while indices on the same side still do.
+     */
+    public void testThaiAnalysisDoesNotShareAcrossThaiGate() throws IOException {
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        IndexVersion current = IndexVersion.current();
+        List<Settings> recipes = List.of(
+            Settings.builder().put("index.analysis.analyzer.a.type", "thai").build(),
+            Settings.builder().put("index.analysis.analyzer.a.tokenizer", "thai").build(),
+            Settings.builder().put("index.analysis.tokenizer.t.type", "thai").put("index.analysis.analyzer.a.tokenizer", "t").build(),
+            Settings.builder()
+                .put("index.analysis.filter.s.type", "stop")
+                .put("index.analysis.filter.s.stopwords", "_thai_")
+                .put("index.analysis.analyzer.a.tokenizer", "standard")
+                .putList("index.analysis.analyzer.a.filter", "s")
+                .build()
+        );
+        for (Settings recipe : recipes) {
+            Analyzer legacyAnalyzer = build(legacy, recipe);
+            assertSame(recipe.toString(), legacyAnalyzer, build(legacy, recipe));
+            Analyzer currentAnalyzer = build(current, recipe);
+            assertSame(recipe.toString(), currentAnalyzer, build(current, recipe));
+            assertNotSame(recipe.toString(), legacyAnalyzer, currentAnalyzer);
+        }
+    }
+
+    /** The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides. */
+    public void testPrebuiltThaiAnalyzerDoesNotShareAcrossThaiGate() throws IOException {
+        Analyzer legacy = buildPrebuilt(IndexVersionUtils.getPreviousVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6), "thai");
+        Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
+        assertThat(legacy, instanceOf(LegacyThaiAnalyzer.class));
+        assertThat(current, instanceOf(ThaiAnalyzer.class));
+        assertSame(current, buildPrebuilt(IndexVersion.current(), "thai"));
+    }
+
+    private Analyzer buildPrebuilt(IndexVersion version, String name) throws IOException {
+        Settings s = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
+        IndexAnalyzers ia = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("test", s));
+        tracked.add(ia);
+        return ia.get(name).analyzer();
     }
 
     /** {@code keywords_pattern} cannot be combined with {@code keywords}, so the settings contract cannot vary it. */

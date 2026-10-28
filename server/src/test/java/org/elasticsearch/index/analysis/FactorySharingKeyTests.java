@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -107,6 +108,26 @@ public class FactorySharingKeyTests extends ESTestCase {
         StopTokenFilterFactory keep = new StopTokenFilterFactory(is, env, "a", Settings.builder().put("remove_trailing", true).build());
         StopTokenFilterFactory remove = new StopTokenFilterFactory(is, env, "b", Settings.builder().put("remove_trailing", false).build());
         assertNotEquals(keep.sharingKey(), remove.sharingKey());
+    }
+
+    /**
+     * {@code _thai_} resolves to a different list on either side of {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}; the
+     * content-hashed stop set in the key must keep the two apart.
+     */
+    public void testStopFactoryThaiNamedSetDiffersAcrossThaiGate() {
+        Environment env = env();
+        Settings thai = Settings.builder().put("stopwords", "_thai_").build();
+        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        StopTokenFilterFactory oldA = new StopTokenFilterFactory(indexSettings(legacy), env, "a", thai);
+        StopTokenFilterFactory oldB = new StopTokenFilterFactory(
+            indexSettings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6)),
+            env,
+            "b",
+            thai
+        );
+        StopTokenFilterFactory current = new StopTokenFilterFactory(indexSettings(), env, "c", thai);
+        assertEquals(oldA.sharingKey(), oldB.sharingKey());
+        assertNotEquals(oldA.sharingKey(), current.sharingKey());
     }
 
     // ---- PreBuiltAnalyzerProviderFactory ----

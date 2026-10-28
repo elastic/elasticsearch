@@ -107,9 +107,39 @@ import java.io.IOException;
 class ValuesFromDocSequence extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromDocSequence.class);
 
+    /**
+     * The position after the last run found by {@link #runFrom}. A load that {@link ValuesSourceReaderOperator#jumboBytes}
+     * cuts short leaves the rest of its run to the next load, which reuses this end instead of scanning the run again.
+     */
+    private int runEnd;
+
     ValuesFromDocSequence(ValuesSourceReaderOperator operator, DocVector docs) {
         super(operator, docs);
         log.debug("initializing {} positions", docs.getPositionCount());
+    }
+
+    /**
+     * The documents that a load reads from {@code start} on, until it moves to another segment or back in this one.
+     * Loads ask for runs at positions that never go back, so a {@code start} before {@link #runEnd} is in the last run.
+     */
+    private SegmentRun runFrom(int start) {
+        if (start >= runEnd) {
+            runEnd = findRunEnd(start);
+        }
+        return new SegmentRun(runEnd - start, docs.docs().getInt(start), docs.docs().getInt(runEnd - 1));
+    }
+
+    private int findRunEnd(int start) {
+        int shard = docs.shards().getInt(start);
+        int segment = docs.segments().getInt(start);
+        int end = start + 1;
+        while (end < docs.getPositionCount()
+            && docs.shards().getInt(end) == shard
+            && docs.segments().getInt(end) == segment
+            && docs.docs().getInt(end) >= docs.docs().getInt(end - 1)) {
+            end++;
+        }
+        return end;
     }
 
     @Override
@@ -131,7 +161,7 @@ class ValuesFromDocSequence extends ValuesReader {
             int firstDoc = docs.docs().getInt(offset);
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
-            fieldsMoved(ctx, shard);
+            fieldsMoved(ctx, shard, runFrom(offset));
             int runStart = offset;
             readRowStride(firstDoc);
             int prevDoc = firstDoc;
@@ -147,7 +177,7 @@ class ValuesFromDocSequence extends ValuesReader {
                     segment = newSegment;
                     operator.positionFieldWork(shard, segment, doc);
                     ctx = operator.ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
+                    fieldsMoved(ctx, shard, runFrom(i));
                     runStart = i;
                 }
                 readRowStride(doc);

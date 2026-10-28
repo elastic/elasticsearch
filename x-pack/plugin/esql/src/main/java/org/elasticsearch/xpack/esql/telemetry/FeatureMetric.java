@@ -143,7 +143,10 @@ public enum FeatureMetric {
     // IN_SUBQUERY is collected by InSubqueryResolver on the pre-resolution plan (when the
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
-    IN_SUBQUERY(plan -> false);
+    IN_SUBQUERY(plan -> false),
+    // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
+    // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
+    LET(plan -> false);
 
     /**
      * List here plans we want to exclude from telemetry

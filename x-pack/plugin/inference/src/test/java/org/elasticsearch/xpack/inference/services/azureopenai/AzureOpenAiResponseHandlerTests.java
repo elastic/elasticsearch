@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -39,14 +37,10 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
             """;
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));
@@ -70,14 +64,10 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
             """;
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBody.getBytes(StandardCharsets.UTF_8));
@@ -90,10 +80,8 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
 
     public void testBuildRateLimitErrorMessage() {
         int statusCode = 429;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(statusCode);
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
@@ -133,10 +121,8 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResult createResult(int statusCode, String message) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
 
         String responseJson = Strings.format("""
                 {

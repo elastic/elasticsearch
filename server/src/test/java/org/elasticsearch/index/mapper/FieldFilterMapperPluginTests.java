@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -128,6 +129,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
         // Nor is it slice-enabled, so it will not contain _slice_key.
         builtInMetadataFields.remove(SliceKeyFieldMapper.NAME);
+        // The index does not enable the flattened unmapped-fields sink, so it has no _unmapped field.
+        builtInMetadataFields.remove(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
         return builtInMetadataFields;
     }
 

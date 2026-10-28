@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 
 import java.io.IOException;
@@ -1796,6 +1796,23 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/b.parquet", result.path(1).toString());
     }
 
+    /**
+     * An object found by an existence probe, and so never read, is listed under the version the probe saw. A provider that
+     * reports a version only from a read would list every probed file unversioned, and its footer would never be cached.
+     */
+    public void testEnumeratedGlobEntriesCarryTheProbedVersion() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/a.parquet");
+        provider.existingPaths.add("s3://bucket/b.parquet");
+        provider.probedVersions.put("s3://bucket/a.parquet", "etag-a");
+        provider.probedVersions.put("s3://bucket/b.parquet", "etag-b");
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/{a,b}.parquet", provider, null, HIVE_ON);
+        assertEquals(2, result.fileCount());
+        assertEquals("etag-a", result.version(0));
+        assertEquals("etag-b", result.version(1));
+    }
+
     public void testExpandGlobBraceOnlyMissingFileSkipped() throws IOException {
         StubProvider provider = new StubProvider(List.of());
         provider.existingPaths.add("s3://bucket/a.parquet");
@@ -3142,6 +3159,8 @@ public class GlobExpanderTests extends ESTestCase {
 
         private final List<StorageEntry> listing;
         private final List<String> existingPaths = new ArrayList<>();
+        /** The version each path's existence probe reports, by path string. Absent paths report none. */
+        private final Map<String, String> probedVersions = new HashMap<>();
 
         StubProvider(List<StorageEntry> listing) {
             this.listing = listing;
@@ -3149,7 +3168,7 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()));
+            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()), probedVersions.get(path.toString()));
         }
 
         @Override
@@ -3203,11 +3222,23 @@ public class GlobExpanderTests extends ESTestCase {
         private final StoragePath path;
         private final long length;
         private final boolean exists;
+        private final String probedVersion;
 
         StubStorageObject(StoragePath path, long length, boolean exists) {
+            this(path, length, exists, null);
+        }
+
+        StubStorageObject(StoragePath path, long length, boolean exists, String probedVersion) {
             this.path = path;
             this.length = length;
             this.exists = exists;
+            this.probedVersion = probedVersion;
+        }
+
+        /** No pin is ever set here, so this is the only version the stub reports: the one its probe saw. */
+        @Override
+        public String probedVersion() {
+            return probedVersion;
         }
 
         @Override

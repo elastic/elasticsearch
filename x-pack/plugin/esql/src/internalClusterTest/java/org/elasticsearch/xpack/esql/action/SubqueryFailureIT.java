@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -22,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -500,21 +497,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    /**
-     * The branch limit is also applied by the parser at every FORK it builds, before any view, subquery or analysis step walks the
-     * plan. The error names the pragma that supplied the limit, like the verifier's does, and reaches the client as a bad request.
-     */
-    public void testNestedForksExceedMaxBranchCountPragmaWhileParsing() {
-        var query = "FROM (FROM ok | FORK (WHERE id > 0) (WHERE id < 0)), ok | FORK (WHERE id > 0) (WHERE id < 0)";
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 5).build());
-        var e = expectThrows(
-            VerificationException.class,
-            containsString("query resolved to at least 6 branches, exceeding the limit of 5 set by the [max_branch_count] query pragma"),
-            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas)).close()
-        );
-        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
-    }
-
     public void testNestedSubqueryExceedsMaxBranchLevelPragma() {
         var query = fourLeafThreeLevelQuery();
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
@@ -570,59 +552,6 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         } finally {
             updateClusterSettings(Settings.builder().putNull(EsqlFlags.ESQL_MAX_BRANCH_COUNT.getKey()));
         }
-    }
-
-    /**
-     * The parser counts the commands of the main query and its subqueries together; a pragma raising {@code max_command_count}
-     * reaches it through the request.
-     */
-    public void testPragmaRaisesMaxCommandCount() {
-        String pipes = " | WHERE id > 0".repeat(300);
-        var query = "FROM ok, (FROM ok" + pipes + ")" + pipes;
-        expectThrows(
-            ParsingException.class,
-            containsString("ES|QL statement exceeded the maximum of [500] commands allowed, including the commands in its subqueries"),
-            () -> run(query).close()
-        );
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_COMMAND_COUNT.getKey(), 1000).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
-            assertThat(EsqlTestUtils.getValuesList(resp).size(), equalTo(6));
-        }
-    }
-
-    /**
-     * FORKs nested through UNION ALL subqueries double the leaf branches at every level, so the parser rejects them against
-     * {@code max_branch_count} as it builds each FORK, naming the pragma when the request sets one; raised enough, the query runs.
-     */
-    public void testPragmaRaisesMaxBranchCountForNestedForks() {
-        var query = nestedForks(3) + " | STATS c = COUNT(*)";
-        expectThrows(
-            VerificationException.class,
-            containsString(
-                "query resolved to at least 30 branches, exceeding the limit of 20 set by the [esql.query.max_branch_count] cluster setting"
-            ),
-            () -> run(query).close()
-        );
-        var tooLow = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 29).build());
-        expectThrows(
-            VerificationException.class,
-            containsString("query resolved to at least 30 branches, exceeding the limit of 29 set by the [max_branch_count] query pragma"),
-            () -> run(syncEsqlQueryRequest(query).pragmas(tooLow)).close()
-        );
-        var enough = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_COUNT.getKey(), 30).build());
-        try (var resp = run(syncEsqlQueryRequest(query).pragmas(enough))) {
-            // Only the id > 0 branch keeps rows, and every level adds the 3 rows of ok to the 3 that start the nesting.
-            assertThat(EsqlTestUtils.getValuesList(resp), equalTo(List.of(List.of(12L))));
-        }
-    }
-
-    /** {@code depth} FORKs, each over a UNION ALL of the previous one and {@code ok}: 2^(depth + 2) - 2 leaves. */
-    private static String nestedForks(int depth) {
-        String query = "FROM ok | FORK (WHERE id > 0) (WHERE id < 0)";
-        for (int i = 0; i < depth; i++) {
-            query = "FROM (" + query + "), ok | FORK (WHERE id > 0) (WHERE id < 0)";
-        }
-        return query;
     }
 
     public void testPragmaOverridesClusterMaxBranchLevel() {

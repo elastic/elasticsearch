@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -304,28 +305,13 @@ public class PlannerUtils {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
             case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
+            // Time-series queries are grouped by `_tsid, bucket` and the data is sorted by `_tsid`, so the sub-results are basically
+            // disjoint between shards/indices (though not between segments); hence, node-reduce doesn't merge/compact them much,
+            // and the little it does merge isn't worth its cost, so it's more efficient to disable it.
+            case TimeSeriesAggregateExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case TsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
-            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
-                estimatedRowSize,
-                new MetricsInfoExec(
-                    metricsInfoExec.source(),
-                    metricsInfoExec.child(),
-                    metricsInfoExec.outputAttrs(),
-                    plan.output(),
-                    MetricsInfoExec.Mode.INTERMEDIATE
-                )
-            );
-            case TsInfoExec tsInfoExec -> getPhysicalPlanReduction(
-                estimatedRowSize,
-                new TsInfoExec(
-                    tsInfoExec.source(),
-                    tsInfoExec.child(),
-                    tsInfoExec.outputAttrs(),
-                    plan.output(),
-                    TsInfoExec.Mode.INTERMEDIATE,
-                    tsInfoExec.limit()
-                )
-            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }

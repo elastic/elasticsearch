@@ -532,6 +532,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/163562
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.19.24#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
@@ -548,3 +549,21 @@ tests:
   tasks:
   - :x-pack:plugin:esql-datasource-orc:qa:v9.5.6#esqlDataSourceBwcCurrentCoordinator
   issue: https://github.com/elastic/elasticsearch/issues/163608
+- class: org.elasticsearch.xpack.eql.qa.mixed_node.EqlSearchIT
+  tasks:
+  - :x-pack:plugin:eql:qa:mixed-node:v9.6.0#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163660
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163565
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingRejectedWithoutFeatureFlag
+  issue: https://github.com/elastic/elasticsearch/issues/163668
+- class: org.elasticsearch.index.IndexSettingsTests
+  tasks:
+  - :server:test
+  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
+  issue: https://github.com/elastic/elasticsearch/issues/163670

@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -50,25 +48,15 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         "dimension_fields"
     );
 
-    public static final TransportVersion ESQL_METRICS_INFO_LIMIT = TransportVersion.fromName("esql_metrics_info_limit");
-
     private final List<Attribute> attributes;
-    @Nullable
-    private final Integer limit;
 
     public MetricsInfo(Source source, LogicalPlan child) {
-        this(source, child, null);
+        this(source, child, buildAttributes(source));
     }
 
-    /** Carries a LIMIT hint for sampling while preserving the user's output limit above this node. */
-    public MetricsInfo(Source source, LogicalPlan child, @Nullable Integer limit) {
-        this(source, child, buildAttributes(source), limit);
-    }
-
-    private MetricsInfo(Source source, LogicalPlan child, List<Attribute> attributes, @Nullable Integer limit) {
+    private MetricsInfo(Source source, LogicalPlan child, List<Attribute> attributes) {
         super(source, child);
         this.attributes = attributes;
-        this.limit = limit;
     }
 
     @Override
@@ -77,20 +65,13 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
     }
 
     private MetricsInfo(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.getTransportVersion().supports(ESQL_METRICS_INFO_LIMIT) ? in.readOptionalVInt() : null
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        if (out.getTransportVersion().supports(ESQL_METRICS_INFO_LIMIT)) {
-            out.writeOptionalVInt(limit);
-        }
     }
 
     @Override
@@ -100,22 +81,12 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     protected NodeInfo<MetricsInfo> info() {
-        return NodeInfo.create(this, MetricsInfo::new, child(), limit);
+        return NodeInfo.create(this, MetricsInfo::new, child());
     }
 
     @Override
     public MetricsInfo replaceChild(LogicalPlan newChild) {
-        return new MetricsInfo(source(), newChild, attributes, limit);
-    }
-
-    @Nullable
-    public Integer limit() {
-        return limit;
-    }
-
-    /** Preserves output attributes when changing the sampling hint during optimization. */
-    public MetricsInfo withLimit(@Nullable Integer newLimit) {
-        return new MetricsInfo(source(), child(), attributes, newLimit);
+        return new MetricsInfo(source(), newChild, attributes);
     }
 
     @Override
@@ -140,7 +111,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), limit);
+        return Objects.hash(child());
     }
 
     @Override
@@ -153,7 +124,7 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         }
 
         MetricsInfo other = (MetricsInfo) obj;
-        return Objects.equals(child(), other.child()) && Objects.equals(limit, other.limit);
+        return Objects.equals(child(), other.child());
     }
 
     @Override

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -68,12 +67,6 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 } else {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
-            } else if (unary instanceof MetricsInfo metricsInfo) {
-                int rows = (int) limit.limit().fold(ctx.foldCtx());
-                if (metricsInfo.limit() == null || metricsInfo.limit() > rows) {
-                    return limit.replaceChild(metricsInfo.withLimit(rows));
-                }
-                return limit;
             } else if (unary instanceof TsInfo tsInfo) {
                 int rows = (int) limit.limit().fold(ctx.foldCtx());
                 if (tsInfo.limit() == null || tsInfo.limit() > rows) {

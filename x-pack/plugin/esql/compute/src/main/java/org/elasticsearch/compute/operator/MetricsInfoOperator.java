@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -26,24 +27,25 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
  * Operates in two modes, mirroring the two-phase INITIAL/FINAL pattern used by aggregations:
  * <ul>
- *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
- *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
+ *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects matching documents, with blocks for
  *       {@code _timeseries_metadata} and {@code _index}. Groups metrics by (metricName, indexAbstractionName)
  *       so that different backing indices of the same data stream share one entry. Conflicting
  *       unit/metric_type/field_type values across backing indices become multi-valued. Dimension
- *       keys are assigned only to the metrics that actually appeared in each tsid's metadata.
+ *       keys are assigned only to the metrics that actually appeared in each document.
  *       Produces one row per distinct metric signature within the local shards.</li>
  *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
  *       output pages produced by INITIAL instances on each data node and merges rows that share
@@ -65,7 +67,6 @@ import java.util.Set;
 public class MetricsInfoOperator implements Operator {
 
     public static final int NUM_BLOCKS = 6;
-    public static final int NO_LIMIT = Integer.MAX_VALUE;
 
     private record MetricInfoKey(String metricName, String indexAbstractionName) {}
 
@@ -137,19 +138,93 @@ public class MetricsInfoOperator implements Operator {
     private static final int COL_DIMENSION_FIELDS = 5;
 
     /**
-     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
-     *
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param dataStreamsByIndex   backing index names mapped to their parent data streams, including cluster qualifiers
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
-     * @param indexChannel         channel index for {@code _index} block
+     * Creates INITIAL operators with shared completion state so any driver's complete metadata can finish the data-node plan.
      */
-    public record Factory(
-        MetricFieldLookup fieldLookup,
-        Map<String, String> dataStreamsByIndex,
-        int metadataSourceChannel,
-        int indexChannel
-    ) implements OperatorFactory {
+    public static final class Factory implements OperatorFactory {
+        private final MetricFieldLookup fieldLookup;
+        private final Map<String, String> dataStreamsByIndex;
+        private final int metadataSourceChannel;
+        private final int indexChannel;
+        @Nullable
+        private final ConcurrentHashMap<MetricInfoKey, MetricFieldInfo> remainingByKey;
+        private final Map<String, Set<String>> dimensionFieldsByDataStream;
+
+        /** Consumes all input when no mapping bounds are available to prove metadata completeness. */
+        public Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int metadataSourceChannel, int indexChannel) {
+            this(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel, null, Map.of());
+        }
+
+        /**
+         * Enables exact early termination using mapping bounds. Each metric and data-stream pair must have a complete
+         * contribution from one driver. Mapping fields are never added to the result without matching documents.
+         *
+         * @param fieldLookup on-demand lookup for metric field metadata
+         * @param dataStreamsByIndex backing indices mapped to their parent data streams, including cluster qualifiers
+         * @param metadataSourceChannel input channel for {@code _timeseries_metadata}
+         * @param indexChannel input channel for {@code _index}
+         * @param metricsByDataStream all mapped metric definitions, or null when metadata cannot be bounded
+         * @param dimensionFieldsByDataStream every possible metadata leaf name for each data stream
+         */
+        public Factory(
+            MetricFieldLookup fieldLookup,
+            Map<String, String> dataStreamsByIndex,
+            int metadataSourceChannel,
+            int indexChannel,
+            @Nullable Map<String, List<MetricFieldInfo>> metricsByDataStream,
+            Map<String, Set<String>> dimensionFieldsByDataStream
+        ) {
+            this.fieldLookup = fieldLookup;
+            this.dataStreamsByIndex = dataStreamsByIndex;
+            this.metadataSourceChannel = metadataSourceChannel;
+            this.indexChannel = indexChannel;
+            Map<MetricInfoKey, MetricFieldInfo> expected = new HashMap<>();
+            boolean stableSignatures = true;
+            if (metricsByDataStream != null) {
+                for (var entry : metricsByDataStream.entrySet()) {
+                    for (MetricFieldInfo metric : entry.getValue()) {
+                        MetricFieldInfo previous = expected.putIfAbsent(new MetricInfoKey(metric.name(), entry.getKey()), metric);
+                        if (previous != null
+                            && (previous.fieldType().equals(metric.fieldType()) == false
+                                || previous.metricType().equals(metric.metricType()) == false
+                                || Objects.equals(previous.unit(), metric.unit()) == false)) {
+                            stableSignatures = false;
+                        }
+                    }
+                }
+            }
+            // Changing signatures can regroup intermediate rows, including an absent unit becoming a declared unit.
+            if (metricsByDataStream == null || stableSignatures == false) {
+                remainingByKey = null;
+                this.dimensionFieldsByDataStream = Map.of();
+            } else {
+                remainingByKey = new ConcurrentHashMap<>(expected);
+                Map<String, Set<String>> dimensions = new HashMap<>();
+                dimensionFieldsByDataStream.forEach((dataStream, fields) -> dimensions.put(dataStream, Set.copyOf(fields)));
+                this.dimensionFieldsByDataStream = Map.copyOf(dimensions);
+            }
+        }
+
+        private void observe(MetricInfo info) {
+            if (remainingByKey == null) {
+                return;
+            }
+            MetricInfoKey key = new MetricInfoKey(info.name, info.indexAbstractionName);
+            MetricFieldInfo expected = remainingByKey.get(key);
+            if (expected != null
+                && info.fieldTypes.size() == 1
+                && info.fieldTypes.contains(expected.fieldType())
+                && info.metricTypes.size() == 1
+                && info.metricTypes.contains(expected.metricType())
+                && (expected.unit() == null ? info.units.isEmpty() : info.units.size() == 1 && info.units.contains(expected.unit()))
+                && dimensionFieldsByDataStream.getOrDefault(info.indexAbstractionName, Set.of()).equals(info.dimensionFieldKeys)) {
+                remainingByKey.remove(key, expected);
+            }
+        }
+
+        private boolean isComplete() {
+            return remainingByKey != null && remainingByKey.isEmpty();
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
@@ -160,7 +235,7 @@ public class MetricsInfoOperator implements Operator {
                 metadataSourceChannel,
                 indexChannel,
                 null,
-                NO_LIMIT
+                this
             );
         }
 
@@ -179,17 +254,16 @@ public class MetricsInfoOperator implements Operator {
      *
      * @param channels the 6 input channel indices for
      *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
-     * @param limit maximum number of distinct metric names to retain. Metadata for retained names continues to merge.
      */
-    public record FinalFactory(int[] channels, int limit) implements OperatorFactory {
+    public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels, limit);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels, null);
         }
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[mode=FINAL" + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
+            return "MetricsInfoOperator[mode=FINAL]";
         }
     }
 
@@ -216,8 +290,8 @@ public class MetricsInfoOperator implements Operator {
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
-    private final int limit;
-    private final Set<String> metricNames = new HashSet<>();
+    @Nullable
+    private final Factory initialFactory;
 
     private boolean finished = false;
     private boolean outputProduced = false;
@@ -234,7 +308,7 @@ public class MetricsInfoOperator implements Operator {
         int metadataSourceChannel,
         int indexChannel,
         int[] channels,
-        int limit
+        @Nullable Factory initialFactory
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
@@ -244,12 +318,16 @@ public class MetricsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
-        this.limit = limit;
+        this.initialFactory = initialFactory;
     }
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return inputFinished() == false;
+    }
+
+    private boolean inputFinished() {
+        return finished || (initialFactory != null && initialFactory.isComplete());
     }
 
     @Override
@@ -273,6 +351,9 @@ public class MetricsInfoOperator implements Operator {
             BytesRef sourceScratch = new BytesRef();
 
             for (int p = 0; p < page.getPositionCount(); p++) {
+                if (initialFactory.isComplete()) {
+                    break;
+                }
                 if (metadataSource.isNull(p)) {
                     continue;
                 }
@@ -308,14 +389,6 @@ public class MetricsInfoOperator implements Operator {
                 String metricName = readSingleValue(nameBlock, pos, scratch);
                 if (metricName == null) {
                     continue;
-                }
-
-                if (metricNames.contains(metricName) == false) {
-                    if (metricNames.size() >= limit) {
-                        continue;
-                    }
-                    trackBytes(RamUsageEstimator.sizeOf(metricName));
-                    metricNames.add(metricName);
                 }
 
                 Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
@@ -367,7 +440,7 @@ public class MetricsInfoOperator implements Operator {
      * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
      * either a metric (via {@link #fieldLookup}) or a dimension key.
      *
-     * @param metadata             the (possibly nested) metadata map for one tsid
+     * @param metadata             the (possibly nested) metadata map for one document
      * @param prefix               dotted path prefix for the current nesting level ({@code null} at root)
      * @param indexName            concrete index name, used for the field lookup because mappings are per index
      * @param indexAbstractionName parent data-stream name or concrete index name, used as the grouping key so that
@@ -375,7 +448,7 @@ public class MetricsInfoOperator implements Operator {
      * @param dimensionKeys        accumulates non-metric leaf keys found in this document
      * @param touchedMetrics       accumulates the {@link MetricInfo} entries that were created or updated
      *                             by this document, so that dimension keys are only added to the metrics
-     *                             that actually appeared in the same tsid (not all metrics ever seen)
+     *                             that actually appeared in the same document (not all metrics ever seen)
      */
     @SuppressWarnings("unchecked")
     private void collectAndAggregateFields(
@@ -412,9 +485,12 @@ public class MetricsInfoOperator implements Operator {
             }
         }
 
-        if (prefix == null && dimensionKeys.isEmpty() == false) {
+        if (prefix == null) {
             for (MetricInfo info : touchedMetrics) {
                 trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
+                if (initialFactory != null) {
+                    initialFactory.observe(info);
+                }
             }
         }
     }
@@ -464,7 +540,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && outputProduced;
+        return inputFinished() && outputProduced;
     }
 
     @Override
@@ -474,7 +550,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (finished == false || outputProduced) {
+        if (inputFinished() == false || outputProduced) {
             return null;
         }
 
@@ -596,7 +672,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public String toString() {
-        return "MetricsInfoOperator[mode=" + mode + (limit == NO_LIMIT ? "" : ", limit=" + limit) + "]";
+        return "MetricsInfoOperator[mode=" + mode + "]";
     }
 
     public record Status(Mode mode, int pagesReceived, long rowsReceived, long rowsEmitted, int metricsAccumulated)

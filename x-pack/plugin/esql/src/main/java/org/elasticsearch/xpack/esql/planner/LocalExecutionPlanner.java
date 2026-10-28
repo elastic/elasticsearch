@@ -282,6 +282,17 @@ public class LocalExecutionPlanner {
     static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
 
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
+    private static final Set<String> METRICS_INFO_SCALAR_DIMENSION_TYPES = Set.of(
+        "keyword",
+        "constant_keyword",
+        "byte",
+        "short",
+        "integer",
+        "long",
+        "unsigned_long",
+        "ip",
+        "boolean"
+    );
 
     private final String sessionId;
     private final String clusterAlias;
@@ -1955,34 +1966,7 @@ public class LocalExecutionPlanner {
             }
             return emptySourceForAttributes(metricsInfoExec.output());
         }
-        // Step 1: Extract _tsid only
-        FieldAttribute tsidAttr = new FieldAttribute(
-            metricsInfoExec.source(),
-            null,
-            null,
-            MetadataAttribute.TSID_FIELD,
-            new EsField(MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
-            true
-        );
-
-        FieldExtractExec tsidExtractExec = new FieldExtractExec(
-            metricsInfoExec.source(),
-            metricsInfoExec.child(),
-            List.of(tsidAttr),
-            MappedFieldType.FieldExtractPreference.DOC_VALUES
-        );
-
-        PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
-
-        // Step 2: Dedup by _tsid
-        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
-        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.BytesRefKeyFactory(tsidChannel), tsidSource.layout);
-        int sampleRows = metricsInfoSampleRows(metricsInfoExec.limit(), context.plannerSettings());
-        if (sampleRows != MetricsInfoOperator.NO_LIMIT) {
-            dedupedSource = dedupedSource.with(new LimitOperator.Factory(sampleRows), dedupedSource.layout);
-        }
-
-        // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
+        // Documents sharing a TSID may contain different metrics, so completeness requires observing their union.
         FieldAttribute metadataSourceAttr = new FieldAttribute(
             metricsInfoExec.source(),
             null,
@@ -2007,16 +1991,12 @@ public class LocalExecutionPlanner {
 
         FieldExtractExec metadataExtractExec = new FieldExtractExec(
             metricsInfoExec.source(),
-            tsidExtractExec,
+            metricsInfoExec.child(),
             List.of(metadataSourceAttr, indexAttr),
             MappedFieldType.FieldExtractPreference.NONE
         );
 
-        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(
-            metadataExtractExec,
-            dedupedSource,
-            context
-        );
+        PhysicalOperation sourceWithMetadata = planFieldExtractNode(metadataExtractExec, context);
 
         int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
         int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();
@@ -2025,14 +2005,10 @@ public class LocalExecutionPlanner {
         layoutBuilder.append(metricsInfoExec.output());
 
         MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
+        Map<String, String> dataStreamsByIndex = createDataStreamLookup(context.shardContexts);
 
         return sourceWithMetadata.with(
-            new MetricsInfoOperator.Factory(
-                fieldLookup,
-                createDataStreamLookup(context.shardContexts),
-                metadataSourceChannel,
-                indexChannel
-            ),
+            createMetricsInfoOperatorFactory(context.shardContexts, dataStreamsByIndex, fieldLookup, metadataSourceChannel, indexChannel),
             layoutBuilder.build()
         );
     }
@@ -2053,23 +2029,7 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = new Layout.Builder();
         layoutBuilder.append(outputAttrs);
 
-        int limit = switch (metricsInfoExec.mode()) {
-            case FINAL -> metricsInfoExec.limit() == null ? MetricsInfoOperator.NO_LIMIT : metricsInfoExec.limit();
-            case INTERMEDIATE -> metricsInfoSampleRows(metricsInfoExec.limit(), context.plannerSettings());
-            case INITIAL -> throw new IllegalStateException("unexpected mode [" + metricsInfoExec.mode() + "]");
-        };
-        return source.with(new MetricsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
-    }
-
-    static int metricsInfoSampleRows(Integer limit, PlannerSettings plannerSettings) {
-        if (limit == null) {
-            return MetricsInfoOperator.NO_LIMIT;
-        }
-        long sampleRows = Math.max(
-            plannerSettings.metricsInfoSampleMinRows(),
-            (long) limit * plannerSettings.metricsInfoSampleLimitMultiplier()
-        );
-        return (int) Math.min(sampleRows, Integer.MAX_VALUE);
+        return source.with(new MetricsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
     private PhysicalOperation planTsInfo(TsInfoExec tsInfoExec, LocalExecutionPlannerContext context) {
@@ -2224,6 +2184,65 @@ public class LocalExecutionPlanner {
             return null;
         }
         return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), index.getParentDataStream().getName());
+    }
+
+    private MetricsInfoOperator.Factory createMetricsInfoOperatorFactory(
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        Map<String, String> dataStreamsByIndex,
+        MetricsInfoOperator.MetricFieldLookup fieldLookup,
+        int metadataSourceChannel,
+        int indexChannel
+    ) {
+        Map<String, Map<String, MetricFieldInfo>> definitionsByDataStream = new HashMap<>();
+        Map<String, Set<String>> dimensionFieldsByDataStream = new HashMap<>();
+        Map<String, MappingLookup> visitedIndices = new HashMap<>();
+        for (ShardContext shard : shardContexts.iterable()) {
+            String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, shard.indexSettings().getIndex().getName());
+            MappingLookup mapping = shard.mappingLookup();
+            MappingLookup previousMapping = visitedIndices.putIfAbsent(indexName, mapping);
+            if (previousMapping != null) {
+                // Shards can capture different mapping snapshots during a concurrent mapping update.
+                if (previousMapping != mapping) {
+                    return new MetricsInfoOperator.Factory(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel);
+                }
+                continue;
+            }
+            String dataStream = dataStreamsByIndex.getOrDefault(indexName, indexName);
+            Set<String> dimensionFields = dimensionFieldsByDataStream.computeIfAbsent(dataStream, k -> new HashSet<>());
+            for (var mapper : mapping.dimensionFieldMappers().values()) {
+                MappedFieldType field = mapper.fieldType();
+                // Compound dimensions can expose metadata leaf names that are not enumerated in the mapping.
+                if (METRICS_INFO_SCALAR_DIMENSION_TYPES.contains(field.typeName()) == false) {
+                    return new MetricsInfoOperator.Factory(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel);
+                }
+                dimensionFields.add(field.name());
+            }
+            Map<String, MetricFieldInfo> metrics = definitionsByDataStream.computeIfAbsent(dataStream, k -> new HashMap<>());
+            for (var mapper : mapping.metricFieldMappers().values()) {
+                MetricFieldInfo field = fieldLookup.lookup(indexName, mapper.fieldType().name());
+                if (field != null) {
+                    MetricFieldInfo previous = metrics.putIfAbsent(field.name(), field);
+                    if (previous != null
+                        && (previous.fieldType().equals(field.fieldType()) == false
+                            || previous.metricType().equals(field.metricType()) == false
+                            || Objects.equals(previous.unit(), field.unit()) == false)) {
+                        return new MetricsInfoOperator.Factory(fieldLookup, dataStreamsByIndex, metadataSourceChannel, indexChannel);
+                    }
+                }
+            }
+        }
+        Map<String, List<MetricFieldInfo>> metricsByDataStream = new HashMap<>();
+        definitionsByDataStream.forEach(
+            (dataStream, definitions) -> metricsByDataStream.put(dataStream, List.copyOf(definitions.values()))
+        );
+        return new MetricsInfoOperator.Factory(
+            fieldLookup,
+            dataStreamsByIndex,
+            metadataSourceChannel,
+            indexChannel,
+            metricsByDataStream,
+            dimensionFieldsByDataStream
+        );
     }
 
     private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {

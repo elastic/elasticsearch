@@ -21,6 +21,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
@@ -35,6 +36,74 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         filters.put("doublemetaphone", PhoneticTokenFilterFactory.class);
         filters.put("phonetic", PhoneticTokenFilterFactory.class);
         return filters;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        // max_code_len (double_metaphone) and max_variations (koelnerphonetik, haasephonetik) are encoder-specific;
+        // testDoubleMetaphoneMaxCodeLenIsKeyed and testMaxVariationsIsKeyed cover them.
+        return Map.of(
+            "phonetic",
+            settings(Map.of("encoder", "beider_morse")).ignored("encoder", "bm", "BeiderMorse")
+                .affects(
+                    "encoder",
+                    "metaphone",
+                    "soundex",
+                    "caverphone1",
+                    "caverphone2",
+                    "refined_soundex",
+                    "cologne",
+                    "double_metaphone",
+                    "koelnerphonetik",
+                    "haasephonetik",
+                    "nysiis",
+                    "daitch_mokotoff"
+                )
+                .affects("languageset", List.of("english"))
+                .affects("rule_type", "exact")
+                .affects("name_type", "ashkenazi")
+                .affects("replace", "false")
+        );
+    }
+
+    public void testDoubleMetaphoneMaxCodeLenIsKeyed() {
+        Object fourChars = phoneticKey(Settings.builder().put("encoder", "double_metaphone").build());
+        assertEquals(fourChars, phoneticKey(Settings.builder().put("encoder", "doubleMetaphone").put("max_code_len", 4).build()));
+        assertNotEquals(fourChars, phoneticKey(Settings.builder().put("encoder", "double_metaphone").put("max_code_len", 6).build()));
+    }
+
+    /** max_variations changes the codes the two Koelner-variant encoders emit; every other encoder ignores it. */
+    public void testMaxVariationsIsKeyed() {
+        for (String encoder : new String[] { "koelnerphonetik", "haasephonetik" }) {
+            Object defaults = phoneticKey(Settings.builder().put("encoder", encoder).build());
+            Settings explicitDefault = Settings.builder()
+                .put("encoder", encoder)
+                .put("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS)
+                .build();
+            assertEquals(defaults, phoneticKey(explicitDefault));
+            assertNotEquals(defaults, phoneticKey(Settings.builder().put("encoder", encoder).put("max_variations", 8).build()));
+        }
+        assertEquals(
+            phoneticKey(Settings.builder().put("encoder", "metaphone").build()),
+            phoneticKey(Settings.builder().put("encoder", "metaphone").put("max_variations", 8).build())
+        );
+    }
+
+    /** caverphone is an alias for caverphone2, and the language set is used as a set. */
+    public void testEquivalentSettingsShareKey() {
+        assertEquals(
+            phoneticKey(Settings.builder().put("encoder", "caverphone2").build()),
+            phoneticKey(Settings.builder().put("encoder", "caverphone").build())
+        );
+        assertEquals(
+            phoneticKey(Settings.builder().put("encoder", "bm").putList("languageset", "english", "french").build()),
+            phoneticKey(Settings.builder().put("encoder", "bm").putList("languageset", "french", "english", "french").build())
+        );
+    }
+
+    private Object phoneticKey(Settings settings) {
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        return new PhoneticTokenFilterFactory(idxSettings, null, "phonetic", settings).sharingKey();
     }
 
     public void testDisallowedWithSynonyms() throws IOException {

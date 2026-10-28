@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
@@ -566,26 +565,5 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
-    }
-
-    /**
-     * An {@code unsigned_long} with {@code multi_value=false} is statically single-valued: a second value rejects the document, or with
-     * {@code on_failure=ignore} goes to a side column and not to the doc values. A field that allows many values is not.
-     */
-    public void testStaticallySingleValued() throws IOException {
-        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        MapperService mapperService = createMapperService(columnar, mapping(b -> {
-            b.startObject("single").field("type", "unsigned_long").field("multi_value", false).endObject();
-            b.startObject("multi").field("type", "unsigned_long").endObject();
-            b.startObject("ignore").field("type", "unsigned_long").field("multi_value", false).field("on_failure", "ignore").endObject();
-        }));
-        MappingLookup lookup = mapperService.mappingLookup();
-        assertTrue(lookup.isStaticallySingleValued("single"));
-        assertFalse(lookup.isStaticallySingleValued("multi"));
-        assertTrue(lookup.isStaticallySingleValued("ignore"));
-
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        documentMapper.parse(source(b -> b.field("single", 1)));
-        expectThrows(DocumentParsingException.class, () -> documentMapper.parse(source(b -> b.array("single", 1, 2))));
     }
 }

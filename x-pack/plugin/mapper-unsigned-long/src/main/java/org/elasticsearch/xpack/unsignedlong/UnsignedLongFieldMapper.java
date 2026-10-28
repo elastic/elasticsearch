@@ -814,11 +814,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean guaranteesSingleValue() {
-        return docValuesParameters.multiValue() == false;
-    }
-
-    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }

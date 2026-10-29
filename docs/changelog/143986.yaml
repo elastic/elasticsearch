@@ -1,0 +1,6 @@
+pr: 143986
+summary: Align cat indices default expand_wildcards behavior with the API spec
+area: CAT APIs
+type: bug
+issues:
+  - 142080

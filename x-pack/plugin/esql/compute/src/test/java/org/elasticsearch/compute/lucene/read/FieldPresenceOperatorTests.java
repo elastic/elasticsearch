@@ -232,10 +232,12 @@ public class FieldPresenceOperatorTests extends OperatorTestCase {
             operator.getOutput().releaseBlocks();
 
             Page laterPage = docs(doc(0, 0, 1));
+            AtomicReference<Page> output = new AtomicReference<>();
             AtomicReference<Throwable> failure = new AtomicReference<>();
             Thread otherThread = new Thread(() -> {
                 try {
                     operator.addInput(laterPage);
+                    output.set(operator.getOutput());
                 } catch (Throwable t) {
                     failure.set(t);
                 }
@@ -244,11 +246,10 @@ public class FieldPresenceOperatorTests extends OperatorTestCase {
             otherThread.join();
             assertNull(failure.get());
 
-            Page output = operator.getOutput();
             try {
-                assertThat(rows(List.of(output)), equalTo(List.of(new Row(INDEX, Set.of("host", "cpu")))));
+                assertThat(rows(List.of(output.get())), equalTo(List.of(new Row(INDEX, Set.of("host", "cpu")))));
             } finally {
-                output.releaseBlocks();
+                output.get().releaseBlocks();
             }
         }
     }
@@ -258,7 +259,8 @@ public class FieldPresenceOperatorTests extends OperatorTestCase {
         Map<Integer, FieldPresenceOperator.ShardFields> noShards = Map.of();
         DriverContext driverContext = driverContext();
         try (Operator operator = new FieldPresenceOperator.Factory(noShards::get, 0).get(driverContext)) {
-            Exception e = expectThrows(IllegalStateException.class, () -> operator.addInput(docs(doc(0, 0, 0))));
+            operator.addInput(docs(doc(0, 0, 0)));
+            Exception e = expectThrows(IllegalStateException.class, operator::getOutput);
             assertThat(e.getMessage(), equalTo("no fields configured for shard [0]"));
         }
     }

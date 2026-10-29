@@ -52,7 +52,7 @@ import java.util.function.IntFunction;
  * Each output row has two blocks: the {@link ShardFields#indexName} and the multivalued names of the fields the document has.
  * A document that has none of the fields produces no row.
  */
-public final class FieldPresenceOperator implements Operator {
+public final class FieldPresenceOperator extends AbstractPageMappingOperator {
     /**
      * A field whose presence is reported.
      *
@@ -131,13 +131,6 @@ public final class FieldPresenceOperator implements Operator {
     private long trackedBytes;
 
     private SegmentIterators segmentIterators;
-    private Page output;
-    private boolean finished;
-
-    private long processNanos;
-    private int pagesProcessed;
-    private long rowsReceived;
-    private long rowsEmitted;
 
     private FieldPresenceOperator(BlockFactory blockFactory, Factory factory) {
         this.blockFactory = blockFactory;
@@ -147,26 +140,16 @@ public final class FieldPresenceOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return output == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        long start = System.nanoTime();
+    protected Page process(Page page) {
+        Page output;
         try {
-            rowsReceived += page.getPositionCount();
             output = discoverFieldSets(page.getBlock(docChannel));
-            pagesProcessed++;
-            if (output != null) {
-                rowsEmitted += output.getPositionCount();
-            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        } finally {
-            page.releaseBlocks();
-            processNanos += System.nanoTime() - start;
         }
+        // Released only on success, because the superclass releases the page it still holds when this fails.
+        page.releaseBlocks();
+        return output;
     }
 
     private Page discoverFieldSets(DocBlock docBlock) throws IOException {
@@ -231,35 +214,8 @@ public final class FieldPresenceOperator implements Operator {
     }
 
     @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && output == null;
-    }
-
-    @Override
-    public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
-    }
-
-    @Override
-    public Page getOutput() {
-        Page result = output;
-        output = null;
-        return result;
-    }
-
-    @Override
-    public Status status() {
-        return new AbstractPageMappingOperator.Status(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
-    }
-
-    @Override
     public void close() {
-        Releasables.closeExpectNoException(output, () -> breaker.addWithoutBreaking(-trackedBytes));
+        Releasables.closeExpectNoException(super::close, () -> breaker.addWithoutBreaking(-trackedBytes));
     }
 
     @Override

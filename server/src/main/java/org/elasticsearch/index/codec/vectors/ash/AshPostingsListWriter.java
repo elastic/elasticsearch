@@ -232,118 +232,123 @@ public class AshPostingsListWriter {
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AshPostingsVisitor.CORRECTION_BYTES];
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
-        // per vector. Created here and reused for every posting list, since W does not change.
-        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE);
         final float[] blockVecCentroidSqDists = new float[ENCODE_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 
-        for (int c = 0; c < nClusters; c++) {
-            float[] centroid = centroidSupplier.centroid(c);
-            // Precompute centroid projection + norm once per posting list
-            AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
-            int[] cluster = assignmentsByCluster[c];
-            long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
-            offsets.add(offset);
-            // Header: size, centroid ordinal, centroid norm squared
-            int size = cluster.length;
-            postingsOutput.writeVInt(size);
-            postingsOutput.writeVInt(c);
-            float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
-            postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
+        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
+        // per vector. Created here and reused for every posting list, since W does not change.
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE)) {
+            for (int c = 0; c < nClusters; c++) {
+                float[] centroid = centroidSupplier.centroid(c);
+                // Precompute centroid projection + norm once per posting list
+                AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+                int[] cluster = assignmentsByCluster[c];
+                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                offsets.add(offset);
+                // Header: size, centroid ordinal, centroid norm squared
+                int size = cluster.length;
+                postingsOutput.writeVInt(size);
+                postingsOutput.writeVInt(c);
+                float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
+                postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
 
-            // Sort by docId
-            for (int j = 0; j < size; j++) {
-                docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
-                clusterOrds[j] = j;
-            }
-            new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
-            for (int j = 0; j < size; j++) {
-                docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
-            }
+                // Sort by docId
+                for (int j = 0; j < size; j++) {
+                    docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                    clusterOrds[j] = j;
+                }
+                new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+                for (int j = 0; j < size; j++) {
+                    docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
+                }
 
-            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
-            // The encoding byte is always written for header consistency, even when skipDocIds is true.
-            // In the sliced flush path the reader consumes it in resetPostingsScorer but never uses it.
-            postingsOutput.writeByte(encoding);
+                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
+                // The encoding byte is always written for header consistency, even when skipDocIds is true.
+                // In the sliced flush path the reader consumes it in resetPostingsScorer but never uses it.
+                postingsOutput.writeByte(encoding);
 
-            // Write vectors in bulk blocks:
-            // [docIds][packed_codes × blockSize]
-            // [scales × blockSize][offsets × blockSize][docSums × blockSize]
-            // [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
-            // When skipDocIds is true (sliced flush), doc IDs are omitted -- the reader uses ordToDoc().
-            int written = 0;
-            int encodeOffset = ENCODE_SIZE;
-            while (written < size) {
+                // Write vectors in bulk blocks:
+                // [docIds][packed_codes × blockSize]
+                // [scales × blockSize][offsets × blockSize][docSums × blockSize]
+                // [vecCentroidDots × blockSize][vecCentroidSqDists × blockSize]
+                // When skipDocIds is true (sliced flush), doc IDs are omitted -- the reader uses ordToDoc().
+                int written = 0;
+                int encodeOffset = ENCODE_SIZE;
+                while (written < size) {
 
-                if (encodeOffset == ENCODE_SIZE) {
-                    // encode the next encoder block, then project and quantize it in one go.
-                    // Providers may return a shared/live buffer, so everything that needs the original vector is read here,
-                    // before the next ordinal is requested
-                    encoder.reset();
-                    for (int j = 0; j < Math.min(ENCODE_SIZE, size - written); j++) {
-                        int vectorOrd = cluster[clusterOrds[written + j]];
-                        float[] vec = vectors.apply(vectorOrd);
-                        encoder.add(vec, centroid);
+                    if (encodeOffset == ENCODE_SIZE) {
+                        // encode the next encoder block, then project and quantize it in one go.
+                        // Providers may return a shared/live buffer, so everything that needs the original vector is read here,
+                        // before the next ordinal is requested
+                        encoder.reset();
+                        for (int j = 0; j < Math.min(ENCODE_SIZE, size - written); j++) {
+                            int vectorOrd = cluster[clusterOrds[written + j]];
+                            float[] vec = vectors.apply(vectorOrd);
+                            encoder.add(vec, centroid);
+                            if (isEuclidean) {
+                                blockVecCentroidSqDists[j] = ESVectorUtil.squareDistance(vec, centroid);
+                            }
+                        }
+                        encoder.encode(precomputed);
+                        encodeOffset = 0;
+                    }
+
+                    int blockSize = Math.min(BULK_SIZE, size - written);
+                    if (skipDocIds == false) {
+                        int blockStart = written;
+                        idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
+                    }
+
+                    // Encode all vectors in this block into pre-allocated buffers.
+                    // Corrections are packed in SoA order: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
+                    int scaleBase = 0;
+                    int offsetBase = blockSize * Float.BYTES;
+                    int docSumBase = 2 * blockSize * Float.BYTES;
+                    int vcdBase = 3 * blockSize * Float.BYTES;
+                    int vcsdBase = 4 * blockSize * Float.BYTES;
+
+                    for (int j = 0; j < blockSize; j++) {
+                        float[] code = encoder.code(encodeOffset + j);
+                        byte[] vectorPacked = ESVectorUtil.ashPack(code, bitsPerDim);
+                        System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
+                        int jOff = j * Float.BYTES;
+                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, scaleBase + jOff, Float.floatToIntBits(encoder.scale(encodeOffset + j)));
+                        BitUtil.VH_BE_INT.set(
+                            blockCorrectionsBuf,
+                            offsetBase + jOff,
+                            Float.floatToIntBits(encoder.offset(encodeOffset + j))
+                        );
+                        // Compute docSum: sum of unsigned code values directly from the centered float codes
+                        int docSum = 0;
+                        for (int d = 0; d < nDims; d++) {
+                            docSum += Math.round(code[d] + centerOffset);
+                        }
+                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, docSumBase + jOff, docSum);
+                        // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
                         if (isEuclidean) {
-                            blockVecCentroidSqDists[j] = ESVectorUtil.squareDistance(vec, centroid);
+                            BitUtil.VH_BE_INT.set(
+                                blockCorrectionsBuf,
+                                vcdBase + jOff,
+                                Float.floatToIntBits(encoder.vecCentroidDot(encodeOffset + j))
+                            );
+                            BitUtil.VH_BE_INT.set(
+                                blockCorrectionsBuf,
+                                vcsdBase + jOff,
+                                Float.floatToIntBits(blockVecCentroidSqDists[encodeOffset + j])
+                            );
+                        } else {
+                            BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcdBase + jOff, 0);
+                            BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcsdBase + jOff, 0);
                         }
                     }
-                    encoder.encode(precomputed);
-                    encodeOffset = 0;
+                    // Write packed codes, then all corrections in one call
+                    postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
+                    postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AshPostingsVisitor.CORRECTION_BYTES);
+                    written += blockSize;
+                    encodeOffset += blockSize;
                 }
-
-                int blockSize = Math.min(BULK_SIZE, size - written);
-                if (skipDocIds == false) {
-                    int blockStart = written;
-                    idsWriter.writeDocIds(d -> docDeltas[blockStart + d], blockSize, encoding, postingsOutput);
-                }
-
-                // Encode all vectors in this block into pre-allocated buffers.
-                // Corrections are packed in SoA order: [scales][offsets][docSums][vecCentroidDots][vecCentroidSqDists]
-                int scaleBase = 0;
-                int offsetBase = blockSize * Float.BYTES;
-                int docSumBase = 2 * blockSize * Float.BYTES;
-                int vcdBase = 3 * blockSize * Float.BYTES;
-                int vcsdBase = 4 * blockSize * Float.BYTES;
-
-                for (int j = 0; j < blockSize; j++) {
-                    float[] code = encoder.code(encodeOffset + j);
-                    byte[] vectorPacked = ESVectorUtil.ashPack(code, bitsPerDim);
-                    System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
-                    int jOff = j * Float.BYTES;
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, scaleBase + jOff, Float.floatToIntBits(encoder.scale(encodeOffset + j)));
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, offsetBase + jOff, Float.floatToIntBits(encoder.offset(encodeOffset + j)));
-                    // Compute docSum: sum of unsigned code values directly from the centered float codes
-                    int docSum = 0;
-                    for (int d = 0; d < nDims; d++) {
-                        docSum += Math.round(code[d] + centerOffset);
-                    }
-                    BitUtil.VH_BE_INT.set(blockCorrectionsBuf, docSumBase + jOff, docSum);
-                    // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
-                    if (isEuclidean) {
-                        BitUtil.VH_BE_INT.set(
-                            blockCorrectionsBuf,
-                            vcdBase + jOff,
-                            Float.floatToIntBits(encoder.vecCentroidDot(encodeOffset + j))
-                        );
-                        BitUtil.VH_BE_INT.set(
-                            blockCorrectionsBuf,
-                            vcsdBase + jOff,
-                            Float.floatToIntBits(blockVecCentroidSqDists[encodeOffset + j])
-                        );
-                    } else {
-                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcdBase + jOff, 0);
-                        BitUtil.VH_BE_INT.set(blockCorrectionsBuf, vcsdBase + jOff, 0);
-                    }
-                }
-                // Write packed codes, then all corrections in one call
-                postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
-                postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AshPostingsVisitor.CORRECTION_BYTES);
-                written += blockSize;
-                encodeOffset += blockSize;
+                lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
-            lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
         if (logger.isDebugEnabled()) {

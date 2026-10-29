@@ -155,6 +155,18 @@ public final class BytesRefArrayState implements GroupingAggregatorState, Releas
         return groupId < values.size() && values.get(groupId) != null;
     }
 
+    /** Returns the value for the given groupId, or null if not present. */
+    BytesRef getOrNull(int groupId) {
+        if (groupId >= values.size()) {
+            return null;
+        }
+        var v = values.get(groupId);
+        if (v == null) {
+            return null;
+        }
+        return v.bytesRefView();
+    }
+
     /**
      * Switches this array state into tracking which group ids are set. This is
      * idempotent and fast if already tracking so it's safe to, say, call it once

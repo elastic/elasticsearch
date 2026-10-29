@@ -20,7 +20,8 @@ public interface ClusterStateTaskListener {
     ///
     /// Tasks may themselves fail during execution, either by throwing an exception rather than returning an updated [ClusterState] or
     /// by calling [ClusterStateTaskExecutor.TaskContext#onFailure]. If so, the exception is passed to this callback, on the master-service
-    /// thread, before attempting to execute the next batch of tasks.
+    /// thread, before attempting to execute the next batch of tasks. If there are both a task-specific and a batch-wide exception then the
+    /// batch-wide exception is used for all the tasks in the batch: the task-specific exceptions may be either discarded or suppressed.
     ///
     /// Tasks may also fail with a [NotMasterException] before execution, if the node on which they're running is not the elected master.
     /// If so, the exception is passed to this callback, on the master-service thread, before attempting to execute the next batch of tasks.

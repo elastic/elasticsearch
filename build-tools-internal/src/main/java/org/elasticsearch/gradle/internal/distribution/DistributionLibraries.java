@@ -60,10 +60,13 @@ public final class DistributionLibraries {
         if ("linux".equals(os) == false) {
             return List.of();
         }
+        if (architecture == null) {
+            throw new IllegalArgumentException("Architecture must not be null for linux server-launcher native libraries");
+        }
         return switch (architecture) {
             case "x64" -> List.of(LIBS_SERVER_LAUNCHER_NATIVE_X64);
             case "aarch64" -> List.of(LIBS_SERVER_LAUNCHER_NATIVE_AARCH64);
-            default -> List.of();
+            default -> throw new IllegalArgumentException("Unsupported linux server-launcher architecture [" + architecture + "]");
         };
     }
 

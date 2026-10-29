@@ -21,9 +21,11 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Provides distribution-layout copy specs backed by typed inputs.
@@ -73,9 +75,9 @@ public class DistributionLayoutExtension {
 
         requestedTokenExpansions = providers.provider(() -> {
             synchronized (requestedExpansions) {
-                LinkedHashMap<String, Map<String, String>> snapshot = new LinkedHashMap<>();
-                requestedExpansions.forEach((key, value) -> snapshot.put(key, Map.copyOf(value)));
-                return Map.copyOf(snapshot);
+                TreeMap<String, Map<String, String>> snapshot = new TreeMap<>();
+                requestedExpansions.forEach((key, value) -> snapshot.put(key, Collections.unmodifiableMap(new TreeMap<>(value))));
+                return Collections.unmodifiableMap(snapshot);
             }
         });
     }
@@ -99,7 +101,17 @@ public class DistributionLayoutExtension {
                         nested.include(include);
                     }
                 });
-                default -> spec.into(entry.targetDirectory(), nested -> nested.from(configuration(entry.configuration())));
+                case DistributionLibraries.LIBS_VERSION_CHECKER, DistributionLibraries.LIBS_CLI_LAUNCHER,
+                    DistributionLibraries.LIBS_SERVER_CLI, DistributionLibraries.LIBS_WINDOWS_SERVICE_CLI,
+                    DistributionLibraries.LIBS_GEOIP_CLI, DistributionLibraries.LIBS_PLUGIN_CLI, DistributionLibraries.LIBS_KEYSTORE_CLI,
+                    DistributionLibraries.LIBS_SECURITY_CLI, DistributionLibraries.LIBS_ANSI_CONSOLE,
+                    DistributionLibraries.LIBS_ENTITLEMENT_AGENT, DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE -> spec.into(
+                        entry.targetDirectory(),
+                        nested -> nested.from(configuration(entry.configuration()))
+                    );
+                default -> throw new IllegalArgumentException(
+                    "Unexpected distribution library configuration [" + entry.configuration() + "]"
+                );
             }
         }
         return spec;
@@ -200,10 +212,19 @@ public class DistributionLayoutExtension {
         return spec;
     }
 
+    /**
+     * Returns token replacements for the requested distribution type and records them in the shared project-level registry.
+     * <p>
+     * Every {@link org.gradle.api.tasks.AbstractCopyTask} currently consumes this shared registry as an {@code @Input},
+     * so tasks can re-run when expansions for an unrelated distribution type change. This is intentional for step 4 and
+     * remains more correct than the pre-step-4 behavior where token expansions were not tracked as task inputs.
+     * </p>
+     */
     public Map<String, String> tokenExpansions(String distributionType, boolean testDistro) {
         DistributionType type = DistributionType.fromId(distributionType);
         Map<String, String> expansions = TokenExpansions.forProject(project, type.id(), testDistro);
         synchronized (requestedExpansions) {
+            // TODO(step 7): precise per-task token expansion inputs.
             requestedExpansions.put(type.id() + ":" + testDistro, expansions);
         }
         return expansions;

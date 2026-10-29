@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 
 public class DistributionLibrariesTests {
 
@@ -43,12 +44,28 @@ public class DistributionLibrariesTests {
 
     @Test
     public void linuxServerLauncherNativeConfigurations() {
-        assertEquals(List.of(DistributionLibraries.LIBS_SERVER_LAUNCHER_NATIVE_X64), DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", "x64"));
+        assertEquals(
+            List.of(DistributionLibraries.LIBS_SERVER_LAUNCHER_NATIVE_X64),
+            DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", "x64")
+        );
         assertEquals(
             List.of(DistributionLibraries.LIBS_SERVER_LAUNCHER_NATIVE_AARCH64),
             DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", "aarch64")
         );
-        assertEquals(List.of(), DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", "ppc64le"));
+        IllegalArgumentException nullArchitecture = assertThrows(
+            IllegalArgumentException.class,
+            () -> DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", null)
+        );
+        assertEquals(
+            "Architecture must not be null for linux server-launcher native libraries",
+            nullArchitecture.getMessage()
+        );
+
+        IllegalArgumentException unsupportedArchitecture = assertThrows(
+            IllegalArgumentException.class,
+            () -> DistributionLibraries.linuxServerLauncherNativeConfigurations("linux", "ppc64le")
+        );
+        assertEquals("Unsupported linux server-launcher architecture [ppc64le]", unsupportedArchitecture.getMessage());
         assertEquals(List.of(), DistributionLibraries.linuxServerLauncherNativeConfigurations("darwin", "x64"));
     }
 

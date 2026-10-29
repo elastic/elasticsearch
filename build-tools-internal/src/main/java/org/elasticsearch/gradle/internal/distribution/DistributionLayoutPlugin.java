@@ -57,6 +57,9 @@ public class DistributionLayoutPlugin implements Plugin<Project> {
 
         project.getTasks().withType(AbstractCopyTask.class).configureEach(copyTask -> {
             Task task = copyTask;
+            // Shared project-wide registry for step 4: every copy task tracks all realized expansion maps.
+            // This can invalidate unrelated distribution tasks but is strictly more correct than missing inputs.
+            // TODO(step 7): precise per-task token expansion inputs.
             task.getInputs().property("esDistributionLayout.tokenExpansions", extension.getRequestedTokenExpansions());
         });
     }

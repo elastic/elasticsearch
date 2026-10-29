@@ -11,10 +11,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Runs compute work, {@link Driver}s above all, on a thread pool while owning the order it runs in. A pool is FIFO,
@@ -23,16 +22,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@link #NORMAL_EVERY}th turn goes to the normal queue instead so that new drivers, and the workers of in-flight
  * parallel operators, still make progress while resumed work saturates the pool. For every task one empty placeholder
  * is submitted to the pool after the task is queued; a placeholder runs whichever task is due, so the pool still sees
- * the real backlog and its bounded queue remains the admission limit.
+ * the real backlog and its bounded queue remains the admission limit. Both queues are read and written under one lock
+ * so that a placeholder, or the rejection fallback, sees them as a whole: scanned one at a time, the contention is
+ * expected to be small here.
  */
 public final class ComputeExecutor implements DriverExecutor {
     static final int NORMAL_EVERY = 20;
-
     private final Executor executor;
     private final ThreadContext threadContext;
-    private final Deque<AbstractRunnable> resumed = new ConcurrentLinkedDeque<>();
-    private final Deque<AbstractRunnable> normal = new ConcurrentLinkedDeque<>();
-    private final AtomicLong polls = new AtomicLong();
+
+    // guarded under `lock`
+    private final Object lock = new Object();
+    private final Deque<AbstractRunnable> resumed = new ArrayDeque<>();
+    private final Deque<AbstractRunnable> normal = new ArrayDeque<>();
+    private long nextPoll;
 
     private final Runnable placeholder = new Runnable() {
         @Override
@@ -76,16 +79,21 @@ public final class ComputeExecutor implements DriverExecutor {
             return;
         }
         final AbstractRunnable preserving = (AbstractRunnable) threadContext.preserveContext(task);
-        queue.addLast(preserving);
+        synchronized (lock) {
+            queue.addLast(preserving);
+        }
         try {
             executor.execute(placeholder);
         } catch (EsRejectedExecutionException e) {
             // Normally our task is still queued, so remove it and reject it. But another placeholder may have already taken it.
             // In that case, reject another queued task instead, so queued tasks stay matched with pending placeholders. Prefer a
             // normal task, as resumed tasks are more critical.
-            AbstractRunnable rejected = queue.removeLastOccurrence(preserving) ? preserving : normal.pollLast();
-            if (rejected == null) {
-                rejected = resumed.pollLast();
+            AbstractRunnable rejected;
+            synchronized (lock) {
+                rejected = queue.removeLastOccurrence(preserving) ? preserving : normal.pollLast();
+                if (rejected == null) {
+                    rejected = resumed.pollLast();
+                }
             }
             assert rejected != null : "rejected placeholder without a task in " + this;
             if (rejected != null) {
@@ -99,9 +107,11 @@ public final class ComputeExecutor implements DriverExecutor {
     }
 
     private AbstractRunnable poll() {
-        final boolean normalTurn = polls.incrementAndGet() % NORMAL_EVERY == 0;
-        final AbstractRunnable task = (normalTurn ? normal : resumed).pollFirst();
-        return task != null ? task : (normalTurn ? resumed : normal).pollFirst();
+        synchronized (lock) {
+            final boolean normalTurn = ++nextPoll % NORMAL_EVERY == 0;
+            final AbstractRunnable task = (normalTurn ? normal : resumed).pollFirst();
+            return task != null ? task : (normalTurn ? resumed : normal).pollFirst();
+        }
     }
 
     @Override

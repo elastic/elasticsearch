@@ -30,7 +30,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.ThreadParams;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -45,11 +47,23 @@ import java.util.concurrent.TimeUnit;
  * both. The benchmark measures how that difference behaves as threads are added. A {@link ConcurrentHashMap} without any LRU
  * bookkeeping is included as a floor; it is not a candidate because it cannot evict.
  * <p>
+ * The {@code prehashed} variant computes the scoped key's hash before taking the monitor, while equality and LRU promotion
+ * still run under it. This measures moving hashing out of the critical section, including the hash computation in each
+ * measured lookup; it does not assume a hash cached during setup or change the production {@link RoleKey}.
+ * <p>
  * Each thread cycles through the cached roles from its own starting offset, so with more than one role the threads promote
  * different entries rather than hammering one. With a single role the LRU promotion is a no-op in both implementations and
- * the measurement is the lock overhead alone. All lookups are hits; the caches are sized to hold every role.
+ * hashing and equality are still measured. Lookup keys and their name sets are equal to, but distinct from, the cached keys,
+ * so hits cannot bypass set equality through object identity. All lookups are hits; the caches hold every role.
  * <p>
- * Run, for example, with {@code ../gradlew run --args "RoleCacheHitBenchmark -p roles=1024 -p impl=cache,monitor"}.
+ * {@code roles} counts cache entries; {@code namesPerKey} counts role assignments combined in each entry. Names have fixed-seed
+ * random suffixes: sequential numeric suffixes can cause substantial clustering in the JDK's immutable sets and confound key
+ * size with collision cost. Role-key construction is outside the measurement; see {@link RoleKeyConstructionBenchmark} for
+ * that cost. This benchmark does not measure cache misses or invalidation scans.
+ * <p>
+ * Run, for example, with
+ * {@code ../gradlew run --args "org.elasticsearch.benchmark.security.RoleCacheHitBenchmark.getRole_08 -p roles=1024 -p namesPerKey=100 -bm thrpt -tu s"}.
+ * Larger keys can be selected with {@code -p namesPerKey=1000}.
  */
 @Fork(1)
 @Warmup(iterations = 3, time = 2)
@@ -66,14 +80,19 @@ public class RoleCacheHitBenchmark {
     }
 
     /** Distinct cached roles that the threads cycle through. */
-    @Param({ "1", "1024", "10000" })
+    @Param({ "1", "1000", "10000" })
     private int roles;
+
+    /** Distinct role names combined into each cached role. */
+    @Param({ "1", "50", "100" })
+    private int namesPerKey;
 
     /**
      * {@code cache}: the previous implementation, {@link Cache}. {@code monitor}: the current implementation, a synchronized
-     * access-ordered {@link LinkedHashMap}. {@code concurrent}: a {@link ConcurrentHashMap} with no eviction, as a floor.
+     * access-ordered {@link LinkedHashMap}. {@code prehashed}: the same map with hashing before the monitor.
+     * {@code concurrent}: a {@link ConcurrentHashMap} with no eviction, as a floor.
      */
-    @Param({ "cache", "monitor", "concurrent" })
+    @Param({ "cache", "monitor", "prehashed", "concurrent" })
     private String impl;
 
     private RoleCache roleCache;
@@ -94,20 +113,47 @@ public class RoleCacheHitBenchmark {
 
     @Setup
     public void setup() {
+        if (roles < 1 || namesPerKey < 1) {
+            throw new IllegalArgumentException("roles and namesPerKey must be positive");
+        }
         projectId = ProjectId.fromId("benchmark");
         keys = new RoleKey[roles];
-        for (int i = 0; i < roles; i++) {
-            // two names per key, as a user with a couple of roles would have
-            keys[i] = new RoleKey(Set.of("role-" + i, "kibana_user"), RoleKey.ROLES_STORE_SOURCE);
-        }
         roleCache = switch (impl) {
             case "cache" -> new CacheRoleCache(roles);
             case "monitor" -> new MonitorRoleCache(roles);
+            case "prehashed" -> new PrehashedRoleCache(roles);
             case "concurrent" -> new ConcurrentRoleCache();
             default -> throw new IllegalArgumentException("unknown impl [" + impl + "]");
         };
+        final Random random = new Random(163644);
+        for (int i = 0; i < roles; i++) {
+            final String[] names = new String[namesPerKey];
+            for (int j = 0; j < names.length; j++) {
+                names[j] = "role-" + i + "-" + j + "-" + Long.toUnsignedString(random.nextLong(), 16);
+            }
+            final RoleKey cachedKey = new RoleKey(Set.copyOf(List.of(names)), RoleKey.ROLES_STORE_SOURCE);
+            keys[i] = new RoleKey(Set.copyOf(List.of(names)), RoleKey.ROLES_STORE_SOURCE);
+            if (keys[i].getNames() == cachedKey.getNames()) {
+                throw new IllegalStateException("lookup and cached keys must have distinct name sets");
+            }
+            roleCache.put(projectId, cachedKey, Role.EMPTY);
+        }
+        selfTest();
+    }
+
+    /** Verifies that the configured implementation serves equal keys and isolates projects and sources before measuring it. */
+    private void selfTest() {
+        if (new PrehashedKey(projectId, keys[0]).hashCode() != new ProjectScoped<>(projectId, keys[0]).hashCode()) {
+            throw new IllegalStateException("precomputed hashes must match the original scoped key hashes");
+        }
         for (RoleKey key : keys) {
-            roleCache.put(projectId, key, Role.EMPTY);
+            if (roleCache.get(projectId, key) != Role.EMPTY) {
+                throw new IllegalStateException("expected a cache hit for an equal lookup key");
+            }
+        }
+        if (roleCache.get(ProjectId.fromId("other-project"), keys[0]) != null
+            || roleCache.get(projectId, new RoleKey(keys[0].getNames(), "other-source")) != null) {
+            throw new IllegalStateException("cache keys must distinguish projects and sources");
         }
     }
 
@@ -201,6 +247,49 @@ public class RoleCacheHitBenchmark {
         @Override
         public synchronized void put(ProjectId projectId, RoleKey roleKey, Role role) {
             map.put(new ProjectScoped<>(projectId, roleKey), role);
+        }
+    }
+
+    /** Keeps the same key semantics while moving hash computation before the monitor. */
+    private record PrehashedKey(ProjectId projectId, RoleKey roleKey, int hash) {
+        private PrehashedKey(ProjectId projectId, RoleKey roleKey) {
+            // Match the hash of ProjectScoped so the two map variants have the same bucket distribution.
+            this(projectId, roleKey, 31 * projectId.hashCode() + roleKey.hashCode());
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+    }
+
+    /** An experimental monitor-backed cache with hash computation outside the critical section. */
+    private static final class PrehashedRoleCache implements RoleCache {
+        private final Map<PrehashedKey, Role> map;
+
+        PrehashedRoleCache(int maximumSize) {
+            map = new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<PrehashedKey, Role> eldest) {
+                    return size() > maximumSize;
+                }
+            };
+        }
+
+        @Override
+        public Role get(ProjectId projectId, RoleKey roleKey) {
+            final PrehashedKey key = new PrehashedKey(projectId, roleKey);
+            synchronized (this) {
+                return map.get(key);
+            }
+        }
+
+        @Override
+        public void put(ProjectId projectId, RoleKey roleKey, Role role) {
+            final PrehashedKey key = new PrehashedKey(projectId, roleKey);
+            synchronized (this) {
+                map.put(key, role);
+            }
         }
     }
 

@@ -595,7 +595,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         long activeGeneratedAt = now - 15 * 60 * 1000L;
         long oldGeneratedAt = now - 30 * 60 * 1000L;
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
+            Map.of("older", entry(now - 45 * 60 * 1000L), "old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
             "active",
             PASSWORD_ID,
             Map.of(),
@@ -607,7 +607,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         verify(taskQueue).submitTask(
             eq("retire-project-encryption-keys"),
-            eq(new KeyRotationCoordinator.RetireKeysTask(now - graceMillis)),
+            eq(new KeyRotationCoordinator.RetireKeysTask(now - graceMillis, "active")),
             any()
         );
     }
@@ -619,7 +619,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         long oldGeneratedAt = now - 5 * 60 * 1000L;
 
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
+            Map.of("older", entry(now - 8 * 60 * 1000L), "old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
             "active",
             PASSWORD_ID,
             Map.of(),
@@ -642,10 +642,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         long activeGeneratedAt = now - 15 * 60 * 1000L;
         long oldGeneratedAt = now - 30 * 60 * 1000L;
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
-            Map.of("old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
+            Map.of("older", entry(now - 45 * 60 * 1000L), "old", entry(oldGeneratedAt), "active", entry(activeGeneratedAt)),
             "active",
             PASSWORD_ID,
-            Map.of(TestCustom.TYPE, "old"),
+            Map.of(TestCustom.TYPE, "older"),
             NO_OP_ENCRYPTION
         );
         setup(clusterStateWith(metadata, true), now, TimeValue.timeValueDays(30), checkInterval);

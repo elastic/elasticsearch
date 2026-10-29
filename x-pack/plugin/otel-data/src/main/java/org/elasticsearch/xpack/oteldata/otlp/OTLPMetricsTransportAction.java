@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -33,10 +34,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -163,14 +164,17 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
         ExemplarDocumentBuilder exemplarDocumentBuilder = exemplarIngestionEnabled ? new ExemplarDocumentBuilder(byteStringAccessor) : null;
+        // Resolving a layout parses the prefixed dimensions setting and compiles its matcher, so resolve each target index once per
+        // request rather than once per group. Keyed by backing index name, or by data stream name when the data stream does not
+        // exist yet; the two namespaces cannot collide.
+        Map<String, TsidLayout> tsidLayouts = new HashMap<>();
         for (DataPointGroupingContext.DataPointGroup group : allGroups) {
-            IndexVersion indexVersion = resolveIndexVersion(projectMetadata, group);
-            addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, indexVersion, expandedContentTracker);
+            TsidLayout tsidLayout = resolveTsidLayout(projectMetadata, group, tsidLayouts);
+            addIndexRequestDocMode(bulkRequestBuilder, metricDocumentBuilder, group, tsidLayout, expandedContentTracker);
         }
         if (exemplarDocumentBuilder != null) {
             int firstExemplarDocumentPosition = bulkRequestBuilder.numberOfActions();
             Set<ExemplarIdentity> exemplarIdentities = new HashSet<>();
-            Map<String, IndexVersion> exemplarIndexVersions = new HashMap<>();
             for (DataPointGroupingContext.DataPointGroup group : allGroups) {
                 addExemplarIndexRequests(
                     bulkRequestBuilder,
@@ -178,7 +182,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                     group,
                     context,
                     projectMetadata,
-                    exemplarIndexVersions,
+                    tsidLayouts,
                     exemplarIdentities,
                     expandedContentTracker
                 );
@@ -312,7 +316,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         BulkRequestBuilder bulkRequestBuilder,
         MetricDocumentBuilder metricDocumentBuilder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
-        IndexVersion indexVersion,
+        TsidLayout tsidLayout,
         ExpandedContentTracker expandedContentTracker
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
@@ -324,7 +328,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 dataPointGroup,
                 dynamicTemplates,
                 dynamicTemplateParams,
-                indexVersion
+                tsidLayout
             );
             var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
                 .setRequireDataStream(true)
@@ -332,7 +336,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 .setIncludeSourceOnError(false)
                 .setDynamicTemplates(dynamicTemplates)
                 .setDynamicTemplateParams(dynamicTemplateParams);
-            if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+            if (tsidLayout.indexVersion().onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                 indexRequest.tsid(tsid);
             }
             expandedContentTracker.add(indexRequest, dataPointGroup.dataPoints().size());
@@ -340,24 +344,26 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
     }
 
-    private IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, DataPointGroupingContext.DataPointGroup group) {
+    /**
+     * The tsid layout of the backing index the group's timestamp falls into, or that of the index the matching template would
+     * create when the data stream does not exist yet. Resolved layouts are cached in {@code tsidLayouts} for the request.
+     */
+    private static TsidLayout resolveTsidLayout(
+        ProjectMetadata projectMetadata,
+        DataPointGroupingContext.DataPointGroup group,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
         String dataStreamName = group.targetIndex().index();
-        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        DataStream dataStream = resolveDataStream(projectMetadata, dataStreamName);
         if (dataStream == null) {
-            DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
-            if (alias != null && alias.getWriteDataStream() != null) {
-                dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
-            }
-        }
-        if (dataStream == null) {
-            return IndexVersion.current();
+            return tsidLayoutForNewDataStream(projectMetadata, dataStreamName, tsidLayouts);
         }
         Instant ts = Instant.ofEpochMilli(group.getTimestampUnixNano() / 1_000_000L);
         Index index = dataStream.selectTimeSeriesWriteIndex(ts, projectMetadata);
         if (index == null) {
             index = dataStream.getWriteIndex();
         }
-        return projectMetadata.getIndexSafe(index).getCreationVersion();
+        return tsidLayoutForIndex(projectMetadata, index, tsidLayouts);
     }
 
     private boolean resolveEscfEligible(
@@ -387,7 +393,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
         for (Index index : dataStream.selectTimeSeriesWriteIndices(timestamps, projectMetadata)) {
             IndexMetadata im = projectMetadata.getIndexSafe(index);
-            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.TIME_SERIES_BATCH_INDEXING.get(im.getSettings()) == false) {
+            if (im.getTimeSeriesDimensions().isEmpty() || IndexSettings.isBatchIndexingEnabled(im.getSettings()) == false) {
                 return false;
             }
         }
@@ -400,7 +406,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         DataPointGroupingContext context,
         ProjectMetadata projectMetadata,
-        Map<String, IndexVersion> indexVersions,
+        Map<String, TsidLayout> tsidLayouts,
         Set<ExemplarIdentity> exemplarIdentities,
         ExpandedContentTracker expandedContentTracker
     ) throws IOException {
@@ -414,12 +420,12 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             return;
         }
         String dataStreamName = targetIndex.index();
-        IndexVersion indexVersion = indexVersions.computeIfAbsent(dataStreamName, name -> resolveIndexVersion(projectMetadata, name));
+        TsidLayout tsidLayout = resolveTsidLayout(projectMetadata, dataStreamName, tsidLayouts);
         for (DataPoint dataPoint : dataPointGroup.dataPoints()) {
             if (dataPoint.getExemplars().isEmpty()) {
                 continue;
             }
-            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), indexVersion);
+            BytesRef tsid = dataPointGroup.buildExemplarTsid(dataPoint.getMetricName(), tsidLayout);
             for (Exemplar exemplar : dataPoint.getExemplars()) {
                 if (exemplar.getValueCase() == Exemplar.ValueCase.VALUE_NOT_SET) {
                     context.recordExemplarWithoutValue();
@@ -440,7 +446,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                         .setRequireDataStream(true)
                         .source(xContentBuilder)
                         .setIncludeSourceOnError(false);
-                    if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
+                    if (tsidLayout.indexVersion().onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                         indexRequest.tsid(tsid);
                     }
                     // exemplars are not counted as data points
@@ -451,7 +457,25 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         }
     }
 
-    private static IndexVersion resolveIndexVersion(ProjectMetadata projectMetadata, String dataStreamName) {
+    /**
+     * The tsid layout of the data stream's write index, or that of the index the matching template would create when the data
+     * stream does not exist yet. Resolved layouts are cached in {@code tsidLayouts} for the request.
+     */
+    private static TsidLayout resolveTsidLayout(
+        ProjectMetadata projectMetadata,
+        String dataStreamName,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
+        DataStream dataStream = resolveDataStream(projectMetadata, dataStreamName);
+        if (dataStream != null && dataStream.getWriteIndex() != null) {
+            return tsidLayoutForIndex(projectMetadata, dataStream.getWriteIndex(), tsidLayouts);
+        }
+        return tsidLayoutForNewDataStream(projectMetadata, dataStreamName, tsidLayouts);
+    }
+
+    /** The data stream with the given name, following a data stream alias to its write data stream, or {@code null}. */
+    @Nullable
+    private static DataStream resolveDataStream(ProjectMetadata projectMetadata, String dataStreamName) {
         DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
         if (dataStream == null) {
             DataStreamAlias alias = projectMetadata.dataStreamAliases().get(dataStreamName);
@@ -459,10 +483,19 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 dataStream = projectMetadata.dataStreams().get(alias.getWriteDataStream());
             }
         }
-        if (dataStream != null && dataStream.getWriteIndex() != null) {
-            return projectMetadata.getIndexSafe(dataStream.getWriteIndex()).getCreationVersion();
-        }
-        return IndexVersion.current();
+        return dataStream;
+    }
+
+    private static TsidLayout tsidLayoutForIndex(ProjectMetadata projectMetadata, Index index, Map<String, TsidLayout> tsidLayouts) {
+        return tsidLayouts.computeIfAbsent(index.getName(), name -> TsidLayout.forIndex(projectMetadata.getIndexSafe(index)));
+    }
+
+    private static TsidLayout tsidLayoutForNewDataStream(
+        ProjectMetadata projectMetadata,
+        String dataStreamName,
+        Map<String, TsidLayout> tsidLayouts
+    ) {
+        return tsidLayouts.computeIfAbsent(dataStreamName, name -> TsidLayout.forNewIndex(projectMetadata, name));
     }
 
     private record ExemplarIdentity(String index, BytesRef tsid, long timestamp) {}

@@ -604,3 +604,8 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API}
   issue: https://github.com/elastic/elasticsearch/issues/163653
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testUsingRCS1GeneratesDeprecationWarning
+  issue: https://github.com/elastic/elasticsearch/issues/163658

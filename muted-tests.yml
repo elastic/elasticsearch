@@ -446,5 +446,5 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecNullIT
   tasks:
   - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
-  method: test {csv-spec:null.nullFieldArgInMultiInputAggs}
-  issue: https://github.com/elastic/elasticsearch/issues/163906
+  method: test {csv-spec:null.nullLiteralArgInMultiInputAggs}
+  issue: https://github.com/elastic/elasticsearch/issues/163927

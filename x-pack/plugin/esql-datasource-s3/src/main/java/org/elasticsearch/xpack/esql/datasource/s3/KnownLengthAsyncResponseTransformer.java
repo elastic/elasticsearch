@@ -20,6 +20,7 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -54,8 +55,20 @@ import java.util.concurrent.atomic.AtomicReference;
  * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The shared
  * destination buffer is therefore an {@link AtomicReference} and the terminal-state fields {@code volatile}.
  *
- * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
- * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.
+ * <p><b>Single execution — no SDK retries:</b> a transformer instance serves exactly one request
+ * attempt. {@link #prepare()} throws if invoked twice, which is how the SDK signals a retry of the
+ * same execution. The client that drives this transformer must therefore be configured with
+ * {@code AwsRetryStrategy.doNotRetry()}; {@code S3StorageObject.readBytesAsync} owns the retry loop
+ * and creates a fresh transformer per attempt. This is deliberate and load-bearing: the SDK reuses
+ * one transformer across retry attempts, but {@link #exceptionOccurred} carries no attempt identity,
+ * and netty can deliver late error notifications for a finished attempt (both the error the
+ * subscriber already handled and a fresh {@code IOException} from the channel-inactive path) after
+ * the SDK has already started the next attempt. A shared transformer cannot attribute such a stale
+ * call, so it would either spuriously fail the next attempt's future and free its buffer, or — if it
+ * ignored the call — hang a genuine pre-stream failure, because the future returned by
+ * {@code prepare()} is the only thing that completes an attempt in the SDK's async pipeline. With
+ * one instance per attempt every callback on this object belongs to its one execution and late
+ * duplicates are no-ops.
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
@@ -64,8 +77,10 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     private final int expectedLength;
     private final DirectBufferFactory factory;
 
+    private final CompletableFuture<DirectReadBuffer> resultFuture = new CompletableFuture<>();
+    private final AtomicBoolean prepared = new AtomicBoolean();
+
     private volatile R response;
-    private volatile CompletableFuture<DirectReadBuffer> resultFuture;
     // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
     // is never delivered (e.g. SDK abandons the publisher after a transport error).
     private volatile ChunkCopyingSubscriber currentSubscriber;
@@ -101,11 +116,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public CompletableFuture<DirectReadBuffer> prepare() {
-        // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
-        // retry; the previous attempt's buffer, if any, must be discarded.
-        CompletableFuture<DirectReadBuffer> bufferFuture = new CompletableFuture<>();
-        this.resultFuture = bufferFuture;
-        return bufferFuture;
+        // A second prepare() means the SDK is retrying with this transformer, which would resurrect
+        // the cross-attempt stale-exceptionOccurred race this class is designed out of (see class
+        // javadoc). Fail the retry loudly rather than silently sharing state across attempts.
+        if (prepared.compareAndSet(false, true) == false) {
+            throw new IllegalStateException(
+                "KnownLengthAsyncResponseTransformer is single-use: prepare() was called more than once. "
+                    + "SDK-level retries must stay disabled on this client; retries are owned by the caller, "
+                    + "which must create a fresh transformer per attempt."
+            );
+        }
+        return resultFuture;
     }
 
     @Override
@@ -122,20 +143,31 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void exceptionOccurred(Throwable error) {
+        // Late duplicate notifications are expected: after the subscriber handles its terminal
+        // signal, netty still notifies the response handler (with the same throwable), and the
+        // channel-inactive teardown can follow with a fresh IOException. Both belong to this one
+        // execution (single-use contract), so once the future is done there is nothing left to do.
+        if (resultFuture.isDone()) {
+            return;
+        }
         // Release the buffer if it was allocated in onSubscribe but onError was never
         // delivered to the subscriber (e.g. SDK abandons the publisher after a transport
         // error). releaseOnFailure() is idempotent — if onError already fired it is a no-op.
-        ChunkCopyingSubscriber subscriber = currentSubscriber;
-        if (subscriber != null) {
+        ChunkCopyingSubscriber sub = currentSubscriber;
+        if (sub != null) {
             // Mark failed before releasing so any in-flight onNext that slips past the
             // AWS SDK's cancellation guarantee sees the flag and returns early instead of
             // writing into the already-released buffer.
-            subscriber.failed = true;
-            subscriber.releaseOnFailure();
+            sub.failed = true;
+            sub.releaseOnFailure();
         }
-        CompletableFuture<DirectReadBuffer> f = resultFuture;
-        if (f != null) {
-            f.completeExceptionally(error);
+        resultFuture.completeExceptionally(error);
+        // onStream may have raced us between the read of currentSubscriber and the completion above,
+        // wired a subscriber and had onSubscribe allocate a buffer; release it. Idempotent.
+        ChunkCopyingSubscriber racedSub = currentSubscriber;
+        if (racedSub != null && racedSub != sub) {
+            racedSub.failed = true;
+            racedSub.releaseOnFailure();
         }
     }
 

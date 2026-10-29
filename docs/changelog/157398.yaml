@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157398
+summary: Fix cross-attempt use-after-free write race in `KnownLengthAsyncResponse`
+type: bug

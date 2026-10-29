@@ -228,7 +228,7 @@ To create the policy and attach it to the role with the AWS CLI:
    1. The policy ARN returned by `create-policy`. Attaching the policy authorizes the role to read your data.
 :::
 
-Then [connect data source and create a dataset](#connect-data-source-and-create-a-dataset).
+Then [connect a data source and create a dataset](#connect-data-source-and-create-a-dataset).
 
 ## Connect data source and create a dataset
 

@@ -1410,8 +1410,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
-<<<<<<< HEAD
-=======
     public void testUnmappedFieldsCountsExposeNoDocValuesSkipper() throws Exception {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "k" }));
@@ -1435,61 +1433,6 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         }
     }
 
-    /**
-     * A columnar_stored index keeps the whole {@code _source} of a document in one {@code _ignored_source} entry named {@code _source}.
-     * That name is not a field path and, starting with {@code _}, is always granted, so filtering the entry under it would hand out every
-     * field of the document. The fields it holds have to be filtered on their own paths instead.
-     */
-    public void testColumnarStoredSourceKeepsOnlyGrantedFields() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
-            // Without the time series doc values format the whole-document entry is a stored field rather than a binary doc value.
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), randomBoolean())
-            .build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
-            b.startObject("name").field("type", "keyword").endObject();
-            b.startObject("secret").field("type", "keyword").endObject();
-        }));
-        String name = randomAlphanumericOfLength(8);
-        try (Directory directory = newDirectory()) {
-            ParsedDocument doc = mapperService.documentMapper()
-                .parse(source(b -> b.field("name", name).field("secret", randomAlphanumericOfLength(8))));
-            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
-                doc.updateSeqID(0, 0);
-                doc.version().setLongValue(0);
-                iw.addDocument(doc.rootDoc());
-            }
-
-            String[] denied = new String[] { "secret" };
-            assertThat(columnarStoredSource(mapperService, directory, 0, new String[] { "*" }, denied), equalTo(Map.of("name", name)));
-            // Nothing granted is in the document, which still reads as an empty source rather than failing on a missing entry.
-            assertThat(columnarStoredSource(mapperService, directory, 0, new String[] { "missing" }, null), equalTo(Map.of()));
-        }
-    }
-
-    private static Map<String, Object> columnarStoredSource(
-        MapperService mapperService,
-        Directory directory,
-        int docId,
-        String[] granted,
-        String[] denied
-    ) throws IOException {
-        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(granted, denied));
-        try (
-            DirectoryReader reader = FieldSubsetReader.wrap(
-                wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
-                filter,
-                mapperService.mappingLookup().getMapping().ignoredSourceFormat(),
-                fieldName -> mapperService.fieldType(fieldName) != null
-            )
-        ) {
-            var provider = SourceProvider.fromLookup(mapperService.mappingLookup(), null, SourceFieldMetrics.NOOP, null);
-            return provider.getSource(getOnlyLeafReader(reader).getContext(), docId).source();
-        }
-    }
-
->>>>>>> 4e2aeba6c43d (fix(security): hide doc values skippers of FLS-hidden fields (#163541))
     private List<Map<String, Object>> unmappedFieldsSources(CharacterRunAutomaton filter) throws IOException {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = unmappedFieldsMapper();

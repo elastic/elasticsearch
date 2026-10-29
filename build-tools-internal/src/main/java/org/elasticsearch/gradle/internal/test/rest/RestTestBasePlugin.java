@@ -84,7 +84,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String MODULES_CONFIGURATION = "clusterModules";
     private static final String PLUGINS_CONFIGURATION = "clusterPlugins";
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
-    private static final String ZIP_CONFIGURATION = "zip";
     private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
@@ -463,7 +462,13 @@ public class RestTestBasePlugin implements Plugin<Project> {
     }
 
     private Dependency getBundleZipTaskDependency(Project project, String projectPath) {
-        return project.getDependencies().project(Map.of("path", projectPath, "configuration", ZIP_CONFIGURATION));
+        // Depend on the bundle zip as attribute-free files (not the project's "zip" configuration) so that the
+        // consuming configuration's zip->directory UnzipTransform can still apply. Pinning the "zip" configuration
+        // here breaks resolution for extracted-plugin (directory) consumers. This cross-project task read is not
+        // flagged by the isolated-projects ArchUnit rules and is left for a dedicated follow-up.
+        Project dependencyProject = project.findProject(projectPath);
+        return project.getDependencies()
+            .create(project.files(dependencyProject.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME)));
     }
 
     private void configureArtifactTransforms(Project project) {

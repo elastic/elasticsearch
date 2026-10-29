@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -18,6 +22,7 @@ import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -26,7 +31,19 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+// Boots two 3-node clusters and performs up to 6 rolling node restarts in one suite;
+// under CI contention this leaves too little margin against the default 20min suite
+// timeout. See #163301, #163266, #160284.
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
+
+    public CcrRollingUpgradeIT(
+        @Name("clusterName") ClusterName clusterName,
+        @Name("leaderNodesUpgraded") int leaderNodesUpgraded,
+        @Name("followerNodesUpgraded") int followerNodesUpgraded
+    ) {
+        super(clusterName, leaderNodesUpgraded, followerNodesUpgraded);
+    }
 
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
@@ -359,11 +376,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         Request statsRequest = new Request("GET", "/_ccr/stats");
         Map<?, ?> response = toMap(followerClient().performRequest(statsRequest));
         Integer actualSuccessfulFollowedIndices = ObjectPath.eval("auto_follow_stats.number_of_successful_follow_indices", response);
-        if (actualSuccessfulFollowedIndices != null) {
-            return actualSuccessfulFollowedIndices;
-        } else {
-            return -1;
-        }
+        return Objects.requireNonNullElse(actualSuccessfulFollowedIndices, -1);
     }
 
     private static void index(RestClient client, String index, int numDocs) throws IOException {

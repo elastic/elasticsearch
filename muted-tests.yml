@@ -39,9 +39,6 @@ tests:
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
   method: testInvalidMaxAnalyzedOffset
   issue: https://github.com/elastic/elasticsearch/issues/158105
-- class: org.elasticsearch.upgrades.CcrRollingUpgradeIT
-  method: testUniDirectionalIndexFollowing
-  issue: https://github.com/elastic/elasticsearch/issues/153050
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535

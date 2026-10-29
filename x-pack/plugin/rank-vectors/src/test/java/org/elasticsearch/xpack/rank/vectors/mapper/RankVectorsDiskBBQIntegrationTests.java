@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -28,6 +29,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.rank.vectors.LocalStateRankVectors;
@@ -93,6 +95,28 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
             writer.forceMerge(1);
             writer.commit();
             assertTopDocument(directory, fdeField, queryFde, "first");
+        }
+    }
+
+    public void testIndexedMuveraWorksOnPreviouslyCreatedCompatibleIndex() throws Exception {
+        IndexVersion previousVersion = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersion.current());
+        MapperService mapperService = createMapperService(previousVersion, indexedMuveraMapping());
+        float[][] vectors = unitTokens(0, 1);
+        float[] queryFde = encoder().encodeQuery(vectors);
+
+        try (
+            TestThreadPool threadPool = new TestThreadPool(getTestName());
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setCodec(
+                    new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, threadPool).codec("default")
+                )
+            )
+        ) {
+            addDocument(mapperService.documentMapper(), writer, "old-index", vectors);
+            writer.commit();
+            assertTopDocument(directory, "field", queryFde, "old-index");
         }
     }
 

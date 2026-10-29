@@ -59,15 +59,15 @@ final class DenseVectorQueryExtractor extends QueryVisitor {
 
     private void visitLeaf(Query query, Float similarity) {
         if (query instanceof KnnFloatVectorQuery knnQuery) {
-            queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
+            queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), similarity, null));
         } else if (query instanceof KnnByteVectorQuery knnQuery) {
-            queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
+            queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), similarity, null));
         } else if (query instanceof MatchAllDocsQuery) {
             queries.add(Queries.ALL_DOCS_INSTANCE);
         } else if (query instanceof DenseVectorQuery.Floats floatsQuery) {
-            queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
+            queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(floatsQuery.getQuery()), similarity, null));
         } else if (query instanceof IVFKnnFloatVectorQuery ivfQuery) {
-            queries.add(fieldType.createIndexedExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity, null));
+            queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(ivfQuery.getQuery()), similarity, null));
         } else if (query instanceof RescoreKnnVectorQuery rescoreQuery) {
             visitLeaf(rescoreQuery.innerQuery(), similarity);
         }

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -145,6 +146,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         PreviewDatafeedAction.Request request,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
+        // reject configs that can't be run (for example aggregations without a summary count field) with a bad request instead of failing
+        // later when creating the extractor
+        try {
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
+        } catch (ElasticsearchStatusException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         // The datafeed preview runs in its own context with the provided
         // headers for auth. When security is not enabled the context
         // preserving listener is required to restore the request/response

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.core.downsample;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -65,6 +67,16 @@ public class DownsampleShardStatusSerializingTests extends AbstractXContentSeria
             createTestAfterBulkInfoInstance(),
             downsampleShardIndexerStatus
         );
+    }
+
+    public void testSerializationBeforeSkippedAlreadyIndexed() throws IOException {
+        TransportVersion newVersion = DownsampleShardStatus.DOWNSAMPLE_SKIPPED_ALREADY_INDEXED;
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(newVersion);
+        DownsampleShardStatus instance = createTestInstance();
+
+        DownsampleShardStatus copy = copyInstance(instance, oldVersion);
+
+        assertEquals(0, copy.getNumSkippedAlreadyIndexed());
     }
 
     private DownsampleBulkInfo createTestRollupBulkInfo() {

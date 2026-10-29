@@ -43,9 +43,9 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
         HttpServerTransport httpServerTransport,
         TransportService transportService,
         TerminationHandler terminationHandler,
-        Collection<String> additionalActionsToAwait
+        Collection<String> actionsToAwait
     ) {
-        super(settings, httpServerTransport, transportService, terminationHandler, additionalActionsToAwait);
+        super(settings, httpServerTransport, transportService, terminationHandler, actionsToAwait);
     }
 
     /// Marker plugin to indicate we should use the listenable service
@@ -59,49 +59,40 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
     protected boolean awaitTasksComplete(
         TimeValue timeout,
         Sleeper sleeper,
-        String taskName,
+        Set<String> actionNames,
+        TaskScope scope,
         TaskManager taskManager,
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, Set.of(taskName), "finish", taskManager, taskNotifier, tasks -> {
-            notifyTaskTimeout(taskName, tasks);
+        return awaitTasksCompleteInternal(timeout, sleeper, actionNames, scope, "finish", taskManager, taskNotifier, tasks -> {
+            notifyTaskTimeout(tasks);
             if (onTimeout != null) {
                 onTimeout.accept(tasks);
             }
         });
     }
 
-    /// Notifies the listeners once per action name that still had tasks running at the timeout.
     @Override
-    protected boolean awaitTasksComplete(TimeValue timeout, Sleeper sleeper, Set<String> actionNames, TaskManager taskManager) {
+    protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, Set<String> actionNames, TaskManager taskManager) {
         return awaitTasksCompleteInternal(
             timeout,
             sleeper,
             actionNames,
-            "finish",
-            taskManager,
-            null,
-            tasks -> tasks.stream().collect(Collectors.groupingBy(Task::getAction)).forEach(this::notifyTaskTimeout)
-        );
-    }
-
-    @Override
-    protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
-        return awaitTasksCompleteInternal(
-            timeout,
-            sleeper,
-            Set.of(taskName),
+            TaskScope.ALL,
             "cancel",
             taskManager,
             null,
-            tasks -> notifyTaskTimeout(taskName, tasks)
+            this::notifyTaskTimeout
         );
     }
 
-    private void notifyTaskTimeout(String taskName, List<Task> tasks) {
-        for (TaskTimeoutListener listener : taskTimeoutListeners) {
-            listener.onTimeout(taskName, tasks);
-        }
+    /// Notifies the listeners once per action name that still had tasks running at the timeout.
+    private void notifyTaskTimeout(List<Task> tasks) {
+        tasks.stream().collect(Collectors.groupingBy(Task::getAction)).forEach((taskName, tasksOfAction) -> {
+            for (TaskTimeoutListener listener : taskTimeoutListeners) {
+                listener.onTimeout(taskName, tasksOfAction);
+            }
+        });
     }
 }

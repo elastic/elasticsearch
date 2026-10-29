@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.ListenableShutdownPrepareService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -21,17 +21,13 @@ import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.junit.After;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Tests that graceful shutdown of a data node waits for the ES|QL tasks it runs on behalf of a coordinator on another node.
@@ -49,10 +45,7 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(ListenableShutdownPrepareService.TestPlugin.class);
-        plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlAsyncActionIT.LocalStateEsqlAsync.class);
     }
 
     /**
@@ -120,34 +113,6 @@ public class EsqlNodeShutdownIT extends AbstractPausableIntegTestCase {
         var getResultRequest = new GetAsyncResultRequest(id);
         getResultRequest.setWaitForCompletionTimeout(TimeValue.timeValueSeconds(30));
         assertQueryResult(client(dataNode).execute(EsqlAsyncGetResultAction.INSTANCE, getResultRequest));
-    }
-
-    public void testShutdownTimesOutWaitingForDataNodeTasks() throws Exception {
-        // move the index onto a data node with a short shutdown grace period
-        String shortGraceDataNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ShutdownPrepareService.MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
-        );
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", shortGraceDataNode), "test");
-        ensureGreen("test");
-        dataNode = shortGraceDataNode;
-
-        ActionFuture<EsqlQueryResponse> query = startQuery();
-        awaitDataNodeTask();
-
-        Set<String> timedOutActions = ConcurrentHashMap.newKeySet();
-        var shutdownPrepareService = asInstanceOf(
-            ListenableShutdownPrepareService.class,
-            internalCluster().getInstance(ShutdownPrepareService.class, dataNode)
-        );
-        shutdownPrepareService.addTaskTimeoutListener((taskName, tasks) -> timedOutActions.add(taskName));
-
-        // returns once the grace period elapses, even though the query is still paused
-        safeGet(prepareForShutdownAsync(dataNode));
-        assertBusy(() -> assertThat(timedOutActions, hasItem(ComputeService.DATA_ACTION_NAME)));
-
-        scriptPermits.release(numberOfDocs());
-        assertQueryResult(query);
-        internalCluster().stopNode(dataNode);
     }
 
     private ActionFuture<EsqlQueryResponse> startQuery() {

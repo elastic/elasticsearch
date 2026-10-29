@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.rank.vectors.fde;
 
-import org.apache.lucene.util.VectorUtil;
-
 import java.util.Arrays;
 
 /**
@@ -23,9 +21,9 @@ import java.util.Arrays;
  * <p>
  * All randomness comes from a SplitMix64 stream seeded with {@code seed}, drawn in a fixed order
  * (hyperplanes, then projections). The draw order is mirrored by the Python
- * measurement implementation. Encodings are repeatable for the same implementation and floating-point
- * execution, but are not a bit-exact cross-node or cross-version contract because vector operations
- * may use hardware-specific implementations.
+ * measurement implementation. Strict transcendental functions and fixed-order scalar accumulation
+ * make an encoding version bit-exact across supported hardware. A future change to any numerical
+ * operation or draw order therefore requires a new encoding version.
  *
  * @see <a href="https://arxiv.org/abs/2405.19504">MUVERA: Multi-Vector Retrieval via Fixed Dimensional Encodings</a>
  */
@@ -107,7 +105,7 @@ public final class MuveraEncoder implements FdeEncoder {
         this.rReps = rReps;
         this.rawDims = (int) raw;
         this.identityProjection = dProj == tokenDims;
-        this.projectionScale = (float) (1.0 / Math.sqrt(dProj));
+        this.projectionScale = (float) (1.0 / StrictMath.sqrt(dProj));
 
         SplitMix64 rng = new SplitMix64(seed);
         hyperplanes = new float[rReps][kSim][tokenDims];
@@ -241,7 +239,7 @@ public final class MuveraEncoder implements FdeEncoder {
                     System.arraycopy(cells[c], 0, raw, off, tokenDims);
                 } else {
                     for (int j = 0; j < dProj; j++) {
-                        raw[off + j] = projectionScale * VectorUtil.dotProduct(cells[c], projections[r][j]);
+                        raw[off + j] = projectionScale * scalarDotProduct(cells[c], projections[r][j]);
                     }
                 }
             }
@@ -253,11 +251,24 @@ public final class MuveraEncoder implements FdeEncoder {
         int id = 0;
         float[][] planes = hyperplanes[rep];
         for (int k = 0; k < kSim; k++) {
-            if (VectorUtil.dotProduct(token, planes[k]) > 0f) {
+            if (scalarDotProduct(token, planes[k]) > 0f) {
                 id |= 1 << k;
             }
         }
         return id;
+    }
+
+    /**
+     * Uses a fixed scalar accumulation order. Lucene's vectorized dot product may reassociate operations depending on
+     * the available SIMD instructions, which would make the persisted FDE differ across nodes.
+     */
+    private static float scalarDotProduct(float[] left, float[] right) {
+        assert left.length == right.length;
+        float sum = 0f;
+        for (int i = 0; i < left.length; i++) {
+            sum += left[i] * right[i];
+        }
+        return sum;
     }
 
     /** Lowest-id non-empty cell at minimum Hamming distance from {@code cell}. */
@@ -304,7 +315,7 @@ public final class MuveraEncoder implements FdeEncoder {
         double nextGaussian() {
             double u1 = 1.0 - nextDouble();
             double u2 = nextDouble();
-            return StrictMath.sqrt(-2.0 * StrictMath.log(u1)) * StrictMath.cos(2.0 * Math.PI * u2);
+            return StrictMath.sqrt(-2.0 * StrictMath.log(u1)) * StrictMath.cos(2.0 * StrictMath.PI * u2);
         }
     }
 }

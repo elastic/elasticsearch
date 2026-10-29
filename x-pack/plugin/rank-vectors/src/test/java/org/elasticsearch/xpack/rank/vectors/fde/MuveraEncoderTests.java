@@ -27,6 +27,13 @@ public class MuveraEncoderTests extends ESTestCase {
         assertEquals(0x06C45D188009454FL, rng.next());
     }
 
+    public void testStrictGaussianReferenceBits() {
+        MuveraEncoder.SplitMix64 rng = new MuveraEncoder.SplitMix64(0);
+        assertEquals(0xBFFE247D108691CFL, Double.doubleToLongBits(rng.nextGaussian()));
+        assertEquals(0x3FCD2241BF902964L, Double.doubleToLongBits(rng.nextGaussian()));
+        assertEquals(0xBFCC581393A15295L, Double.doubleToLongBits(rng.nextGaussian()));
+    }
+
     public void testDimensions() {
         int tokenDims = randomIntBetween(8, 64);
         int kSim = randomIntBetween(0, 3);
@@ -50,6 +57,51 @@ public class MuveraEncoderTests extends ESTestCase {
 
         MuveraEncoder other = new MuveraEncoder(32, 3, 8, 4, seed + 1);
         assertFalse(Arrays.equals(a.encodeDocument(tokens), other.encodeDocument(tokens)));
+    }
+
+    public void testGoldenDocumentAndQueryBits() {
+        MuveraEncoder encoder = new MuveraEncoder(4, 2, 2, 2, 0x1234ABCDL);
+        float[][] tokens = new float[][] { unitVector(4, 0), unitVector(4, 1) };
+        assertArrayEquals(
+            new int[] {
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                -1087044365,
+                1060439283,
+                -1087044365,
+                1060439283,
+                -1087044365,
+                1060439283,
+                -1087044365,
+                -1087044365,
+                1060439283 },
+            toBits(encoder.encodeDocument(tokens))
+        );
+        assertArrayEquals(
+            new int[] {
+                0,
+                0,
+                -1087044365,
+                -1087044365,
+                0,
+                0,
+                -1087044365,
+                -1087044365,
+                1060439283,
+                -1087044365,
+                0,
+                0,
+                0,
+                0,
+                -1087044365,
+                1060439283 },
+            toBits(encoder.encodeQuery(tokens))
+        );
     }
 
     /**
@@ -379,6 +431,14 @@ public class MuveraEncoderTests extends ESTestCase {
             }
         }
         return true;
+    }
+
+    private static int[] toBits(float[] values) {
+        int[] bits = new int[values.length];
+        for (int i = 0; i < values.length; i++) {
+            bits[i] = Float.floatToIntBits(values[i]);
+        }
+        return bits;
     }
 
 }

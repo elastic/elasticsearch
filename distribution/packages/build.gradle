@@ -119,7 +119,7 @@ def commonPackageConfig(String type, String architecture) {
         }
       }
       into('lib') {
-        with esDistributionLayout.lib('linux', architecture)
+        with esDistributionLayout.lib('linux', architecture, false)
       }
       into('modules') {
         with esDistributionLayout.modules('linux', architecture)

@@ -343,11 +343,10 @@ public class OptOutQueryCacheTests extends ESTestCase {
                 ),
                 false
             );
-            // DenseVectorQuery and VectorSimilarityQuery don't report their field yet, so they are never cacheable
-            case DENSE_VECTOR -> new RandomQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field, null), false);
+            case DENSE_VECTOR -> new RandomQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field, null), cacheable);
             case VECTOR_SIMILARITY -> new RandomQuery(
                 new VectorSimilarityQuery(new DenseVectorQuery.Floats(new float[] { 1f }, field, null), 0.5f, 1f),
-                false
+                cacheable
             );
             case FILTERED_DENSE_VECTOR -> new RandomQuery(
                 new DenseVectorQuery.Floats(

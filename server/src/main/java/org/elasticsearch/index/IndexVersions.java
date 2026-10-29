@@ -303,7 +303,6 @@ public class IndexVersions {
     public static final IndexVersion TSID_PREFIXED_DIMENSIONS_HASH = def(9_128_0_00, Version.LUCENE_10_5_2);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_7_0 = def(9_400_00_0, Version.LUCENE_10_7_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

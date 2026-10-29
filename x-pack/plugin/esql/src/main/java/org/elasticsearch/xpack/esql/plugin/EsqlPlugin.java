@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -171,6 +172,8 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.TransportValidateViewAction;
+import org.elasticsearch.xpack.esql.view.ValidateViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
@@ -627,7 +630,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 c.onQueryCompleted(metrics);
             }
         };
-        ViewService viewService = new ViewService(services.clusterService(), parser);
+        ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
+            var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
+            services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
+        });
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -776,6 +782,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
             new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
             new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(ValidateViewAction.INSTANCE, TransportValidateViewAction.class),
             new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
             new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
             new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),

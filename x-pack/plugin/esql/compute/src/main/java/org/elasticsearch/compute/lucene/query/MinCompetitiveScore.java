@@ -101,7 +101,8 @@ public final class MinCompetitiveScore implements Releasable {
              * That's fine: newer values are only ever more competitive, and still sound.
              */
             float decoded = decode();
-            // Paranoia: SharedMinCompetitive only accepts more competitive values, but Lucene requires monotonicity.
+            // Lucene requires this to never decrease. SharedMinCompetitive only accepts more competitive values
+            // so this is just a safety net.
             cachedScore = Math.max(cachedScore, decoded);
             cachedGeneration = generation;
             decodes++;

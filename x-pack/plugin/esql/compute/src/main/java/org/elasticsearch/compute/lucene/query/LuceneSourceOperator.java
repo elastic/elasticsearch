@@ -161,8 +161,6 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Build the factory.
-         *
          * @param minCompetitive if non-null, skip documents whose sort <strong>field</strong> can't beat
          *                       the downstream TopN via {@link LeafCollector#competitiveIterator}
          * @param minCompetitiveScore if non-null, skip documents whose <strong>score</strong> can't beat the
@@ -213,10 +211,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
-         * Pick the {@link ScoreMode} for the weights. {@link ScoreMode#TOP_SCORES} is only safe when a
-         * {@link MinCompetitiveScore} is attached because it allows Lucene to skip matching documents.
-         * Validates the preconditions of {@code minCompetitiveScore} because the constructor has to
-         * pass the score mode to {@code super} before it can check anything.
+         * The {@link ScoreMode} for the weights. {@link ScoreMode#TOP_SCORES} lets Lucene skip matching
+         * documents so it is only used when a {@link MinCompetitiveScore} is attached. Also validates
+         * {@code minCompetitiveScore}'s preconditions: the constructor has to pass the score mode to
+         * {@code super} before it can check anything itself.
          */
         private static Function<ShardContext, ScoreMode> scoreMode(
             boolean needsScore,
@@ -511,7 +509,7 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     /**
-     * Build the operator. See {@link Factory} for {@code minCompetitive} and {@code minCompetitiveScore}.
+     * See {@link Factory} for {@code minCompetitive} and {@code minCompetitiveScore}.
      * When {@code minCompetitiveScore} is non-null the {@code sliceQueue} must have been built with
      * {@link ScoreMode#TOP_SCORES} weights.
      */
@@ -591,11 +589,10 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     /**
-     * How many collected documents between re-reading the shared min competitive score. Same
-     * interval Lucene's {@code TopScoreDocCollector} uses for its shared {@code MaxScoreAccumulator}.
-     * We also re-read on every {@link LeafCollector#setScorer}, which Lucene calls at the start of
-     * every {@link org.apache.lucene.search.BulkScorer#score} range, so at least once per call to
-     * {@link #getCheckedOutput}. With sparse matches that's many times per emitted page.
+     * How many collected documents between re-reads of the shared min competitive score, the same
+     * interval Lucene's {@code TopScoreDocCollector} uses. It is also re-read on every
+     * {@link LeafCollector#setScorer}, which Lucene calls at the start of every
+     * {@link org.apache.lucene.search.BulkScorer#score} range, so at least once per {@link #getCheckedOutput}.
      */
     static final int MIN_COMPETITIVE_SCORE_REFRESH_INTERVAL = 1024;
 

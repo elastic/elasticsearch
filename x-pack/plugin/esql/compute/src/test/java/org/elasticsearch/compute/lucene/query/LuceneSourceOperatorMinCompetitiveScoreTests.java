@@ -74,8 +74,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests feeding a {@code SORT _score DESC} TopN's bound back into {@link LuceneSourceOperator}
- * through {@link MinCompetitiveScore}. Uses real BM25 scoring over real Lucene indices and a real
- * {@link TopNOperator} so the bound comes from the same place it does in production.
+ * through {@link MinCompetitiveScore}. Uses BM25 over Lucene indices and a {@link TopNOperator} so
+ * the bound comes from the same place it does in production.
  */
 public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCase {
     private static final String FIELD = "text";
@@ -267,8 +267,8 @@ public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCas
         logger.info("skewed index: emitted off={} on={} updates={}", off.emitted, on.emitted, on.updates);
         assertSameTopN(off.top, on.top);
         assertThat(off.emitted, equalTo((long) numDocs));
-        // Low scoring docs collected before the TopN publishes or raises its bound still come through. Still,
-        // we expect to skip the overwhelming majority.
+        // Low scoring docs collected before the TopN publishes or raises its bound still come through, but
+        // they should be a small minority.
         assertThat(on.emitted, lessThan(off.emitted / 10));
         assertThat(on.updates, greaterThan(0L));
     }

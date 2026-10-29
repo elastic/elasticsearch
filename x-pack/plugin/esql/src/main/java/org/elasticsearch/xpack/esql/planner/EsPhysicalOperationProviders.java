@@ -718,10 +718,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     /**
-     * Build the {@link MinCompetitiveScore.Factory} that feeds a {@code SORT _score DESC} TopN's
-     * bound back to Lucene. The planner already checked the preconditions when it built
-     * {@code scoreTopN}. {@link LuceneSourceOperator.Factory} would reject a source that breaks them,
-     * so in production we run without the optimization rather than fail the query.
+     * The {@link MinCompetitiveScore.Factory} feeding a {@code SORT _score DESC} TopN's bound back to
+     * Lucene, or {@code null}. The planner checked the preconditions when it built {@code scoreTopN}.
+     * Should they not hold here anyway, drop the optimisation instead of letting
+     * {@link LuceneSourceOperator.Factory} fail the query.
      */
     @Nullable
     private static MinCompetitiveScore.Factory planMinCompetitiveScore(

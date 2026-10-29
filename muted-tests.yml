@@ -236,11 +236,6 @@ tests:
   - :server:internalClusterTest
   method: testLocalAbort
   issue: https://github.com/elastic/elasticsearch/issues/163861
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testSimple
-  issue: https://github.com/elastic/elasticsearch/issues/163993
 
 # Examples:
 #

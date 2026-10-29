@@ -85,6 +85,15 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         return true;
     }
 
+    // All patterns in this test are remote ones.
+    @Override
+    protected boolean detectsMissingIndexDuringResolution() throws IOException {
+        return Clusters.detectsMissingRemoteIndexDuringResolution(
+            minimumTransportVersion(),
+            minimumTransportVersion(remoteClusterClient())
+        );
+    }
+
     @Override
     public void testAlias() throws IOException {
         assumeFalse("expecting skip_unavailable to be false", isSkipUnavailable());

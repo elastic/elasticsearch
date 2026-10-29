@@ -260,6 +260,8 @@ public class ViewResolutionIT extends AbstractEsqlIntegTestCase {
             expectThrows(
                 VerificationException.class,
                 anyOf(
+                    containsString("Unknown index [other-missing]"),
+                    containsString("Unknown index [missing] referenced by view [unresolvable]"),
                     containsString("Unknown index [other-missing,missing] ([missing] referenced by view [unresolvable])"),
                     containsString("Unknown index [missing,other-missing] ([missing] referenced by view [unresolvable])")
                 ),

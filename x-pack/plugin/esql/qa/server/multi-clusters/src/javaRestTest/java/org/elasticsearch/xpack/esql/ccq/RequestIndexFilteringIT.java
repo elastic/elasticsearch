@@ -21,6 +21,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -155,6 +156,12 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         return version.onOrAfter(Version.V_9_1_0) || (version.onOrAfter(Version.V_8_19_0) && version.before(Version.V_9_0_0));
     }
 
+    // The query does not involve remote clusters, so only the local one, which coordinates the request, matters.
+    @Override
+    protected boolean detectsMissingIndexDuringResolution() throws IOException {
+        return minimumTransportVersion().supports(IndexResolver.VERIFY_PARTIAL_RESOLUTION);
+    }
+
     @Override
     public void testIndicesDontExist() throws IOException {
         assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isCCSRequest);
@@ -204,6 +211,13 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         // `foo` index doesn't exist, so the request will currently be successful, but with partial results
         var isPartial = result.get("is_partial");
         assertThat(isPartial, is(true));
+        // The coordinator detects the missing index during index resolution, before the plan is analyzed.
+        // Older coordinators and remotes only report it while executing the plan.
+        boolean detectedDuringResolution = Clusters.detectsMissingRemoteIndexDuringResolution(
+            minimumTransportVersion(),
+            minimumTransportVersion(remoteClient)
+        );
+        var expectedReason = detectedDuringResolution ? "Unknown index [remote_cluster:foo]" : "no such index [foo]";
         assertThat(
             result,
             matchesMap().entry(
@@ -215,7 +229,7 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
                         matchesMap().entry(
                             "failures",
                             matchesList().item(
-                                matchesMap().entry("reason", matchesMap().entry("reason", "no such index [foo]").extraOk()).extraOk()
+                                matchesMap().entry("reason", matchesMap().entry("reason", expectedReason).extraOk()).extraOk()
                             )
                         ).extraOk()
                     ).extraOk()
@@ -224,11 +238,15 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         );
         @SuppressWarnings("unchecked")
         var columns = (List<List<Object>>) result.get("columns");
-        assertThat(
-            columns,
-            matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-        );
+        if (detectedDuringResolution) {
+            assertThat(columns, matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")));
+        } else {
+            assertThat(
+                columns,
+                matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
+                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+            );
+        }
         @SuppressWarnings("unchecked")
         var values = (List<List<Object>>) result.get("values");
         // TODO: for now, we return empty result, but eventually it should return records from test1

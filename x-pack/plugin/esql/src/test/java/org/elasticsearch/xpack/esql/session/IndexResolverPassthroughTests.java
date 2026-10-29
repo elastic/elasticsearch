@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +38,7 @@ public class IndexResolverPassthroughTests extends ESTestCase {
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, new ArrayList<>(), TransportVersion.current(), false, false, false, false, false, false),
             false,
             IndexResolver.DO_NOT_GROUP
         );

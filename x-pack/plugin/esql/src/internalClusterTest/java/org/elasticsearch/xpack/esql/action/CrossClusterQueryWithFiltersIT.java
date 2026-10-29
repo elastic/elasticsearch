@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -272,13 +270,17 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             );
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
             // Local index missing + wildcards
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime IndexNotFoundException
-            var ie = expectThrows(IndexNotFoundException.class, () -> runQuery("from missing,logs*", randomBoolean(), filter).close());
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing]"),
+                () -> runQuery("from missing,logs*", randomBoolean(), filter).close()
+            );
             // Local index missing + existing index
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime IndexNotFoundException
-            ie = expectThrows(IndexNotFoundException.class, () -> runQuery("from missing,logs-1", randomBoolean(), filter).close());
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [missing]"),
+                () -> runQuery("from missing,logs-1", randomBoolean(), filter).close()
+            );
             // Local index missing + existing remote
             e = expectThrows(VerificationException.class, () -> runQuery("from missing,cluster-a:logs-2", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [missing]"));
@@ -312,19 +314,17 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             );
             assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
             // Remote index missing + wildcards
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime RemoteException
-            var ie = expectThrows(
-                RemoteException.class,
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [cluster-a:missing]"),
                 () -> runQuery("from cluster-a:missing,cluster-a:logs*", randomBoolean(), filter).close()
             );
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
-            // Local index missing + existing index
-            // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime RemoteException
-            ie = expectThrows(
-                RemoteException.class,
+            // Remote index missing + existing remote index
+            expectThrows(
+                VerificationException.class,
+                containsString("Unknown index [cluster-a:missing]"),
                 () -> runQuery("from cluster-a:missing,cluster-a:logs-2", randomBoolean(), filter).close()
             );
-            assertThat(ie.getDetailedMessage(), containsString("no such index [missing]"));
             // Local index + missing remote
             e = expectThrows(VerificationException.class, () -> runQuery("from logs-1,cluster-a:missing", randomBoolean(), filter).close());
             assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
@@ -389,7 +389,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
                 assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "missing,logs-*");
                 assertThat(remoteCluster.getFailures(), hasSize(1));
                 var fail = remoteCluster.getFailures().get(0);
-                assertThat(fail.getCause().getMessage(), containsString("no such index [missing]"));
+                assertThat(fail.getCause().getMessage(), containsString("Unknown index [cluster-a:missing]"));
             }
             // Remote index missing
             try (var response = runQuery("from cluster-a:missing", randomBoolean(), filter)) {

@@ -10,6 +10,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -69,6 +73,8 @@ import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -79,6 +85,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 public class IndexResolver {
 
     private static final Logger LOGGER = LogManager.getLogger(IndexResolver.class);
+
+    public static final TransportVersion VERIFY_PARTIAL_RESOLUTION = TransportVersion.fromName("esql_verify_partial_resolution");
 
     public static final Set<String> ALL_FIELDS = Set.of("*");
     public static final Set<String> INDEX_METADATA_FIELD = Set.of(MetadataAttribute.INDEX);
@@ -138,6 +146,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
+            true,
             minimumVersion,
             false,
             false,
@@ -146,6 +155,7 @@ public class IndexResolver {
             false,
             null,
             DO_NOT_GROUP,
+            IndexViewOrigins.EMPTY,
             listener.map(Versioned::inner)
         );
     }
@@ -183,12 +193,14 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        IndexViewOrigins origins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -200,6 +212,7 @@ public class IndexResolver {
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
             ),
+            origins,
             listener
         );
     }
@@ -225,6 +238,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
             indexPattern,
             true, /* the derived data streams may not exist */
+            false,
             minimumVersion,
             false,
             false,
@@ -233,6 +247,7 @@ public class IndexResolver {
             false,
             null,
             RESOLVED_EXPRESSIONS,
+            IndexViewOrigins.EMPTY,
             listener
         );
     }
@@ -288,6 +303,7 @@ public class IndexResolver {
             createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -299,6 +315,7 @@ public class IndexResolver {
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
+            indexViewOrigins,
             listener.delegateResponse((l, e) -> {
                 if (e instanceof IllegalArgumentException
                     && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
@@ -307,7 +324,7 @@ public class IndexResolver {
                 }
                 var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
                 if (infe != null) {
-                    l.onFailure(new VerificationException(EsqlCCSUtils.unknownIndexError(infe.getIndex().getName(), indexViewOrigins)));
+                    l.onFailure(new VerificationException(indexViewOrigins.indexNotFoundError(infe.getIndex().getName())));
                     return;
                 }
                 l.onFailure(e);
@@ -319,6 +336,7 @@ public class IndexResolver {
         EsqlResolveFieldsRequest request,
         String indexPattern,
         boolean allowEmpty,
+        boolean reportPartialFailures,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -327,6 +345,7 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
@@ -343,8 +362,38 @@ public class IndexResolver {
                 ? TransportVersion.minimumCompatible()
                 : TransportVersion.min(minimumVersion, responseMinimumVersion);
 
+            var failures = new ArrayList<>(response.caps().getFailures());
+
+            if (reportPartialFailures
+                && responseMinimumVersion != null
+                && responseMinimumVersion.supports(FieldCapabilitiesRequest.RESOLVED_FIELDS_CAPS)) {
+
+                if (response.caps().getResolvedLocally() != null) {
+                    var localUnresolvedIndices = unresolved(null, response.caps().getResolvedLocally());
+                    if (localUnresolvedIndices.isEmpty() == false) {
+                        l.onFailure(
+                            new VerificationException(indexViewOrigins.indexNotFoundError(String.join(",", localUnresolvedIndices)))
+                        );
+                        return;
+                    }
+                }
+
+                for (var remote : response.caps().getResolvedRemotely().entrySet()) {
+                    var remoteUnresolvedIndices = unresolved(remote.getKey(), remote.getValue());
+                    if (remoteUnresolvedIndices.isEmpty() == false) {
+                        failures.add(
+                            new FieldCapabilitiesFailure(
+                                remoteUnresolvedIndices.toArray(String[]::new),
+                                new RemoteIndexNotFoundException(remoteUnresolvedIndices)
+                            )
+                        );
+                    }
+                }
+            }
+
             FieldsInfo info = new FieldsInfo(
                 response.caps(),
+                failures,
                 overallMinimumVersion,
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
@@ -372,6 +421,33 @@ public class IndexResolver {
         // Meter the response handling (mergedMappings can take tens of ms for wide mappings) as planning CPU of the query
         // that dispatched this request, if one is metering this thread.
         client.execute(EsqlResolveFieldsAction.TYPE, request, PlanningCpuTracker.inheritMeteredCpu(responseHandler));
+    }
+
+    /**
+     * Adds the expressions that could not be resolved to {@code unresolved}, qualified with the {@code cluster} if it is a remote one.
+     * A wildcard that matches nothing is a successful resolution, so only concrete names end up here.
+     */
+    private Set<String> unresolved(@Nullable String cluster, ResolvedIndexExpressions resolved) {
+        Set<String> unresolved = new TreeSet<>();
+        for (ResolvedIndexExpression expression : resolved.expressions()) {
+            var result = expression.localExpressions().localIndexResolutionResult();
+            if (result == CONCRETE_RESOURCE_NOT_VISIBLE || result == CONCRETE_RESOURCE_UNAUTHORIZED) {
+                unresolved.add(RemoteClusterAware.buildRemoteIndexName(cluster, expression.original()));
+            }
+        }
+        return unresolved;
+    }
+
+    public static class RemoteIndexNotFoundException extends RuntimeException {
+        private final Collection<String> indices;
+
+        public RemoteIndexNotFoundException(Collection<String> indices) {
+            this.indices = indices;
+        }
+
+        public Collection<String> getIndices() {
+            return indices;
+        }
     }
 
     /**
@@ -422,6 +498,7 @@ public class IndexResolver {
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
+        List<FieldCapabilitiesFailure> failures,
         @Nullable TransportVersion minTransportVersion,
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
@@ -527,7 +604,7 @@ public class IndexResolver {
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
             concreteIndices
         );
-        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
+        var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.failures);
         return IndexResolution.valid(index, indexProperties.keySet(), failures);
     }
 

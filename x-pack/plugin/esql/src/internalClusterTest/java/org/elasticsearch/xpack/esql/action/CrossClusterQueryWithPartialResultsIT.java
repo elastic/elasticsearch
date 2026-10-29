@@ -184,10 +184,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.includeCCSMetadata(randomBoolean());
         for (boolean allowPartial : Set.of(true, false)) {
             request.allowPartialResults(allowPartial);
-            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
-            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
-            assertThat(error.getMessage(), containsString("no such index"));
-            assertThat(error.getMessage(), containsString("[no_such_index]"));
+            expectThrows(Exception.class, containsString("Unknown index [no_such_index]"), () -> runQuery(request).close());
         }
     }
 
@@ -198,10 +195,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.includeCCSMetadata(randomBoolean());
         for (boolean allowPartial : Set.of(true, false)) {
             request.allowPartialResults(allowPartial);
-            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
-            error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
-            assertThat(error.getMessage(), containsString("no such index"));
-            assertThat(error.getMessage(), containsString("[no_such_index]"));
+            expectThrows(Exception.class, containsString("Unknown index [cluster-a:no_such_index]"), () -> runQuery(request).close());
         }
     }
 

@@ -35,6 +35,11 @@ public record IndexViewOrigins(Map<String, Set<List<String>>> chainsByPattern) {
         chainsByPattern = chainsByPattern.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue())));
     }
 
+    public String indexNotFoundError(String pattern) {
+        String error = "Unknown index [" + pattern + "]";
+        return describe(pattern).map(views -> error + " " + views).orElse(error);
+    }
+
     /**
      * Error message suffix naming the views that lead to {@code indexExpression}, if there are any.
      */

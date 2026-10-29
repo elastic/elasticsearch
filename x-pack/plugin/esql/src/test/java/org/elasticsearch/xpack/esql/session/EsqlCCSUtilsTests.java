@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
@@ -38,13 +37,13 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -215,7 +214,10 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
-            EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+                clusterAlias -> Objects.equals(clusterAlias, REMOTE1_ALIAS),
+                EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY
+            );
             executionInfo.swapCluster(
                 LOCAL_CLUSTER_ALIAS,
                 (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
@@ -616,68 +618,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote1Cluster.getFailures(), hasSize(1));
             assertThat(remote1Cluster.getFailures().getFirst().reason(), containsString("unable to connect"));
-        }
-    }
-
-    public void testDetermineUnavailableRemoteClusters() {
-        // two clusters, both "remote unavailable" type exceptions
-        {
-            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
-            failures.add(
-                new FieldCapabilitiesFailure(
-                    new String[] { "remote1:foo", "remote1:bar" },
-                    new IllegalStateException("Unable to open any connections")
-                )
-            );
-
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(
-                EsqlCCSUtils.groupFailuresPerCluster(failures)
-            );
-            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote1", "remote2")));
-        }
-
-        // one cluster with "remote unavailable" with two failures
-        {
-            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
-            failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSeedNodeLeftException("no seed node")));
-
-            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
-            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
-        }
-
-        // two clusters, one "remote unavailable" type exceptions and one with another type
-        {
-            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            failures.add(new FieldCapabilitiesFailure(new String[] { "remote1:mylogs1" }, new CorruptIndexException("foo", "bar")));
-            failures.add(
-                new FieldCapabilitiesFailure(
-                    new String[] { "remote2:foo", "remote2:bar" },
-                    new IllegalStateException("Unable to open any connections")
-                )
-            );
-            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
-            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
-        }
-
-        // one cluster1 with exception not known to indicate "remote unavailable"
-        {
-            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            failures.add(new FieldCapabilitiesFailure(new String[] { "remote1:mylogs1" }, new RuntimeException("foo")));
-            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
-            assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
-        }
-
-        // empty failures list
-        {
-            List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
-            assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
     }
 

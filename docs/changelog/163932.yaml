@@ -1,0 +1,5 @@
+area: Infra/System Indices
+issues: []
+pr: 163932
+summary: Fail `DataStreams` matching System Indices pattern
+type: bug

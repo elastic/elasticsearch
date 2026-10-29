@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,6 +86,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     for (Map.Entry<String, DataStream> cursor : dataStreams.entrySet()) {
                         DataStream dataStream = cursor.getValue();
                         if (localNodeNewlyElectedMaster || dataStream != previousDataStreams.get(cursor.getKey())) {
+                            warnIfMatchesSystemIndexPattern(dataStream);
                             if (requiresUpdate(dataStream)) {
                                 changedDataStreams.add(dataStream);
                             }
@@ -159,6 +161,17 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     private boolean shouldBeSystem(DataStream dataStream) {
         return systemIndices.isSystemDataStream(dataStream.getName());
+    }
+
+    private void warnIfMatchesSystemIndexPattern(DataStream dataStream) {
+        final SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(dataStream.getName());
+        if (matchingDescriptor != null) {
+            logger.warn(
+                "data stream [{}] matches system index pattern [{}] but is not a system data stream; its backing indices are not restricted",
+                dataStream.getName(),
+                matchingDescriptor.getIndexPattern()
+            );
+        }
     }
 
     private static Stream<Index> getIndicesBackingDataStream(DataStream dataStream) {

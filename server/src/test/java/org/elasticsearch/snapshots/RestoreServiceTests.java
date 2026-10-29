@@ -54,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
@@ -284,6 +285,63 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
         assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
+    }
+
+    public void testRestoreDataStreamMatchingSystemIndexPatternFails() {
+        List<DataStream> dataStreams = Stream.of(".my-system-idx-a", ".my-system-idx-b", "data-stream-1")
+            .map(name -> DataStreamTestHelper.newInstance(name, List.of(new Index(DataStream.getDefaultBackingIndexName(name, 1), "uuid"))))
+            .toList();
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                dataStreams,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT),
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot restore data streams matching system index patterns: [.my-system-idx-a] matches [.my-system-idx*], "
+                    + "[.my-system-idx-b] matches [.my-system-idx*]; rename or exclude them"
+            )
+        );
+    }
+
+    public void testRenameDataStreamIntoSystemIndexPatternFails() {
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            "data-stream-1",
+            List.of(new Index(DataStream.getDefaultBackingIndexName("data-stream-1", 1), randomUUID()))
+        );
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement(".my-system-idx-ds");
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                List.of(dataStream),
+                request,
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(e.getMessage(), containsString("[data-stream-1] as [.my-system-idx-ds] matches [.my-system-idx*]"));
+    }
+
+    private static SystemIndices systemIndicesWithPattern(String indexPattern) {
+        return new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "a test feature",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(indexPattern, "test"))
+                )
+            )
+        );
     }
 
     public void testPrefixNotChanged() {

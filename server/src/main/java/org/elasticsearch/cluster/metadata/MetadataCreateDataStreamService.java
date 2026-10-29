@@ -243,18 +243,6 @@ public class MetadataCreateDataStreamService {
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
             || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
             : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
-        final SystemIndexDescriptor matchingSystemIndexDescriptor = metadataCreateIndexService.getSystemIndices()
-            .findMatchingDescriptor(dataStreamName);
-        if (matchingSystemIndexDescriptor != null) {
-            logger.warn(
-                "creating data stream [{}] whose name matches system index pattern [{}] but which is not registered as a system data "
-                    + "stream; its backing indices will not receive system index protections and may be accessible to unauthorized users",
-                dataStreamName,
-                matchingSystemIndexDescriptor.getIndexPattern()
-            );
-        }
-        assert matchingSystemIndexDescriptor == null
-            : "dataStream [" + dataStreamName + "] matches a SystemIndexDescriptor but should use a SystemDataStreamDescriptor instead";
 
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
@@ -268,6 +256,17 @@ public class MetadataCreateDataStreamService {
         }
         if (currentProject.hasDataset(dataStreamName)) {
             throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL dataset", dataStreamName);
+        }
+        final SystemIndexDescriptor matchingSystemIndexDescriptor = metadataCreateIndexService.getSystemIndices()
+            .findMatchingDescriptor(dataStreamName);
+        if (matchingSystemIndexDescriptor != null) {
+            throw new IllegalArgumentException(
+                "data_stream ["
+                    + dataStreamName
+                    + "] must not match system index pattern ["
+                    + matchingSystemIndexDescriptor.getIndexPattern()
+                    + "]"
+            );
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(

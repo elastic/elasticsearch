@@ -79,6 +79,7 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
     /** A merge opens the source raw vectors again only when searches read them at random without reuse. */
     public void testAMergeSaysHowItReadsAndWritesEachFile() throws IOException {
         assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
+        assumeTrue("a merge opens the raw vectors again only when their mapping is advised", MMapDirectory.supportsMadvise());
         List<String> failures = new ArrayList<>();
         merge(true, (sourceFiles, opens, creates, flushCreates) -> checkMerge(each, sourceFiles, opens, creates, flushCreates, failures));
         assertThat(failures, empty());
@@ -90,6 +91,7 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
      */
     public void testAMergeOfSegmentsNoSearchOpened() throws IOException {
         assumeTrue("nothing reads the raw vectors at random", each.walkedByGraph() || each.rescoresFromRaw());
+        assumeTrue("a merge opens the raw vectors again only when their mapping is advised", MMapDirectory.supportsMadvise());
         List<String> failures = new ArrayList<>();
         merge(false, (sourceFiles, opens, creates, flushCreates) -> {
             checkMerge(each, sourceFiles, opens, creates, flushCreates, failures);
@@ -119,7 +121,6 @@ public class VectorReadAdviceTests extends MapperServiceTestCase {
         List<Open> creates = new CopyOnWriteArrayList<>();
         List<Open> flushCreates = new ArrayList<>();
         Set<String> sourceFiles = new HashSet<>();
-        assumeTrue("a merge opens the raw vectors again only when their mapping is advised", MMapDirectory.supportsMadvise());
         try (Directory dir = new RecordingDirectory(HybridDirectoryVectorMergeTests.shardMmap(createTempDir()), opens, creates)) {
             IndexWriterConfig iwc = new IndexWriterConfig().setCodec(each.codec(this)).setUseCompoundFile(false);
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {

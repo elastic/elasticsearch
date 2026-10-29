@@ -19,25 +19,28 @@ import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-/** An input that is not efficient for a context its directory would open differently, such as with direct I/O instead of mmap. */
-class ServedIndexInput extends FilterIndexInput {
+/** An input opened for a specific context: efficient only for the contexts its directory opens the same way. */
+class ContextSpecificIndexInput extends FilterIndexInput {
 
-    private final Predicate<IOContext> servedTheSame;
+    private final Predicate<IOContext> contextMatches;
 
-    private ServedIndexInput(IndexInput in, Predicate<IOContext> servedTheSame) {
-        super("Served(" + in + ")", in);
-        this.servedTheSame = servedTheSame;
+    private ContextSpecificIndexInput(IndexInput in, Predicate<IOContext> contextMatches) {
+        super("ContextSpecific(" + in + ")", in);
+        this.contextMatches = contextMatches;
     }
 
-    static IndexInput wrap(IndexInput in, Predicate<IOContext> servedTheSame) {
-        return in instanceof MemorySegmentAccessInput ? new MemorySegments(in, servedTheSame) : new ServedIndexInput(in, servedTheSame);
+    static IndexInput wrap(IndexInput in, Predicate<IOContext> contextMatches) {
+        return in instanceof MemorySegmentAccessInput
+            ? new MemorySegments(in, contextMatches)
+            : new ContextSpecificIndexInput(in, contextMatches);
     }
 
     @Override
     public boolean isEfficientFor(IOContext context) {
-        return servedTheSame.test(context) && in.isEfficientFor(context);
+        return contextMatches.test(context) && in.isEfficientFor(context);
     }
 
+    // only the opened input is asked how it was opened, so clones and slices can be the delegate's
     @Override
     public IndexInput clone() {
         return in.clone();
@@ -59,11 +62,11 @@ class ServedIndexInput extends FilterIndexInput {
     }
 
     /** A mapped input, which keeps exposing its memory. */
-    private static final class MemorySegments extends ServedIndexInput implements MemorySegmentAccessInput {
+    private static final class MemorySegments extends ContextSpecificIndexInput implements MemorySegmentAccessInput {
         private final MemorySegmentAccessInput mapped;
 
-        private MemorySegments(IndexInput in, Predicate<IOContext> servedTheSame) {
-            super(in, servedTheSame);
+        private MemorySegments(IndexInput in, Predicate<IOContext> contextMatches) {
+            super(in, contextMatches);
             this.mapped = (MemorySegmentAccessInput) in;
         }
 
@@ -99,7 +102,7 @@ class ServedIndexInput extends FilterIndexInput {
 
         @Override
         public MemorySegments clone() {
-            return new MemorySegments((IndexInput) mapped.clone(), ((ServedIndexInput) this).servedTheSame);
+            return new MemorySegments((IndexInput) mapped.clone(), ((ContextSpecificIndexInput) this).contextMatches);
         }
     }
 }

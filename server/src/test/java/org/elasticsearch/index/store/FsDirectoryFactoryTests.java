@@ -791,6 +791,49 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         }
     }
 
+    /** A read that fails to open with direct I/O gets a plain mmap input, which searches can share like any other. */
+    public void testHybridDirectoryDirectIOReadFallsBackToMmap() throws IOException {
+        assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);
+        assumeTrue("an input is shared only for contexts its mapping is advised the same way", MMapDirectory.supportsMadvise());
+        Path path = createTempDir("directIOReadFallback");
+        AtomicInteger directOpens = new AtomicInteger();
+        FilterFileSystemProvider failing = new FilterFileSystemProvider("faildirect://", path.getFileSystem()) {
+            @Override
+            public FileChannel newFileChannel(Path p, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
+                if (options.contains(AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT)) {
+                    directOpens.incrementAndGet();
+                    throw new FileSystemException(p.toString(), null, "Invalid argument");
+                }
+                return super.newFileChannel(p, options, attrs);
+            }
+        };
+        VectorFieldHint field = new VectorFieldHint("vector");
+        try (
+            FsDirectoryFactory.HybridDirectory dir = new FsDirectoryFactory.HybridDirectory(
+                NativeFSLockFactory.INSTANCE,
+                new MMapDirectory(failing.wrapPath(path)),
+                0,
+                () -> ON_DISK_VECTOR_FIELD
+            )
+        ) {
+            // larger than a page, so its mapping is advised
+            try (IndexOutput out = dir.createOutput("_0.vec", IOContext.DEFAULT)) {
+                for (int i = 0; i < 1 << 14; i++) {
+                    out.writeInt(i);
+                }
+            }
+            try (IndexInput in = dir.openInput("_0.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, NoReuseHint.INSTANCE, field))) {
+                assertEquals("the rescore read tried direct I/O", 1, directOpens.get());
+                in.seek(4L * 42);
+                assertEquals(42, in.readInt());
+                assertTrue(
+                    "a search that reuses the vectors reads them the same way",
+                    in.isEfficientFor(IOContext.DEFAULT.withHints(DataAccessHint.RANDOM, field))
+                );
+            }
+        }
+    }
+
     /** One successful probe settles direct I/O support for the directory. */
     public void testHybridDirectoryDirectIOWriteProbesOnce() throws IOException {
         assumeTrue("needs the direct open option to intercept", AsyncDirectIOIndexInput.ExtendedOpenOption_DIRECT != null);

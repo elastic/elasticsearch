@@ -293,7 +293,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 ensureCanRead(name);
                 try {
                     Log.debug("Opening {} with direct IO", name);
-                    return servedAs(name, context, dio.openInput(name, context));
+                    return contextSpecific(name, context, dio.openInput(name, context));
                 } catch (FileSystemException | UnsupportedOperationException e) {
                     Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
                     directIOException = e;
@@ -310,7 +310,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     // we might run into trouble with files that are pendingDelete in one directory but still
                     // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                     // and intersect for perf reasons.
-                    return servedAs(name, context, delegate.openInput(name, context));
+                    IndexInput in = delegate.openInput(name, context);
+                    // after a failed direct open, the input is mmap's like any other
+                    return directIOException == null ? contextSpecific(name, context, in) : in;
                 } else {
                     return super.openInput(name, context);
                 }
@@ -486,8 +488,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return dio != null && useDirectIO(name, context) ? dio : null;
         }
 
-        /** Wraps {@code in} in a {@link ServedIndexInput} when the field can use direct I/O. */
-        private IndexInput servedAs(String name, IOContext context, IndexInput in) {
+        /** Wraps {@code in} in a {@link ContextSpecificIndexInput} when the field can use direct I/O. */
+        private IndexInput contextSpecific(String name, IOContext context, IndexInput in) {
             if ((directIODelegate == null && mergeDirectIODelegate == null) || isRawVectorFile(name) == false) {
                 return in;
             }
@@ -497,7 +499,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return in;
             }
             DirectIODirectory served = directIOFor(name, context);
-            return ServedIndexInput.wrap(in, other -> directIOFor(name, other) == served);
+            return ContextSpecificIndexInput.wrap(in, other -> directIOFor(name, other) == served);
         }
 
         /**

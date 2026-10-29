@@ -354,7 +354,7 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Reads a reserved view through {@code GET /_query/view} and asserts the response body contains
-     * {@code reserved: true}. A plain view omits the field. The view is created through the internal client
+     * {@code reserved: true}. A plain view omits both description and reserved. The view is created through the internal client
      * because {@code reserved} is not part of the public create API.
      */
     public void testGetViewRestResponseIncludesReserved() throws IOException {
@@ -379,11 +379,14 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
             Map<String, Object> plain = getViewFromRest(plainName);
             assertThat(plain.get("name"), equalTo(plainName));
             assertThat(plain.get("query"), equalTo(query));
+            assertThat(plain, not(hasKey("description")));
             assertThat(plain, not(hasKey("reserved")));
 
             List<Map<String, Object>> listed = listViewsFromRest();
             assertThat(findView(listed, reservedName).get("reserved"), equalTo(true));
-            assertThat(findView(listed, plainName), not(hasKey("reserved")));
+            Map<String, Object> listedPlain = findView(listed, plainName);
+            assertThat(listedPlain, not(hasKey("description")));
+            assertThat(listedPlain, not(hasKey("reserved")));
         } finally {
             if (reservedCreated) {
                 deleteView(reservedName, true);

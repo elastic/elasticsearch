@@ -84,13 +84,37 @@ enum ValueCardinality {
     }
 
     /**
+     * Whether {@code expression}, which is written in {@code node}, is single-valued. This is the usual question for a rule that holds
+     * a node and one of its expressions, such as a grouping of a {@code STATS}. The expression reads the columns that the node reads,
+     * so this picks the plan to pass to {@link #of} from the type of the node, and the caller does not have to know it. For a node that
+     * is not listed, the answer is {@link #MAYBE_MULTI}.
+     */
+    static ValueCardinality ofWrittenIn(Expression expression, LogicalPlan node) {
+        if (node instanceof Eval || node instanceof Row) {
+            // These nodes can read their own earlier fields, so the expression is evaluated over the node itself.
+            // FROM test | EVAL a = MV_MAX(languages), k = a the field k = a reads a, which this EVAL defines
+            return of(expression, node);
+        }
+        if (node instanceof Aggregate
+            || node instanceof Filter
+            || node instanceof OrderBy
+            || node instanceof Project
+            || node instanceof Limit
+            || node instanceof TopN) {
+            // These nodes read the columns that their child outputs.
+            // FROM test | EVAL a = MV_MIN(languages) | STATS BY a + 1 the grouping a + 1 reads a, from the EVAL below
+            return of(expression, node.children().get(0));
+        }
+        return MAYBE_MULTI;
+    }
+
+    /**
      * Follows {@code attribute} down {@code plan}, one node at a time, to the node that produced it. The question at each node is
      * "is this attribute single-valued as it comes out of {@code plan}?". Each case below is one kind of node, with a query that reaches
      * it. In the examples, the key of the last {@code STATS} is the attribute that is asked about.
      */
     private static ValueCardinality ofAttribute(Attribute attribute, LogicalPlan plan, int depth) {
         if (depth > MAX_DEPTH) {
-            // A very long chain of aliases: give up, see MAX_DEPTH.
             return MAYBE_MULTI;
         }
         // Each case either finds the producer of the attribute or hands the question to the child. Plan nodes that are not

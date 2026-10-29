@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
@@ -118,6 +120,32 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(aggregate.groupings(), hasSize(2));
         assertThat(ValueCardinality.of(aggregate.groupings().get(0), aggregate.child()), equalTo(SINGLE));
         assertThat(ValueCardinality.of(aggregate.groupings().get(1), aggregate.child()), equalTo(MAYBE_MULTI));
+    }
+
+    /**
+     * For an expression that is written in a node, the caller passes the node, and the plan to resolve its columns against is chosen
+     * from the type of the node. A grouping of a {@code STATS} reads the columns that the child outputs.
+     */
+    public void testWrittenInAnAggregate() {
+        var plan = analyzerWithSingleValuedFields(Set.of()).query(
+            "FROM test | EVAL a = MV_MIN(languages) | STATS c = COUNT(*) BY a, salary"
+        );
+        Aggregate aggregate = plan.collect(Aggregate.class).get(0);
+        assertThat(aggregate.groupings(), hasSize(2));
+        assertThat(ValueCardinality.ofWrittenIn(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofWrittenIn(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
+    }
+
+    /**
+     * An {@code EVAL} field can read an earlier field of the same {@code EVAL}. That column is not output by the child, so asking at the
+     * child cannot find it. Passing the {@code EVAL} to {@code ofWrittenIn} picks the right plan.
+     */
+    public void testWrittenInAnEvalThatReadsItsOwnEarlierField() {
+        var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | EVAL a = MV_MIN(languages), k = a");
+        Eval eval = plan.collect(Eval.class).get(0);
+        Expression definitionOfK = eval.fields().get(1).child();
+        assertThat(ValueCardinality.ofWrittenIn(definitionOfK, eval), equalTo(SINGLE));
+        assertThat(ValueCardinality.of(definitionOfK, eval.child()), equalTo(MAYBE_MULTI));
     }
 
     /**

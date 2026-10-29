@@ -539,3 +539,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/163831
+- class: org.elasticsearch.xpack.inference.SemanticTextEISDefaultIT
+  tasks:
+  - :x-pack:plugin:inference:qa:inference-service-tests:javaRestTest
+  method: testDefaultInferenceIdForSemanticText
+  issue: https://github.com/elastic/elasticsearch/issues/163865

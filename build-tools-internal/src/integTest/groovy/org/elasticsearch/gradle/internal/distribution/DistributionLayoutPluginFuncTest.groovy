@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermission
+import java.nio.file.attribute.PosixFilePermissions
 
 @IgnoreIf({ os.isWindows() })
 class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
@@ -156,6 +157,10 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
         windowsBat.contains('@project.version@') == false
         windowsBat.contains('\r\n')
 
+        // Keep this fixture single-variant for runtime; verify the linux x64 archive picks the x64 launcher content.
+        String linuxServerLauncher = tarContent(tarFile, 'elasticsearch-/lib/tools/server-launcher/server-launcher')
+        linuxServerLauncher == 'linux x64 launcher\n'
+
         String debTemplate = Files.readString(debCopyDir.toPath().resolve('distribution.env'))
         debTemplate.contains('/etc/elasticsearch')
         debTemplate.contains('@path.conf@') == false
@@ -175,10 +180,23 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
         second.task(':buildDebCopy').outcome == TaskOutcome.UP_TO_DATE
 
         when:
-        BuildResult third = gradleRunner('buildDebCopy', '-PdistVersion=9.1.1').build()
+        BuildResult third = gradleRunner('buildLinuxTar', 'buildIntegTestZip', 'buildDebCopy', '-PdistVersion=9.1.1').build()
 
         then:
+        third.task(':buildLinuxTar').outcome == TaskOutcome.SUCCESS
+        third.task(':buildIntegTestZip').outcome == TaskOutcome.SUCCESS
         third.task(':buildDebCopy').outcome == TaskOutcome.SUCCESS
+
+        and:
+        String updatedLinuxScript = tarContent(file('build/distributions/linux-x64.tar.gz'), 'elasticsearch-/bin/elasticsearch')
+        updatedLinuxScript.contains('# Built 9.1.1')
+        updatedLinuxScript.contains('# Built 9.1.0') == false
+
+        String updatedDebScript = Files.readString(file('build/deb-copy/usr/share/elasticsearch/bin/elasticsearch').toPath())
+        updatedDebScript.contains('# Built 9.1.1')
+
+        String updatedWindowsBat = zipContent(file('build/distributions/integ-test.zip'), 'elasticsearch-/bin/elasticsearch.bat')
+        updatedWindowsBat.contains('set VERSION=9.1.1')
     }
 
     private void setupFixtureFiles() {
@@ -230,6 +248,59 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
 
         file('fixtures/libs/platform/linux-x64/libnative.so').text = 'native linux\n'
         file('fixtures/libs/platform/darwin-aarch64/libnative.dylib').text = 'native darwin\n'
+
+        // Keep fixture source modes deterministic across different host umasks.
+        List<String> readOnlyFiles = [
+            'licenses/ELASTIC-LICENSE-2.0.txt',
+            'licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt',
+            'src/config/elasticsearch.yml',
+            'src/config/elasticsearch-plugins.example.yml',
+            'src/bin/elasticsearch.bat',
+            'src/bin/elasticsearch.exe',
+            'fixtures/generated/log4j2.properties',
+            'fixtures/config-default/default.yml',
+            'fixtures/config-integ/integ.yml',
+            'fixtures/bin-default/module-tool.bat',
+            'fixtures/notice/NOTICE.txt',
+            'fixtures/notice/NOTICE-SERVER.txt',
+            'fixtures/modules-default/sample/config/sample.yml',
+            'fixtures/modules-default/sample/platform/linux-x86_64/native.dat',
+            'fixtures/modules-default/sample/platform/darwin-aarch64/native.dat',
+            'fixtures/modules-default/geo/ignored/file.txt',
+            'fixtures/modules-integ/transport/bin/integ-tool',
+            'fixtures/modules-external/external/module.txt',
+            'fixtures/packaging-template/distribution.env',
+            'fixtures/libs/server.jar',
+            'fixtures/libs/java-version-checker.jar',
+            'fixtures/libs/cli-launcher.jar',
+            'fixtures/libs/server-cli.jar',
+            'fixtures/libs/server-launcher.jar',
+            'fixtures/libs/native-launchers/x64/server-launcher',
+            'fixtures/libs/native-launchers/aarch64/server-launcher',
+            'fixtures/libs/windows-service-cli.jar',
+            'fixtures/libs/plugin-cli.jar',
+            'fixtures/libs/keystore-cli.jar',
+            'fixtures/libs/security-cli.jar',
+            'fixtures/libs/geoip-cli.jar',
+            'fixtures/libs/ansi-console.jar',
+            'fixtures/libs/entitlement-agent.jar',
+            'fixtures/libs/entitlement-bridge.jar',
+            'fixtures/libs/platform/linux-x64/libnative.so',
+            'fixtures/libs/platform/darwin-aarch64/libnative.dylib'
+        ]
+        readOnlyFiles.forEach { setFixtureMode(it, 'rw-r--r--') }
+
+        List<String> executableFiles = [
+            'src/bin/elasticsearch',
+            'fixtures/bin-default/module-tool',
+            'fixtures/bin-integ/integ-tool',
+            'fixtures/modules-default/sample/bin/sample-tool'
+        ]
+        executableFiles.forEach { setFixtureMode(it, 'rwxr-xr-x') }
+    }
+
+    private void setFixtureMode(String path, String permissions) {
+        Files.setPosixFilePermissions(file(path).toPath(), PosixFilePermissions.fromString(permissions))
     }
 
     private static List<String> tarListing(File tarArchive) {

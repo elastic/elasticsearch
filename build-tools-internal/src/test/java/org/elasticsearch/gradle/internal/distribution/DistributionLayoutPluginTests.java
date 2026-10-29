@@ -29,6 +29,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -129,17 +131,23 @@ public class DistributionLayoutPluginTests {
         project.getPlugins().apply(DistributionLayoutPlugin.class);
 
         DistributionLayoutExtension extension = (DistributionLayoutExtension) project.getExtensions().getByName("esDistributionLayout");
-        extension.tokenExpansions("deb", false);
         extension.tokenExpansions("zip", true);
+        extension.tokenExpansions("deb", false);
 
         Copy copy = project.getTasks().create("copyLayout", Copy.class);
         Map<String, Map<String, String>> inputValue = (Map<String, Map<String, String>>) copy.getInputs()
             .getProperties()
             .get("esDistributionLayout.tokenExpansions");
 
-        assertEquals(Set.of("deb:false", "zip:true"), inputValue.keySet());
+        assertEquals(List.of("deb:false", "zip:true"), new ArrayList<>(inputValue.keySet()));
         assertEquals("deb", inputValue.get("deb:false").get("es.distribution.type"));
         assertEquals("zip", inputValue.get("zip:true").get("es.distribution.type"));
+        inputValue.values().forEach(expansions -> {
+            List<String> keys = new ArrayList<>(expansions.keySet());
+            List<String> sortedKeys = new ArrayList<>(keys);
+            Collections.sort(sortedKeys);
+            assertEquals(sortedKeys, keys);
+        });
     }
 
     private static void writeJar(File file) throws IOException {

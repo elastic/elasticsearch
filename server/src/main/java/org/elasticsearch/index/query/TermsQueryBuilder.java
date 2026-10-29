@@ -347,6 +347,11 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
             }
             final char[] chars = value.array();
             final int from = value.arrayOffset() + value.position();
+            // Shortcut - check the first char for free before allocating
+            if (length > 0 && chars[from] > 0x7F) {
+                final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
+                return new BytesRef(Arrays.copyOf(scratch, used));
+            }
             final byte[] bytes = new byte[length];
             int bits = 0;
             for (int i = 0; i < length; i++) {
@@ -355,12 +360,14 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
                 bytes[i] = (byte) c;
             }
             if (bits < 0x80) {
+                // If the whole string is ASCII, we can avoid the UTF-8 conversion
                 return new BytesRef(bytes);
             }
             final int used = UnicodeUtil.UTF16toUTF8(chars, from, length, ensureScratch(length));
             return new BytesRef(Arrays.copyOf(scratch, used));
         }
 
+        // Ensure scratch is large enough to hold the UTF-8 encoded bytes
         private byte[] ensureScratch(int charLength) {
             final int max = UnicodeUtil.maxUTF8Length(charLength);
             if (scratch.length < max) {

@@ -55,10 +55,13 @@ setup:
 ---
 "Basic test":
   - requires:
+      test_runner_features: [warnings]
       cluster_features: ["gte_v8.7.0"]
       reason: Time series result serialization changed in 8.6.0
 
   - do:
+      warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -84,10 +87,13 @@ setup:
 
 "Basic test profiled":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.8.0"]
       reason: Time series profiling enabled in 8.8
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -108,10 +114,13 @@ setup:
 ---
 "Size test":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -130,6 +139,8 @@ setup:
   - match: { aggregations.ts.buckets.0.key: { "key": "baz" } }
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -152,10 +163,13 @@ setup:
 ---
 "Score test filter some":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.9.0"]
       reason: Time series min score fixed in 8.9
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -180,10 +194,13 @@ setup:
 ---
 "Score test filter all":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.9.0"]
       reason: Time series min score fixed in 8.9
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -206,10 +223,13 @@ setup:
 ---
 "Sampler aggregation with nested time series aggregation failure":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/\[random_sampler\] aggregation \[sample\] does not support sampling \[time_series\] aggregation \[ts\]/'
       search:
         index: tsdb
@@ -235,10 +255,13 @@ setup:
 ---
 "Composite aggregation with nested time series aggregation failure":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/\[composite\] aggregation is incompatible with time series execution mode/'
       search:
         index: tsdb
@@ -272,10 +295,13 @@ setup:
 ---
 "Global aggregation with nested time series aggregation failure":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.7.0"]
       reason: "Handling for time series aggregation failures introduced in 8.7.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/Time series aggregations cannot be used inside global aggregation./'
       search:
         index: tsdb
@@ -295,6 +321,7 @@ setup:
 ---
 "Number for keyword routing field":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
@@ -309,6 +336,8 @@ setup:
           - '{ "key": 11, "val": 2, "@timestamp": "2021-10-01T00:00:00Z" }'
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb
         body:
@@ -338,6 +367,7 @@ setup:
   # for dimensions fields such that sort(_tsid, timestamp) != sort(_tsid hash, timestamp).
 
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
@@ -416,6 +446,8 @@ setup:
   - is_false: errors
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: test-1,test-2
         body:
@@ -437,10 +469,13 @@ setup:
 ---
 "auto_date_histogram aggregation with time_series aggregation":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/\[by_time\] aggregation is incompatible with time series execution mode/'
       search:
         index: tsdb
@@ -456,10 +491,13 @@ setup:
 ---
 "variable_width_histogram aggregation with time_series aggregation":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/\[variable_width_histogram\] aggregation is incompatible with time series execution mode/'
       search:
         index: tsdb
@@ -475,10 +513,13 @@ setup:
 ---
 "rare_terms aggregation with time_series aggregation":
   - requires:
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.13.0"]
       reason: "Handling for time series aggregation failures introduced in 8.13.0"
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: '/\[rare_terms\] aggregation is incompatible with time series execution mode/'
       search:
         index: tsdb

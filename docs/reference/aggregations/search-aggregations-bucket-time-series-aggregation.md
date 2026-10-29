@@ -2,13 +2,19 @@
 navigation_title: "Time series"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-time-series-aggregation.html
+applies_to:
+  stack: deprecated 9.7+
 ---
 
 # Time series aggregation [search-aggregations-bucket-time-series-aggregation]
 
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
+The `time_series` aggregation is deprecated and will be removed in a future version. Use the [{{esql}} `TS` command](/reference/query-languages/esql/commands/ts.md) to query time series data instead.
+
+Each search request that uses the `time_series` aggregation returns a deprecation warning. The aggregations that rely on the `time_series` aggregation are deprecated with it. These are the [`rate`](/reference/aggregations/search-aggregations-metrics-rate-aggregation.md) aggregation on counter fields and the [`geo_line`](/reference/aggregations/search-aggregations-metrics-geo-line.md) aggregation inside a `time_series` aggregation.
+
+Before it was deprecated, this functionality was in technical preview. Features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
 
@@ -35,7 +41,7 @@ PUT /my-time-series-index-0/_bulk
 ```
 % NOTCONSOLE
 
-To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed" is true, each bucket is given a unique key.
+To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed" is true (the default), each bucket is given a unique key.
 
 $$$time-series-aggregation-example$$$
 
@@ -60,13 +66,36 @@ By default, `time series` aggregations return 10000 results. The "size" paramete
 
 ## Keyed [search-aggregations-bucket-time-series-aggregation-keyed]
 
-The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed` set to false, buckets are returned as an array.
+The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default (`keyed` set to `true`), buckets are returned as a map. When `keyed` is `false`, buckets are returned as an array.
 
 
 ## Limitations [times-series-aggregations-limitations]
 
-The `time_series` aggregation has many limitations. Many aggregation performance optimizations are disabled when using the `time_series` aggregation. For example the filter by filter optimization or collect mode breath first (`terms` and `multi_terms` aggregation forcefully use the depth first collect mode).
+The `time_series` aggregation has many limitations. It collects documents in `_tsid` and `@timestamp` order, and this changes how the rest of the search request runs.
 
-The following aggregations also fail to work if used in combination with the `time_series` aggregation: `auto_date_histogram`, `variable_width_histogram`, `rare_terms`, `global`, `composite`, `sampler`, `random_sampler` and `diversified_sampler`.
+The following aggregations return an error when they are combined with the `time_series` aggregation:
 
+* `composite`
+* `global`
+* `top_hits`
+* `random_sampler`
 
+The following aggregations defer the collection of their sub-aggregations. Deferred collection is not possible when documents are collected in `_tsid` order. These aggregations return an error when they have a sub-aggregation that they must defer:
+
+* `auto_date_histogram`
+* `variable_width_histogram`
+* `rare_terms`
+* `sampler` and `diversified_sampler`
+* `categorize_text`
+
+The following limitations apply to the other aggregations in the same search request:
+
+* The `terms` and `multi_terms` aggregations always use the depth first collect mode.
+* The filter by filter optimization is disabled, and so are many other aggregation performance optimizations.
+* The search request is not run in parallel across segments, because documents must be collected in order.
+* The `time_series` aggregation returns at most `size` buckets.
+
+The following aggregations behave differently inside a `time_series` aggregation:
+
+* The `rate` aggregation accepts counter fields and compensates for counter resets. It cannot be nested in an `auto_date_histogram` aggregation.
+* The `geo_line` aggregation uses `@timestamp` as its `sort` field, and it returns an error for any other `sort` field. It simplifies the line to `size` points instead of it truncating the line.

@@ -1075,7 +1075,9 @@ public final class EscfColumnBuilder implements Releasable {
                 if (isAbsentAt(i)) {
                     typeVec[i] = SourceValueType.ABSENT;
                 } else {
-                    typeVec[i] = (values != null && values.get(i)) ? SourceValueType.TRUE : SourceValueType.FALSE;
+                    // values only grows when a true is added, so it can be shorter than count; rows past its end are false
+                    boolean isTrue = values != null && i < values.length() && values.get(i);
+                    typeVec[i] = isTrue ? SourceValueType.TRUE : SourceValueType.FALSE;
                 }
             }
             return new UnionBuilder(newStream(recycler), typeVec, new int[count + 1], 0, count, validity);

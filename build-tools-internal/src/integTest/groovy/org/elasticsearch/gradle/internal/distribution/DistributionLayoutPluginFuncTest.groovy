@@ -102,6 +102,13 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
             tasks.register('buildDebCopy', Copy) {
               into(layout.buildDirectory.dir('deb-copy'))
 
+              // buildDebCopy writes to the real filesystem, so on-disk directory modes, and the modes of
+              // generated inputs such as the FilteringJarTransform output, would otherwise follow the host
+              // umask (0755/0644 on umask 022, 0775/0664 on umask 002) and make the golden host-dependent.
+              // Pin the defaults here; the layout specs still override executable files to 0755 via eachFile.
+              dirPermissions { unix(0755) }
+              filePermissions { unix(0644) }
+
               with copySpec {
                 from('fixtures/packaging-template')
                 filter('tokens': esDistributionLayout.tokenExpansions('deb', false), ReplaceTokens.class)

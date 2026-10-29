@@ -2157,6 +2157,148 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
+    /// Builds a cluster state where shard 0 relocates from the healthy `healthy-source` to `target-node`, while `pendingShards` other search
+    /// shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE since `shutdownStartedAtMillis`.
+    private static ClusterState clusterStateRelocationWithOtherNodeShuttingDown(
+        int pendingShards,
+        Index index,
+        long shutdownStartedAtMillis
+    ) {
+        final String primaryNodeId = "primary-node";
+        final String masterNodeId = "master-node";
+        final int numShards = 1 + pendingShards;
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
+            .build();
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
+        for (int s = 0; s < numShards; s++) {
+            final ShardId sid = new ShardId(index, s);
+            final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final ShardRouting searchShard = s == 0
+                ? TestShardRouting.shardRoutingBuilder(sid, "healthy-source", false, RELOCATING)
+                    .withRelocatingNodeId("target-node")
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build()
+                : TestShardRouting.shardRoutingBuilder(sid, "shutting-node", false, STARTED)
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(searchShard));
+        }
+        final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId("shutting-node")
+            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+            .setReason("SearchRecoveryTimeoutCalculationServiceTests")
+            .setStartedAtMillis(shutdownStartedAtMillis)
+            .setNodeSeen(true)
+            .build();
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create(masterNodeId))
+                    .masterNodeId(masterNodeId)
+                    .localNodeId(masterNodeId)
+                    .add(DiscoveryNodeUtils.create(primaryNodeId))
+                    .add(DiscoveryNodeUtils.create("shutting-node"))
+                    .add(DiscoveryNodeUtils.create("healthy-source"))
+                    .add(DiscoveryNodeUtils.create("target-node"))
+                    .build()
+            )
+            .metadata(
+                Metadata.builder()
+                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of("shutting-node", shutdown)))
+                    .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                    .build()
+            )
+            .routingTable(GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build())
+            .build();
+    }
+
+    /// A relocation from a healthy source while another node shuts down: the target accepts 2 incoming recoveries and this shard holds one,
+    /// so one slot is free. When the shutting-down node needs at most that many, the shard keeps the full relocation-with-shutdown timeout.
+    public void testRelocationWithOtherNodeShutdownKeepsFullTimeoutWhenSlotsAreAvailable() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var service = newCalculationService(threadPool, otherNodeShutdownSettings(), 1000L);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(1, index, threadPool.absoluteTimeInMillis());
+
+            final var plan = service.searchRecoveryTimeout(state, mockIndexShard(selfOfOtherNodeShutdown(state, index)), 1000L, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+            assertThat(
+                plan.timeout(),
+                equalTo(
+                    SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING.getDefault(
+                        Settings.EMPTY
+                    )
+                )
+            );
+            assertThat(plan.extendable(), is(true));
+        }
+    }
+
+    /// With 3 search shards pending on the shutting-down node and 1 free slot, the shard shares the time left until the grace deadline
+    /// (8s of the 10s cap): equal share = 8s / (3 + 1) = 2s. The data-volume share (bytes to warm / half of the 1000 bytes cache * 8s) wins
+    /// when it is larger and is capped to the time remaining.
+    public void testRelocationWithOtherNodeShutdownSharesFreeSlotsWhenSlotsAreScarce() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            final var service = newCalculationService(threadPool, otherNodeShutdownSettings(), 1000L);
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var index = new Index("idx", randomUUID());
+            final var state = clusterStateRelocationWithOtherNodeShuttingDown(3, index, threadPool.absoluteTimeInMillis());
+            final var self = mockIndexShard(selfOfOtherNodeShutdown(state, index));
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            final var equalShare = service.searchRecoveryTimeout(state, self, 0L, null);
+            assertThat(
+                equalShare.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+            );
+            assertThat(equalShare.timeout().millis(), equalTo(2000L));
+
+            // 250 of the 500 bytes warming cache budget: 0.5 * 8s = 4s beats the 2s equal share
+            final var dataVolume = service.searchRecoveryTimeout(state, self, 250L, null);
+            assertThat(dataVolume.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME));
+            assertThat(dataVolume.timeout().millis(), equalTo(4000L));
+
+            // twice the budget would be 16s, capped to the 8s left until the grace deadline
+            final var capped = service.searchRecoveryTimeout(state, self, 1000L, null);
+            assertThat(capped.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME));
+            assertThat(capped.timeout().millis(), equalTo(8000L));
+        }
+    }
+
+    private static Settings otherNodeShutdownSettings() {
+        return Settings.builder()
+            .put(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING.getKey(), "10s")
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
+            .build();
+    }
+
+    private static ShardRouting selfOfOtherNodeShutdown(ClusterState state, Index index) {
+        return state.routingTable(DEFAULT_PROJECT_ID)
+            .shardRoutingTable(new ShardId(index, 0))
+            .shardsWithState(RELOCATING)
+            .stream()
+            .filter(shard -> shard.primary() == false)
+            .findFirst()
+            .orElseThrow()
+            .getTargetRelocatingShard();
+    }
+
     /**
      * Builds a cluster state where shard 1 of {@code indexName} is an INITIALIZING {@link ShardRouting.Role#SEARCH_ONLY} replica
      * representing a resharding split target. The index has resharding metadata that identifies shard 0 as the source shard and shard 1

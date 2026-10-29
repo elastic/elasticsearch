@@ -514,6 +514,15 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testTsidForBulkIsSame() throws Exception {
+        assertTsidForBulkIsSame("By");
+    }
+
+    public void testTsidForBulkIsSameWithoutUnit() throws Exception {
+        // the unit is omitted from the document when empty, so it must not contribute to the _tsid either
+        assertTsidForBulkIsSame("");
+    }
+
+    private void assertTsidForBulkIsSame(String unit) throws Exception {
         // This test is to ensure that the _tsid is the same when indexing via a bulk request or OTLP.
         long now = Clock.getDefault().now();
 
@@ -531,7 +540,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         .build(),
                     "metric",
                     42,
-                    "By",
+                    unit,
                     now
                 )
             )
@@ -571,12 +580,12 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
                         },
                         "scope": {
                             "name": "io.opentelemetry.example.metrics"
-                        },
-                        "unit": "By"
+                        }$unit
                     }
                     """.replace("\n", "")
                     .replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1))
                     .replace("$metric_names_hash", metricNamesHash)
+                    .replace("$unit", unit.isEmpty() ? "" : ",\"unit\": \"" + unit + "\"")
                 + "\n"
         );
         assertThat(ObjectPath.createFromResponse(client().performRequest(bulkRequest)).evaluate("errors"), equalTo(false));

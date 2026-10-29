@@ -511,11 +511,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testStatsBlowupNdjsonZstd
   issue: https://github.com/elastic/elasticsearch/issues/163697
-- class: org.elasticsearch.xpack.esql.action.EsqlQueryLogIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testSetLevel
-  issue: https://github.com/elastic/elasticsearch/issues/163699
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -531,11 +526,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/163773
-- class: org.elasticsearch.compute.operator.DriverTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testRunsThroughComputeExecutor
-  issue: https://github.com/elastic/elasticsearch/issues/163778
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
   tasks:
   - :x-pack:plugin:dlm-frozen-transition:internalClusterTest

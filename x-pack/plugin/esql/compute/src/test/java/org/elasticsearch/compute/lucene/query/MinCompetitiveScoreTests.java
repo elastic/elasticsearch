@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Tests for {@link MinCompetitiveScore}, fed by a real {@link TopNOperator} the way production is.
+ * Tests for {@link MinCompetitiveScore} with bounds published by a {@link TopNOperator}.
  */
 public class MinCompetitiveScoreTests extends ComputeTestCase {
     static final SharedMinCompetitive.KeyConfig SCORE_DESC = new SharedMinCompetitive.KeyConfig(

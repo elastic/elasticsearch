@@ -720,7 +720,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     /**
      * The {@link MinCompetitiveScore.Factory} feeding a {@code SORT _score DESC} TopN's bound back to
      * Lucene, or {@code null}. The planner checked the preconditions when it built {@code scoreTopN}.
-     * Should they not hold here anyway, drop the optimisation instead of letting
+     * If they don't hold here, drop the optimisation instead of letting
      * {@link LuceneSourceOperator.Factory} fail the query.
      */
     @Nullable

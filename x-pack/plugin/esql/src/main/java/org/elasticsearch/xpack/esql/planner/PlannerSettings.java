@@ -315,8 +315,8 @@ public class PlannerSettings {
      * Enables feeding the {@code _score} of the least competitive row of a {@code SORT _score DESC}
      * TopN that couldn't be pushed to Lucene back into Lucene's scorers, so block-max / WAND scoring
      * can skip documents that can't make the top N. Separate from
-     * {@link #MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED} because it switches the Lucene weight to
-     * {@code ScoreMode.TOP_SCORES}, a different scoring code path, and deserves its own kill switch.
+     * {@link #MIN_COMPETITIVE_TIMESTAMP_OPTIMIZATION_ENABLED} because this one switches the Lucene
+     * weight to {@code ScoreMode.TOP_SCORES}, a different scoring code path.
      */
     public static final Setting<Boolean> MIN_COMPETITIVE_SCORE_OPTIMIZATION_ENABLED = Setting.boolSetting(
         "esql.min_competitive.score_optimization.enabled",

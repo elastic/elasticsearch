@@ -24,14 +24,14 @@ import java.util.List;
  * {@code SORT _score DESC | LIMIT N} query out of a {@link SharedMinCompetitive} so that
  * {@link LuceneSourceOperator} can hand it to Lucene via {@link Scorable#setMinCompetitiveScore}.
  * <p>
- * This is the score counterpart of {@link MinCompetitiveQuery}: a field-valued bound can be turned
- * into a range query, but a score bound can only be expressed through the scorer itself, which lets
- * WAND / block-max scorers skip whole blocks of documents that can't beat the current top N. That
- * requires the weight to be built with {@link ScoreMode#TOP_SCORES}.
+ * A bound on a field can be turned into a range query, see {@link MinCompetitiveQuery}. A bound on
+ * the score can only go through the scorer: WAND and block-max scorers then skip whole blocks of
+ * documents that can't beat the current top N. That requires the weight to be built with
+ * {@link ScoreMode#TOP_SCORES}.
  * <p>
- * Every operator gets its own instance; the {@link SharedMinCompetitive} behind it is shared by all
- * drivers running the same TopN on the node. Instances are not thread safe, but the driver only
- * ever calls them from one thread at a time.
+ * Every operator gets its own instance. The {@link SharedMinCompetitive} behind it is shared by all
+ * drivers running the same TopN on the node. Instances are not thread safe, the driver only calls
+ * them from one thread at a time.
  */
 public final class MinCompetitiveScore implements Releasable {
     /**
@@ -44,8 +44,8 @@ public final class MinCompetitiveScore implements Releasable {
      * Builds a {@link MinCompetitiveScore} per {@link LuceneSourceOperator}.
      *
      * @param minCompetitive the channel the {@link TopNOperator}s publish into. It must track exactly
-     *                       one {@link ElementType#DOUBLE} key sorted descending: skipping low scores
-     *                       is only valid when high scores win.
+     *                       one {@link ElementType#DOUBLE} key sorted descending, skipping low scores
+     *                       is only valid for a descending sort.
      */
     public record Factory(SharedMinCompetitive.Supplier minCompetitive) {
         public Factory {
@@ -75,7 +75,7 @@ public final class MinCompetitiveScore implements Releasable {
     private float cachedScore = NO_THRESHOLD;
 
     /**
-     * How many times we decoded a new value from {@link #minCompetitive}. Visible for testing.
+     * How many times a new value was decoded from {@link #minCompetitive}. Visible for testing.
      */
     private int decodes;
 
@@ -96,9 +96,9 @@ public final class MinCompetitiveScore implements Releasable {
         long generation = minCompetitive.generation();
         if (generation != cachedGeneration) {
             /*
-             * The bound may advance between reading the generation and reading the value. Then we
-             * cache a value that's newer than its generation and decode again on the next call.
-             * That's fine: newer values are only ever more competitive, and still sound.
+             * The bound may advance between reading the generation and reading the value. The cached
+             * value is then newer than its generation and the next call decodes again. Newer values
+             * are only ever more competitive so the result is still sound.
              */
             float decoded = decode();
             // Lucene requires this to never decrease. SharedMinCompetitive only accepts more competitive values
@@ -118,7 +118,7 @@ public final class MinCompetitiveScore implements Releasable {
         try {
             DoubleBlock block = page.getBlock(0);
             if (block.isNull(0)) {
-                // The least competitive kept row has no score. _score is never null so this shouldn't happen.
+                // _score is never null. Without a score there is no bound.
                 return NO_THRESHOLD;
             }
             return toMinCompetitiveFloat(block.getDouble(block.getFirstValueIndex(0)));
@@ -129,9 +129,9 @@ public final class MinCompetitiveScore implements Releasable {
 
     /**
      * Convert the {@code double} ES|QL {@code _score} into the {@code float} Lucene compares scores
-     * against, rounding <strong>down</strong> so we never skip a document whose score equals the
-     * bound. ES|QL builds {@code _score} by widening Lucene's {@code float} score so the conversion
-     * is exact in practice. Rounding down only matters if something ever feeds a non-float value.
+     * against, rounding <strong>down</strong> so a document whose score equals the bound is never
+     * skipped. ES|QL builds {@code _score} by widening Lucene's {@code float} score so the conversion
+     * is exact. Rounding down only matters for a value that didn't come from a {@code float}.
      */
     static float toMinCompetitiveFloat(double score) {
         if (Double.isNaN(score) || score <= 0) {

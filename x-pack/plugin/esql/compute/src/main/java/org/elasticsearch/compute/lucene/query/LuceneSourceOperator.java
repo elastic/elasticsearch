@@ -598,9 +598,9 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     /**
      * Like {@link ScoringCollector} but feeds the downstream TopN's min competitive score back into
-     * Lucene so it can skip documents that can't make the top N. Documents that Lucene still hands us
-     * but that score below the bound are dropped here too: they can't make the top N either and
-     * dropping them saves loading their fields.
+     * Lucene so it can skip documents that can't make the top N. Documents Lucene still collects that
+     * score below the bound are dropped here too: they can't make the top N either and dropping them
+     * saves loading their fields.
      */
     final class MinCompetitiveScoringCollector extends LuceneSourceOperator.LimitingCollector {
         private Scorable scorable;
@@ -778,7 +778,7 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     /**
-     * How many times we raised the min competitive score on a Lucene {@link Scorable}. Visible for testing.
+     * How many times the min competitive score was raised on a Lucene {@link Scorable}. Visible for testing.
      */
     int minCompetitiveScoreUpdates() {
         return minCompetitiveScoreUpdates;

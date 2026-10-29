@@ -79,8 +79,8 @@ public class MinCompetitiveScoreIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A few documents score far higher than all the others. With the optimization Lucene should
-     * skip most of the others.
+     * A few documents score far higher than all the others. With the optimization Lucene skips most
+     * of the others.
      */
     public void testSkipsDocuments() {
         assumeTrue("needs the page_size pragma, which release builds reject", canUseQueryPragmas());
@@ -187,7 +187,7 @@ public class MinCompetitiveScoreIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Profile the query so we can count the rows the source emitted.
+     * Profile the query to count the rows the source emitted.
      */
     private static EsqlQueryRequest profiled(String query) {
         EsqlQueryRequest request = syncEsqlQueryRequest(query);

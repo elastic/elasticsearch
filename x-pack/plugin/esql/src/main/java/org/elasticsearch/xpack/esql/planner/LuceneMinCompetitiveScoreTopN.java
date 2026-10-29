@@ -19,8 +19,8 @@ import org.elasticsearch.core.Nullable;
  * {@code LuceneSourceOperator}s read it back through {@link MinCompetitiveScore} and hand it to
  * Lucene's scorers so they can skip documents that can't make the top N.
  * <p>
- * This is the {@code _score} counterpart of {@link LuceneMinCompetitiveTimestampTopN}. It is a separate
- * type because it feeds the scorer rather than a {@code competitiveIterator} built from a field.
+ * Separate from {@link LuceneMinCompetitiveTimestampTopN} because the bound goes into the scorer
+ * rather than into a {@code competitiveIterator} built from a field.
  *
  * @param globalTopK non-null when drivers merge their heaps into one node-wide top N to publish a
  *                   tighter bound sooner. See {@link SharedGlobalTopK}.

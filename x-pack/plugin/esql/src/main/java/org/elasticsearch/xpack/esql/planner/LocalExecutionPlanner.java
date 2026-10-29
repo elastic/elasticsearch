@@ -1350,8 +1350,7 @@ public class LocalExecutionPlanner {
      *         safe to skip a document just because its Lucene score is below it.</li>
      *     <li>The {@link EsQueryExec} has no limit: a limit counts emitted documents and skipping would
      *         change which ones count. {@link #luceneMinCompetitiveSource} already requires it to have
-     *         no sort and a single query. Several queries would likely be fine too (each document is
-     *         scored by the one that matched it) but nothing needs that yet.</li>
+     *         no sort and a single query.</li>
      * </ul>
      */
     @Nullable

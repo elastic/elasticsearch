@@ -74,8 +74,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests feeding a {@code SORT _score DESC} TopN's bound back into {@link LuceneSourceOperator}
- * through {@link MinCompetitiveScore}. Uses BM25 over Lucene indices and a {@link TopNOperator} so
- * the bound comes from the same place it does in production.
+ * through {@link MinCompetitiveScore}. Scores come from BM25 over Lucene indices and bounds from a
+ * {@link TopNOperator}.
  */
 public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCase {
     private static final String FIELD = "text";
@@ -249,8 +249,8 @@ public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCas
 
     /**
      * A skewed index where a few documents score far higher than the rest. Once the TopN is full
-     * Lucene should skip most of the low scoring documents. This doubles as a measurement: it logs
-     * how many documents the source emitted with and without the optimization.
+     * Lucene skips most of the low scoring documents. Logs how many documents the source emitted
+     * with and without the optimization.
      */
     public void testSkipsDocumentsOnSkewedIndex() throws IOException {
         int numDocs = 50_000;
@@ -267,8 +267,8 @@ public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCas
         logger.info("skewed index: emitted off={} on={} updates={}", off.emitted, on.emitted, on.updates);
         assertSameTopN(off.top, on.top);
         assertThat(off.emitted, equalTo((long) numDocs));
-        // Low scoring docs collected before the TopN publishes or raises its bound still come through, but
-        // they should be a small minority.
+        // Low scoring docs collected before the TopN publishes or raises its bound still come through, so
+        // the source emits more than the top N.
         assertThat(on.emitted, lessThan(off.emitted / 10));
         assertThat(on.updates, greaterThan(0L));
     }
@@ -424,7 +424,7 @@ public class LuceneSourceOperatorMinCompetitiveScoreTests extends ComputeTestCas
     }
 
     /**
-     * Publish {@code score} the way production does: through a {@link TopNOperator} whose heap is full.
+     * Publish {@code score} through a {@link TopNOperator} with a full heap.
      */
     private static void publish(BlockFactory blockFactory, SharedMinCompetitive.Supplier supplier, float score) {
         try (

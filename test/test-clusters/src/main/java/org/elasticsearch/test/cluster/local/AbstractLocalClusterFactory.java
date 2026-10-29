@@ -267,10 +267,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         /**
-         * Whether this node's process is running. A node that was never started counts as alive, since it has not died.
+         * Whether this node's process is running. False for a node that was never started.
          */
         public boolean isAlive() {
-            return process == null || process.isAlive();
+            return process != null && process.isAlive();
         }
 
         public InputStream getLog(LogType logType) {

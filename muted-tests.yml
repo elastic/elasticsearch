@@ -438,3 +438,8 @@ tests:
   - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
   method: testUsingRCS1GeneratesDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/163658
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  tasks:
+  - :server:internalClusterTest
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/163874

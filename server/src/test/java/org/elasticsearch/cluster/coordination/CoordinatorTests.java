@@ -1565,12 +1565,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         // larger variability is good for checking that we don't time out, but smaller variability also tightens up the time bound
         // within which we expect to converge, so use a mix of both. The upper bound is divided by variabilityMultiplier so that the
-        // election
-        // duration (variabilityMultiplier * variability) stays within 10 minutes.
+        // election duration (variabilityMultiplier * variability + 1ms) stays within 10 minutes.
         final int variabilityMultiplier = singleNodeElectionDurationVariabilityMultiplier();
         final long delayVariabilityMillis = randomLongBetween(
             DEFAULT_DELAY_VARIABILITY,
-            TimeValue.timeValueMinutes(10).millis() / variabilityMultiplier
+            (TimeValue.timeValueMinutes(10).millis() - 1) / variabilityMultiplier
         );
 
         Settings.Builder settings = Settings.builder()
@@ -1578,7 +1577,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         // If the delay variability is high, set election duration accordingly, to avoid the possible endless repetition of voting rounds.
         // Note that elections could take even longer than the delay variability, but this seems to be long enough to avoid bad collisions.
-        final long electionDurationMillis = variabilityMultiplier * delayVariabilityMillis;
+        // +1ms so that the election duration is strictly longer than the slowest election attempt
+        final long electionDurationMillis = variabilityMultiplier * delayVariabilityMillis + 1;
         if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < electionDurationMillis) {
             settings = settings.put(
                 ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getKey(),

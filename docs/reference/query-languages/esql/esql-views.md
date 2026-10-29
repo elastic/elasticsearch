@@ -108,7 +108,9 @@ views depends on the version and deployment type.
 ### Wildcard patterns and views [esql-views-wildcards]
 ::::{applies-switch}
 :::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
-By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only. Registered views are excluded.
+By default, a wildcard pattern in `FROM` does not match views. `FROM my-view-1`
+reads the view by exact name, while `FROM my-view-*` resolves to indices, data
+streams, and aliases only. Registered views are excluded.
 
 To include views in wildcard resolution, enable the `wildcards_match_views` setting:
 

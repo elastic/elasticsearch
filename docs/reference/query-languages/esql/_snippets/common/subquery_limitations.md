@@ -5,16 +5,9 @@
 A `FROM` subquery can contain further `FROM` subqueries. Nested branches are
 subject to the query-wide branch and command limits described in
 [How views execute](/reference/query-languages/esql/esql-views.md#how-views-execute).
-:::
-:::{applies-item} stack: preview =9.4, ga =9.5
-A `FROM` subquery cannot contain another `FROM` subquery. Only one level of
-`FROM` nesting is allowed. A `FROM` subquery can still contain
-[`IN` subqueries](/reference/query-languages/esql/esql-in-subquery.md) in its
-`WHERE` commands, `EVAL` commands, and `STATS` or `INLINE STATS` per-aggregate
-`WHERE` filters.
 
-For example, this query is not supported because the inner `FROM` itself
-contains subqueries:
+For example, each outer subquery in this query contains further `FROM`
+subqueries:
 
 ```esql
 FROM
@@ -28,8 +21,15 @@ FROM
     )
 | KEEP emp_no, languages, client_ip
 ```
+:::
+:::{applies-item} stack: preview =9.4, ga =9.5
+A `FROM` subquery cannot contain another `FROM` subquery. Only one level of
+`FROM` nesting is allowed. A `FROM` subquery can still contain
+[`IN` subqueries](/reference/query-languages/esql/esql-in-subquery.md) in its
+`WHERE` commands, `EVAL` commands, and `STATS` or `INLINE STATS` per-aggregate
+`WHERE` filters.
 
-Instead, use only a single level of subqueries:
+Use only a single level of subqueries:
 
 ```esql
 FROM
@@ -49,12 +49,8 @@ FROM
 [`FORK`](/reference/query-languages/esql/commands/fork.md) can be used inside a
 `FROM` subquery or after a `FROM` that contains subqueries. Two user-written
 `FORK` commands still can't occur along the same uninterrupted pipeline.
-:::
-:::{applies-item} stack: preview =9.4, ga =9.5
-`FORK` can't be used inside a `FROM` subquery or after a `FROM` that contains
-subqueries.
 
-For example, using `FORK` inside a subquery is not supported:
+For example, `FORK` can be used inside a subquery:
 
 ```esql
 FROM
@@ -65,7 +61,7 @@ FROM
 | KEEP emp_no, languages
 ```
 
-Using `FORK` after a `FROM` with subqueries is also not supported:
+It can also be used after a `FROM` with subqueries:
 
 ```esql
 FROM
@@ -75,5 +71,9 @@ FROM
     (WHERE emp_no > 10090)
     (WHERE client_ip IS NOT NULL)
 ```
+:::
+:::{applies-item} stack: preview =9.4, ga =9.5
+`FORK` can't be used inside a `FROM` subquery or after a `FROM` that contains
+subqueries.
 :::
 ::::

@@ -89,6 +89,12 @@ public interface Repository extends LifecycleComponent {
     ProjectId getProjectId();
 
     /**
+     * Registers a listener that is told about each shard generation blob this repository writes. Repositories that do not write shard
+     * generation blobs ignore it.
+     */
+    default void setShardGenerationListener(ShardGenerationListener listener) {}
+
+    /**
      * Get the project qualified repository
      */
     default ProjectRepo getProjectRepo() {

@@ -120,6 +120,7 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGeneration;
+import org.elasticsearch.repositories.ShardGenerationListener;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -205,6 +206,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Nullable
     private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
+
+    private volatile ShardGenerationListener shardGenerationListener = ShardGenerationListener.NOOP;
 
     protected final ThreadPool threadPool;
 
@@ -1513,6 +1516,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     writtenGeneration.getGenerationUUID(),
                                     compress
                                 );
+                                notifyShardGenerationWritten(indexId, shardId, writtenGeneration, updatedSnapshots);
                             } else {
                                 writtenGeneration = new ShardGeneration(indexGeneration);
                                 writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots, Collections.emptyMap());
@@ -3516,6 +3520,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         shardSnapshotTaskRunner.enqueueShardSnapshot(context);
     }
 
+    @Override
+    public void setShardGenerationListener(ShardGenerationListener listener) {
+        this.shardGenerationListener = listener;
+    }
+
+    private void notifyShardGenerationWritten(
+        IndexId indexId,
+        int shardId,
+        ShardGeneration generation,
+        BlobStoreIndexShardSnapshots shardSnapshots
+    ) {
+        try {
+            shardGenerationListener.onShardGenerationWritten(getProjectRepo(), indexId, shardId, generation, shardSnapshots);
+        } catch (Exception e) {
+            logger.warn(() -> format("[%s][%s][%s] shard generation listener failed", metadata.name(), indexId, shardId), e);
+        }
+    }
+
     private void doSnapshotShard(SnapshotShardContext context) {
         blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
@@ -3775,6 +3797,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
+                if (writeShardGens) {
+                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
+                }
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),

@@ -57,6 +57,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void setShardGenerationListener(ShardGenerationListener listener) {
+        in.setShardGenerationListener(listener);
+    }
+
+    @Override
     public void getSnapshotInfo(
         Collection<SnapshotId> snapshotIds,
         boolean abortOnFailure,

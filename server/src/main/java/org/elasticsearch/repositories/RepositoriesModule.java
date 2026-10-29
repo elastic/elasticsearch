@@ -10,9 +10,12 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -32,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -109,6 +113,23 @@ public final class RepositoriesModule {
             }
         }
 
+        List<ShardGenerationListener> shardGenerationListeners = new ArrayList<>();
+        for (RepositoryPlugin repoPlugin : repoPlugins) {
+            ShardGenerationListener listener = repoPlugin.getShardGenerationListener();
+            if (listener != null) {
+                shardGenerationListeners.add(listener);
+            }
+        }
+        if (shardGenerationListeners.isEmpty() == false) {
+            ShardGenerationListener combined = (projectRepo, indexId, shardId, generation, shardSnapshots) -> {
+                for (ShardGenerationListener listener : shardGenerationListeners) {
+                    listener.onShardGenerationWritten(projectRepo, indexId, shardId, generation, shardSnapshots);
+                }
+            };
+            factories.replaceAll((type, factory) -> withShardGenerationListener(factory, combined));
+            internalFactories.replaceAll((type, factory) -> withShardGenerationListener(factory, combined));
+        }
+
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
             BiConsumer<Snapshot, IndexVersion> preRestoreCheck = repoPlugin.addPreRestoreVersionCheck();
@@ -145,6 +166,29 @@ public final class RepositoriesModule {
             client,
             preRestoreChecks
         );
+    }
+
+    private static Repository.Factory withShardGenerationListener(Repository.Factory factory, ShardGenerationListener listener) {
+        return new Repository.Factory() {
+            @Override
+            public Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+                return register(factory.create(projectId, metadata));
+            }
+
+            @Override
+            public Repository create(
+                @Nullable ProjectId projectId,
+                RepositoryMetadata metadata,
+                Function<String, Repository.Factory> typeLookup
+            ) throws Exception {
+                return register(factory.create(projectId, metadata, typeLookup));
+            }
+
+            private Repository register(Repository repository) {
+                repository.setShardGenerationListener(listener);
+                return repository;
+            }
+        };
     }
 
     public RepositoriesService getRepositoryService() {

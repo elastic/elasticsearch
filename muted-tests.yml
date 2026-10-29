@@ -544,3 +544,8 @@ tests:
   - :x-pack:plugin:inference:qa:inference-service-tests:javaRestTest
   method: testDefaultInferenceIdForSemanticText
   issue: https://github.com/elastic/elasticsearch/issues/163865
+- class: org.elasticsearch.index.mapper.UnmappedFieldsTests
+  tasks:
+  - :server:test
+  method: testAllFieldsLoaderReleasesItsReservationWhenItFails
+  issue: https://github.com/elastic/elasticsearch/issues/163868

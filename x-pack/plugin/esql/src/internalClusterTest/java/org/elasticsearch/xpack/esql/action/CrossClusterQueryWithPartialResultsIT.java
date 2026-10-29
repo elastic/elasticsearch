@@ -11,8 +11,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -20,6 +22,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -29,6 +32,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,12 +43,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterTestCase {
@@ -174,6 +180,60 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
             assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);
             assertClusterFailure(resp, REMOTE_CLUSTER_2, "Accessing failing field");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOneRemoteClusterPartialStreaming() throws Exception {
+        assumeTrue("requires streaming", EsqlCapabilities.Cap.STREAMING.isEnabled());
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
+        request.allowPartialResults(true);
+        boolean includeCCSMetadata = randomBoolean();
+        request.includeCCSMetadata(includeCCSMetadata);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+
+        StreamQueryTestUtils.CountingStreamSubscriber subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+        EsqlStreamQueryAction.ResultStream resultStream = StreamQueryTestUtils.executeStreamRequest(
+            client(LOCAL_CLUSTER),
+            request,
+            subscriber
+        );
+
+        assertThat(subscriber.rowCount.get(), equalTo(Sets.union(local.okIds, remote1.okIds).size()));
+        PageStreamPublisher.StreamFooter footer = resultStream.publisher().footer();
+        assertNotNull("footer must be present after the stream completes", footer);
+        assertThat(footer.status(), equalTo(200));
+        assertTrue(footer.isPartial());
+        assertNull(footer.error());
+        assertThat("partial failures must be reported in _clusters even without include_ccs_metadata", footer.clusters(), notNullValue());
+
+        Map<String, Object> clusters;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(footer.clusters()))) {
+            clusters = parser.map();
+        }
+        assertThat(clusters, hasKey("details"));
+        Map<String, Object> details = (Map<String, Object>) clusters.get("details");
+        assertThat(details, hasKey(REMOTE_CLUSTER_2));
+        Map<String, Object> failingCluster = (Map<String, Object>) details.get(REMOTE_CLUSTER_2);
+        assertThat(failingCluster.get("status"), equalTo("partial"));
+        List<Object> failures = (List<Object>) failingCluster.get("failures");
+        assertThat(failures, not(empty()));
+        for (Object failure : failures) {
+            assertThat(failure.toString(), containsString("Accessing failing field"));
+        }
+        if (includeCCSMetadata) {
+            assertThat(clusters.get("total"), equalTo(3));
+            assertThat(clusters.get("successful"), equalTo(2));
+            assertThat(clusters.get("partial"), equalTo(1));
+            assertThat(details, hasKey("(local)"));
+            assertThat(details, hasKey(REMOTE_CLUSTER_1));
+            assertThat(((Map<String, Object>) details.get("(local)")).get("status"), equalTo("successful"));
+            assertThat(((Map<String, Object>) details.get(REMOTE_CLUSTER_1)).get("status"), equalTo("successful"));
+        } else {
+            assertThat("only clusters with failures are reported", details.keySet(), equalTo(Set.of(REMOTE_CLUSTER_2)));
         }
     }
 

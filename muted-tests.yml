@@ -231,6 +231,11 @@ tests:
   - :server:internalClusterTest
   method: testOptOutTaskIsNotReassignedOnShutdown
   issue: https://github.com/elastic/elasticsearch/issues/163857
+- class: org.elasticsearch.persistent.PersistentTasksExecutorShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  method: testOptInTaskIsReassignedOnShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/163859
 
 # Examples:
 #

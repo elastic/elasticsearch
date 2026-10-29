@@ -100,8 +100,31 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
 
     /** @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option) */
     public ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType elementType, boolean useDirectIO, boolean onDiskMerge) {
+        this(new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge));
+    }
+
+    private ES93BinaryQuantizedVectorsFormat(ES93GenericFlatVectorsFormat rawFormat) {
         super(NAME);
-        rawFormat = new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge);
+        this.rawFormat = rawFormat;
+    }
+
+    /**
+     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge} on, for
+     * writers that read the merged raw vectors back right after the merge has written them. Searches and merge reads
+     * of the sources still use direct I/O as the field asks, see
+     * {@link ES93GenericFlatVectorsFormat#withBufferedMergeWrites(DenseVectorFieldMapper.ElementType, boolean, boolean)}.
+     *
+     * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
+     * @param onDiskMerge whether merges read the raw vectors with direct I/O (the field's {@code on_disk_merge} option)
+     */
+    public static ES93BinaryQuantizedVectorsFormat withBufferedMergeWrites(
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        boolean onDiskMerge
+    ) {
+        return new ES93BinaryQuantizedVectorsFormat(
+            ES93GenericFlatVectorsFormat.withBufferedMergeWrites(elementType, useDirectIO, onDiskMerge)
+        );
     }
 
     @Override

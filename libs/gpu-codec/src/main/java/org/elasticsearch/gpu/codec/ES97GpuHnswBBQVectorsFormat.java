@@ -67,7 +67,8 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
 
     /**
      * @param useDirectIO whether to use direct IO when reading raw vectors (the field's {@code on_disk_rescore} option)
-     * @param onDiskMerge whether merges use direct I/O for the raw vectors (the field's {@code on_disk_merge} option)
+     * @param onDiskMerge whether merges read the source raw vectors with direct I/O (the field's {@code on_disk_merge} option);
+     *                    the merged raw vectors are always written through the page cache
      */
     public ES97GpuHnswBBQVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth, boolean useDirectIO, boolean onDiskMerge) {
         this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, useDirectIO, onDiskMerge);
@@ -96,7 +97,13 @@ public class ES97GpuHnswBBQVectorsFormat extends KnnVectorsFormat {
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        this.flatVectorsFormat = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, useDirectIO, onDiskMerge);
+        // merges write the raw vectors through the page cache even with on_disk_merge: the writer reads the merged
+        // raw vectors straight back (mmapped) to build the graph on GPU, and a direct write would make that read cold
+        this.flatVectorsFormat = ES93BinaryQuantizedVectorsFormat.withBufferedMergeWrites(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            useDirectIO,
+            onDiskMerge
+        );
     }
 
     @Override

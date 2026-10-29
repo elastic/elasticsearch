@@ -71,11 +71,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     /// An attempt should make the node the leader before the next attempt starts: the next attempt claims a higher term in the register
     /// straight away (see [AtomicRegisterElectionStrategy#onNewElection]), which unseats the leader elected by the earlier attempt.
     /// Becoming leader takes four forks in sequence, each delayed by up to `delayVariabilityMillis`: start_join, the applier task,
-    /// the join request and the join/ping responses (both pings are sent together, so only the slower one counts).
-    /// The setting is capped at 10 minutes (due to the setting constraint).
+    /// the join request and the join/ping responses (both pings are sent together, so only the slower one counts), hence the
+    /// multiplier of 4. The election duration setting is capped at 10 minutes, so the test caps the delay variability at 10 minutes / 4.
     @Override
-    protected long singleNodeElectionDurationMillis(long delayVariabilityMillis) {
-        return Math.min(4 * delayVariabilityMillis, TimeValue.timeValueMinutes(10).millis());
+    protected int singleNodeElectionDurationVariabilityMultiplier() {
+        return 4;
     }
 
     @Override

@@ -1552,11 +1552,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    /// How long an election attempt may take, given the delay variability, which determines the spacing of the election attempts. If this
-    /// is shorter than an attempt actually takes then a newly started attempt can overtake the previous one while it is still in flight,
-    /// and the two keep unseating each other.
-    protected long singleNodeElectionDurationMillis(long delayVariabilityMillis) {
-        return delayVariabilityMillis;
+    /// Multiplier of the delay variability giving the election duration; overridden in [AtomicRegisterCoordinatorTests], where an
+    /// election attempt takes longer and must not be overtaken by the next one.
+    protected int singleNodeElectionDurationVariabilityMultiplier() {
+        return 1;
     }
 
     public void testSingleNodeDiscoveryStabilisesEvenWhenDisrupted() {
@@ -1564,16 +1563,22 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         // other options, so there's no point in failing and retrying from scratch no matter how badly disrupted we are and we may as
         // well just wait.
 
-        // larger variability is are good for checking that we don't time out, but smaller variability also tightens up the time bound
-        // within which we expect to converge, so use a mix of both
-        final long delayVariabilityMillis = randomLongBetween(DEFAULT_DELAY_VARIABILITY, TimeValue.timeValueMinutes(10).millis());
+        // larger variability is good for checking that we don't time out, but smaller variability also tightens up the time bound
+        // within which we expect to converge, so use a mix of both. The upper bound is divided by variabilityMultiplier so that the
+        // election
+        // duration (variabilityMultiplier * variability) stays within 10 minutes.
+        final int variabilityMultiplier = singleNodeElectionDurationVariabilityMultiplier();
+        final long delayVariabilityMillis = randomLongBetween(
+            DEFAULT_DELAY_VARIABILITY,
+            TimeValue.timeValueMinutes(10).millis() / variabilityMultiplier
+        );
 
         Settings.Builder settings = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE);
 
         // If the delay variability is high, set election duration accordingly, to avoid the possible endless repetition of voting rounds.
         // Note that elections could take even longer than the delay variability, but this seems to be long enough to avoid bad collisions.
-        final long electionDurationMillis = singleNodeElectionDurationMillis(delayVariabilityMillis);
+        final long electionDurationMillis = variabilityMultiplier * delayVariabilityMillis;
         if (ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getDefault(Settings.EMPTY).getMillis() < electionDurationMillis) {
             settings = settings.put(
                 ElectionSchedulerFactory.ELECTION_DURATION_SETTING.getKey(),

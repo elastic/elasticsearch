@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Integration test that sends identical OTLP metric payloads to two data streams: one using the traditional
  * doc-mode (XContent) indexing path and one using the ESCF (columnar batch) path. The two streams are
- * distinguished solely by the per-index {@code index.time_series.batch_indexing} setting baked into their
+ * distinguished solely by the per-index {@code index.batch_indexing} setting baked into their
  * respective index templates; the cluster-level {@code indices.batch_indexing} setting is enabled at startup.
  * Verifies that both streams produce byte-for-byte equivalent documents when sorted by {@code @timestamp} and
  * {@code _tsid}.
@@ -138,7 +138,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             // Install a doc-mode template at priority 200 (above metrics-otel@template's 120).
             installTemplate("metrics-docmode.otel-template", "metrics-docmode.otel-*", false);
 
-            // Install the ESCF template — same but with index.time_series.batch_indexing: true.
+            // Install the ESCF template — same but with index.batch_indexing: true.
             installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
 
             // Build the exporter once. Security is disabled so no auth header is needed.
@@ -207,7 +207,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         // heap usage stays bounded even with refresh_interval=-1.
         final int REFRESH_EVERY = 10;
 
-        // Populate the doc-mode stream. The doc-mode template has no index.time_series.batch_indexing
+        // Populate the doc-mode stream. The doc-mode template has no index.batch_indexing
         // setting, so all exports take the XContent path even though indices.batch_indexing is enabled
         // cluster-wide.
         // Within each timestamp batch, timestamps are grouped into messages of numTimestampsPerMsg.
@@ -435,7 +435,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      * pattern at priority 200. Uses the same {@code composed_of} list as the managed OTel template so field
      * mappings are identical.
      *
-     * @param batchIndexing when {@code true}, adds {@code index.time_series.batch_indexing: true} to the
+     * @param batchIndexing when {@code true}, adds {@code index.batch_indexing: true} to the
      *                      template settings so that backing indices opt in to the ESCF columnar path.
      */
     private static void installTemplate(String name, String pattern, boolean batchIndexing) throws IOException {
@@ -443,7 +443,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         // write index and cause past timestamps to be rejected as out-of-range for the new index).
         String batchIndexingSetting = batchIndexing ? """
             ,
-                  "index.time_series.batch_indexing": true""" : "";
+                  "index.batch_indexing": true""" : "";
         Request request = new Request("PUT", "_index_template/" + name);
         request.setJsonEntity("""
             {

@@ -282,7 +282,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// so that it does not hold a relocation slot on the target that a shard of a shutting-down node needs.
     ///
     /// The demand of shutting-down nodes on the target is pessimistically every search shard already relocating to it from them plus every
-    /// one still [ShardRoutingState#STARTED] on them, as the master throttles per target and we cannot know where those will go.
+    /// one still started on them, as the master throttles per target and we cannot know where those will go.
     ///
     /// - With enough free slots for all of that demand, the relocation-with-shutdown timeout applies in full.
     /// - Otherwise this shard is one more participant (`P`) and the free slots are shared: each gets `slots / P` of the time left until the
@@ -360,7 +360,7 @@ public class SearchRecoveryTimeoutCalculationService {
         return count;
     }
 
-    /// Counts the search shards in [ShardRoutingState#STARTED] state on `nodeId`: those that have not begun relocating yet.
+    /// Counts the search shards in STARTED state on `nodeId`: those that have not begun relocating yet.
     private static long countPendingSearchShardsOnNode(ClusterState state, String nodeId) {
         final var node = state.getRoutingNodes().node(nodeId);
         if (node == null) {

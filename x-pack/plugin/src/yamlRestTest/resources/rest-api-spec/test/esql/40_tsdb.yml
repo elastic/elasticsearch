@@ -1803,3 +1803,83 @@ TS aggregating a converted metric alongside a plain metric:
   - length: {values: 1}
   - match: {values.0.0: 1.0}
   - match: {values.0.1: 2}
+
+---
+TS null filtering through metric casts:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, metric_identity_through_casts, fix_ts_null_filter_on_computed_inputs ]
+      reason: "metric casts retain null filtering without changing counter types"
+
+  - do:
+      indices.create:
+        index: test-metric-casts
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              a:
+                type: long
+                time_series_metric: gauge
+              b:
+                type: long
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: test-metric-casts
+        body:
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1}'
+          - '{"create": {}}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2}'
+
+  # Buckets whose only input metric is missing are omitted, including through chained casts and aliases.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::gauge::counter::long::double | STATS a = max(converted::long) BY host | SORT host'
+  - length: {values: 1}
+  - match: {values.0: [1, "h1"]}
+
+  # Computing after casting must also disable the metric filter.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::double, computed = coalesce(b::double, 0) | STATS a = max(converted), b = max(computed) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, 0.0, "h1"]}
+  - match: {values.1: [null, 2.0, "h2"]}
+
+  # A cast of a computed value remains non-metric, so presence and absence see the null rows.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL computed = (b + 0)::double | STATS a = max(a::double), absent = max(absent_over_time(computed)), present = max(present_over_time(computed)) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, true, false, "h1"]}
+  - match: {values.1: [null, false, true, "h2"]}
+
+  # Casting back to a numeric type does not restore identity lost through a string conversion.
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-metric-casts | EVAL converted = a::string::double | STATS maximum = max(converted) BY host | SORT host'
+  - length: {values: 2}
+  - match: {values.0: [1.0, "h1"]}
+  - match: {values.1: [null, "h2"]}

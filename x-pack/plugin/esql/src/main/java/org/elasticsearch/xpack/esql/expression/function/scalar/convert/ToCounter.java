@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * Counter inputs are returned unchanged (idempotent).
  * No values are modified; this is a pure type-annotation change.
  */
-public class ToCounter extends AbstractConvertFunction {
+public class ToCounter extends AbstractConvertFunction implements MetricPreservingConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToCounter",

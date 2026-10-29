@@ -4612,6 +4612,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * Numeric, histogram, counter and gauge casts preserve metric identity through aliases and transport.
+         * Converted metrics receive the same TS null filtering as mapped metric fields.
+         */
+        METRIC_IDENTITY_THROUGH_CASTS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.

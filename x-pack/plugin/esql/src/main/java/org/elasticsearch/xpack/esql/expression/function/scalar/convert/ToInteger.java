@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
 
-public class ToInteger extends AbstractConvertFunction {
+public class ToInteger extends AbstractConvertFunction implements MetricPreservingConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToInteger",

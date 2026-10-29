@@ -22,13 +22,16 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -2632,22 +2635,27 @@ public class InternalEngine extends Engine {
                 final Term uidTerm = new Term(IdFieldMapper.NAME, op.uid());
                 // Patch the live document's columns before adding the history document, so it touches only the pre-existing document.
                 final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
-                // _seq_no cannot be rewritten in place, so record this update's seq_no and primary term in the companion columns; readers
-                // combine them with _seq_no as the effective identity.
-                final int identityFields = seqNoAware ? 2 : 0;
-                final Field[] fields = new Field[op.updates().size() + identityFields];
-                int i = 0;
+                final List<Field> fields = new ArrayList<>(op.updates().size() + 2);
                 for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
-                    fields[i++] = switch (update) {
+                    fields.add(switch (update) {
                         case Translog.DocValuesUpdate.NumericFieldUpdate n -> new SortedNumericDocValuesField(n.field(), n.value());
                         case Translog.DocValuesUpdate.BinaryFieldUpdate b -> new BinaryDocValuesField(b.field(), b.value());
-                    };
+                    });
                 }
                 if (seqNoAware) {
-                    fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME, op.seqNo());
-                    fields[i++] = new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME, op.primaryTerm());
+                    // _seq_no cannot be rewritten in place, so record this update's seq_no and primary term in the companion columns;
+                    // readers combine them with _seq_no as the effective identity.
+                    fields.add(new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_SEQ_NO_NAME, op.seqNo()));
+                    fields.add(new NumericDocValuesField(SeqNoFieldMapper.DV_UPDATE_PRIMARY_TERM_NAME, op.primaryTerm()));
                 }
-                indexWriter.updateDocValues(uidTerm, fields);
+                // Capture the pre-image of each field updated here for the first time, in the same updateDocValues call so a reader cannot
+                // see the new value without it. Synthetic and columnar_stored sources both rebuild a past operation's _source from the live
+                // columns - directly, or by overlaying them on the stored blob - so both need the pre-image; a stored source keeps its own.
+                final var mappingLookup = engineConfig.getMapperService().mappingLookup();
+                if (mappingLookup.isSourceSynthetic() || mappingLookup.isSourceColumnarStored()) {
+                    capturePreImage(op, fields);
+                }
+                indexWriter.updateDocValues(uidTerm, fields.toArray(Field[]::new));
             }
 
             if (plan.addHistory()) {
@@ -2672,6 +2680,71 @@ public class InternalEngine extends Engine {
                 failEngine("doc values update id[" + op.id() + "] origin[" + op.origin() + "] seq#[" + op.seqNo() + "] failed", ex);
             }
             throw ex;
+        }
+    }
+
+    /**
+     * Appends the pre-image companion columns for every field this update touches for the first time on the live document. The field's
+     * current value is read from the internal reader - the same snapshot that decides whether a pre-image already exists - so a value is
+     * captured only while the live document still holds the original, and a field already captured by an earlier update is left untouched.
+     * <p>
+     * A document indexed but not yet refreshed is not visible to the reader; as realtime get does, the internal searcher is refreshed and
+     * the read retried, which is amortized since one refresh makes every buffered document visible at once.
+     */
+    private void capturePreImage(DocValuesUpdate op, List<Field> fields) throws IOException {
+        boolean refreshed = false;
+        while (true) {
+            final boolean captured = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
+                final DocIdAndVersion live = VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), false);
+                if (live == null) {
+                    return Boolean.FALSE;
+                }
+                readPreImage(op, live.reader, live.docId, fields);
+                return Boolean.TRUE;
+            });
+            if (captured) {
+                return;
+            }
+            if (refreshed) {
+                // The document was planned for in-place update, so it must exist; failing here is safer than writing the new value with no
+                // pre-image, which would let the recovery source reconstruct a past operation with the updated value.
+                throw new IllegalStateException(
+                    "in-place doc-values update [" + op.id() + "] found no live document to capture a pre-image from"
+                );
+            }
+            refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
+            refreshed = true;
+        }
+    }
+
+    private static void readPreImage(DocValuesUpdate op, LeafReader reader, int docId, List<Field> fields) throws IOException {
+        for (Translog.DocValuesUpdate.FieldUpdate update : op.updates()) {
+            final String field = update.field();
+            final NumericDocValues presence = reader.getNumericDocValues(DocValuesUpdatePreImage.presenceField(field));
+            if (presence != null && presence.advanceExact(docId)) {
+                // An earlier update already captured this field's pre-image: the original value must not be overwritten.
+                continue;
+            }
+            // The marker is set whether or not a value is captured below, so a captured-but-absent field is not mistaken for one that was
+            // never updated.
+            fields.add(new NumericDocValuesField(DocValuesUpdatePreImage.presenceField(field), 1L));
+            final String valueField = DocValuesUpdatePreImage.valueField(field);
+            switch (update) {
+                case Translog.DocValuesUpdate.NumericFieldUpdate n -> {
+                    final SortedNumericDocValues dv = reader.getSortedNumericDocValues(field);
+                    if (dv != null && dv.advanceExact(docId)) {
+                        for (int v = 0; v < dv.docValueCount(); v++) {
+                            fields.add(new SortedNumericDocValuesField(valueField, dv.nextValue()));
+                        }
+                    }
+                }
+                case Translog.DocValuesUpdate.BinaryFieldUpdate b -> {
+                    final BinaryDocValues dv = reader.getBinaryDocValues(field);
+                    if (dv != null && dv.advanceExact(docId)) {
+                        fields.add(new BinaryDocValuesField(valueField, BytesRef.deepCopyOf(dv.binaryValue())));
+                    }
+                }
+            }
         }
     }
 

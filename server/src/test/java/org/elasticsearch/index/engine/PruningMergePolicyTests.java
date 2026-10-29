@@ -28,6 +28,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
@@ -286,6 +287,69 @@ public class PruningMergePolicyTests extends ESTestCase {
                                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, seqNoDV.nextDoc());
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testPrunePreImageCompanions() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(
+                new PruningMergePolicy(
+                    null,
+                    "extra_source_size",
+                    false,
+                    false,
+                    () -> new TermQuery(new Term("even", "true")),
+                    iwc.getMergePolicy(),
+                    false
+                )
+            );
+            final String presenceField = DocValuesUpdatePreImage.presenceField("count");
+            final String valueField = DocValuesUpdatePreImage.valueField("count");
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                final int nbDocs = randomIntBetween(10, 100);
+                for (int i = 0; i < nbDocs; i++) {
+                    if (i > 0 && (randomBoolean() || i == nbDocs / 2)) {
+                        writer.flush();
+                    }
+                    Document doc = new Document();
+                    doc.add(new StringField("even", Boolean.toString(i % 2 == 0), Field.Store.YES));
+                    doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, i));
+                    doc.add(new NumericDocValuesField("extra_source_size", randomIntBetween(10, 10000)));
+                    // Every doc carries a captured pre-image, as if it had been updated in place; the value column mirrors the field's.
+                    doc.add(new NumericDocValuesField(presenceField, 1));
+                    doc.add(new SortedNumericDocValuesField(valueField, i));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                writer.commit();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    assertEquals(1, reader.leaves().size());
+                    LeafReader leafReader = reader.leaves().get(0).reader();
+                    assertThat(leafReader.numDocs(), equalTo(nbDocs));
+                    NumericDocValues presence = leafReader.getNumericDocValues(presenceField);
+                    SortedNumericDocValues value = leafReader.getSortedNumericDocValues(valueField);
+                    assertNotNull(presence);
+                    assertNotNull(value);
+                    StoredFields storedFields = reader.storedFields();
+                    for (int i = 0; i < reader.maxDoc(); i++) {
+                        boolean isEven = Booleans.parseBoolean(storedFields.document(i).getField("even").stringValue());
+                        if (presence.docID() < i) {
+                            presence.advance(i);
+                        }
+                        if (value.docID() < i) {
+                            value.advance(i);
+                        }
+                        // The pre-image is kept only for retained docs and pruned for the rest - the same boundary as the recovery source.
+                        assertThat(presence.docID() == i, equalTo(isEven));
+                        assertThat(value.docID() == i, equalTo(isEven));
+                        if (isEven) {
+                            assertThat(value.docValueCount(), equalTo(1));
+                            assertThat(value.nextValue(), equalTo((long) i));
                         }
                     }
                 }

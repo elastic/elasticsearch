@@ -546,10 +546,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
      * A breaker trip while the response grows releases the pages already charged.
      */
     public void testBatchedNodeResponseTripWhileWritingReleasesPages() throws Exception {
-        // Enough shards for a response of several pages, and room for the first page only.
+        // An empty shard result takes under 100 bytes, so 1,000 of them span several pages. The limit leaves room for the first page only.
         int limit = PageCacheRecycler.BYTE_PAGE_SIZE * 3 / 2;
-        assertResponseTripReachesCoordinator(TransportVersion.current(), 8, limit);
-        assertResponseTripReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"), 8, limit);
+        assertResponseTripReachesCoordinator(TransportVersion.current(), 1_000, limit);
+        assertResponseTripReachesCoordinator(TransportVersion.fromName("batched_query_phase_version"), 1_000, limit);
     }
 
     private void assertResponseTripReachesCoordinator(TransportVersion channelVersion, int shards, long limitBytes) throws Exception {
@@ -654,6 +654,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().size(0));
+            // The coordinator always sets it before sending. Unset, building each shard request fails.
+            searchRequest.allowPartialSearchResults(true);
             var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, shards, 0L, null);
             for (int i = 0; i < shards; i++) {
                 nodeQueryRequest.shards.add(

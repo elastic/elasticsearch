@@ -11,10 +11,11 @@ products:
 
 A view is a virtual index defined by an ES|QL query. You reference a view by name in the [`FROM`](/reference/query-languages/esql/commands/from.md) command, just like an ordinary index. The query runs each time the view is referenced, so results always reflect the current state of the data.
 
-A view has two components:
+A view has the following components:
 
-* **Name**: unique within the index namespace, used anywhere an index name is accepted in `FROM`.
+* **Name**: used anywhere an index name is accepted in `FROM`. Refer to [](#esql-views-names) for naming rules.
 * **Definition**: a complete ES|QL query that runs each time the view is referenced.
+* {applies_to}`stack: ga 9.6+` **Description**: optional text that helps identify the view.
 
 ## Basic example
 
@@ -71,6 +72,8 @@ Use the REST API to create, update, delete, and list views:
 * [Delete a view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-delete-view)
 * [Get or list views](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view)
 
+{applies_to}`{"stack": "ga 9.6+", "serverless": "ga"}` You can also create and manage views in {{kib}}. Refer to [](#esql-views-kibana).
+
 ### Query validation [esql-views-validation]
 `PUT /_query/view/<name>` rejects a query that cannot be parsed.
 
@@ -84,14 +87,29 @@ With `validate=true`:
 * Failures unrelated to the query, such as an overloaded cluster, produce no warning.
 
 ### Reserved views [esql-views-reserved]
-Some views are reserved. {{es}} or its components create them, not users. A reserved view is marked with `"reserved": true` in the [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response.
+Reserved views are created by {{es}} or its components, so they're read-only. You can query and read them like any other view, subject to the same [privileges](#esql-views-privileges). The [get view](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-view) response marks them with `"reserved": true`.
 
-You cannot modify or delete a reserved view through the REST API:
+The REST API rejects these requests:
 
-* `PUT /_query/view/<name>` fails if a reserved view with that name exists. You also cannot set `reserved` in a request.
-* `DELETE /_query/view/<name>` fails with `cannot delete reserved view [<name>]`.
+* `PUT /_query/view/<name>` when a reserved view with that name exists. You also can't set `reserved` in a request.
+* `DELETE /_query/view/<name>`, with the error `cannot delete reserved view [<name>]`.
 
-You can query and read a reserved view like any other view, subject to the same [privileges](#esql-views-privileges).
+### Create and manage views in {{kib}} [esql-views-kibana]
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
+
+You can also work with views directly in {{kib}}:
+
+* [Create a view from the {{esql}} editor](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#esql-kibana-views-create) in Discover or a dashboard.
+* [Manage views](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#esql-kibana-views-manage) from the **{{esql}} Views** page, where you can list, edit, delete, and open them in Discover.
+
+### View names [esql-views-names]
+
+Views share a namespace with indices, aliases, and data streams. You can't create a view with the same name as an existing index, alias, or data stream, and you can't create any of these with the name of an existing view. {{es}} rejects the request with an error that names the conflicting resource. This keeps `FROM name` resolution unambiguous.
+
+{applies_to}`stack: preview 9.6+, experimental =9.5` The same rule applies to [datasets](/reference/query-languages/esql/esql-data-federation-datasets.md), which [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) uses to query external data.
 
 ## Query a view
 

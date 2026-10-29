@@ -12,6 +12,12 @@ ProjectExec[[SUM(mv){r}#0, COUNT(mv){r}#1]]
   "bool" : {
     "filter" : [
       {
+        "exists" : {
+          "field" : "mv",
+          "boost" : 0.0
+        }
+      },
+      {
         "random_sampling" : {
           "query" : 0.0123456789,
           "seed" : 42,

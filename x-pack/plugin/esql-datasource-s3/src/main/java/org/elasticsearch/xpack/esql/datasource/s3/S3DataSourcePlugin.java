@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -26,6 +31,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -83,13 +90,37 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
         // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
         int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
+        CharacterRunAutomaton allowedByOperator = buildAllowlistAutomaton(services.settings());
         StorageProviderFactory s3Factory = StorageProviderFactory.of(
             () -> new S3StorageProvider(null, provider, maxConnections),
             S3Configuration::fromQueryConfig,
-            cfg -> new S3StorageProvider(cfg, provider, maxConnections),
+            cfg -> {
+                checkEndpointAgainstCurrentAllowlist(cfg, allowedByOperator);
+                return new S3StorageProvider(cfg, provider, maxConnections);
+            },
             services.credentialPolicy()
         );
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
+    }
+
+    /**
+     * Runs {@link S3EndpointCheck#validate} against the node's current allowlist and throws if any endpoint is refused.
+     * The error appends recovery instructions so the operator knows how to unblock reads: re-registering the data
+     * source takes effect at once, widening the node-scoped allowlist needs a restart.
+     */
+    private static void checkEndpointAgainstCurrentAllowlist(S3Configuration cfg, CharacterRunAutomaton allowedByOperator) {
+        ValidationException errors = new ValidationException();
+        S3EndpointCheck.validate(cfg, allowedByOperator::run, errors);
+        if (errors.validationErrors().isEmpty() == false) {
+            errors.addValidationError(
+                "To recover, re-register the data source with an endpoint this node admits, or add the host to ["
+                    + ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "]. Note: ["
+                    + ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS_KEY
+                    + "] does not re-admit a plain-http [sts_endpoint]."
+            );
+            throw errors;
+        }
     }
 
     /**
@@ -167,8 +198,35 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
+        CharacterRunAutomaton allowedByOperator = buildAllowlistAutomaton(settings);
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withResourceCheck(
+            S3ResourceCheck::validate
+        )
+            // The cast holds because this same builder is given S3Configuration::fromMap as its config
+            // factory above, and the validator passes that factory's own product to the check.
+            .withDatasourceCheck((config, errors) -> S3EndpointCheck.validate((S3Configuration) config, allowedByOperator::run, errors));
         return Map.of(v.type(), v);
+    }
+
+    /**
+     * One builder for the registration-time and the read-time automaton, both from the same node setting, so the two
+     * rules cannot admit different hosts.
+     */
+    private static CharacterRunAutomaton buildAllowlistAutomaton(Settings settings) {
+        List<String> allowed = ExternalSourceSettings.ALLOWED_ENDPOINT_HOSTS.get(settings);
+        return new CharacterRunAutomaton(
+            allowed.isEmpty()
+                ? Automata.makeEmpty()
+                : Operations.determinize(
+                    Regex.simpleMatchToAutomaton(allowed.stream().map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new)),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                )
+        );
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return S3Configuration.secretFieldNames();
     }
 
     @Override

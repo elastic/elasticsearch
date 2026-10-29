@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -78,7 +77,7 @@ public final class IgnoreNullMetrics extends OptimizerRules.OptimizerRule<TimeSe
                 return;
             }
             // On this branch, parameters also contain per-row inputs such as WEIGHTED_AVG's weight.
-            for (Expression field : CollectionUtils.combine(List.of(af.field()), af.parameters())) {
+            for (Expression field : CollectionUtils.combine(af.fields(), af.parameters())) {
                 for (Attribute attr : field.references()) {
                     if (attr.isMetric() == false && attr.isDimension() == false && attr.semanticEquals(agg.timestamp()) == false) {
                         found.set(true);

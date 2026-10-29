@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongRangeAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 
-public class Values extends AggregateFunction implements ToAggregator {
+public class Values extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
         .unary(Values::new)
@@ -166,11 +167,6 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public Values replaceChildren(List<Expression> newChildren) {
         return new Values(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public Values withFilter(Expression filter) {
-        return new Values(source(), field(), filter, window());
     }
 
     @Override

@@ -542,7 +542,8 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                         remoteClient(params),
                         listener
                     );
-                }, retentionLeaseRenewInterval, ccrExecutor);
+                    // Run renewal on generic pool instead of bounded ccr pool which can reject if saturated
+                }, retentionLeaseRenewInterval, threadPool.generic());
             }
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {

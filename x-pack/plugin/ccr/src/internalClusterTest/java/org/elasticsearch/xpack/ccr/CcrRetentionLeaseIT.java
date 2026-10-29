@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -43,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
@@ -69,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -639,6 +642,51 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         ensureFollowerGreen(true, followerIndex);
         assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
+    }
+
+    public void testRetentionLeaseRenewalSurvivesCcrThreadPoolSaturation() throws Exception {
+        final String leaderIndex = "leader";
+        final String followerIndex = "follower";
+        final Map<String, String> additionalIndexSettings = new HashMap<>();
+        additionalIndexSettings.put(
+            IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
+            TimeValue.timeValueMillis(200).getStringRep()
+        );
+        final String leaderIndexSettings = getIndexSettings(1, 0, additionalIndexSettings);
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
+        ensureLeaderYellow(leaderIndex);
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
+        ensureFollowerGreen(true, followerIndex);
+        assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
+
+        // Saturate ccr pool on every follower node and check the lease is still renewed
+        final CountDownLatch release = new CountDownLatch(1);
+        try {
+            for (final String node : getFollowerCluster().getNodeNames()) {
+                final Executor ccr = getFollowerCluster().getInstance(ThreadPool.class, node).executor(Ccr.CCR_THREAD_POOL_NAME);
+                boolean full = false;
+                while (full == false) {
+                    try {
+                        ccr.execute(() -> safeAwait(release, TimeValue.timeValueSeconds(60)));
+                    } catch (EsRejectedExecutionException e) {
+                        full = true;
+                    }
+                }
+            }
+            assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
+        } finally {
+            release.countDown();
+        }
+
+        // the task itself is unaffected by the full pool and keeps replicating
+        IntStream.range(0, randomIntBetween(1, 10))
+            .forEach(
+                i -> leaderClient().prepareIndex(leaderIndex)
+                    .setId(Integer.toString(i))
+                    .setSource(Strings.format("{\"f\":%d}", i), XContentType.JSON)
+                    .get()
+            );
+        assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
     }
 
     public void testRetentionLeaseAdvancesWhileFollowing() throws Exception {

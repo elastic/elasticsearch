@@ -486,7 +486,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
             },
                 CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(store.indexSettings().getNodeSettings()),
-                remoteClientResponseExecutor
+                // Run renewal on generic pool instead of bounded ccr pool which can reject if saturated
+                threadPool.generic()
             );
             toClose.add(() -> {
                 logger.trace("{} canceling background renewal of retention lease [{}] at the end of restore", shardId, retentionLeaseId);

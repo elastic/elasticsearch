@@ -372,9 +372,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
   method: testCsvReadNanosIsolatedBetweenQueries
   issue: https://github.com/elastic/elasticsearch/issues/162715
-- class: org.elasticsearch.search.basic.TransportSearchFailuresIT
-  method: testFailedSearchWithWrongQuery
-  issue: https://github.com/elastic/elasticsearch/issues/162738
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -501,31 +498,11 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.4.9#yamlRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.5.6#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/142793
-- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
-  issue: https://github.com/elastic/elasticsearch/issues/163583
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingRejectedWithoutFeatureFlag
-  issue: https://github.com/elastic/elasticsearch/issues/163668
-- class: org.elasticsearch.index.IndexSettingsTests
-  tasks:
-  - :server:test
-  method: testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting
-  issue: https://github.com/elastic/elasticsearch/issues/163670
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackExternalIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testStatsBlowupNdjsonZstd
   issue: https://github.com/elastic/elasticsearch/issues/163697
-- class: org.elasticsearch.xpack.esql.action.EsqlQueryLogIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testSetLevel
-  issue: https://github.com/elastic/elasticsearch/issues/163699
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -541,13 +518,31 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/163773
-- class: org.elasticsearch.compute.operator.DriverTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testRunsThroughComputeExecutor
-  issue: https://github.com/elastic/elasticsearch/issues/163778
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionHealthIT
   tasks:
   - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
   method: testEligibleUnmarkedIndexTurnsIndicatorYellowThenGreenAfterTransition
   issue: https://github.com/elastic/elasticsearch/issues/163332
+- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163819
+- class: org.elasticsearch.xpack.esql.action.NonIndexedTextSearchIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/163831
+- class: org.elasticsearch.index.mapper.UnmappedFieldsTests
+  tasks:
+  - :server:test
+  method: testAllFieldsLoaderReleasesItsReservationWhenItFails
+  issue: https://github.com/elastic/elasticsearch/issues/163868
+- class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testAggregationEmitPartialResultPeriodically
+  issue: https://github.com/elastic/elasticsearch/issues/163688
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
+  issue: https://github.com/elastic/elasticsearch/issues/164016

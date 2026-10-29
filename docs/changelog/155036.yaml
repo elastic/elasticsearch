@@ -1,0 +1,14 @@
+area: Infra/Settings
+deprecation:
+  area: Cluster and node setting
+  details: |-
+    Calling `Settings#get` for a setting whose raw value is a list now emits a deprecation warning.
+    The current string representation is preserved during the deprecation period.
+  impact: |-
+    Callers that expect multiple values should use `Settings#getAsList` instead of reading the setting as a scalar string.
+  title: Reading list-valued settings as strings is deprecated.
+issues:
+ - 33135
+pr: 155036
+summary: Deprecate reading list-valued settings as strings
+type: deprecation

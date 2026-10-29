@@ -11,7 +11,10 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
@@ -57,5 +60,26 @@ public class RestCreateSnapshotAction extends BaseRestHandler implements RestReq
     @Override
     public Set<String> getFilteredFields() {
         return FILTERED_FIELDS;
+    }
+
+    /**
+     * Omits a body that cannot be parsed, rather than failing the audit event or exposing the raw bytes, which may contain credentials.
+     * {@link #prepareRequest} still rejects the original request.
+     */
+    @Override
+    public RestRequest getFilteredRequest(RestRequest restRequest) {
+        if (restRequest.hasContent() == false) {
+            return restRequest;
+        }
+        return new FilteredRestRequest(restRequest, FILTERED_FIELDS) {
+            @Override
+            public ReleasableBytesReference content() {
+                try {
+                    return super.content();
+                } catch (Exception e) {
+                    return ReleasableBytesReference.wrap(BytesArray.EMPTY);
+                }
+            }
+        };
     }
 }

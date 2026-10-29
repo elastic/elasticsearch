@@ -434,7 +434,7 @@ public class SnapshotsServiceUtils {
             } else if (shardStatus.state() == SnapshotsInProgress.ShardState.WAITING
                 || shardStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
                     // The shard primary wasn't assigned, or the shard snapshot was paused because the node was shutting down.
-                    if (isBeingResharded(projectMetadata.index(shardId.getIndex()))) {
+                    if (indexIsBeingResharded(projectMetadata.index(shardId.getIndex()))) {
                         // The index started resharding while this shard snapshot was waiting, and the data node would
                         // fail it as soon as it starts. Fail it now.
                         snapshotChanged = true;
@@ -547,10 +547,10 @@ public class SnapshotsServiceUtils {
                                 // index got removed concurrently and we have to fail WAITING, QUEUED and PAUSED_FOR_REMOVAL state shards
                                 return true;
                             }
-                            if (state != SnapshotsInProgress.ShardState.QUEUED
-                                && isBeingResharded(event.state().metadata().getProject(projectId).index(index))) {
-                                // a split adds shards to the routing table, so this catches resharding that started while the shard
-                                // snapshot was waiting and fails it without waiting for its primary to start
+                            final IndexMetadata indexMetadata = event.state().metadata().getProject(projectId).index(index);
+                            if (state != SnapshotsInProgress.ShardState.QUEUED && indexIsBeingResharded(indexMetadata)) {
+                                // catches a reshard split that started while a shard snapshot was waiting or paused, in
+                                // which case the shard snapshot will be failed without waiting for its primary to start
                                 return true;
                             }
                             ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.shardId()).primaryShard();
@@ -1129,7 +1129,7 @@ public class SnapshotsServiceUtils {
         } else {
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
         }
-        if (isBeingResharded(indexMetadata) && shardSnapshotStatus.state().completed() == false) {
+        if (indexIsBeingResharded(indexMetadata) && shardSnapshotStatus.state().completed() == false) {
             // The data node fails every shard snapshot of an index with resharding metadata (see
             // SnapshotShardContextHelper#acquireSnapshotIndexCommit). Fail it here instead of waiting for it to start.
             // This avoids keeping the snapshot open while split targets are still recovering. Shard snapshots that are
@@ -1148,7 +1148,7 @@ public class SnapshotsServiceUtils {
      * Whether the given index is being resharded, in which case the data node would fail any of its shard snapshots, see
      * {@code SnapshotShardContextHelper#acquireSnapshotIndexCommit}.
      */
-    private static boolean isBeingResharded(@Nullable IndexMetadata indexMetadata) {
+    private static boolean indexIsBeingResharded(@Nullable IndexMetadata indexMetadata) {
         return indexMetadata != null && indexMetadata.getReshardingMetadata() != null;
     }
 

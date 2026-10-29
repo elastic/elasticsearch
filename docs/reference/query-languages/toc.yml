@@ -441,6 +441,9 @@ toc:
           - file: esql/esql-data-federation-datasets.md
             children:
               - file: esql/esql-data-federation-manage-datasets.md
+                children:
+                  - file: esql/esql-data-federation-manage-datasets-ui.md
+                  - file: esql/esql-data-federation-manage-datasets-api.md
               - file: esql/esql-data-federation-file-formats.md
               - file: esql/esql-data-federation-patterns.md
               - file: esql/esql-data-federation-partition-spec.md

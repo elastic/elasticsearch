@@ -100,7 +100,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
 
         public static RecoveryPriority readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION)) {
+            if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
                 return in.readEnum(RecoveryPriority.class);
             } else if (in.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
                 // Deserialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING and
@@ -114,7 +114,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                     case 4 -> RELOCATION_CAN_REMAIN_NOT_PREFERRED;
                     case 5 -> RELOCATE_REBALANCING;
                     case 6 -> UNKNOWN;
-                    default -> throw new IllegalArgumentException("Unexpected value for previous RecoveryPriority ordinal: " + ordinal);
+                    default -> throw new IllegalArgumentException("Unexpected value for legacy RecoveryPriority ordinal: " + ordinal);
                 };
             } else {
                 // Deserialize using the ordinals from the enum prior to the introduction of the UNKNOWN and UNASSIGNED_NEW_PRIMARY values:
@@ -142,7 +142,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION)) {
+            if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION)) {
                 out.writeEnum(this);
             } else if (out.getTransportVersion().supports(RECOVERY_PRIORITY_UNKNOWN_AND_UNASSIGNED_NEW_PRIMARY_TRANSPORT_VERSION)) {
                 // Serialize using the ordinals from the enum prior to the introduction of the UNASSIGNED_RESTORING and
@@ -187,8 +187,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     );
 
     /// Introduced along with [RecoveryPriority#UNASSIGNED_RESTORING] and [RecoveryPriority#UNASSIGNED_PERFORMANCE_SCALING]
-    private static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_DEFERRABLE_TRANSPORT_VERSION = TransportVersion.fromName(
-        "recovery_priority_unassigned_deferrable"
+    private static final TransportVersion RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION = TransportVersion.fromName(
+        "recovery_priority_unassigned_non_critical"
     );
 
     private final ShardId shardId;

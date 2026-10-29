@@ -580,8 +580,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        /// Returns whether this is a critical recovery, i.e. one which may be needed for the shard to be readable or writable,
-        /// rather than one that only improves performance or balance. Non-critical recoveries are additionally limited by
+        /// Returns whether this is a critical recovery, i.e. one whose delay may cause additional unavailability. Relocations,
+        /// recoveries of unassigned shards added for performance reasons, and snapshot restores (whose index is expected to be
+        /// unavailable until they complete) are non-critical. Non-critical recoveries are additionally limited by
         /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], so
         /// that the node can always immediately start work on at least one new critical recovery.
         ///

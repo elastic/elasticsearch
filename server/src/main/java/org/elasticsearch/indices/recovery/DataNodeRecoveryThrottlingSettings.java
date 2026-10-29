@@ -50,10 +50,11 @@ import java.util.function.IntConsumer;
 /// [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]. This mirrors the master behavior, where
 /// `StatelessThrottlingConcurrentRecoveriesAllocationDecider` only applies its heap-based limit to indexing shards.
 ///
-/// The additional [#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] defines which proportion of
-/// this max limit can be used specifically for non-critical recoveries, (e.g relocations and recoveries of unassigned shards
-/// which are added for performance reason and do not incur additional unavailability while they are recovering, see
-/// `ThrottlingRecoveryService.PendingRecovery#isCritical`).
+/// The additional [#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] defines the proportion of
+/// this max limit that non-critical recoveries may use. These are recoveries whose delay does not cause additional
+/// unavailability: relocations, recoveries of unassigned shards added for performance reasons, and snapshot restores
+/// (which may take a long time, and whose index is expected to be unavailable until they complete). See
+/// `ThrottlingRecoveryService.PendingRecovery#isCritical`.
 ///
 /// ## Source (outgoing) side
 ///

@@ -21,8 +21,8 @@ public interface RecoverySchedulingListener {
 
     /// Enumerates the priority groups for a recovery. These groups can affect throttling, e.g. we throttle non-critical recoveries
     /// more tightly than critical ones. Applies only to incoming recoveries, recorded on the target, not to outgoing peer recoveries.
-    /// Critical recoveries may be needed for the shard to be readable or writable, whereas non-critical ones are relocations, or
-    /// recoveries of unassigned shards which only improve performance.
+    /// Critical recoveries may be needed for the shard to be readable or writable, whereas non-critical ones are relocations,
+    /// recoveries of unassigned shards which only improve performance, or restores.
     enum PriorityGroup {
         CRITICAL,
         NON_CRITICAL,

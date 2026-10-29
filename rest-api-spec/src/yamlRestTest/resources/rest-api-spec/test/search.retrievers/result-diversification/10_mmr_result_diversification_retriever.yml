@@ -138,7 +138,7 @@ setup:
           { "index": { } }
           { "id": 15, "textbody": "third text other", "textvector": [ 0.3, 0.24, 0.97, 0.82 ], "keywordfield": "test3" }
           { "index": { } }
-          { "id": 16, "textbody": "third text duplicate other", "textvector": [ 0.3, 0.24, 0.97, 0.82 ], "keywordfield": "test3_dup" }
+          { "id": 16, "textbody": "third text near duplicate other", "textvector": [ 0.3, 0.23, 0.97, 0.82 ], "keywordfield": "test3_dup" }
           { "index": { } }
           { "id": 17, "textbody": "fourth text other", "textvector": [ 0.88, 0.82, 0.96, 0.06 ], "keywordfield": "test4" }
           { "index": { } }
@@ -475,7 +475,7 @@ teardown:
   - match: { hits.hits.5._source.textbody: "sixth text" }
   - match: { hits.hits.6._source.textbody: "ninth text" }
   - match: { hits.hits.7._source.textbody: "third text other" }
-  - match: { hits.hits.8._source.textbody: "third text duplicate other" }
+  - match: { hits.hits.8._source.textbody: "third text near duplicate other" }
   - match: { hits.hits.9._source.textbody: "sixth text other" }
 
   - do:

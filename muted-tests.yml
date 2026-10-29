@@ -567,11 +567,6 @@ tests:
   - :server:test
   method: testIndexSortedByKeywordWithOneValuePerDocument
   issue: https://github.com/elastic/elasticsearch/issues/163664
-- class: org.elasticsearch.index.mapper.DocValuesParameterTests
-  tasks:
-  - :server:test
-  method: testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions
-  issue: https://github.com/elastic/elasticsearch/issues/163673
 - class: org.elasticsearch.xpack.esql.action.TimeSeriesIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

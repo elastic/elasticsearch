@@ -94,8 +94,7 @@ public class NdJsonSchemaInferrer {
      * <p>
      * The field tree and the column list built from it are charged to {@code breaker} while they exist, and released
      * before returning, so the breaker bounds a schema while it is built. The returned attributes belong to the caller,
-     * and whether they stay charged after that is the caller's choice: the multi-file gather and the schema interner
-     * charge what they keep, while a single-file resolve and a data-node read keep it uncharged. A flattened nested field
+     * and whether they stay charged after that is the caller's choice. A flattened nested field
      * is named by its whole dotted path, so the column list can be orders of magnitude larger than the input that
      * produced it. A {@code CircuitBreakingException} propagates unchanged and stops inference. It is not a malformed
      * line, so it must never be caught as one.
@@ -332,11 +331,10 @@ public class NdJsonSchemaInferrer {
     }
 
     /**
-     * Build the list of Attribute by walking the FieldInfo tree depth first. A dotted key is split into one node per
-     * segment, which the parser's nesting cap does not bound, so the walk keeps its own stack rather than recursing and
-     * spells the dotted path in one shared buffer rather than building a string per ancestor. Only a column's own name
-     * is materialized, and it is charged from its length before it is built, so a refusal never follows the allocation
-     * it was meant to prevent. Each stack frame is covered by its node's {@link #FIELD_INFO_BYTES}.
+     * Build the list of Attribute by walking the FieldInfo tree depth first. The walk keeps its own stack rather than
+     * recursing and spells the dotted path in one shared buffer rather than building a string per ancestor. Only a
+     * column's own name is materialized, and it is charged from its length before it is built, so a refusal never
+     * follows the allocation it was meant to prevent. Each stack frame is covered by its node's {@link #FIELD_INFO_BYTES}.
      */
     private void buildSchema(FieldInfo root, List<Attribute> attributes) {
         if (root.children == null) {

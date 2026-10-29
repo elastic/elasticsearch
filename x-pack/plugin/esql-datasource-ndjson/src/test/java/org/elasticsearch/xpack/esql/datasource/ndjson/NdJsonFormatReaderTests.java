@@ -73,7 +73,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertEquals(0L, breaker.getUsed());
     }
 
-    /** A schema that fits is returned and leaves nothing reserved, since the caller accounts for what it keeps. */
+    /** A schema that fits is returned and leaves nothing reserved, since it then belongs to the caller. */
     public void testMetadataReleasesReservationOnSuccess() throws IOException {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
         BlockFactory limited = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
@@ -91,7 +91,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(flatRecord(limit + 1))));
     }
 
-    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and registration refuses one outside 1 to the ceiling. */
+    /** A dataset raises or lowers the cap with {@code schema_max_fields}, and the reader refuses one outside 1 to the ceiling. */
     public void testSchemaMaxFieldsConfiguresTheCap() throws IOException {
         int limit = ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS;
         FormatReader raised = new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
@@ -106,14 +106,16 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 0))
+            () -> new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+                Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, 0)
+            )
         );
-        NdJsonFormatReader.validateConfig(
+        new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
             Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> NdJsonFormatReader.validateConfig(
+            () -> new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
                 Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS + 1)
             )
         );
@@ -135,7 +137,9 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         for (Object value : new Object[] { "abc", "", 500.0 }) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> NdJsonFormatReader.validateConfig(Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, value))
+                () -> new NdJsonFormatReader(null, blockFactory).withConfigTrackingConsumedKeys(
+                    Map.of(NdJsonFormatReader.CONFIG_SCHEMA_MAX_FIELDS, value)
+                )
             );
             assertEquals("[schema_max_fields] must be an integer between 1 and 100000, got [" + value + "]", e.getMessage());
         }

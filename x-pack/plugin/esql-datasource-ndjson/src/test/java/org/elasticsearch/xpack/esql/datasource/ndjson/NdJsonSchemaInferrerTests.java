@@ -337,10 +337,10 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * A dotted key is split into one node per segment, which Jackson's nesting cap does not bound. A ~50 KB key of
-     * 25,000 segments must infer its one column without overflowing the stack, and every byte is released after.
+     * A dotted key is one literal field name, not a path of nested nodes. A ~50 KB key of 25,000 segments infers one
+     * column named by the whole key, and every byte is released after.
      */
-    public void testVeryDeepDottedKeyDoesNotOverflowTheStack() throws IOException {
+    public void testVeryLongDottedKeyIsOneColumn() throws IOException {
         String key = "a.".repeat(24_999) + "b";
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
         List<Attribute> schema = infer("{\"" + key + "\":1}\n", breaker);
@@ -355,13 +355,14 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      * as the column name built from it.
      */
     public void testObjectPathIsChargedWhileSpelled() throws IOException {
-        String key = "a.".repeat(2_000) + "b";
+        int depth = 900;
         PeakTrackingLimitedBreaker breaker = new PeakTrackingLimitedBreaker(ByteSizeValue.ofMb(64));
-        infer("{\"" + key + "\":1}\n", breaker);
-        long nodes = 2_001L + 1; // one per segment, plus the root
-        long treeAndColumn = nodes * NdJsonSchemaInferrer.FIELD_INFO_BYTES + 2_000 * HeapEstimates.stringBytes("a") + HeapEstimates
-            .stringBytes("b") + HeapEstimates.stringBytes((String) null) + HeapEstimates.columnBytes(key.length());
-        assertThat(breaker.peak - treeAndColumn, equalTo((long) key.length() * Character.BYTES));
+        infer(deeplyNestedRecord(depth, 1), breaker);
+        String path = "a.".repeat(depth) + "k0";
+        long nodes = depth + 2L; // one per level and one for the leaf, plus the root
+        long treeAndColumn = nodes * NdJsonSchemaInferrer.FIELD_INFO_BYTES + depth * HeapEstimates.stringBytes("a") + HeapEstimates
+            .stringBytes("k0") + HeapEstimates.stringBytes((String) null) + HeapEstimates.columnBytes(path.length());
+        assertThat(breaker.peak - treeAndColumn, equalTo((long) path.length() * Character.BYTES));
     }
 
     /** The cap admits exactly {@code maxFields} fields and refuses the next one as a client error, releasing everything. */
@@ -380,15 +381,15 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Objects count like leaves, as in {@code index.mapping.total_fields.limit}, and so does every segment of a dotted
-     * key: {@code {"a":{"b":1}}} and {@code {"a.b":1}} are both two fields.
+     * Objects count like leaves, as in {@code index.mapping.total_fields.limit}: {@code {"a":{"b":1}}} is two fields. A
+     * dotted key is one literal field name, so {@code {"a.b":1}} is one.
      */
-    public void testFieldCapCountsObjectsAndDottedSegments() throws IOException {
+    public void testFieldCapCountsObjects() throws IOException {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        for (String record : List.of("{\"a\":{\"b\":1}}\n", "{\"a.b\":1}\n")) {
-            assertThat(infer(record, 2, breaker).size(), equalTo(1));
-            expectThrows(IllegalArgumentException.class, () -> infer(record, 1, breaker));
-        }
+        String nested = "{\"a\":{\"b\":1}}\n";
+        assertThat(infer(nested, 2, breaker).size(), equalTo(1));
+        expectThrows(IllegalArgumentException.class, () -> infer(nested, 1, breaker));
+        assertThat(infer("{\"a.b\":1}\n", 1, breaker).size(), equalTo(1));
         // The esql-planning#2143 shape (36,000 leaves under deep nesting) is refused by the default cap at its 101st
         // leaf, long before the dotted names are built.
         expectThrows(
@@ -413,18 +414,15 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      */
     public void testMalformedLineFieldsAreDiscarded() throws IOException {
         LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
-        String duplicateKey = "{\"k0\":1,\"k1\":1,\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1,\"k0\":2}\n";
-        String ndjson = "{\"a\":1}\n" + duplicateKey + "{\"a\":2}\n";
+        String trailingComma = "{\"k0\":1,\"k1\":1,\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1,}\n";
+        String ndjson = "{\"a\":1}\n" + trailingComma + "{\"a\":2}\n";
         for (int maxFields : List.of(Integer.MAX_VALUE, 5)) {
             List<Attribute> schema = infer(ndjson, maxFields, breaker);
             assertThat(schema.stream().map(Attribute::name).toList(), equalTo(List.of("a")));
             assertThat(breaker.getUsed(), equalTo(0L));
         }
         // A nested object created by the malformed line goes too, leaving its pre-existing parent a leaf.
-        assertThat(
-            infer("{\"a\":1}\n{\"a\":{\"b\":1,\"b\":2}}\n", 5, breaker).stream().map(Attribute::name).toList(),
-            equalTo(List.of("a"))
-        );
+        assertThat(infer("{\"a\":1}\n{\"a\":{\"b\":1,}}\n", 5, breaker).stream().map(Attribute::name).toList(), equalTo(List.of("a")));
         // A record cut short by the end of the stream is malformed too.
         assertThat(
             infer("{\"a\":1}\n{\"k0\":1,\"k1\":1,\"k2\":1,\"k3\":1,\"k4\":1,\"k5\":1", 5, breaker).stream().map(Attribute::name).toList(),

@@ -1505,7 +1505,7 @@ on_failure sidecar of a denied field is not exposed under FLS (logsdb_columnar):
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: [ "mapper.doc_values.on_failure" ]
+      cluster_features: [ "mapper.doc_values.on_failure" , "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 
   - do:
@@ -1521,14 +1521,12 @@ on_failure sidecar of a denied field is not exposed under FLS (logsdb_columnar):
                 type: date
               name:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
               secret:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       bulk:
@@ -1587,7 +1585,7 @@ on_failure sidecar follows an explicitly granted field under FLS (logsdb_columna
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: [ "mapper.doc_values.on_failure" ]
+      cluster_features: [ "mapper.doc_values.on_failure" , "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 
   - do:
@@ -1603,14 +1601,12 @@ on_failure sidecar follows an explicitly granted field under FLS (logsdb_columna
                 type: date
               name:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
               secret:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       bulk:
@@ -1666,7 +1662,7 @@ on_failure sidecar of a denied field is not exposed under FLS (columnar):
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes, doc_values_on_failure ]
-      cluster_features: [ "mapper.doc_values.on_failure" ]
+      cluster_features: [ "mapper.doc_values.on_failure" , "mapper.doc_values.top_level_attributes"]
       reason: "._on_failure sidecar visibility under FLS requires both columnar index modes and the doc_values.on_failure feature flag"
 
   - do:
@@ -1680,14 +1676,12 @@ on_failure sidecar of a denied field is not exposed under FLS (columnar):
             properties:
               name:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
               secret:
                 type: keyword
-                doc_values:
-                  multi_value: false
-                  on_failure: ignore
+                multi_value: false
+                on_failure: ignore
 
   - do:
       bulk:

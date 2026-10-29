@@ -345,6 +345,29 @@ public class AnalyzerExternalTests extends ESTestCase {
         );
     }
 
+    public void testMatchOnFileMetadata() {
+        assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+
+        var plan = analyzeDataset(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " METADATA _file.name | WHERE MATCH(`_file.name`, \"foo\")"
+        );
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        assertThat(match.field(), instanceOf(ExternalMetadataAttribute.class));
+        assertThat(filter.child(), instanceOf(ExternalRelation.class));
+
+        // a _file.* column not named in METADATA is not in scope, so MATCH reports it like any other unknown column
+        datasetError(
+            external(),
+            S3_PATH,
+            "FROM " + DATASET_NAME + " | WHERE MATCH(`_file.name`, \"foo\")",
+            containsString("Unknown column [_file.name]")
+        );
+    }
+
     public void testMetadataBoundColumnsSurviveKeepStar() {
         assumeTrue("requires dataset-in-FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
 

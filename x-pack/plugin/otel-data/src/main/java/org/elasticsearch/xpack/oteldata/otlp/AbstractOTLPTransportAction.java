@@ -13,9 +13,11 @@ import com.google.protobuf.MessageLite;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -79,7 +81,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
 
             ProcessingContext finalContext = context;
-            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+            BulkRequest bulkRequest = bulkRequestBuilder.request();
+            ActionListener<BulkResponse> bulkListener = listener.delegateFailure((delegate, bulkResponse) -> {
                 if (finalContext.getIgnoredItems() > 0
                     || finalContext.getWarningMessage().isEmpty() == false
                     || needsPartialSuccess(bulkResponse)) {
@@ -87,7 +90,11 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 }
-            }));
+            });
+            ActionListener.run(
+                ActionListener.runBefore(bulkListener, bulkRequest::releasePreBuiltBatches),
+                l -> client.execute(TransportBulkAction.TYPE, bulkRequest, l)
+            );
 
         } catch (InvalidProtocolBufferException e) {
             logger.debug("invalid OTLP protobuf payload", e);

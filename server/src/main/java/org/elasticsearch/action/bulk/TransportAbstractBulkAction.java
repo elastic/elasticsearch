@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
@@ -159,7 +160,10 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         } else {
             releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         }
-        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(
+            listener,
+            () -> Releasables.close(releasable, bulkRequest::releasePreBuiltBatches)
+        );
         // Use coordinationExecutor for dispatching coordination tasks
         final Executor executor = isOnlySystem ? systemCoordinationExecutor : coordinationExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
@@ -297,6 +301,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         }
 
         if (hasIndexRequestsWithPipelines) {
+            if (bulkRequest.hasPreBuiltBatches()) {
+                throw new IllegalArgumentException("bulk with pre-built source batches cannot run ingest pipelines");
+            }
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunctio
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
+import java.util.function.Predicate;
+
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
     public FoldNull() {
@@ -35,11 +37,26 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         }
 
+        if (foldsToNull(e, FoldNull::isNull)) {
+            return Literal.of(e, null);
+        }
+        return e;
+    }
+
+    /**
+     * Whether {@code e} is guaranteed to evaluate to {@code NULL}, judging null-ness of its direct inputs
+     * with {@code isNullChild}.
+     * <p>
+     * Both callers share the shapes but deliberately not the null check. This rule passes its transitive check,
+     * folding anything provably null, so {@code x + (y + NULL)} folds as a whole. The pre-optimizer
+     * {@code WarnNullMisuse} only accepts an explicit, user-written {@code NULL} as a direct input, so it warns
+     * on the innermost {@code y + NULL} and not on expressions that are null for other reasons.
+     */
+    public static boolean foldsToNull(Expression e, Predicate<Expression> isNullChild) {
         if (e instanceof In in) {
-            if (Expressions.isGuaranteedNull(in.value())) {
-                return Literal.of(in, null);
-            }
-        } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
+            return isNullChild.test(in.value());
+        }
+        return e instanceof Alias == false && e.nullable() == Nullability.TRUE
         // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
             && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
@@ -47,10 +64,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             // AggregateMapper cannot handle aggregate functions with literal values. Aggregates over null inputs are instead
             // replaced with a literal by ReplaceStatsFilteredOrNullAggWithEval.
             && e instanceof AggregateFunction == false
-            && e.children().stream().anyMatch(FoldNull::isNull)) {
-                return Literal.of(e, null);
-            }
-        return e;
+            && e.children().stream().anyMatch(isNullChild);
     }
 
     private static boolean isNull(Expression e) {

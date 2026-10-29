@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -788,6 +789,12 @@ public class SearchTransportService {
             // coordinator and data node have different feature flag states or versions.
             if (fetchPhaseChunkedEnabled && versionSupported && coordinatorSupportsChunkedFetch) {
                 ShardFetchSearchRequest fetchSearchReq = (ShardFetchSearchRequest) request;
+                final CircuitBreaker breaker = searchService.getCircuitBreaker();
+                // A coordinator on this node reads the hits as slices of the chunk pages and charges them itself, so the pages are not
+                // charged here. Each chunk is uncharged until the coordinator charges it, normally right after it is built, so at most the
+                // target chunk size plus one hit per chunk. The last chunk is the exception: it waits for the shard's result before the
+                // coordinator sees it, so it is charged while held.
+                final boolean localCoordinator = transportService.getLocalNode().equals(fetchSearchReq.getCoordinatingNode());
 
                 // Capture the current ThreadContext to preserve authentication headers
                 final Supplier<ThreadContext.StoredContext> contextSupplier = transportService.getThreadPool()
@@ -830,7 +837,12 @@ public class SearchTransportService {
 
                     @Override
                     public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return transportService.newNetworkBytesStream(searchService.getCircuitBreaker());
+                        return transportService.newNetworkBytesStream(localCoordinator ? null : breaker);
+                    }
+
+                    @Override
+                    public ReleasableBytesReference holdLastChunk(ReleasableBytesReference bytes) {
+                        return localCoordinator ? chargeHeldChunk(bytes, breaker) : bytes;
                     }
                 };
             }
@@ -910,6 +922,18 @@ public class SearchTransportService {
             result.setLastChunkSequenceStart(0);
             result.setLastChunkBytes(out.bytes(), hits.length);
         }
+    }
+
+    /**
+     * Charges a held last chunk written for a coordinator on this node until its pages are freed. The coordinator's hits keep slices of
+     * the pages, so once it charges them too the chunk is counted twice until it releases them, at most one chunk per shard. A trip here
+     * is a shard failure, like the other data-side fetch charges.
+     */
+    // package-private for testing
+    static ReleasableBytesReference chargeHeldChunk(ReleasableBytesReference bytes, CircuitBreaker breaker) {
+        final long size = bytes.length();
+        breaker.addEstimateBytesAndMaybeBreak(size, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+        return new ReleasableBytesReference(bytes, () -> Releasables.close(bytes, () -> breaker.addWithoutBreaking(-size)));
     }
 
     // package-private for testing

@@ -145,7 +145,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -209,6 +209,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 meta,
@@ -896,7 +899,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             // extra SortedNumericLongValues.singleton(...) wrapper layer.
             final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             if (singleton != null) {
-                return SortedNumericDoubleValues.singleton(new DoubleValues() {
+                var doubleValues = new DoubleValues() {
                     @Override
                     public double doubleValue() throws IOException {
                         return singleton.longValue() * scalingFactorInverse;
@@ -906,7 +909,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     public boolean advanceExact(int doc) throws IOException {
                         return singleton.advanceExact(doc);
                     }
-                });
+                };
+                return SortedNumericDoubleValues.singleton(doubleValues, values.docIdIterator());
             }
             return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
                 @Override

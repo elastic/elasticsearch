@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -295,18 +294,15 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * {@snippet lang="text":
      * TopN[[Order[emp_no{r}#29,ASC,LAST]],20[INTEGER],false]
-     * \_UnionAll[[_meta_field{r}#28, emp_no{r}#29, first_name{r}#30, gender{r}#31, hire_date{r}#32, job{r}#33, job.raw{r}#34, l
-     * anguages{r}#35, last_name{r}#36, long_noidx{r}#37, salary{r}#38]]
+     * \_BranchPlan[[unnamed_view_1, unnamed_view_2]]
      *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
      * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   | \_Subquery[]
-     *   |   \_Filter[emp_no{f}#6 > 100[INTEGER]]
-     *   |     \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   | \_Filter[emp_no{f}#6 > 100[INTEGER]]
+     *   |   \_EsRelation[employees][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      *   \_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26, l
      * anguages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
-     *     \_Subquery[]
-     *       \_Filter[emp_no{f}#17 < 10[INTEGER]]
-     *         \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *     \_Filter[emp_no{f}#17 < 10[INTEGER]]
+     *       \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      * }
      */
     public void testWithSubqueries() {
@@ -329,8 +325,7 @@ public class PushDownIntoForkTests extends AbstractLogicalPlanOptimizerTests {
         for (LogicalPlan child : unionAll.children()) {
             // update this test once we push TopN into subqueries
             var project = as(child, Project.class);
-            var subquery = as(project.child(), Subquery.class);
-            var filter = as(subquery.child(), Filter.class);
+            var filter = as(project.child(), Filter.class);
             assertThat(filter.child(), instanceOf(EsRelation.class));
         }
     }

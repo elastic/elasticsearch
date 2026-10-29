@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -878,6 +879,30 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             is(BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD)
         );
         assertTrue("MATCH_PHRASE over a fused field_extract must run at runtime, not be pushed", matchPhrase.isRuntimeSearch());
+    }
+
+    public void testLengthIntoMatchFusesButStaysRuntime() {
+        // LENGTH fuses into the field load like field_extract above, and the fused value has no indexed Lucene field
+        // behind it either, so MATCH must still run at runtime.
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            FROM test
+            | WHERE MATCH(LENGTH(last_name), 5)
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP emp_no
+            """);
+
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        assertThat("LENGTH feeding MATCH should fuse", pushed, hasSize(1));
+
+        List<Match> matches = new ArrayList<>();
+        plan.forEachExpressionDown(Match.class, matches::add);
+        assertThat("MATCH must survive as a runtime expression, not be pushed to Lucene", matches, hasSize(1));
+
+        Match match = matches.get(0);
+        FieldAttribute field = as(match.field(), FieldAttribute.class);
+        assertThat(as(field.field(), FunctionEsField.class).functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
+        assertTrue("MATCH over a fused LENGTH must run at runtime, not be pushed", match.isRuntimeSearch());
     }
 
     // ---- field_extract into a function that requires an exact string argument ----

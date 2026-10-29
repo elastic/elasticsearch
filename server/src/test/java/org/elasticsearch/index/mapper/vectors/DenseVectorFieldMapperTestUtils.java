@@ -88,6 +88,12 @@ public class DenseVectorFieldMapperTestUtils {
         return Collections.unmodifiableSet(elementTypes);
     }
 
+    public static DenseVectorFieldMapper.DenseVectorFieldType getFieldType(MapperService mapperService, String fieldName) {
+        MappedFieldType fieldType = mapperService.fieldType(fieldName);
+        assertThat(fieldType, instanceOf(DenseVectorFieldMapper.DenseVectorFieldType.class));
+        return (DenseVectorFieldMapper.DenseVectorFieldType) fieldType;
+    }
+
     /**
      * Gets the index options of the named {@code dense_vector} field, asserting that they are of the expected type.
      */
@@ -96,10 +102,8 @@ public class DenseVectorFieldMapperTestUtils {
         String fieldName,
         Class<T> indexOptionsClass
     ) {
-        MappedFieldType fieldType = mapperService.fieldType(fieldName);
-        assertThat(fieldType, instanceOf(DenseVectorFieldMapper.DenseVectorFieldType.class));
-        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType)
-            .getIndexOptions();
+        DenseVectorFieldMapper.DenseVectorFieldType fieldType = getFieldType(mapperService, fieldName);
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions = fieldType.getIndexOptions();
         assertThat(indexOptions, instanceOf(indexOptionsClass));
         return indexOptionsClass.cast(indexOptions);
     }

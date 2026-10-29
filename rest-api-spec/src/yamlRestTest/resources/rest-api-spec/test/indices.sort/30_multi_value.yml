@@ -7,8 +7,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -25,8 +25,7 @@
             properties:
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
   - do:
       cluster.health:
         index: test
@@ -40,7 +39,7 @@
         index: test
 
   - match: { test.mappings.properties.rank.type: integer }
-  - match: { test.mappings.properties.rank.doc_values.multi_value: false }
+  - match: { test.mappings.properties.rank.multi_value: false }
 
   - do:
       index:
@@ -150,8 +149,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -167,8 +166,7 @@
             properties:
               tag:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
@@ -181,7 +179,7 @@
         index: test_kw
 
   - match: { test_kw.mappings.properties.tag.type: keyword }
-  - match: { test_kw.mappings.properties.tag.doc_values.multi_value: false }
+  - match: { test_kw.mappings.properties.tag.multi_value: false }
 
   # Segment 1: tags c, a, d, b
   - do:
@@ -285,8 +283,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -305,8 +303,7 @@
                 type: keyword
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
@@ -406,3 +403,103 @@
   - match: {hits.hits.5._id: "1"}
   - match: {hits.hits.6._id: "6"}
   - match: {hits.hits.7._id: "8"}
+
+---
+"Index Sort with index.mapping.doc_values.multi_value false - keyword":
+
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: ["mapper.doc_values.multi_value_index_setting"]
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature; columnar index mode required"
+
+  # The index-level setting, not the field, makes the keyword single-valued, so the sort goes through the plain binary sort field.
+  - do:
+      indices.create:
+        index: test_index_level
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.doc_values.multi_value: false
+            number_of_shards: 1
+            refresh_interval: -1
+            index.sort.field: tag
+            index.sort.order: desc
+            index.sort.missing: _first
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              tag:
+                type: keyword
+
+  - do:
+      cluster.health:
+        index: test_index_level
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Segment 1: tags c, a, (none)
+  - do:
+      index:
+        index: test_index_level
+        id:    "1"
+        body:  { "tag": "c" }
+  - do:
+      index:
+        index: test_index_level
+        id:    "2"
+        body:  { "tag": "a" }
+  - do:
+      index:
+        index: test_index_level
+        id:    "3"
+        body:  { }
+
+  - do:
+      indices.refresh:
+        index: test_index_level
+
+  # Segment 2: tags d, b
+  - do:
+      index:
+        index: test_index_level
+        id:    "4"
+        body:  { "tag": "d" }
+  - do:
+      index:
+        index: test_index_level
+        id:    "5"
+        body:  { "tag": "b" }
+
+  - do:
+      indices.refresh:
+        index: test_index_level
+
+  # After forcemerge _doc order reflects the index sort (missing first, then descending by tag):
+  # (none)→3, d→4, c→1, b→5, a→2
+  - do:
+      indices.forcemerge:
+        index: test_index_level
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_index_level
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index_level
+        body:
+          sort: _doc
+
+  - match: {hits.total: 5}
+  - length: {hits.hits: 5}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.1._id: "4"}
+  - match: {hits.hits.2._id: "1"}
+  - match: {hits.hits.3._id: "5"}
+  - match: {hits.hits.4._id: "2"}

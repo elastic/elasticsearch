@@ -208,7 +208,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 "bytes_read",
                 "read_nanos",
                 "read_cpu_nanos",
-                "cpu_nanos" }) {
+                "cpu_nanos",
+                "driver_nanos" }) {
                 String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
                 assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
             }
@@ -395,7 +396,14 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertNull(message.get(QUERY_FIELD_FILTER));
         }
 
-        for (String key : new String[] { "documents_found", "values_loaded", "rows_emitted", "bytes_read", "read_nanos", "cpu_nanos" }) {
+        for (String key : new String[] {
+            "documents_found",
+            "values_loaded",
+            "rows_emitted",
+            "bytes_read",
+            "read_nanos",
+            "cpu_nanos",
+            "driver_nanos" }) {
             String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
             assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
         }

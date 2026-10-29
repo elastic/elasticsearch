@@ -189,10 +189,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
             return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
                 var mapping = new HashMap<>(defaults.mappingGenerator().get());
-                mapping.put(
-                    "doc_values",
-                    randomBoolean() ? Map.of("multi_value", false, "on_failure", "ignore") : Map.of("multi_value", false)
-                );
+                mapping.put("multi_value", false);
+                if (randomBoolean()) {
+                    mapping.put("on_failure", "ignore");
+                }
                 return mapping;
             });
         }

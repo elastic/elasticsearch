@@ -750,12 +750,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                     {
                         b.field("type", "keyword");
                         b.field("ignore_above", ignoreAbove);
-                        b.startObject("doc_values");
-                        {
-                            b.field("multi_value", false);
-                            b.field("on_failure", "ignore");
-                        }
-                        b.endObject();
+                        b.field("multi_value", false);
+                        b.field("on_failure", "ignore");
                     }
                     b.endObject();
                 }

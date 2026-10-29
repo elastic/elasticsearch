@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -2733,6 +2734,53 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testRegisterCommitUploadedByTargetMatchingPausedBccOnSource() throws Exception {
+        final Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs), 1)) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            final var nodeId = stateWithSearchShards.getRoutingTable()
+                .shardRoutingTable(shardId)
+                .replicaShards()
+                .getFirst()
+                .currentNodeId();
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var uploadedCommit = testHarness.generateIndexCommits(1).getFirst();
+            commitService.onCommitCreation(uploadedCommit);
+            waitUntilBCCIsUploaded(commitService, shardId, uploadedCommit.getGeneration());
+
+            final var markedRelocating = new PlainActionFuture<Void>();
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
+            commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
+            final var handoffListener = commitService.markRelocating(shardId, uploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+
+            // A background merge is frozen into a BCC that stays pending upload, paused above maxGenerationToUpload.
+            final var mergedCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergedCommit);
+            assertThat(mergedCommit.getGeneration(), greaterThan(commitService.getMaxGenerationToUpload(shardId)));
+            assertNull(commitService.getCurrentVirtualBcc(shardId));
+            assertFalse(uploadedBlobs.contains(blobNameFromGeneration(mergedCommit.getGeneration())));
+
+            // The search shard registers with a same-term commit at the paused generation, as uploaded by the relocation target.
+            final var registerFuture = new PlainActionFuture<RegisterCommitResponse>();
+            commitService.registerCommitForUnpromotableRecovery(
+                null,
+                new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration()),
+                shardId,
+                nodeId,
+                stateWithSearchShards,
+                registerFuture
+            );
+            expectThrows(RecoveryCommitTooNewException.class, registerFuture::actionGet);
+
+            handoffListener.onResponse(null);
+        }
+    }
+
     public void testRegisterCommitForUnpromotableRecoveryAcquiresARefForAllBlobs() throws Exception {
         Set<StaleCompoundCommit> deletedBCCs = ConcurrentCollections.newConcurrentSet();
         var fakeSearchNode = new FakeSearchNode(threadPool);
@@ -2976,6 +3024,157 @@ public class StatelessCommitServiceTests extends ESTestCase {
         testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
         waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit.getGeneration());
         return commit;
+    }
+
+    public void testNewCommitNotificationWaitsForUploadBound() throws Exception {
+        final Set<Long> notifiedNonUploadGenerations = ConcurrentCollections.newConcurrentSet();
+        final var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return new NoOpNodeClient(threadPool) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        assert action == TransportNewCommitNotificationAction.TYPE || action == TransportFetchShardCommitsInUseAction.TYPE
+                            : "Unexpected ActionType: " + action;
+                        if (request instanceof NewCommitNotificationRequest notificationRequest) {
+                            if (notificationRequest.isUploaded() == false) {
+                                notifiedNonUploadGenerations.add(notificationRequest.getCompoundCommit().generation());
+                            }
+                            ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
+                                new NewCommitNotificationResponse(Set.of())
+                            );
+                        } else {
+                            ((ActionListener<FetchShardCommitsInUseAction.Response>) listener).onResponse(
+                                new FetchShardCommitsInUseAction.Response(ClusterName.DEFAULT, List.of(), List.of())
+                            );
+                        }
+                    }
+                };
+            }
+        }) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(stateWithSearchShards);
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(2);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+            assertThat(notifiedNonUploadGenerations, hasItem(lastUploadedCommit.getGeneration()));
+
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
+            commitService.installUploadBoundListener(shardId, new SubscribableListener<>());
+            assertThat(commitService.getMaxGenerationToUpload(shardId), equalTo(Long.MAX_VALUE));
+
+            final var mergeCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            commitService.onCommitCreation(mergeCommit);
+            assertThat(mergeCommit.getGeneration(), greaterThan(lastUploadedCommit.getGeneration()));
+
+            // The notification must wait on the undecided bound.
+            assertFalse(
+                "commit created before markRelocating must not be notified before the bound is decided",
+                notifiedNonUploadGenerations.contains(mergeCommit.getGeneration())
+            );
+
+            final var markedRelocating = new PlainActionFuture<Void>();
+            final var handoffListener = commitService.markRelocating(shardId, lastUploadedCommit.getGeneration(), markedRelocating);
+            markedRelocating.actionGet();
+            assertThat(commitService.getMaxGenerationToUpload(shardId), lessThan(mergeCommit.getGeneration()));
+
+            assertFalse(
+                "commit above maxGenerationToUpload must never be notified to search shards",
+                notifiedNonUploadGenerations.contains(mergeCommit.getGeneration())
+            );
+            handoffListener.onResponse(null);
+        }
+    }
+
+    public void testNewCommitNotificationResumesAfterRelocationAbortedBeforeMarkRelocating() throws Exception {
+        final var windowCommitGeneration = new AtomicLong(-1L);
+        final var windowCommitNotified = new SubscribableListener<Void>();
+        final var stateRef = new AtomicReference<ClusterState>();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
+            }
+
+            @Override
+            protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
+                return new NoOpNodeClient(threadPool) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                        ActionType<Response> action,
+                        Request request,
+                        ActionListener<Response> listener
+                    ) {
+                        assert action == TransportNewCommitNotificationAction.TYPE || action == TransportFetchShardCommitsInUseAction.TYPE
+                            : "Unexpected ActionType: " + action;
+                        if (request instanceof NewCommitNotificationRequest notificationRequest) {
+                            if (notificationRequest.isUploaded() == false
+                                && notificationRequest.getCompoundCommit().generation() == windowCommitGeneration.get()) {
+                                windowCommitNotified.onResponse(null);
+                            }
+                            ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
+                                new NewCommitNotificationResponse(Set.of())
+                            );
+                        } else {
+                            ((ActionListener<FetchShardCommitsInUseAction.Response>) listener).onResponse(
+                                new FetchShardCommitsInUseAction.Response(ClusterName.DEFAULT, List.of(), List.of())
+                            );
+                        }
+                    }
+                };
+            }
+        }) {
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+            final var stateWithNoSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 0);
+            final var stateWithSearchShards = clusterStateWithPrimaryAndSearchShards(shardId, 1);
+            stateRef.set(stateWithSearchShards);
+            commitService.clusterChanged(new ClusterChangedEvent("test", stateWithSearchShards, stateWithNoSearchShards));
+
+            final var initialCommits = testHarness.generateIndexCommits(2);
+            for (var initialCommit : initialCommits) {
+                commitService.onCommitCreation(initialCommit);
+            }
+            final var lastUploadedCommit = initialCommits.getLast();
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, lastUploadedCommit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, lastUploadedCommit.getGeneration());
+
+            final var uploadBoundListener = new SubscribableListener<Long>();
+            when(testHarness.indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
+            commitService.installUploadBoundListener(shardId, uploadBoundListener);
+
+            final var windowCommit = testHarness.generateIndexCommits(1, true).getFirst();
+            windowCommitGeneration.set(windowCommit.getGeneration());
+            commitService.onCommitCreation(windowCommit);
+            assertFalse("commit created before markRelocating must wait for the bound", windowCommitNotified.isDone());
+
+            uploadBoundListener.onFailure(new RuntimeException("relocation aborted before the handoff"));
+            assertFalse(commitService.relocationUploadBoundIsInstalled(shardId));
+
+            // An aborted relocation lifts the bound so the waiting commit can notify search shards
+            safeAwait(windowCommitNotified);
+        }
     }
 
     public void testScheduledCommitUpload() throws Exception {

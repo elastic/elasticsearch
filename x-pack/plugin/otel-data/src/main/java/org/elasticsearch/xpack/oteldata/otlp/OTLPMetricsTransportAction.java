@@ -333,7 +333,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // derive _tsid column-major (no pre-set tsid required on the IndexRequests).
             // Ownership of the batch transfers to the bulk request here. EscfBatchBuilder.close() only
             // releases *unbuilt* partitions (buildPartition nulls the slot), so closing the builder
-            // below does NOT close or invalidate the batch; that is the caller's (router's) responsibility.
+            // below does NOT close or invalidate the batch; ownership passes to the bulk action, which releases
+            // it, and AbstractOTLPTransportAction releases it if the bulk is rejected before the action takes it.
             bulkRequestBuilder.setPreBuiltBatches(Map.of(target, batch));
         }
     }

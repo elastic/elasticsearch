@@ -254,6 +254,12 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         private Thread bulkScorerThread;
 
         /**
+         * Exclusive upper bound of the last range scored by {@link #bulkScorer}. A {@link BulkScorer}
+         * only moves forward, so a range starting before this needs a fresh one.
+         */
+        private int bulkScorerNext;
+
+        /**
          * Set to {@code true} if, in the process of building a {@link Scorer} or {@link BulkScorer},
          * the {@link Weight} tells us there aren't any matches.
          */
@@ -284,7 +290,8 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 return createNoMatchBlock(blockFactory, max - min + 1);
             }
             if (bulkScorer == null ||  // The bulkScorer wasn't initialized
-                Thread.currentThread() != bulkScorerThread // The bulkScorer was initialized on a different thread
+                Thread.currentThread() != bulkScorerThread || // The bulkScorer was initialized on a different thread
+                min < bulkScorerNext // The previous range came "after" this one and the bulkScorer can't go backwards
             ) {
                 bulkScorerThread = Thread.currentThread();
                 bulkScorerScope.release();
@@ -306,6 +313,7 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 )
             ) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
+                bulkScorerNext = max + 1;
                 collector.finish();
                 return collector.build();
             }

@@ -11,9 +11,10 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 
 /**
  * Base plugin applied to every Elasticsearch subproject. Replaces the former
@@ -27,8 +28,7 @@ public class ElasticsearchBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // Ensure the root project has GlobalBuildInfoPlugin applied (idempotent).
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
 
         // Standard subproject metadata.
         project.setDescription("Elasticsearch subproject " + project.getPath());

@@ -205,9 +205,10 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Note that only files too large to be fetched whole reach this cache via the 4 MiB adapter
      * window. Parquet's 64 KiB footer prefetch {@code put}s {@code min(64KiB, fileLength)}, so a
-     * tiny file's whole object can live here and serve a later coalesced data read. Adapter
-     * whole-file fills are deliberately not stored so 4 MiB bodies cannot displace genuine
-     * footers.
+     * tiny file's whole object can live here and serve a later coalesced data read. An adapter
+     * whole-file fill is admitted on that same 64 KiB bound, so the data path can put back an
+     * entry the prefetch already wrote; a larger one, up to the 4 MiB window, stays out so those
+     * bodies cannot displace genuine footers.
      */
     public static final Setting<ByteSizeValue> FOOTER_CACHE_SIZE = new Setting<>(
         "esql.external.cache.footer.size",
@@ -233,9 +234,9 @@ public final class ExternalSourceCacheSettings {
      * That ordering is worth having rather than a shortcoming, because it keeps the common failure
      * mode cheap: when a footer is dropped here the raw bytes are often still cached, so the next
      * phase pays a re-parse (CPU) instead of a fresh network round trip. It is a tendency, not a
-     * guarantee. Two cases invert it. A file small enough to be fetched whole (see the sliding
-     * window in the format reader's storage adapter) is never stored as a footer entry at all, so
-     * this cache is the only one holding anything for it. And a file carrying large per-column
+     * guarantee. Two cases invert it. A file within the footer prefetch is held whole in the byte
+     * cache, so an eviction there loses the data pages too, not just a tail to re-read. And a file
+     * carrying large per-column
      * statistics can have a serialized footer bigger than the structural estimate charged here.
      * In both, an eviction from this cache does cost a re-read. Deployments running wide schemas
      * over large file sets can raise this to buy back the re-parse; the cost is heap held for as long as

@@ -139,7 +139,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -166,6 +166,9 @@ public class BooleanFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 meta,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 indexed,
                 nullValue,
                 stored,

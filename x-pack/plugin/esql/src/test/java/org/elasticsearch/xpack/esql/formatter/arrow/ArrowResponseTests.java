@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.formatter.arrow;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
@@ -26,18 +27,26 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
@@ -45,13 +54,16 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.ByteArrayInputStream;
@@ -66,6 +78,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -73,13 +86,19 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ArrowResponseTests extends ESTestCase {
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(NoopCircuitBreaker.INSTANCE)
-        .build();
-
     private static final RootAllocator ALLOCATOR = new RootAllocator();
+
+    private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
+    private final BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
+
+    @After
+    public void assertBreakerClean() {
+        assertEquals(0L, blockFactory.breaker().getUsed());
+    }
 
     @AfterClass
     public static void afterClass() throws Exception {
@@ -290,9 +309,9 @@ public class ArrowResponseTests extends ESTestCase {
 
     public void testTestHarness() {
         TestColumn testColumn = TestColumn.create("foo", DataType.INTEGER);
-        TestBlock denseBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Dense, 3);
-        TestBlock sparseBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Sparse, 5);
-        TestBlock emptyBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Empty, 7);
+        TestBlock denseBlock = TestBlock.create(blockFactory, testColumn, Density.Dense, 3);
+        TestBlock sparseBlock = TestBlock.create(blockFactory, testColumn, Density.Sparse, 5);
+        TestBlock emptyBlock = TestBlock.create(blockFactory, testColumn, Density.Empty, 7);
 
         // Test that density works as expected
         assertFalse(denseBlock.block.mayHaveNulls());
@@ -302,14 +321,15 @@ public class ArrowResponseTests extends ESTestCase {
 
         // Test that values iterator scans all pages
         List<TestPage> pages = Stream.of(denseBlock, sparseBlock, emptyBlock).map(b -> new TestPage(List.of(b))).toList();
-        TestCase tc = new TestCase(List.of(testColumn), pages);
-        EsqlValuesIterator valuesIterator = new EsqlValuesIterator(tc, 0);
-        int count = 0;
-        while (valuesIterator.hasNext()) {
-            valuesIterator.next();
-            count++;
+        try (TestCase tc = new TestCase(List.of(testColumn), pages)) {
+            EsqlValuesIterator valuesIterator = new EsqlValuesIterator(tc, 0);
+            int count = 0;
+            while (valuesIterator.hasNext()) {
+                valuesIterator.next();
+                count++;
+            }
+            assertEquals(3 + 5 + 7, count);
         }
-        assertEquals(3 + 5 + 7, count);
 
         // Test that we have value generator types for all ESQL types
         var arrowTypes = EnumSet.noneOf(DataType.class);
@@ -330,7 +350,7 @@ public class ArrowResponseTests extends ESTestCase {
             List<TestPage> pages = new ArrayList<>();
 
             for (var density : Density.values()) {
-                TestBlock testBlock = TestBlock.create(BLOCK_FACTORY, testColumn, density, 10);
+                TestBlock testBlock = TestBlock.create(blockFactory, testColumn, density, 10);
                 TestPage testPage = new TestPage(List.of(testBlock));
                 pages.add(testPage);
             }
@@ -348,7 +368,7 @@ public class ArrowResponseTests extends ESTestCase {
         TestColumn testColumn = new TestColumn("foo", type, VALUE_TYPES.get(type), false);
         List<TestPage> pages = new ArrayList<>();
 
-        TestBlock testBlock = TestBlock.create(BLOCK_FACTORY, testColumn, density, 10);
+        TestBlock testBlock = TestBlock.create(blockFactory, testColumn, density, 10);
         TestPage testPage = new TestPage(List.of(testBlock));
         pages.add(testPage);
 
@@ -361,27 +381,28 @@ public class ArrowResponseTests extends ESTestCase {
      * Test a multivalued field with fixed size values.
      */
     public void testMultivaluedInteger() throws IOException {
-        IntBlock.Builder builder = BLOCK_FACTORY.newIntBlockBuilder(0);
-        builder.beginPositionEntry();
-        builder.appendInt(42);
-        builder.appendInt(43);
-        builder.endPositionEntry();
+        IntBlock block;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(0)) {
+            builder.beginPositionEntry();
+            builder.appendInt(42);
+            builder.appendInt(43);
+            builder.endPositionEntry();
 
-        // The multivalue can be null, but a multivalue cannot contain nulls.
-        // Calling appendNull within a begin/endEntry causes consistency checks to fail in build()
-        // See also https://github.com/elastic/elasticsearch/issues/114324
-        builder.appendNull();
+            // The multivalue can be null, but a multivalue cannot contain nulls.
+            // Calling appendNull within a begin/endEntry causes consistency checks to fail in build()
+            // See also https://github.com/elastic/elasticsearch/issues/114324
+            builder.appendNull();
 
-        builder.beginPositionEntry();
-        builder.appendInt(44);
-        builder.appendInt(45);
-        builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendInt(44);
+            builder.appendInt(45);
+            builder.endPositionEntry();
 
-        // single value
-        builder.appendInt(46);
+            // single value
+            builder.appendInt(46);
 
-        IntBlock block = builder.build();
-        builder.close();
+            block = builder.build();
+        }
 
         // Consistency check.
         // AbstractArrayBlock.assertInvariants does some of these consistency checks, but those below
@@ -421,27 +442,56 @@ public class ArrowResponseTests extends ESTestCase {
         var column = TestColumn.create("some-field", DataType.INTEGER, true);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
-        compareEsqlAndArrow(testCase);
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("some-field");
+            assertListLayout(vector, 0, 2, 2, 4, 5);
+        }
+    }
+
+    public void testAllNullMultivaluedIntegerPageLayout() throws IOException {
+        IntBlock multivaluedBlock;
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendInt(1);
+            builder.appendInt(2);
+            builder.endPositionEntry();
+            multivaluedBlock = builder.build();
+        }
+        Block nullBlock = blockFactory.newConstantNullBlock(2);
+        var column = TestColumn.create("some-field", DataType.INTEGER, true);
+        TestCase testCase = new TestCase(
+            List.of(column),
+            List.of(
+                new TestPage(List.of(TestBlock.create(column, multivaluedBlock))),
+                new TestPage(List.of(TestBlock.create(column, nullBlock)))
+            )
+        );
+
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 2);
+        }
     }
 
     /**
      * Test a multivalued field with variable size values.
      */
     public void testMultivalueString() throws IOException {
-        BytesRefBlock.Builder builder = BLOCK_FACTORY.newBytesRefBlockBuilder(0);
+        BytesRefBlock block;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(0)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.endPositionEntry();
 
-        builder.beginPositionEntry();
-        builder.appendBytesRef(new BytesRef("a"));
-        builder.appendBytesRef(new BytesRef("b"));
-        builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.appendBytesRef(new BytesRef("d"));
+            builder.endPositionEntry();
 
-        builder.beginPositionEntry();
-        builder.appendBytesRef(new BytesRef("c"));
-        builder.appendBytesRef(new BytesRef("d"));
-        builder.endPositionEntry();
-
-        BytesRefBlock block = builder.build();
-        builder.close();
+            block = builder.build();
+        }
 
         var column = TestColumn.create("some-field", DataType.TEXT);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
@@ -524,7 +574,7 @@ public class ArrowResponseTests extends ESTestCase {
         List<TestPage> pages = IntStream
             // 1 to 10 pages of random density and 1 to 1000 values
             .range(0, randomIntBetween(1, 100))
-            .mapToObj(i -> TestPage.create(BLOCK_FACTORY, columns))
+            .mapToObj(i -> TestPage.create(blockFactory, columns))
             .toList();
 
         TestCase testCase = new TestCase(columns, pages);
@@ -532,11 +582,133 @@ public class ArrowResponseTests extends ESTestCase {
         compareEsqlAndArrow(testCase);
     }
 
+    public void testTransformedColumnsWithRecycledPages() throws IOException {
+        int positions = (PageCacheRecycler.INT_PAGE_SIZE / 2) / Integer.BYTES;
+        List<TestColumn> columns = Stream.of(DataType.IP, DataType.VERSION, DataType.SOURCE, DataType.FLATTENED)
+            .map(type -> TestColumn.create("col-" + type.outputType(), type))
+            .toList();
+        List<TestBlock> blocks = columns.stream()
+            .map(col -> TestBlock.create(blockFactory, col, randomFrom(Density.Dense, Density.Sparse), positions))
+            .toList();
+        compareEsqlAndArrow(new TestCase(columns, List.of(new TestPage(blocks))));
+    }
+
+    public void testTransformedValuesAreConvertedOnce() throws IOException {
+        AtomicInteger conversionCount = new AtomicInteger();
+        var formatter = new BlockArrowFormatter.TransformedBytesRef(DataType.KEYWORD, Types.MinorType.VARCHAR, (value, scratch) -> {
+            conversionCount.incrementAndGet();
+            return value;
+        });
+        var bufs = new ArrayList<ArrowBuf>();
+        var bufWriters = new ArrayList<BlockArrowFormatter.BufWriter>();
+        var releasables = new ArrayList<Releasable>();
+        try (
+            BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3);
+            BytesRefBlock block = builder.appendBytesRef(new BytesRef("one")).appendNull().appendBytesRef(new BytesRef("two")).build();
+            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())
+        ) {
+            formatter.convert(block, false, bufs, bufWriters, releasables);
+            assertEquals(2, conversionCount.get());
+
+            for (BlockArrowFormatter.BufWriter writer : bufWriters) {
+                writer.write(out);
+            }
+            assertEquals(2, conversionCount.get());
+        } finally {
+            Releasables.close(releasables);
+        }
+    }
+
+    public void testSparseOrdinalBytesRefBlock() throws IOException {
+        String version = "1.2.3";
+        BytesRefBlock ordinalBlock;
+        try (
+            BytesRefVector constVersion = blockFactory.newConstantBytesRefVector(new Version(version).toBytesRef(), 2);
+            BooleanVector.Builder maskBuilder = blockFactory.newBooleanVectorBuilder(2);
+            BooleanVector mask = maskBuilder.appendBoolean(true).appendBoolean(false).build()
+        ) {
+            ordinalBlock = constVersion.keepMask(mask);
+        }
+        assertThat(ordinalBlock, instanceOf(OrdinalBytesRefBlock.class));
+        assertEquals(0, ((OrdinalBytesRefBlock) ordinalBlock).getOrdinalsBlock().getInt(1));
+
+        var bufs = new ArrayList<ArrowBuf>();
+        var releasables = new ArrayList<Releasable>();
+        try {
+            ArrowResponse.ESQL_FORMATTERS.get(DataType.VERSION).convert(ordinalBlock, false, bufs, new ArrayList<>(), releasables);
+            assertEquals(version.length(), bufs.getLast().writerIndex());
+        } finally {
+            Releasables.close(releasables);
+        }
+
+        TestColumn col = TestColumn.create("col-version", DataType.VERSION, false);
+        compareEsqlAndArrow(new TestCase(List.of(col), List.of(new TestPage(List.of(TestBlock.create(col, ordinalBlock))))));
+    }
+
+    public void testMultivaluedTransformedBytesRefBlocksWithNulls() throws IOException {
+        for (DataType type : List.of(DataType.IP, DataType.VERSION, DataType.SOURCE)) {
+            var column = TestColumn.create("col-" + type.outputType(), type, true);
+            Block block;
+            try (Block.Builder builder = column.valueType.createBlockBuilder(blockFactory)) {
+                builder.beginPositionEntry();
+                column.valueType.addValue(builder, Density.Dense);
+                column.valueType.addValue(builder, Density.Dense);
+                builder.endPositionEntry();
+                builder.appendNull();
+                column.valueType.addValue(builder, Density.Dense);
+                block = builder.build();
+            }
+            assertTrue(block.mayHaveMultivaluedFields());
+            assertTrue(block.isNull(1));
+
+            var testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+                compareEsqlAndArrow(testCase, root);
+                assertListLayout((ListVector) root.getVector(column.name), 0, 2, 2, 3);
+            }
+        }
+    }
+
+    public void testMultivaluedOrdinalBytesRefBlockLayout() throws IOException {
+        BytesRefBlock ordinalBlock;
+        try (
+            IntBlock.Builder ordinals = blockFactory.newIntBlockBuilder(3);
+            BytesRefVector.Builder dictionary = blockFactory.newBytesRefVectorBuilder(3)
+        ) {
+            ordinals.beginPositionEntry();
+            ordinals.appendInt(0);
+            ordinals.appendInt(1);
+            ordinals.endPositionEntry();
+            ordinals.appendNull();
+            ordinals.appendInt(2);
+            dictionary.appendBytesRef(new Version("1.2.3").toBytesRef());
+            dictionary.appendBytesRef(new Version("2.0.0").toBytesRef());
+            dictionary.appendBytesRef(new Version("3.0.0").toBytesRef());
+            ordinalBlock = new OrdinalBytesRefBlock(ordinals.build(), dictionary.build());
+        }
+
+        var column = TestColumn.create("some-field", DataType.VERSION, true);
+        TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, ordinalBlock)))));
+        try (testCase; VectorSchemaRoot root = toArrowVectors(testCase)) {
+            compareEsqlAndArrow(testCase, root);
+            assertListLayout((ListVector) root.getVector("some-field"), 0, 2, 2, 3);
+        }
+    }
+
+    private static void assertListLayout(ListVector vector, int... expectedOffsets) {
+        assertEquals(expectedOffsets.length - 1, vector.getValueCount());
+        for (int row = 0; row < vector.getValueCount(); row++) {
+            assertEquals(expectedOffsets[row], vector.getElementStartIndex(row));
+            assertEquals(expectedOffsets[row + 1], vector.getElementEndIndex(row));
+        }
+        assertEquals(expectedOffsets[expectedOffsets.length - 1], vector.getDataVector().getValueCount());
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Test harness
 
     private void compareEsqlAndArrow(TestCase testCase) throws IOException {
-        try (VectorSchemaRoot arrowVectors = toArrowVectors(testCase)) {
+        try (testCase; VectorSchemaRoot arrowVectors = toArrowVectors(testCase)) {
             compareEsqlAndArrow(testCase, arrowVectors);
         }
     }
@@ -575,8 +747,8 @@ public class ArrowResponseTests extends ESTestCase {
 
         assertEquals("application/vnd.apache.arrow.stream", response.getResponseContentTypeString());
 
-        BytesReference bytes = serializeBlocksDirectly(response);
         try (
+            ReleasableBytesReference bytes = serializeBlocksDirectly(response);
             ArrowStreamReader reader = new ArrowStreamReader(bytes.streamInput(), ALLOCATOR);
             VectorSchemaRoot readerRoot = reader.getVectorSchemaRoot();
         ) {
@@ -664,20 +836,32 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
-    private BytesReference serializeBlocksDirectly(ArrowResponse body) throws IOException {
+    private ReleasableBytesReference serializeBlocksDirectly(ArrowResponse body) throws IOException {
         // Ensure there's a single part, this will fail if we ever change it.
         assertTrue(body.isLastPart());
 
-        List<BytesReference> ourEncoding = new ArrayList<>();
-        int page = 0;
-        while (body.isPartComplete() == false) {
-            ourEncoding.add(body.encodeChunk(1500, BytesRefRecycler.NON_RECYCLING_INSTANCE));
-            page++;
+        List<ReleasableBytesReference> ourEncoding = new ArrayList<>();
+        boolean success = false;
+        try {
+            while (body.isPartComplete() == false) {
+                ourEncoding.add(body.encodeChunk(1500, bigArrays.bytesRefRecycler()));
+            }
+            BytesReference composite = CompositeBytesReference.of(ourEncoding.toArray(BytesReference[]::new));
+            success = true;
+            return new ReleasableBytesReference(composite, () -> Releasables.close(ourEncoding));
+        } finally {
+            if (success == false) {
+                Releasables.close(ourEncoding);
+            }
         }
-        return CompositeBytesReference.of(ourEncoding.toArray(BytesReference[]::new));
     }
 
-    record TestCase(List<TestColumn> columns, List<TestPage> pages) {
+    record TestCase(List<TestColumn> columns, List<TestPage> pages) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.close(pages);
+        }
+
         @Override
         public String toString() {
             return pages.size() + " pages of " + columns.stream().map(c -> c.type().outputType()).collect(Collectors.joining("|"));
@@ -694,7 +878,12 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
-    record TestPage(List<TestBlock> blocks) {
+    record TestPage(List<TestBlock> blocks) implements Releasable {
+
+        @Override
+        public void close() {
+            Releasables.close(blocks);
+        }
 
         static TestPage create(BlockFactory factory, List<TestColumn> columns) {
             int size = randomIntBetween(1, 1000);
@@ -709,7 +898,12 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
-    record TestBlock(TestColumn column, Block block, Density density) {
+    record TestBlock(TestColumn column, Block block, Density density) implements Releasable {
+
+        @Override
+        public void close() {
+            block.close();
+        }
 
         static TestBlock create(TestColumn column, Block block) {
             Density density;
@@ -733,29 +927,30 @@ public class ArrowResponseTests extends ESTestCase {
             if (density == Density.Empty) {
                 block = factory.newConstantNullBlock(positions);
             } else {
-                Block.Builder builder = valueType.createBlockBuilder(factory);
-                int start = 0;
-                if (density == Density.Sparse && positions >= 2) {
-                    // Make sure it's really sparse even if randomness of values may decide otherwise
-                    valueType.addValue(builder, Density.Dense);
-                    valueType.addValue(builder, Density.Empty);
-                    start = 2;
-                }
-                for (int i = start; i < positions; i++) {
-                    // If multivalued, randomly insert a series of values if the type isn't null (nulls are not allowed in multivalues)
-                    if (column.multivalue && column.valueType != NULL_VALUES && randomBoolean()) {
-                        builder.beginPositionEntry();
-                        int numEntries = randomIntBetween(2, 5);
-                        for (int j = 0; j < numEntries; j++) {
-                            valueType.addValue(builder, Density.Dense);
-                        }
-                        builder.endPositionEntry();
-                    } else {
-                        valueType.addValue(builder, density);
+                try (Block.Builder builder = valueType.createBlockBuilder(factory)) {
+                    int start = 0;
+                    if (density == Density.Sparse && positions >= 2) {
+                        // Make sure it's really sparse even if randomness of values may decide otherwise
+                        valueType.addValue(builder, Density.Dense);
+                        valueType.addValue(builder, Density.Empty);
+                        start = 2;
                     }
+                    for (int i = start; i < positions; i++) {
+                        // If multivalued, randomly insert a series of values if the type isn't null (nulls are not allowed in multivalues)
+                        if (column.multivalue && column.valueType != NULL_VALUES && randomBoolean()) {
+                            builder.beginPositionEntry();
+                            int numEntries = randomIntBetween(2, 5);
+                            for (int j = 0; j < numEntries; j++) {
+                                valueType.addValue(builder, Density.Dense);
+                            }
+                            builder.endPositionEntry();
+                        } else {
+                            valueType.addValue(builder, density);
+                        }
+                    }
+                    // Will create an ArrayBlock if there are null values, VectorBlock otherwise
+                    block = builder.build();
                 }
-                // Will create an ArrayBlock if there are null values, VectorBlock otherwise
-                block = builder.build();
                 assertEquals(positions, block.getPositionCount());
             }
             return new TestBlock(column, block, density);

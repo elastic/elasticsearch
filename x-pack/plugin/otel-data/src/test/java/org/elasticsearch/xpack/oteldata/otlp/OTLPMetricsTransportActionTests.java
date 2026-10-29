@@ -18,6 +18,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -59,6 +60,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -76,13 +80,16 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
     }
 
     private OTLPMetricsTransportAction createMetricsAction(Settings settings) {
+        return createMetricsAction(settings, ProjectMetadata.builder(ProjectId.DEFAULT).build());
+    }
+
+    private OTLPMetricsTransportAction createMetricsAction(Settings settings, ProjectMetadata projectMetadata) {
         ClusterService clusterService = mock(ClusterService.class);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             Set.of(OTelPlugin.HISTOGRAM_FIELD_TYPE_SETTING, BatchIndexingEnabled.BATCH_INDEXING, XPackSettings.METRIC_EXEMPLARS_ENABLED)
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().projectMetadata(Map.of(ProjectId.DEFAULT, projectMetadata)).build())
             .build();
@@ -403,25 +410,7 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
         assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
 
-        String target = "metrics-generic.otel-default";
-        Index index = new Index(".ds-" + target + "-000001", randomUUID());
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(
-                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.MODE.getKey(), "time_series")
-                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
-                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
-                    .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
-            )
-            .build();
-        DataStream dataStream = DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build();
-        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
-            .put(indexMetadata, true)
-            .dataStreams(Map.of(target, dataStream), Map.of())
-            .build();
+        ProjectMetadata projectMetadata = batchIndexingProject("metrics-generic.otel-default");
 
         List<DataPointGroupingContext.DataPointGroup> groups = collectGroups(
             ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
@@ -600,5 +589,59 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
 
     private static Metric createMetric() {
         return OtlpUtils.createGaugeMetric("test.metric", "", List.of(OtlpUtils.createDoubleDataPoint(0)));
+    }
+
+    private static ProjectMetadata batchIndexingProject(String target) {
+        Index index = new Index(".ds-" + target + "-000001", randomUUID());
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1969-01-01T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1971-01-01T00:00:00Z")
+                    .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dimension")
+                    .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            )
+            .build();
+        DataStream dataStream = DataStream.builder(target, List.of(index)).setIndexMode(IndexMode.TIME_SERIES).build();
+        return ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(indexMetadata, true)
+            .dataStreams(Map.of(target, dataStream), Map.of())
+            .build();
+    }
+
+    public void testPreBuiltBatchReleasedWhenBulkFails() {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        OTLPMetricsTransportAction action = createMetricsAction(Settings.EMPTY, batchIndexingProject("metrics-generic.otel-default"));
+        clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+        ArgumentCaptor<BulkRequest> bulkRequest = ArgumentCaptor.forClass(BulkRequest.class);
+        ArgumentCaptor<ActionListener<BulkResponse>> bulkListener = ArgumentCaptor.captor();
+        doNothing().when(client).execute(any(), bulkRequest.capture(), bulkListener.capture());
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+
+        action.doExecute(null, createMetricsRequest(createMetric()), responseListener);
+        assertTrue(bulkRequest.getValue().hasPreBuiltBatches());
+
+        bulkListener.getValue().onFailure(new IllegalStateException("bulk rejected"));
+        assertFalse(bulkRequest.getValue().hasPreBuiltBatches());
+        verify(responseListener).onFailure(any());
+    }
+
+    public void testPreBuiltBatchReleasedWhenBulkExecuteThrows() {
+        assumeTrue("requires batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        OTLPMetricsTransportAction action = createMetricsAction(Settings.EMPTY, batchIndexingProject("metrics-generic.otel-default"));
+        clusterSettings.applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build());
+        ArgumentCaptor<BulkRequest> bulkRequest = ArgumentCaptor.forClass(BulkRequest.class);
+        doThrow(new IllegalStateException("bulk rejected")).when(client).execute(any(), bulkRequest.capture(), any());
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+
+        action.doExecute(null, createMetricsRequest(createMetric()), responseListener);
+
+        assertFalse(bulkRequest.getValue().hasPreBuiltBatches());
+        verify(responseListener).onFailure(any());
     }
 }

@@ -30,16 +30,16 @@ final class NativeD7Q7Scorer extends NativeMemorySegmentScorer {
     }
 
     @Override
-    void dotProductBulkWithOffsets(
+    void dotProductBulkMasked(
         MemorySegment dataset,
         MemorySegment query,
         int dataLength,
         int dataStride,
-        MemorySegment offsets,
-        int offsetsCount,
+        int mask,
+        int count,
         MemorySegment scores
     ) {
-        DISTANCE_FUNCS.dotProductI7uBulkWithOffsets(dataset, query, dataLength, dataStride, offsets, offsetsCount, scores);
+        DISTANCE_FUNCS.dotProductI7uBulkMasked(dataset, query, dataLength, dataStride, mask, count, scores);
     }
 
     @Override

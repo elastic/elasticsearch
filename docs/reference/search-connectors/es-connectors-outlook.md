@@ -9,6 +9,10 @@ mapped_pages:
 
 The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
+::::{note}
+The `outlook_server` data source (on-premises Exchange Server) is deprecated. Use the [Exchange Server connector](/reference/search-connectors/es-connectors-exchange-server.md) instead.
+::::
+
 ## **Self-managed connector reference** [es-connectors-outlook-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-outlook-client-availability-and-prerequisites]
@@ -236,21 +240,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::
 
 
-::::{dropdown} Step 3: Run the Docker image
+:::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh subs=true
-docker run \
--v ~/connectors-config:/config \
---network "elastic" \
---tty \
---rm \
-docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
-/app/bin/elastic-ingest \
--c /config/config.yml
-```
+:::{include} _snippets/connectors-docker-run.md
+:::
 
-::::
+:::::
 
 
 Refer to [`DOCKER.md`](https://github.com/elastic/connectors/tree/main/docs/DOCKER.md) in the `elastic/connectors` repo for more details.

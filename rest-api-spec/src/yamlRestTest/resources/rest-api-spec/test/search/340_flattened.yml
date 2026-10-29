@@ -474,6 +474,7 @@ setup:
         body:
           settings:
             index:
+              number_of_replicas: 0
               sort.field: labels.priority
               sort.order: asc
           mappings:
@@ -497,7 +498,8 @@ setup:
           - '{ "labels": { "priority": 2, "name": "medium" } }'
   - match: { errors: false }
 
-  # force merge to guarantee sort order
+  # index sort orders docs only within a segment and _doc order follows segment order, so merge to one
+  # segment. number_of_replicas: 0 above ensures there is no still-recovering copy for the merge to skip.
   - do:
       indices.forcemerge:
         index: test

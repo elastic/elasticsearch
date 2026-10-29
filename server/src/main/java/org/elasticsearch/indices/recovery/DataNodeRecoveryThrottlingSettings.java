@@ -237,7 +237,7 @@ public final class DataNodeRecoveryThrottlingSettings {
     /// changing both of them is applied atomically.
     ///
     /// The limit takes the heap-based throttle (see [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING])
-    /// into account, so it only applies to stateless primary relocations (`StatelessPrimaryRelocationSourceService`) for
+    /// into account, which only applies to stateless primary relocations (`StatelessPrimaryRelocationSourceService`) for
     /// now. [PeerRecoverySourceService] applies [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] separately.
     ///
     /// If the outgoing throttle settings are not registered (see the class documentation), `consumer` is called once with

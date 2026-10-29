@@ -125,19 +125,6 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         int indexVectorBytes
     ) {}
 
-    private record TestOffsets(int[] offsets, MemorySegment offsetsSegment) {}
-
-    static TestOffsets createTestOffsets(final int numVecs) {
-        var offsets = new int[numVecs];
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
-
-        for (int i = 0; i < numVecs; i++) {
-            offsets[i] = randomInt(numVecs - 1);
-            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, offsets[i]);
-        }
-        return new TestOffsets(offsets, offsetsSegment);
-    }
-
     static TestData createTestData(final int numVecs, final int dims, final SimdVecLibrary.BBQType type, final long extraData) {
         final byte maxIndexValue = (byte) ((1 << type.dataBits()) - 1);
         final byte maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
@@ -205,92 +192,70 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         assertArrayEquals(expectedScores, bulkScores, 0f);
     }
 
-    public void testInt4BulkWithOffsets() {
+    public void testBulkMasked() {
         assumeTrue(notSupportedMsg(), supported());
 
-        final int numVecs = randomIntBetween(2, 101);
-        final TestData testData = createTestData(numVecs, size, type);
-        final TestOffsets testOffsets = createTestOffsets(numVecs);
+        final int count = randomIntBetween(1, Integer.SIZE);
+        final int mask = randomBulkMask(count);
+        final TestData testData = createTestData(count, size, type);
 
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(
-            function,
-            testData.unpackedQueryVector,
-            testData.unpackedIndexVectors,
-            testOffsets.offsets,
-            expectedScores
-        );
+        float[] expectedScores = unselectedScores(count);
+        ScalarOperations.bulkMasked(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, mask, expectedScores);
 
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        nativeSimilarityBulkWithOffsets(
+        var bulkScoresSeg = unselectedScoresSegment(count);
+        nativeSimilarityBulkMasked(
             testData.indexSegment,
             testData.querySegment,
             testData.indexVectorBytes,
             testData.indexVectorBytes,
-            testOffsets.offsetsSegment,
-            numVecs,
+            mask,
+            count,
             bulkScoresSeg
         );
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
-    public void testInt4BulkWithOffsetsAndPitch() {
+    public void testBulkMaskedWithPitch() {
         assumeTrue(notSupportedMsg(), supported());
 
-        final int numVecs = randomIntBetween(2, 101);
+        final int count = randomIntBetween(1, Integer.SIZE);
+        final int mask = randomBulkMask(count);
+        final TestData testData = createTestData(count, size, type, Float.BYTES);
 
-        final TestData testData = createTestData(numVecs, size, type, Float.BYTES);
-        final TestOffsets testOffsets = createTestOffsets(numVecs);
+        float[] expectedScores = unselectedScores(count);
+        ScalarOperations.bulkMasked(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, mask, expectedScores);
 
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(
-            function,
-            testData.unpackedQueryVector,
-            testData.unpackedIndexVectors,
-            testOffsets.offsets,
-            expectedScores
-        );
-
-        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
-
-        nativeSimilarityBulkWithOffsets(
+        var bulkScoresSeg = unselectedScoresSegment(count);
+        nativeSimilarityBulkMasked(
             testData.indexSegment,
             testData.querySegment,
             testData.indexVectorBytes,
             testData.indexVectorBytes + Float.BYTES,
-            testOffsets.offsetsSegment,
-            numVecs,
+            mask,
+            count,
             bulkScoresSeg
         );
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
 
-    public void testInt4BulkWithOffsetsHeapSegments() {
+    public void testBulkMaskedHeapSegments() {
         assumeTrue(notSupportedMsg(), supported());
 
-        final int numVecs = randomIntBetween(2, 101);
+        final int count = randomIntBetween(1, Integer.SIZE);
+        final int mask = randomBulkMask(count);
+        final TestData testData = createTestData(count, size, type);
 
-        final TestData testData = createTestData(numVecs, size, type);
-        final TestOffsets testOffsets = createTestOffsets(numVecs);
+        float[] expectedScores = unselectedScores(count);
+        ScalarOperations.bulkMasked(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, mask, expectedScores);
 
-        float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(
-            function,
-            testData.unpackedQueryVector,
-            testData.unpackedIndexVectors,
-            testOffsets.offsets,
-            expectedScores
-        );
-
-        float[] bulkScores = new float[numVecs];
-        nativeSimilarityBulkWithOffsets(
+        float[] bulkScores = unselectedScores(count);
+        nativeSimilarityBulkMasked(
             testData.indexSegment,
             MemorySegment.ofArray(testData.queryVector),
             testData.indexVectorBytes,
             testData.indexVectorBytes,
-            MemorySegment.ofArray(testOffsets.offsets),
-            numVecs,
+            mask,
+            count,
             MemorySegment.ofArray(bulkScores)
         );
         assertArrayEquals(expectedScores, bulkScores, 0f);
@@ -309,7 +274,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         }
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, testData.unpackedQueryVector, testData.unpackedIndexVectors, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -356,7 +321,7 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         }
 
         float[] expectedScores = new float[numVecs];
-        ScalarOperations.bulkWithOffsets(function, unpackedQueryVector, unpackedIndexVectors, ordinals, expectedScores);
+        ScalarOperations.bulkSparse(function, unpackedQueryVector, unpackedIndexVectors, ordinals, expectedScores);
 
         var addressesSeg = arena.allocate(ValueLayout.ADDRESS.byteSize() * numVecs, ValueLayout.ADDRESS.byteAlignment());
         for (int i = 0; i < numVecs; i++) {
@@ -430,30 +395,35 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    // Verifies that individual offset values are bounds-checked against the data segment.
-    public void testBulkOffsetsOutOfRange() {
+    public void testBulkMaskedIllegalArgs() {
         assumeTrue(notSupportedMsg(), supported());
         final int indexVectorBytes = BBQTestUtils.numBytes(size, type.dataBits());
         final int queryVectorBytes = queryBytes(size);
-        final int numVecs = 3;
-        var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        final int count = 3;
+        var indexSegment = arena.allocate((long) indexVectorBytes * count);
         var query = arena.allocate(queryVectorBytes);
-        var scores = arena.allocate((long) numVecs * Float.BYTES);
-        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        var scores = arena.allocate((long) Integer.SIZE * Float.BYTES);
 
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 0, 0);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, numVecs);
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
+        // a vector past the end of the block is selected
         Exception ex = expectThrows(
+            IAE,
+            () -> nativeSimilarityBulkMasked(indexSegment, query, indexVectorBytes, indexVectorBytes, 1 << count, count, scores)
+        );
+        assertThat(ex.getMessage(), containsString("selects vectors beyond count"));
+
+        // a block larger than the mask
+        var largeIndexSegment = arena.allocate((long) indexVectorBytes * (Integer.SIZE + 1));
+        var largeScores = arena.allocate((long) (Integer.SIZE + 1) * Float.BYTES);
+        ex = expectThrows(
             IOOBE,
-            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+            () -> nativeSimilarityBulkMasked(largeIndexSegment, query, indexVectorBytes, indexVectorBytes, 1, Integer.SIZE + 1, largeScores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
 
-        offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, 1, -1);
+        // a block larger than the dataset
         ex = expectThrows(
             IOOBE,
-            () -> nativeSimilarityBulkWithOffsets(indexSegment, query, indexVectorBytes, indexVectorBytes, offsetsSegment, numVecs, scores)
+            () -> nativeSimilarityBulkMasked(indexSegment, query, indexVectorBytes, indexVectorBytes, 1, count + 1, scores)
         );
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
@@ -516,22 +486,14 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         }
     }
 
-    void nativeSimilarityBulkWithOffsets(
-        MemorySegment a,
-        MemorySegment b,
-        int dims,
-        int pitch,
-        MemorySegment offsets,
-        int count,
-        MemorySegment result
-    ) {
+    void nativeSimilarityBulkMasked(MemorySegment a, MemorySegment b, int dims, int pitch, int mask, int count, MemorySegment result) {
         switch (type) {
-            case D1Q1 -> getVectorDistance().dotProductD1Q1BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case D1Q4 -> getVectorDistance().dotProductD1Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case D2Q2 -> getVectorDistance().dotProductD2Q2BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case D2Q4 -> getVectorDistance().dotProductD2Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case D4Q4 -> getVectorDistance().dotProductD4Q4BulkWithOffsets(a, b, dims, pitch, offsets, count, result);
-            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkWithOffsets(a, b, dims, pitch, offsets, count, result);
+            case D1Q1 -> getVectorDistance().dotProductD1Q1BulkMasked(a, b, dims, pitch, mask, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4BulkMasked(a, b, dims, pitch, mask, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2BulkMasked(a, b, dims, pitch, mask, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4BulkMasked(a, b, dims, pitch, mask, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4BulkMasked(a, b, dims, pitch, mask, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkMasked(a, b, dims, pitch, mask, count, result);
         }
     }
 

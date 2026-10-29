@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WriteLoadDeciderShardWriteLoadType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -112,6 +113,7 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats0 = new CommonStats();
         commonStats0.store = new StoreStats(100, 101, 0L);
         commonStats0.indexing = randomIndexingStats();
+        commonStats0.search = randomSearchStats();
         ShardRouting test_1 = ShardRouting.newUnassigned(
             new ShardId(index, 1),
             false,
@@ -126,9 +128,11 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 1001, 0L);
         commonStats1.indexing = randomIndexingStats();
+        commonStats1.search = randomSearchStats();
         CommonStats commonStats2 = new CommonStats();
         commonStats2.store = new StoreStats(1000, 999, 0L);
         commonStats2.indexing = randomIndexingStats();
+        commonStats2.search = randomSearchStats();
         ShardStats[] stats = new ShardStats[] {
             new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, false, 0),
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, false, 0),
@@ -144,6 +148,7 @@ public class DiskUsageTests extends ESTestCase {
             ) };
         Map<String, Long> shardSizes = new HashMap<>();
         Map<ShardId, Double> shardWriteLoads = new HashMap<>();
+        Map<ShardId, Double> shardSearchLoads = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
         Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
         // AVERAGE write loads are not sourced from indices stats, so buildShardLevelInfo does not populate them
@@ -153,11 +158,13 @@ public class DiskUsageTests extends ESTestCase {
         InternalClusterInfoService.buildShardLevelInfo(
             stats,
             shardWriteLoads,
+            shardSearchLoads,
             shardSizes,
             shardDataSetSizes,
             routingToPath,
             new HashMap<>(),
-            shardWriteLoadType
+            shardWriteLoadType,
+            true
         );
 
         assertThat(
@@ -191,6 +198,18 @@ public class DiskUsageTests extends ESTestCase {
                 )
             )
         );
+
+        assertThat(
+            shardSearchLoads,
+            equalTo(
+                Map.of(
+                    test_0.shardId(),
+                    commonStats0.search.getTotal().getSearchLoadRate(),
+                    test_1.shardId(),
+                    Math.max(commonStats1.search.getTotal().getSearchLoadRate(), commonStats2.search.getTotal().getSearchLoadRate())
+                )
+            )
+        );
     }
 
     private IndexingStats randomIndexingStats() {
@@ -213,6 +232,30 @@ public class DiskUsageTests extends ESTestCase {
                 randomDoubleBetween(0d, 10d, true),
                 randomDoubleBetween(0d, 10d, true)
             )
+        );
+    }
+
+    private SearchStats randomSearchStats() {
+        return new SearchStats(
+            new SearchStats.Stats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0d, 10d, true)
+            ),
+            randomNonNegativeLong(),
+            null
         );
     }
 

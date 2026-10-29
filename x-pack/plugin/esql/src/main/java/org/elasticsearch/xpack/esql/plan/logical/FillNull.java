@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -50,7 +51,7 @@ import java.util.Set;
  * sweeps up every user column but no internals; naming a metadata or synthetic column explicitly still targets it.
  * <p>
  * <b>Filling never fails.</b> A column the value cannot be applied to is left exactly as it was - null or not - and
- * reported by {@code WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
+ * reported by {@link WarnUnfillableFillNull}. How the column was selected does not change the outcome or the message.
  * This covers an incompatible type, an out-of-range value, a string that will not parse into a boolean / date / ip / version, a
  * {@code null}-typed column, a type with no default under {@code DEFAULT}, and a multi-valued value. {@code DEFAULT}
  * uses a type-appropriate default and is represented as a {@code null} fill value; an explicit {@code NULL} means "do

@@ -15,6 +15,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
@@ -33,6 +34,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     final FixedSizeSegmentScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
@@ -70,7 +72,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
                 vectorByteSize,
                 numNodes,
                 addrsScratch,
-                addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
+                addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, scores, numNodes)
             );
             if (resolved == false) {
                 return scorePerVectorFallback(query, scores, numNodes, offsets);
@@ -108,7 +110,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
 
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);
 
-    abstract float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes);
+    abstract float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes);
 
     @Override
     public UpdateableRandomVectorScorer scorer() {
@@ -146,14 +148,15 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            DISTANCE_FUNCS.squareDistanceDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.squareDistanceDBF16QBF16BulkSparse(addresses, query, dims, numNodes, segment);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                float squareDistance = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 float normalizedScore = VectorUtil.normalizeDistanceToUnitInterval(squareDistance);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                scores[i] = normalizedScore;
                 max = Math.max(max, normalizedScore);
             }
             return max;
@@ -177,14 +180,15 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, segment);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                float dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 float normalizedScore = VectorUtil.normalizeToUnitInterval(dotProduct);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
+                scores[i] = normalizedScore;
                 max = Math.max(max, normalizedScore);
             }
             return max;
@@ -208,14 +212,15 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, scores);
+        protected float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, float[] scores, int numNodes) {
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
+            DISTANCE_FUNCS.dotProductDBF16QBF16BulkSparse(addresses, query, dims, numNodes, segment);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
-                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                float dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                 float scaledScore = VectorUtil.scaleMaxInnerProductScore(dotProduct);
-                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, scaledScore);
+                scores[i] = scaledScore;
                 max = Math.max(max, scaledScore);
             }
             return max;

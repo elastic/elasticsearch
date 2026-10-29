@@ -398,7 +398,11 @@ public class PublicationTransportHandler {
                                             new ElasticsearchException("voting-only node skipping local publication to " + destination)
                                         );
                                     } else {
-                                        return handlePublishRequest.apply(publishRequest);
+                                        final var response = handlePublishRequest.apply(publishRequest);
+                                        // Keep our view of the last-seen state fresh so we don't retain a stale state from before we became
+                                        // master (we never receive our own publications over the wire).
+                                        lastSeenClusterState.set(publishRequest.getAcceptedState());
+                                        return response;
                                     }
                                 }
 

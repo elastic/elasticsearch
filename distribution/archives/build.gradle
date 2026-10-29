@@ -7,12 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.VersionProperties
-
-import java.nio.file.Files
-import java.nio.file.Path
+import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
+
+// must match the bundled JDKs registered in :distribution, see BundledJdkPlatforms
+boolean darwinX64Supported = BundledJdkPlatforms.isSupported('darwin', 'x64', BundledJdkPlatforms.bundledJdkMajor(buildParams))
 
 CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
   return copySpec {
@@ -66,7 +67,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         include 'README.asciidoc'
       }
       from(layout.settingsDirectory.file('licenses').asFile) {
-        include isTestDistro ? 'AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        include TokenExpansions.licenseFileName(isTestDistro)
         filePermissions {
           unix(0644)
         }
@@ -99,7 +100,7 @@ distribution_archives {
     }
   }
 
-  if (Integer.parseInt(VersionProperties.bundledJdkMajorVersion) < 27) {
+  if (darwinX64Supported) {
     darwinTar {
       archiveClassifier = 'darwin-x86_64'
       content {
@@ -132,7 +133,7 @@ distribution_archives {
 
 subprojects {
   apply plugin: 'distribution'
-  if (it.name != 'darwin-tar' || Integer.parseInt(VersionProperties.bundledJdkMajorVersion) < 27) {
+  if (it.name != 'darwin-tar' || darwinX64Supported) {
     apply plugin: 'elasticsearch.internal-distribution-archive-check'
   }
 

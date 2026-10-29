@@ -15,17 +15,21 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -41,6 +45,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,6 +53,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
@@ -60,6 +66,7 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -94,6 +101,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1982,6 +1990,124 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return getThreeSampleValues();
     }
 
+    /**
+     * Whether {@link #testRangeQueryOnIndexSortFieldWithNestedDocs} applies to the field, by default if the field can be the primary
+     * index sort field. Override it for a field type that can be sorted but cannot be tested with three ordered
+     * {@link #getThreeSampleValues()} and range queries.
+     */
+    protected boolean supportsIndexSortRangeTest() throws IOException {
+        return canBeIndexSortField();
+    }
+
+    private boolean canBeIndexSortField() throws IOException {
+        final Settings settings = Settings.builder().put("index.sort.field", "field").build();
+        try {
+            final MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+            assertParseMinimalWarnings();
+            final Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+                mapperService::fieldType,
+                (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+            );
+            new IndexWriterConfig(null).setIndexSort(indexSort);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The mappings of the field used by the index sort range query test. Override it to test the variants that change how the field
+     * is indexed, such as with and without points.
+     */
+    protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
+        return List.of(this::minimalMapping);
+    }
+
+    public void testRangeQueryOnIndexSortFieldWithNestedDocs() throws IOException {
+        assumeTrue("the index sort range test applies to the field type", supportsIndexSortRangeTest());
+        final Object[] values = getThreeSampleValues();
+        final List<CheckedConsumer<XContentBuilder, IOException>> fieldMappings = fieldMappingsForIndexSortRangeTest();
+        for (final String order : List.of("asc", "desc")) {
+            for (int variant = 0; variant < fieldMappings.size(); variant++) {
+                assertRangeQueryOnIndexSortFieldWithNestedDocs(
+                    values,
+                    order,
+                    fieldMappings.get(variant),
+                    "order=" + order + " mapping=" + variant
+                );
+            }
+        }
+    }
+
+    private void assertRangeQueryOnIndexSortFieldWithNestedDocs(
+        Object[] values,
+        String order,
+        CheckedConsumer<XContentBuilder, IOException> fieldMapping,
+        String description
+    ) throws IOException {
+        final Settings settings = Settings.builder()
+            .put("index.sort.field", "field")
+            .put("index.sort.order", order)
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), randomBoolean())
+            .build();
+        final MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            fieldMapping.accept(b);
+            b.endObject();
+            b.startObject("block_id").field("type", "integer").field("store", true).endObject();
+            b.startObject("tags").field("type", "nested");
+            b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        assertParseMinimalWarnings();
+        final Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+        );
+        final IndexWriterConfig config = new IndexWriterConfig(null).setParentField(Engine.ROOT_DOC_FIELD_NAME).setIndexSort(indexSort);
+        final Object[] blockValues = { values[0], null, values[1], values[2] };
+        final int[] children = { 1, 1, 1, 2 };
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int block = 0; block < blockValues.length; block++) {
+                final int id = block;
+                writer.addDocuments(mapperService.documentMapper().parse(source(Integer.toString(id), b -> {
+                    if (blockValues[id] != null) {
+                        b.field("field", blockValues[id]);
+                    }
+                    b.field("block_id", id);
+                    b.startArray("tags");
+                    for (int child = 0; child < children[id]; child++) {
+                        b.startObject().field("k", "a").endObject();
+                    }
+                    b.endArray();
+                }, null)).docs());
+                if (rarely()) {
+                    writer.flush();
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                final IndexSearcher searcher = newSearcher(reader);
+                final SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+                assertEquals(description, Set.of(2), blockIdsInRange(searcher, context, values[1], values[1]));
+                assertEquals(description, Set.of(0, 2, 3), blockIdsInRange(searcher, context, values[0], values[2]));
+            }
+        }
+    }
+
+    private static Set<Integer> blockIdsInRange(IndexSearcher searcher, SearchExecutionContext context, Object lower, Object upper)
+        throws IOException {
+        final Query rootDocsInRange = new BooleanQuery.Builder().add(
+            new RangeQueryBuilder("field").gte(lower).lte(upper).toQuery(context),
+            BooleanClause.Occur.FILTER
+        ).add(Queries.newNonNestedFilter(IndexVersion.current()), BooleanClause.Occur.FILTER).build();
+        final Set<Integer> ids = new TreeSet<>();
+        for (final ScoreDoc hit : searcher.search(rootDocsInRange, Integer.MAX_VALUE).scoreDocs) {
+            ids.add(searcher.storedFields().document(hit.doc).getField("block_id").numericValue().intValue());
+        }
+        assertEquals("count must match the hits", ids.size(), searcher.count(rootDocsInRange));
+        return ids;
+    }
+
     public void testSingletonIntBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
         testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
@@ -2410,7 +2536,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
@@ -2420,7 +2546,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -2436,7 +2562,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -2476,7 +2602,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
             fieldMapping(b -> {
                 minimalMapping(b);
-                b.startObject("doc_values").field("multi_value", false).endObject();
+                b.field("multi_value", false);
             })
         );
         MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
@@ -2510,7 +2636,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("mapper must accept null values", allowsNullValues());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").nullValue().value(getSampleValueForDocument()).endArray()));
         assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
@@ -2525,7 +2651,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("mapper must accept null values", allowsNullValues());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray()));
         assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
@@ -2584,7 +2710,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private XContentBuilder nullabilityFalseMapping() throws IOException {
         return fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field("nullability", false).endObject();
+            b.field("nullability", false);
         });
     }
 
@@ -2604,7 +2730,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private XContentBuilder onFailureIgnoreMapping(String enforcedParameter) throws IOException {
         return fieldMapping(b -> {
             minimalMapping(b);
-            b.startObject("doc_values").field(enforcedParameter, false).field("on_failure", "ignore").endObject();
+            b.field(enforcedParameter, false).field("on_failure", "ignore");
         });
     }
 

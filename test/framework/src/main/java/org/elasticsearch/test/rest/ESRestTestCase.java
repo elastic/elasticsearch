@@ -3149,7 +3149,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeDocumentsFound,
         boolean includeTimestamps,
         boolean includeRollupMetrics,
-        boolean includeReadCpuNanos
+        boolean includeReadCpuNanos,
+        boolean includeDriverNanos
     ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
@@ -3168,6 +3169,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 mapMatcher = mapMatcher.entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong());
             }
             mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
+            if (includeDriverNanos) {
+                // Added with the esql_driver_nanos TV. Older nodes don't emit it.
+                mapMatcher = mapMatcher.entry("driver_nanos", IntOrLongMatcher.isIntOrLong());
+            }
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -3190,7 +3195,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         boolean includeTimestamps,
         boolean includeRollupMetrics
     ) {
-        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false);
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, includeRollupMetrics, false, false);
     }
 
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
@@ -3208,7 +3213,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             result.containsKey("documents_found"),
             result.containsKey("start_time_in_millis"),
             result.containsKey("rows_emitted"),
-            result.containsKey("read_cpu_nanos")
+            result.containsKey("read_cpu_nanos"),
+            result.containsKey("driver_nanos")
         );
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Timer;
@@ -26,9 +27,23 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
     /** Rewrite time */
     private final AtomicLong rewriteTime = new AtomicLong(0L);
 
+    /** Position of the rescorer that is running, if any */
+    private Integer rescorer;
+
     @Override
     protected QueryProfileBreakdown createProfileBreakdown() {
         return new QueryProfileBreakdown();
+    }
+
+    @Override
+    protected void onNewRoot(QueryProfileBreakdown breakdown) {
+        if (rescorer != null) {
+            breakdown.setRescorer(rescorer);
+        }
+    }
+
+    synchronized void setRescorer(@Nullable Integer rescorer) {
+        this.rescorer = rescorer;
     }
 
     @Override

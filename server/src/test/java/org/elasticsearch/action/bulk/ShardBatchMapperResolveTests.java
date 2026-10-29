@@ -104,6 +104,29 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), columnarIndexSettings(settings)));
     }
 
+    /**
+     * An object with {@code synthetic_source_keep: all} is copied whole into {@code _ignored_source} by the sequential path, whatever
+     * its leaves' own mappers do, so a leaf beneath it, however deep, has to fall back. A sibling object without it stays batched.
+     */
+    public void testLeafUnderKeepAllObjectFallsBack() throws IOException {
+        final MapperService ms = tsdbMapperService(Settings.EMPTY, mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("kept").field("type", "object").field("synthetic_source_keep", "all");
+            b.startObject("properties").startObject("f").field("type", "long").endObject();
+            b.startObject("inner").field("type", "object").startObject("properties");
+            b.startObject("g").field("type", "long").endObject();
+            b.endObject().endObject().endObject().endObject();
+            b.startObject("plain").field("type", "object").startObject("properties");
+            b.startObject("f").field("type", "long").endObject();
+            b.endObject().endObject();
+        }));
+        final IndexSettings tsdbSettings = ms.getIndexSettings();
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.f"), ms.mappingLookup(), tsdbSettings));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("kept.inner.g"), ms.mappingLookup(), tsdbSettings));
+        assertNotNull(ShardBatchMapper.resolveMappers(schemaOf("plain.f"), ms.mappingLookup(), tsdbSettings));
+    }
+
     public void testNumberMapperIsSupported() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);

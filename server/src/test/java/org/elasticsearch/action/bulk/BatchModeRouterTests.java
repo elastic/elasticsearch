@@ -20,8 +20,10 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.Index;
@@ -37,6 +39,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,6 +57,23 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BatchModeRouterTests extends ESTestCase {
+
+    private final MockBytesRefRecycler recycler = new MockBytesRefRecycler();
+    private final List<SourceBatch> takenBatches = new ArrayList<>();
+
+    /** Releases the batches taken from routers, then checks that no recycler page is still held. */
+    @After
+    public void releaseTakenBatches() {
+        Releasables.close(takenBatches);
+        recycler.close();
+    }
+
+    /** Takes the router's shard batches and registers them for release after the test. */
+    private Map<ShardId, SourceBatch> takeShardBatches(BatchModeRouter router) {
+        Map<ShardId, SourceBatch> batches = router.shardBatches();
+        takenBatches.addAll(batches.values());
+        return batches;
+    }
 
     /** Data stream name used by tests that exercise the single-backing-index TSDB path. */
     private static final String DATA_STREAM = "metrics-app-default";
@@ -122,9 +142,9 @@ public class BatchModeRouterTests extends ESTestCase {
     private record Docs(EscfBatch batch, List<BytesReference> sources) {}
 
     /** Builds a batch of {@code n} rows, each {@code {"dim": "d<i>", "val": i}}. */
-    private static Docs buildDocs(int n) throws IOException {
+    private Docs buildDocs(int n) throws IOException {
         List<BytesReference> sources = new ArrayList<>(n);
-        try (EscfEncoder encoder = new EscfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
             for (int i = 0; i < n; i++) {
                 XContentBuilder doc = JsonXContent.contentBuilder();
                 doc.startObject();
@@ -140,7 +160,8 @@ public class BatchModeRouterTests extends ESTestCase {
         }
     }
 
-    private static EscfBatch buildBatch(int n) throws IOException {
+    /** Builds a batch of {@code n} rows, as {@link #buildDocs(int)} does. */
+    private EscfBatch buildBatch(int n) throws IOException {
         return buildDocs(n).batch();
     }
 
@@ -226,13 +247,13 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     public void testCreateReturnsNullWhenNoBatches() {
-        assertThat(BatchModeRouter.create(new BulkRequest(), true), nullValue());
+        assertThat(BatchModeRouter.create(new BulkRequest(), true, recycler), nullValue());
     }
 
     public void testCreateReturnsNullWhenEmptyBatchMap() {
         BulkRequest request = new BulkRequest();
         request.setPreBuiltBatches(Map.of());
-        assertThat(BatchModeRouter.create(request, true), nullValue());
+        assertThat(BatchModeRouter.create(request, true, recycler), nullValue());
     }
 
     /**
@@ -288,7 +309,7 @@ public class BatchModeRouterTests extends ESTestCase {
     public void testCreateThrowsForNonEscfBatch() {
         BulkRequest request = new BulkRequest();
         request.setPreBuiltBatches(Map.of("myindex", new NotAnEscfBatch()));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true, recycler));
         assertThat(e.getMessage(), containsString("must be an EscfBatch"));
     }
 
@@ -297,12 +318,11 @@ public class BatchModeRouterTests extends ESTestCase {
      * rejection at create time with a message pointing to the upcoming follow-up.
      */
     public void testRejectsMultipleBatches() throws IOException {
-        EscfBatch batchA = buildBatch(1);
-        EscfBatch batchB = buildBatch(1);
         BulkRequest request = new BulkRequest();
-        request.setPreBuiltBatches(Map.of("index-a", batchA, "index-b", batchB));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true));
+        request.setPreBuiltBatches(Map.of("index-a", buildBatch(1), "index-b", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(request, true, recycler));
         assertThat(e.getMessage(), containsString("at most one is supported in step 1"));
+        assertFalse(request.hasPreBuiltBatches());
     }
 
     public void testSingleShardAllRowsRouted() throws IOException {
@@ -312,10 +332,10 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexMetadata md = plainMetadata("myindex", 1);
         ProjectMetadata project = project(md);
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         assertThat(router, notNullValue());
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> result = router.shardBatches();
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
 
         assertThat(result.size(), equalTo(1));
         SourceBatch shardBatch = result.get(new ShardId(md.getIndex(), 0));
@@ -333,9 +353,9 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexMetadata md = plainMetadata("myindex", numShards);
         ProjectMetadata project = project(md);
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> result = router.shardBatches();
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
 
         assertShardsAligned(requestsByShard, result);
         assertThat(result.size(), equalTo(requestsByShard.size()));
@@ -360,7 +380,7 @@ public class BatchModeRouterTests extends ESTestCase {
         while (dropped.size() < dropCount) {
             dropped.add(randomIntBetween(0, numDocs - 1));
         }
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var e = expectThrows(IllegalStateException.class, () -> routeAll(router, bulkRequest, project, dropped));
         assertThat(e.getMessage(), containsString("not yet supported"));
         router.close();
@@ -371,10 +391,10 @@ public class BatchModeRouterTests extends ESTestCase {
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, 5);
         ProjectMetadata project = project(plainMetadata("myindex", 2));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project, Set.of(0, 1, 2, 3, 4));
         assertTrue(requestsByShard.isEmpty());
-        assertTrue(router.shardBatches().isEmpty());
+        assertTrue(takeShardBatches(router).isEmpty());
         router.close();
     }
 
@@ -390,9 +410,9 @@ public class BatchModeRouterTests extends ESTestCase {
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         ProjectMetadata project = project(plainMetadata("myindex", 3));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> first = router.shardBatches();
+        Map<ShardId, SourceBatch> first = takeShardBatches(router);
         assertFalse(first.isEmpty());
 
         List<Integer> rowsAfterFirst = bulkRequest.requests.stream().map(r -> ((IndexRequest) r).indexSource().rowIndex()).toList();
@@ -418,10 +438,10 @@ public class BatchModeRouterTests extends ESTestCase {
         }
         ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(1, 3)));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         assertThat(router, notNullValue());
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> first = router.shardBatches();
+        Map<ShardId, SourceBatch> first = takeShardBatches(router);
         assertFalse(first.isEmpty());
         assertThat(first.values().stream().mapToInt(SourceBatch::docCount).sum(), equalTo(numDocs));
         for (DocWriteRequest<?> request : bulkRequest.requests) {
@@ -435,14 +455,14 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     public void testRejectsItemWithoutSourceRow() throws IOException {
-        EscfBatch batch = buildBatch(1);
         // Item has inline source — no source-row reference.
         IndexRequest request = new IndexRequest("myindex").id("doc-0").source(new HashMap<>());
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
         assertThat(e.getMessage(), containsString("must carry a source-row reference"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     public void testRejectsRowBearingItemWithNoBatchForItsName() throws IOException {
@@ -451,7 +471,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
         IndexMetadata other = plainMetadata("otherindex", 1);
         ProjectMetadata project = project(plainMetadata("myindex", 1), other);
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
 
         // Carries a row but targets a name with no batch — e.g. because something rewrote _index.
         IndexRequest request = rowRequest("otherindex", batch, 0);
@@ -466,23 +486,23 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     public void testRejectsInlineItemForAnUnbatchedName() throws IOException {
-        EscfBatch batch = buildBatch(1);
         // Inline source in a bulk that carries batches: its shard's rows could not line up with its items.
         IndexRequest request = new IndexRequest("otherindex").id("doc-0").source(new HashMap<>());
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(request);
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
         assertThat(e.getMessage(), containsString("must carry a source-row reference"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     public void testRejectsNonIndexRequestItem() throws IOException {
-        EscfBatch batch = buildBatch(1);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new DeleteRequest("myindex", "doc-0"));
-        bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
-        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true));
+        bulkRequest.setPreBuiltBatches(Map.of("myindex", buildBatch(1)));
+        var e = expectThrows(IllegalArgumentException.class, () -> BatchModeRouter.create(bulkRequest, true, recycler));
         assertThat(e.getMessage(), containsString("cannot be mixed with pre-built source batches"));
+        assertFalse(bulkRequest.hasPreBuiltBatches());
     }
 
     /**
@@ -504,9 +524,9 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 1, inGen2));   // row 1 → gen 2
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> shardBatches = router.shardBatches();
+        Map<ShardId, SourceBatch> shardBatches = takeShardBatches(router);
 
         // Each backing index has one shard and must receive exactly one row.
         assertThat("expected two shards (one per backing index)", shardBatches.size(), equalTo(2));
@@ -543,9 +563,9 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 5, IN_GEN_1));
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> shardBatches = router.shardBatches();
+        Map<ShardId, SourceBatch> shardBatches = takeShardBatches(router);
 
         // All rows must be accounted for across both backing indices.
         int totalRows = shardBatches.values().stream().mapToInt(SourceBatch::docCount).sum();
@@ -569,7 +589,7 @@ public class BatchModeRouterTests extends ESTestCase {
         }
         bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         ProjectMetadata project = project(plainMetadata("myindex", 1));
         var e = expectThrows(IllegalArgumentException.class, () -> routeAll(router, bulkRequest, project));
         assertThat(e.getMessage(), containsString("not strictly greater"));
@@ -599,7 +619,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(request);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
 
         // Tsid must have been computed and attached to the request.
@@ -607,7 +627,7 @@ public class BatchModeRouterTests extends ESTestCase {
         BytesRef expectedTsid = dims.buildTsid(XContentType.JSON, docs.sources().get(0));
         assertThat(request.tsid(), equalTo(expectedTsid));
 
-        assertShardsAligned(requestsByShard, router.shardBatches());
+        assertShardsAligned(requestsByShard, takeShardBatches(router));
         router.close();
     }
 
@@ -620,28 +640,30 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(tsdbRowRequest(DATA_STREAM, batch, 0, IN_GEN_1));
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        assertShardsAligned(requestsByShard, router.shardBatches());
+        assertShardsAligned(requestsByShard, takeShardBatches(router));
         router.close();
     }
 
-    public void testSingleShardPassthroughHandsSourceBatchThrough() throws IOException {
+    /** A single-shard pre-built batch is scattered into a new batch, so the router can release the original. */
+    public void testSingleShardScattersIntoNewBatch() throws IOException {
         int numDocs = randomIntBetween(3, 20);
         Docs docs = buildDocs(numDocs);
-        BulkRequest bulkRequest = buildBulkRequest("myindex", docs.batch(), numDocs);
-        IndexMetadata md = plainMetadata("myindex", 1);
+        String index = randomIndexName();
+        BulkRequest bulkRequest = buildBulkRequest(index, docs.batch(), numDocs);
+        IndexMetadata md = plainMetadata(index, 1);
         ProjectMetadata project = project(md);
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> result = router.shardBatches();
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
 
         assertThat(result.size(), equalTo(1));
-        assertSame(docs.batch(), result.get(new ShardId(md.getIndex(), 0)));
+        assertNotSame(docs.batch(), result.get(new ShardId(md.getIndex(), 0)));
         assertShardsAligned(requestsByShard, result);
 
-        // The items were never re-pointed, so each one still materializes the document it was built from.
+        // Each item now points at its row in the scattered batch and still materializes the document it was built from.
         for (int i = 0; i < numDocs; i++) {
             IndexRequest request = (IndexRequest) bulkRequest.requests.get(i);
             assertThat(request.indexSource().rowIndex(), equalTo(i));
@@ -652,8 +674,8 @@ public class BatchModeRouterTests extends ESTestCase {
     }
 
     /**
-     * Even a single-shard index throws when a row is dropped, because the passthrough fast path
-     * requires all rows to be present. The exception comes from {@code completeDeferredRouting},
+     * Even a single-shard index throws when a row is dropped, because a pre-built batch must route
+     * every row. The exception comes from {@code completeDeferredRouting},
      * which is called by {@code routeAll} after the scan.
      */
     public void testSingleShardWithDroppedRowThrows() throws IOException {
@@ -663,7 +685,7 @@ public class BatchModeRouterTests extends ESTestCase {
         IndexMetadata md = plainMetadata("myindex", 1);
         ProjectMetadata project = project(md);
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var e = expectThrows(
             IllegalStateException.class,
             () -> routeAll(router, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)))
@@ -679,9 +701,9 @@ public class BatchModeRouterTests extends ESTestCase {
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(2, 5)));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> result = router.shardBatches();
+        Map<ShardId, SourceBatch> result = takeShardBatches(router);
 
         for (Map.Entry<ShardId, SourceBatch> entry : result.entrySet()) {
             assertNotSame("shard " + entry.getKey() + " was handed the whole batch", batch, entry.getValue());
@@ -709,7 +731,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(withoutTsid);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         // The all-or-none tsid check fires during buildGrouping: both items are reported via the
         // onItemFailure callback and the returned grouping is empty.
         List<Exception> failures = new ArrayList<>();
@@ -727,7 +749,7 @@ public class BatchModeRouterTests extends ESTestCase {
         assertThat("grouping must be empty after tsid-consistency failure", result.isEmpty(), equalTo(true));
         assertThat("both items reported as failed", failures.size(), equalTo(2));
         assertThat(failures.get(0).getMessage(), containsString("Batch tsid consistency violation"));
-        assertThat(router.shardBatches(), equalTo(Map.of()));
+        assertThat(takeShardBatches(router), equalTo(Map.of()));
         router.close();
     }
 
@@ -742,7 +764,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(rowRequest("myindex", batch, 0));
         bulkRequest.setPreBuiltBatches(Map.of("myindex", batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         IndexRequest first = (IndexRequest) bulkRequest.requests.get(0);
         IndexRouting routing = IndexRouting.fromIndexMetadata(md);
         IndexAbstraction iaFirst = project.getIndicesLookup().get(first.index());
@@ -773,11 +795,10 @@ public class BatchModeRouterTests extends ESTestCase {
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         ProjectMetadata project = project(plainMetadata("myindex", 1));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         routeAll(router, bulkRequest, project);
-        Map<ShardId, SourceBatch> first = router.shardBatches();
+        Map<ShardId, SourceBatch> first = takeShardBatches(router);
         assertThat(first.size(), equalTo(1));
-        assertSame(batch, first.values().iterator().next());
 
         // Second call must not hand the already-dispatched batch out again.
         var e = expectThrows(IllegalStateException.class, router::shardBatches);
@@ -804,7 +825,7 @@ public class BatchModeRouterTests extends ESTestCase {
         }
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         List<BulkItemRequest> failedItems = new ArrayList<>();
         List<Exception> failures = new ArrayList<>();
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
@@ -827,7 +848,7 @@ public class BatchModeRouterTests extends ESTestCase {
             assertThat(e, instanceOf(IllegalArgumentException.class));
         }
         // shardBatches must also be empty: no valid grouping exists to scatter.
-        assertThat(router.shardBatches(), equalTo(Map.of()));
+        assertThat(takeShardBatches(router), equalTo(Map.of()));
         router.close();
     }
 
@@ -852,12 +873,12 @@ public class BatchModeRouterTests extends ESTestCase {
         }
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var requestsByShard = routeAll(router, bulkRequest, project);
 
         assertThat("all rows must land on exactly one shard in a 1-shard index", requestsByShard.size(), equalTo(1));
         assertThat(requestsByShard.values().iterator().next().size(), equalTo(docs.sources().size()));
-        assertShardsAligned(requestsByShard, router.shardBatches());
+        assertShardsAligned(requestsByShard, takeShardBatches(router));
         router.close();
     }
 
@@ -896,7 +917,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(req1);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         router.preResolveTimestamps(project, bulkRequest.requests());
 
         assertThat(req0.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
@@ -930,7 +951,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(req);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         router.preResolveTimestamps(project, bulkRequest.requests());
 
         assertThat(req.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(IN_GEN_1)));
@@ -981,7 +1002,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(req1);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         router.preResolveTimestamps(project, bulkRequest.requests());
 
         assertThat(req0.getTimeSeriesTimestamp(), equalTo(DataStream.getCanonicalTimestampBound(ts0)));
@@ -1006,7 +1027,7 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(req);
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var e = expectThrows(IllegalArgumentException.class, () -> router.preResolveTimestamps(project, bulkRequest.requests()));
         assertThat(e.getMessage(), containsString("@timestamp"));
         router.close();
@@ -1029,35 +1050,37 @@ public class BatchModeRouterTests extends ESTestCase {
         bulkRequest.add(withoutTs); // no timestamp
         bulkRequest.setPreBuiltBatches(Map.of(DATA_STREAM, batch));
 
-        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true);
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         var e = expectThrows(IllegalArgumentException.class, () -> router.preResolveTimestamps(project, bulkRequest.requests()));
         assertThat(e.getMessage(), containsString("mix of requests"));
         router.close();
     }
 
     public void testValidateRejectsRowBearingItemWithNoBatch() throws IOException {
-        EscfBatch batch = buildBatch(1);
-        ShardId shardId = new ShardId(new Index("myindex", "myindex-uuid"), 0);
-        var requestsByShard = Map.of(shardId, List.of(new BulkItemRequest(0, rowRequest("myindex", batch, 0))));
+        try (EscfBatch batch = buildBatch(1)) {
+            ShardId shardId = new ShardId(new Index("myindex", "myindex-uuid"), 0);
+            var requestsByShard = Map.of(shardId, List.of(new BulkItemRequest(0, rowRequest("myindex", batch, 0))));
 
-        var e = expectThrows(IllegalStateException.class, () -> BatchModeRouter.validateBatchAlignment(requestsByShard, Map.of()));
-        assertThat(e.getMessage(), containsString("would be indexed with an empty source"));
+            var e = expectThrows(IllegalStateException.class, () -> BatchModeRouter.validateBatchAlignment(requestsByShard, Map.of()));
+            assertThat(e.getMessage(), containsString("would be indexed with an empty source"));
+        }
     }
 
     public void testValidateRejectsRowCountMismatch() throws IOException {
-        EscfBatch batch = buildBatch(2);
-        ShardId shardId = new ShardId(new Index("myindex", "myindex-uuid"), 0);
-        // Three items for a two-row batch.
-        List<BulkItemRequest> items = List.of(
-            new BulkItemRequest(0, rowRequest("myindex", batch, 0)),
-            new BulkItemRequest(1, rowRequest("myindex", batch, 1)),
-            new BulkItemRequest(2, rowRequest("myindex", batch, 1))
-        );
-        var e = expectThrows(
-            IllegalStateException.class,
-            () -> BatchModeRouter.validateBatchAlignment(Map.of(shardId, items), Map.of(shardId, batch))
-        );
-        assertThat(e.getMessage(), containsString("does not align with its items"));
+        try (EscfBatch batch = buildBatch(2)) {
+            ShardId shardId = new ShardId(new Index("myindex", "myindex-uuid"), 0);
+            // Three items for a two-row batch.
+            List<BulkItemRequest> items = List.of(
+                new BulkItemRequest(0, rowRequest("myindex", batch, 0)),
+                new BulkItemRequest(1, rowRequest("myindex", batch, 1)),
+                new BulkItemRequest(2, rowRequest("myindex", batch, 1))
+            );
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> BatchModeRouter.validateBatchAlignment(Map.of(shardId, items), Map.of(shardId, batch))
+            );
+            assertThat(e.getMessage(), containsString("does not align with its items"));
+        }
     }
 
     public void testValidatePassesForInlineSourceItems() {

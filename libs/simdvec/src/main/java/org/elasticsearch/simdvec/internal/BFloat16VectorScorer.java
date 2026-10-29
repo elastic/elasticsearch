@@ -22,7 +22,6 @@ import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Optional;
@@ -63,9 +62,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        MemorySegment querySeg = Arena.ofAuto().allocate((long) queryVector.length * Float.BYTES, ValueLayout.JAVA_LONG.byteAlignment());
-        MemorySegment.copy(queryVector, 0, querySeg, ValueLayout.JAVA_FLOAT, 0, queryVector.length);
-        this.query = querySeg;
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
         this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 

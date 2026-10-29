@@ -22,7 +22,6 @@ import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Optional;
@@ -134,9 +133,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        MemorySegment querySeg = Arena.ofAuto().allocate(quantizedQuery.length, ValueLayout.JAVA_LONG.byteAlignment());
-        MemorySegment.copy(quantizedQuery, 0, querySeg, ValueLayout.JAVA_BYTE, 0, quantizedQuery.length);
-        this.query = querySeg;
+        this.query = MemorySegmentUtils.nativeCopyOf(quantizedQuery);
         this.lowerInterval = lowerInterval;
         this.upperInterval = upperInterval;
         this.additionalCorrection = additionalCorrection;

@@ -22,7 +22,6 @@ import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Optional;
@@ -117,9 +116,13 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             centroidDP,
             Int4Corrections.singleCorrectionFor(similarityType)
         );
-        MemorySegment querySeg = Arena.ofAuto().allocate(unpackedQuery.length, ValueLayout.JAVA_LONG.byteAlignment());
-        MemorySegment.copy(unpackedQuery, 0, querySeg, ValueLayout.JAVA_BYTE, 0, unpackedQuery.length);
-        this.query = new QueryContext(lowerInterval, upperInterval, additionalCorrection, quantizedComponentSum, querySeg);
+        this.query = new QueryContext(
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum,
+            MemorySegmentUtils.nativeCopyOf(unpackedQuery)
+        );
     }
 
     @Override

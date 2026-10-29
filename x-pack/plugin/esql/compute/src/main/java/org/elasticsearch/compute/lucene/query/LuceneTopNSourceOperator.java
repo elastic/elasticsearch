@@ -151,6 +151,40 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             LongSupplier directoryBytesRead,
             QueryWarnings singleValueQueryWarnings
         ) {
+            // One provider is shared by all operators. It's built before the super constructor runs because the slice queue
+            // built there needs each shard's ScoreMode, which the provider works out from the shard's sort.
+            this(
+                contexts,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                taskConcurrency,
+                maxPageSize,
+                limit,
+                sorts,
+                estimatedPerRowSortSize,
+                needsScore,
+                directoryBytesRead,
+                singleValueQueryWarnings,
+                new PerShardCollectorProvider(limit, needsScore, sorts, contexts)
+            );
+        }
+
+        private Factory(
+            IndexedByShardId<? extends ShardContext> contexts,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
+            int taskConcurrency,
+            int maxPageSize,
+            int limit,
+            List<SortBuilder<?>> sorts,
+            long estimatedPerRowSortSize,
+            boolean needsScore,
+            LongSupplier directoryBytesRead,
+            QueryWarnings singleValueQueryWarnings,
+            PerShardCollectorProvider perShardCollectorProvider
+        ) {
             super(
                 contexts,
                 queryFunction,
@@ -160,7 +194,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore),
+                perShardCollectorProvider::scoreMode,
                 directoryBytesRead,
                 LuceneSliceQueue.MIN_DOCS_PER_SLICE,
                 singleValueQueryWarnings
@@ -169,9 +203,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
             this.estimatedPerRowSortSize = estimatedPerRowSortSize;
-
-            // Create provider once - will be shared across all operators
-            this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts, contexts);
+            this.perShardCollectorProvider = perShardCollectorProvider;
         }
 
         @Override
@@ -481,28 +513,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    /**
-     * Resolves the sort for a shard a second time: {@link LuceneSliceQueue#create} calls this from the {@link LuceneOperator.Factory}
-     * constructor, before {@link Factory#perShardCollectorProvider} exists, so the sort it builds can't be reused there. Building
-     * a sort is cheap (mapping lookups and a field data lookup), so this isn't worth restructuring the constructors over.
-     */
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
-        return ctx -> {
-            try {
-                Sort sort = PerShardCollectorProvider.buildShardSort(ctx, sorts);
-                return PerShardCollectorProvider.scoreModeForSort(sort, needsScore);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        };
-    }
-
     private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));
 
     /**
-     * Provides collector instances for TopN operations, shared across all operators created by the same {@link Factory}.
+     * Creates the TopN collectors of each shard. One instance is shared by all operators of a {@link Factory}.
      * <p>
-     *     The sort for each shard is built once, in the constructor, so creating a collector doesn't build it again.
+     *     The constructor resolves the sort of every shard once. The sort determines the {@link ScoreMode} of the shard's
+     *     collectors, which {@link #scoreMode} exposes because {@link LuceneSliceQueue} needs it to build the shard's weight
+     *     before any collector exists.
      * </p>
      * <p>
      *     Collectors created by the same Lucene collector manager share a minimum competitive score, so a driver can skip
@@ -510,17 +528,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
      *     is {@code _score} descending: {@link TopScoreDocCollectorManager} for {@code SORT _score DESC}, and
      *     {@code TopFieldCollector} when its first comparator is the relevance one in its natural order (see
      *     {@link #sharesMinCompetitiveScore}). Those sorts get one manager per distinct {@link Sort}, shared across drivers.
-     *     Every other sort gets a new manager per collector, since sharing wouldn't prune anything and would cost a lock
-     *     per collector and keep every collector reachable until the query finishes.
+     *     Every other sort gets a new manager per collector: sharing one wouldn't prune anything, it would only add a lock
+     *     and keep every collector reachable until the query finishes.
      * </p>
      * <p>
-     *     A shared manager can span shards, which is fine because {@code limit} is the global limit and only the score is
-     *     shared, so a document below another shard's minimum score can't make the final top N either. Whether two shards
-     *     end up with the same manager depends on how their sorts compare. Sort fields backed by an
-     *     {@code IndexFieldData.XFieldComparatorSource} (e.g. numeric, date and geo distance sorts) don't override
-     *     {@code equals()}, so each shard gets its own manager for those. Keyword sorts usually resolve to a plain
-     *     {@code SortedSetSortField}, which compares by value, so {@code SORT _score DESC, keyword_field} shares one
-     *     manager across shards, like a bare {@code SORT _score DESC} does.
+     *     A shared manager may span shards. That is safe because {@code limit} is the global limit and only the score is
+     *     shared, so a document below another shard's minimum score can't make the final top N either. Which shards share
+     *     one follows from {@code Sort.equals()}. Sort fields backed by an {@code IndexFieldData.XFieldComparatorSource}
+     *     (numeric, date and geo distance sorts) compare by identity, so each shard gets its own manager for those. Keyword
+     *     sorts usually resolve to a plain {@code SortedSetSortField}, which compares by value, so
+     *     {@code SORT _score DESC, keyword_field} shares one manager across shards, like a bare {@code SORT _score DESC}.
      * </p>
      */
     static class PerShardCollectorProvider {
@@ -528,7 +545,12 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         final TopScoreDocCollectorManager topScoreDocCollectorManager;
         // Visible for testing
         final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
-        private final Map<Integer, Supplier<TopDocsCollector<?>>> collectorFactoriesByShard;
+        private final Map<Integer, ShardCollectors> collectorsByShard;
+
+        /**
+         * The collectors of one shard: the {@link ScoreMode} they report, and how to create one.
+         */
+        private record ShardCollectors(ScoreMode scoreMode, Supplier<TopDocsCollector<?>> newCollector) {}
 
         PerShardCollectorProvider(
             int limit,
@@ -538,10 +560,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         ) {
             TopScoreDocCollectorManager scoreManager = null;
             Map<Sort, TopFieldCollectorManager> fieldManagers = new HashMap<>();
-            Map<Integer, Supplier<TopDocsCollector<?>>> factories = new HashMap<>();
+            Map<Integer, ShardCollectors> byShard = new HashMap<>();
             for (ShardContext shardContext : contexts.iterable()) {
                 if (shardContext.searcher().getIndexReader().maxDoc() == 0) {
-                    // LuceneSliceQueue creates no slices for empty shards, so no collector is ever requested for them.
+                    // LuceneSliceQueue creates no slices for empty shards, so they never need a collector. Building their sort
+                    // can also fail, e.g. a geo distance sort on a field the index doesn't map.
                     continue;
                 }
                 Sort sort;
@@ -550,55 +573,84 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 } catch (IOException e) {
                     throw new UncheckedIOException("failed to build sort for shard [" + shardContext.shardIdentifier() + "]", e);
                 }
-                Supplier<TopDocsCollector<?>> factory;
+                ScoreMode scoreMode;
+                Supplier<TopDocsCollector<?>> newCollector;
                 if (needsScore && Sort.RELEVANCE.equals(sort)) {
                     // SORT _score DESC, use top score collector
                     if (scoreManager == null) {
                         scoreManager = new TopScoreDocCollectorManager(limit, null, 0);
                     }
                     // TopScoreDocCollectorManager.newCollector() only reads final state, so it is safe to call concurrently.
-                    factory = scoreManager::newCollector;
+                    newCollector = scoreManager::newCollector;
+                    scoreMode = scoreModeFor(sort);
                 } else {
                     Sort effectiveSort = needsScore ? getSortForScore(sort) : sort;
+                    scoreMode = scoreModeFor(effectiveSort);
                     if (sharesMinCompetitiveScore(effectiveSort)) {
                         TopFieldCollectorManager manager = fieldManagers.computeIfAbsent(
                             effectiveSort,
                             s -> new TopFieldCollectorManager(s, limit, null, 0)
                         );
-                        factory = () -> {
+                        newCollector = () -> {
                             // TopFieldCollectorManager.newCollector() is not thread-safe, it appends to an internal list.
                             synchronized (manager) {
                                 return manager.newCollector();
                             }
                         };
                     } else {
-                        factory = () -> new TopFieldCollectorManager(effectiveSort, limit, null, 0).newCollector();
+                        newCollector = () -> new TopFieldCollectorManager(effectiveSort, limit, null, 0).newCollector();
                     }
                 }
-                factories.put(shardContext.index(), factory);
+                byShard.put(shardContext.index(), new ShardCollectors(scoreMode, newCollector));
             }
             this.topScoreDocCollectorManager = scoreManager;
             this.topFieldCollectorManagers = Map.copyOf(fieldManagers);
-            this.collectorFactoriesByShard = Map.copyOf(factories);
+            this.collectorsByShard = Map.copyOf(byShard);
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) {
-            Supplier<TopDocsCollector<?>> factory = collectorFactoriesByShard.get(context.index());
-            if (factory == null) {
+            return new PerShardCollector(context, shardCollectors(context).newCollector().get());
+        }
+
+        /**
+         * The {@link ScoreMode} of the collectors {@link #newPerShardCollector} creates for {@code context}.
+         */
+        ScoreMode scoreMode(ShardContext context) {
+            return shardCollectors(context).scoreMode();
+        }
+
+        private ShardCollectors shardCollectors(ShardContext context) {
+            ShardCollectors shardCollectors = collectorsByShard.get(context.index());
+            if (shardCollectors == null) {
                 throw new IllegalStateException("no collector manager was built for shard [" + context.shardIdentifier() + "]");
             }
-            return new PerShardCollector(context, factory.get());
+            return shardCollectors;
         }
 
         /**
          * Whether collectors for {@code sort} share a minimum competitive score through their {@link TopFieldCollectorManager}.
          * Mirrors the check in {@code TopFieldCollector}'s constructor, which only enables it when the first comparator is the
          * relevance comparator in its natural, descending, order, and {@code totalHitsThreshold} isn't {@link Integer#MAX_VALUE}
-         * (we always pass {@code 0}). Revisit on Lucene upgrades.
+         * (we always pass {@code 0}). {@code LuceneTopNSourceOperatorCollectorTests} checks Lucene still behaves this way.
          */
         static boolean sharesMinCompetitiveScore(Sort sort) {
             SortField primary = sort.getSort()[0];
             return primary.getType() == SortField.Type.SCORE && primary.getReverse() == false;
+        }
+
+        /**
+         * The {@link ScoreMode} that collectors for {@code effectiveSort} report. Mirrors how {@code TopScoreDocCollector} and
+         * {@code TopFieldCollector} pick theirs with a {@code totalHitsThreshold} of {@code 0}: {@link ScoreMode#TOP_SCORES}
+         * when the primary sort is {@code _score} descending (the condition in {@link #sharesMinCompetitiveScore}), otherwise
+         * {@link ScoreMode#TOP_DOCS_WITH_SCORES} if any sort key is the score and {@link ScoreMode#TOP_DOCS} if not.
+         * {@code LuceneTopNSourceOperatorCollectorTests} compares this with the collectors themselves, so a Lucene upgrade that
+         * changes the rule fails there.
+         */
+        static ScoreMode scoreModeFor(Sort effectiveSort) {
+            if (sharesMinCompetitiveScore(effectiveSort)) {
+                return ScoreMode.TOP_SCORES;
+            }
+            return effectiveSort.needsScores() ? ScoreMode.TOP_DOCS_WITH_SCORES : ScoreMode.TOP_DOCS;
         }
 
         private static Sort getSortForScore(Sort sort) {
@@ -609,16 +661,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return new Sort(l.toArray(SortField[]::new));
         }
 
-        static ScoreMode scoreModeForSort(Sort sort, boolean needsScore) {
-            if (needsScore && Sort.RELEVANCE.equals(sort)) {
-                return new TopScoreDocCollectorManager(1, null, 0).newCollector().scoreMode();
-            } else {
-                Sort effectiveSort = needsScore ? getSortForScore(sort) : sort;
-                return new TopFieldCollectorManager(effectiveSort, 1, null, 0).newCollector().scoreMode();
-            }
-        }
-
-        static Sort buildShardSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
+        private static Sort buildShardSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
             Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");

@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -24,6 +25,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -69,8 +71,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     /**
-     * What {@link #resolveSort} turns every {@link FieldSortBuilder} into. Compares by value, like a keyword sort on a real
-     * shard; see {@link #resolveSort}.
+     * What {@link #resolveSort} turns every {@link FieldSortBuilder} into: a sort field that compares by value, like a keyword
+     * sort on a real shard.
      */
     private static final SortField FIELD_SORT = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
 
@@ -88,7 +90,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var factory = createFactory(true, List.of(new ScoreSortBuilder()), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
-        // TopScoreDocCollectorManager should be created during construction for SORT _score with needsScore=true
+        // SORT _score DESC with needsScore=true creates the TopScoreDocCollectorManager in the constructor
         assertThat(provider.topScoreDocCollectorManager, notNullValue());
         assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
 
@@ -97,8 +99,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * A field-first sort gets nothing from a shared manager (see {@link #testLuceneOnlySharesMinCompetitiveScoreForScoreFirstSorts}),
-     * so it gets no shared manager: each collector comes from its own.
+     * Field-first sorts don't share a manager, since Lucene wouldn't share a minimum competitive score through it anyway (see
+     * {@link #testLuceneOnlySharesMinCompetitiveScoreForScoreFirstSorts}). Each collector comes from its own manager.
      */
     public void testFieldSortDoesNotShareManager() throws IOException {
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
@@ -161,6 +163,62 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             LuceneTopNSourceOperator.PerShardCollectorProvider.sharesMinCompetitiveScore(new Sort(SortField.FIELD_DOC)),
             equalTo(false)
         );
+    }
+
+    /**
+     * {@link LuceneTopNSourceOperator.PerShardCollectorProvider#scoreModeFor} derives the {@link ScoreMode} from the sort, since
+     * the slice queue needs it before any collector exists. It must match what Lucene's collectors report for that sort, for
+     * every shape of sort the provider builds.
+     */
+    public void testScoreModeMatchesLuceneCollectors() {
+        int limit = randomIntBetween(1, 100);
+        SortField scoreAsc = new SortField(null, SortField.Type.SCORE, true);
+        List<Sort> sorts = List.of(
+            Sort.RELEVANCE,
+            new Sort(SortField.FIELD_SCORE, FIELD_SORT, SortField.FIELD_DOC, SortField.FIELD_SCORE),
+            new Sort(scoreAsc),
+            new Sort(scoreAsc, SortField.FIELD_DOC, SortField.FIELD_SCORE),
+            new Sort(FIELD_SORT),
+            new Sort(FIELD_SORT, SortField.FIELD_DOC, SortField.FIELD_SCORE),
+            new Sort(FIELD_SORT, SortField.FIELD_SCORE),
+            new Sort(FIELD_SORT, scoreAsc),
+            new Sort(SortField.FIELD_DOC)
+        );
+        for (Sort sort : sorts) {
+            ScoreMode expected = new TopFieldCollectorManager(sort, limit, null, 0).newCollector().scoreMode();
+            assertEquals(sort.toString(), expected, LuceneTopNSourceOperator.PerShardCollectorProvider.scoreModeFor(sort));
+        }
+        // A lone SORT _score DESC gets a TopScoreDocCollector rather than a TopFieldCollector
+        assertEquals(
+            new TopScoreDocCollectorManager(limit, null, 0).newCollector().scoreMode(),
+            LuceneTopNSourceOperator.PerShardCollectorProvider.scoreModeFor(Sort.RELEVANCE)
+        );
+    }
+
+    /**
+     * The {@link ScoreMode} the provider reports for a shard is the one of the collectors it creates for that shard, so the
+     * slice queue builds the shard's weight with exactly the scores those collectors need.
+     */
+    public void testScoreModeForShardMatchesItsCollectors() throws IOException {
+        setupIndex(100);
+        ShardContext ctx = createMockShardContext(0);
+        assertScoreMode(ctx, true, List.of(new ScoreSortBuilder()), ScoreMode.TOP_SCORES);
+        assertScoreMode(ctx, true, List.of(new ScoreSortBuilder(), new FieldSortBuilder("s")), ScoreMode.TOP_SCORES);
+        assertScoreMode(ctx, true, List.of(new ScoreSortBuilder().order(SortOrder.ASC)), ScoreMode.TOP_DOCS_WITH_SCORES);
+        assertScoreMode(ctx, true, List.of(new FieldSortBuilder("s")), ScoreMode.TOP_DOCS_WITH_SCORES);
+        assertScoreMode(ctx, true, List.of(new FieldSortBuilder("s"), new ScoreSortBuilder()), ScoreMode.TOP_DOCS_WITH_SCORES);
+        assertScoreMode(ctx, false, List.of(new FieldSortBuilder("s")), ScoreMode.TOP_DOCS);
+    }
+
+    private static void assertScoreMode(ShardContext ctx, boolean needsScore, List<SortBuilder<?>> sorts, ScoreMode expected) {
+        var provider = new LuceneTopNSourceOperator.PerShardCollectorProvider(
+            randomIntBetween(1, 100),
+            needsScore,
+            sorts,
+            new IndexedByShardIdFromSingleton<>(ctx)
+        );
+        assertThat(provider.scoreMode(ctx), equalTo(expected));
+        assertThat(provider.newPerShardCollector(ctx).collector.scoreMode(), equalTo(expected));
     }
 
     /**
@@ -335,7 +393,8 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     /**
-     * Value-equal sorts, like {@code SORT _score DESC, keyword_field} usually resolves to, share one manager across shards.
+     * Shards whose sorts are equal by value, which is what {@code SORT _score DESC, keyword_field} usually resolves to, share
+     * one manager.
      */
     public void testShardsWithEqualSortsShareManager() throws IOException {
         setupIndex(100);
@@ -412,6 +471,48 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         assertThat(provider.newPerShardCollector(populated).collector, notNullValue());
         var e = expectThrows(IllegalStateException.class, () -> provider.newPerShardCollector(empty));
         assertThat(e.getMessage(), containsString("no collector manager was built for shard"));
+        assertThat(provider.scoreMode(populated), notNullValue());
+        e = expectThrows(IllegalStateException.class, () -> provider.scoreMode(empty));
+        assertThat(e.getMessage(), containsString("no collector manager was built for shard"));
+    }
+
+    /**
+     * The factory resolves each shard's sort exactly once: the provider builds it, and the slice queue takes the shard's
+     * {@link ScoreMode} from the provider instead of resolving the sort itself.
+     */
+    public void testFactoryBuildsEachShardSortOnce() throws IOException {
+        setupIndex(100);
+        int numShards = randomIntBetween(1, 4);
+        int[] buildSortCalls = new int[numShards];
+        List<ShardContext> contexts = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            int shard = i;
+            contexts.add(createMockShardContext(reader, shard, sorts -> {
+                buildSortCalls[shard]++;
+                return resolveSort(sorts);
+            }));
+        }
+        boolean needsScore = randomBoolean();
+        List<SortBuilder<?>> sorts = needsScore
+            ? (randomBoolean() ? List.of(new ScoreSortBuilder()) : List.of(new ScoreSortBuilder(), new FieldSortBuilder("s")))
+            : List.of(new FieldSortBuilder("s"));
+        new LuceneTopNSourceOperator.Factory(
+            new IndexedByShardIdFromList<>(contexts),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
+            DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
+            randomIntBetween(1, 10),
+            10000,
+            randomIntBetween(10, 100),
+            sorts,
+            randomLongBetween(10, 20),
+            needsScore,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        for (int i = 0; i < numShards; i++) {
+            assertEquals("shard " + i, 1, buildSortCalls[i]);
+        }
     }
 
     /**

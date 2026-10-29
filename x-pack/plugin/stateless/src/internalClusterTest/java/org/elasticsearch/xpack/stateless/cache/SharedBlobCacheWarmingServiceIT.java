@@ -1797,7 +1797,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             Settings nodeSettings,
             ByteSizeValue maxHeap
         ) {
-            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
+            super(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap, ShardWarmVolumes.NOOP, TelemetryProvider.NOOP);
         }
 
         @Override

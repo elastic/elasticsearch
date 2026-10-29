@@ -55,12 +55,12 @@ setup:
 ---
 "Basic test":
   - requires:
-      test_runner_features: [warnings]
+      test_runner_features: [allowed_warnings]
       cluster_features: ["gte_v8.7.0"]
       reason: Time series result serialization changed in 8.6.0
 
   - do:
-      warnings:
+      allowed_warnings:
         - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: tsdb

@@ -1752,7 +1752,10 @@ public class IndexSettingsTests extends ESTestCase {
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
             .build();
         assertFalse(IndexSettings.BATCH_INDEXING.get(columnarOptOut));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        // with the feature flag off the default resolves to false without reading the deprecated setting
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
     }
 
     public void testBatchIndexingExplicitSettingWinsOverFallback() {
@@ -1776,7 +1779,6 @@ public class IndexSettingsTests extends ESTestCase {
             IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
         );
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build()));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
     }
 
     public void testBatchIndexingIsAlwaysRegistered() {

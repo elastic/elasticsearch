@@ -540,14 +540,30 @@ A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying 
 
 ### Views across clusters [ccq-views]
 
+A view defined on the local cluster can reference remote indices. A view
+defined on a remote cluster can't be queried from the local cluster.
+
+::::{applies-switch}
+:::{applies-item} stack: ga 9.6+
+Remote views are invisible to source resolution. An exact remote view reference
+returns an `Unknown index` error.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+A query fails if its source expression matches a remote view.
+:::
+::::
+
+For the complete view restrictions, refer to
+[Cross-cluster and serverless view limitations](/reference/query-languages/esql/esql-views.md#esql-views-cross-cluster-serverless).
+
 ### Datasets across clusters
 ```{applies_to}
-stack: experimental 9.5
+stack: preview 9.6+, experimental =9.5
 ```
 
 You can query datasets created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) on the local cluster only.
 
-{applies_to}`stack: experimental 9.6` A dataset on a remote cluster is invisible to your query, which treats its name exactly as it treats a name registered on no cluster at all. A wildcard that matches it returns that cluster's indices beside it. Naming the dataset directly resolves to nothing, so the remote cluster's `skip_unavailable` setting decides what happens next, as described in [Skipping problematic remote clusters](#ccq-skip-unavailable-clusters).
+{applies_to}`stack: preview 9.6+` A dataset on a remote cluster is invisible to your query, which treats its name exactly as it treats a name registered on no cluster at all. A wildcard that matches it returns that cluster's indices beside it. Naming the dataset directly resolves to nothing, so the remote cluster's `skip_unavailable` setting decides what happens next, as described in [Skipping problematic remote clusters](#ccq-skip-unavailable-clusters).
 
 {applies_to}`stack: experimental =9.5` Querying a dataset on a remote cluster returns an error, and so does a wildcard that matches one.
 

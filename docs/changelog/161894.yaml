@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 161273
+pr: 161894
+summary: Preserve ElasticSearchException status in TermVectorsService
+type: bug

@@ -12,6 +12,26 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+```{applies_to}
+stack: ga 9.6.0
+```
+## 9.6.0 [elasticsearch-9.6.0-breaking-changes]
+
+ILM:
+* Lifecycle features skip lookup indices [#157195](https://github.com/elastic/elasticsearch/pull/157195) (issue: [#157133](https://github.com/elastic/elasticsearch/issues/157133))
+
+Ingest Node:
+* Introducing configurable limits to ingest pipelines [#152703](https://github.com/elastic/elasticsearch/pull/152703)
+
+Search:
+* Add `array` and `binary` fields API formats to `dense_vector` field [#159603](https://github.com/elastic/elasticsearch/pull/159603)
+
+TSDB:
+* Introduce the setting to enable minimum lifecycle [#161049](https://github.com/elastic/elasticsearch/pull/161049)
+* Migrate metrics data streams' default lifecycle management to DLM [#161501](https://github.com/elastic/elasticsearch/pull/161501)
+
+
+
 ## 9.5.5 [elasticsearch-9.5.5-breaking-changes]
 
 There are no breaking changes associated with this release.

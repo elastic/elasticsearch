@@ -154,14 +154,15 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         final var indexNode = startIndexNode();
         ensureStableCluster(2);
 
-        createRepository("test-repo", "fs");
+        final var repoName = randomRepoName();
+        createRepository(repoName, "fs");
 
         final int shards = between(1, 5);
         updateClusterSettings(
             Settings.builder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), shards)
         );
-        final var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final var indexName = randomIndexName();
         createIndex(indexName, shards, 0);
         ensureGreen();
         indexDocs(indexName, randomIntBetween(10, 100));
@@ -189,7 +190,7 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
 
             final var createSnapshotResponse = client().admin()
                 .cluster()
-                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", indexName + "-snap")
+                .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
                 .setWaitForCompletion(true)
                 .setIndices(indexName)
                 .setPartial(randomBoolean())

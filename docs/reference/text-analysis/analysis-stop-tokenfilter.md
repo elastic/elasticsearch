@@ -315,7 +315,7 @@ $$$swedish-stop-words$$$
 $$$thai-stop-words$$$
 
 `_thai_`
-:   [Thai stop words](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/resources/org/apache/lucene/analysis/th/stopwords.txt). Indices created before {{es}} upgraded to Lucene 10.6 keep using the [previous, longer list](https://github.com/apache/lucene/blob/releases/lucene/10.5.0/lucene/analysis/common/src/resources/org/apache/lucene/analysis/th/stopwords.txt). See [Thai analyzer behavior by index version](/reference/text-analysis/analysis-lang-analyzer.md#thai-analyzer-index-version).
+:   [Thai stop words](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/resources/org/apache/lucene/analysis/th/stopwords.txt)
 
 $$$turkish-stop-words$$$
 

@@ -215,6 +215,23 @@ public enum StringData {
     },
 
     /**
+     * A pod name on an index sorted by it, descending: the values of {@link #SORTED_POD_NAME} in reverse term
+     * order. A descending column is not bisected, so a plain skip index is the only thing that narrows a search.
+     */
+    DESCENDING_POD_NAME {
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            final BytesRef[] values = SORTED_POD_NAME.generate(count, random);
+            for (int i = 0, j = count - 1; i < j; i++, j--) {
+                final BytesRef swap = values[i];
+                values[i] = values[j];
+                values[j] = swap;
+            }
+            return values;
+        }
+    },
+
+    /**
      * A pod name on an index sorted by something else first — a region, say, and then the pod name and its
      * timestamp. The values arrive in runs as they would under a primary sort, but the runs restart with
      * every region, so the column as a whole never becomes ordered. It is the shape a secondary sort key

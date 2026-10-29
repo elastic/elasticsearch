@@ -54,6 +54,104 @@ public class PlainValuesTests extends ESTestCase {
         }
     }
 
+    public void testTheChunkOwningEachSlotIsTheOneTheChunkWriterIsFilling() throws IOException {
+        final String[] values = { "aaaa", "bbbbbbbbbb", "cc", "dddddddd", "eeeeeeeeee", "", null, "ffffffffff", "ffffffffff", "g" };
+        final int[] expected = { 0, 0, 1, 1, 2, 3, 3, 3, 4, 4 };
+        final int[] actual = new int[values.length];
+        final int chunks = writeChunks(values.length, new ChunkBounds(10, Integer.MAX_VALUE), 128, 128, (writer, slot) -> {
+            if (values[slot] == null) {
+                writer.addNull();
+            } else {
+                writer.add(new BytesRef(values[slot]));
+            }
+            actual[slot] = writer.ownerChunk();
+        });
+        assertArrayEquals(expected, actual);
+        assertEquals(5, chunks);
+    }
+
+    public void testASlotAfterAnExactFillIsOwnedByTheNextChunk() throws IOException {
+        final String[] values = { "aaaaaaaaaa", null, "bbb", "cccccccccccccccccccccccccccccc", "d" };
+        final int[] expected = { 0, 1, 1, 1, 4 };
+        final int[] actual = new int[values.length];
+        writeChunks(values.length, new ChunkBounds(10, Integer.MAX_VALUE), 128, 128, (writer, slot) -> {
+            if (values[slot] == null) {
+                writer.addNull();
+            } else {
+                writer.add(new BytesRef(values[slot]));
+            }
+            actual[slot] = writer.ownerChunk();
+        });
+        assertArrayEquals(expected, actual);
+    }
+
+    public void testTheValueCapStartsAChunkAtABlockStart() throws IOException {
+        final int numValues = 300;
+        final int[] owner = new int[numValues];
+        writeChunks(numValues, new ChunkBounds(4096, 128), 128, 128, (writer, slot) -> {
+            writer.add(new BytesRef(new byte[] { (byte) ('a' + slot % 26) }));
+            owner[slot] = writer.ownerChunk();
+        });
+        for (int slot = 0; slot < numValues; slot++) {
+            assertEquals("slot " + slot, slot / 128, owner[slot]);
+        }
+    }
+
+    public void testTheOwnerOfEverySlotFollowsTheRulesOfTheChunkWriter() throws IOException {
+        for (int iter = 0; iter < 30; iter++) {
+            final ChunkBounds bounds = new ChunkBounds(between(8, 64), randomBoolean() ? Integer.MAX_VALUE : between(1, 300));
+            final int valuesPerBlock = 1 << between(3, 9);
+            final int lengthBlockSize = Math.max(128, valuesPerBlock << between(0, 2));
+            final int numValues = between(1, 1500);
+            final List<BytesRef> values = new ArrayList<>();
+            while (values.size() < numValues) {
+                final BytesRef value = switch (between(0, 9)) {
+                    case 0 -> null;
+                    case 1 -> new BytesRef("");
+                    case 2 -> new BytesRef(randomAlphaOfLength(between(bounds.targetBytes(), bounds.targetBytes() * 4)));
+                    default -> new BytesRef(randomAlphaOfLength(between(1, 12)));
+                };
+                for (int repeat = randomBoolean() ? 1 : between(1, 6); repeat > 0 && values.size() < numValues; repeat--) {
+                    values.add(value);
+                }
+            }
+            final PlainChunkModel model = new PlainChunkModel(bounds, valuesPerBlock, lengthBlockSize, numValues, true);
+            final int chunks = writeChunks(numValues, bounds, valuesPerBlock, lengthBlockSize, (writer, slot) -> {
+                final BytesRef value = values.get(slot);
+                if (value == null) {
+                    writer.addNull();
+                } else {
+                    writer.add(value);
+                }
+                assertEquals("owner of slot " + slot, model.next(value, slot > 0 ? values.get(slot - 1) : null), writer.ownerChunk());
+            });
+            assertEquals(model.emittedChunks(), chunks);
+        }
+    }
+
+    private interface SlotWriter {
+        void write(PlainValues.Writer writer, int slot) throws IOException;
+    }
+
+    private int writeChunks(int numValues, ChunkBounds bounds, int valuesPerBlock, int lengthBlockSize, SlotWriter slots)
+        throws IOException {
+        try (Directory dir = newDirectory(); ColumnTestFiles.Outputs out = ColumnTestFiles.create(dir, "plain", SEGMENT_ID)) {
+            final PlainValues.Writer writer = new PlainValues.Writer(
+                ChunkCodec.IDENTITY,
+                bounds,
+                valuesPerBlock,
+                lengthBlockSize,
+                numValues,
+                -1,
+                out.outputs()
+            );
+            for (int slot = 0; slot < numValues; slot++) {
+                slots.write(writer, slot);
+            }
+            return writer.finish().chunks().numChunks();
+        }
+    }
+
     public void testOneLengthReadsBack() throws IOException {
         for (int iter = 0; iter < 10; iter++) {
             final int length = iter == 0 ? 0 : between(0, 50);

@@ -196,7 +196,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 chunkCodec,
                 sizes,
                 StringColumnOptions.DEFAULT_SINGLE_VALUED,
-                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
             ),
             check
         );

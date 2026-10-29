@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumnarFormat;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -369,6 +370,112 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
                 );
             }
         }
+    }
+
+    public void testThePlainSkipperIsPersistedOnlyForAPrimarySort() throws IOException {
+        final int numDocs = 3000;
+        final Map<String, Long> bytes = new LinkedHashMap<>();
+        for (String variant : new String[] { "ascending", "descending", "descending-secondary", "ascending-with-missing" }) {
+            final boolean secondary = variant.endsWith("secondary");
+            final boolean descending = variant.startsWith("descending");
+            final boolean missing = variant.endsWith("missing");
+            final String index = INDEX + "-skipper-" + variant;
+            final Settings.Builder settings = Settings.builder()
+                .put(columnarSettings(IndexMode.COLUMNAR, true))
+                .put("index.compound_format", false);
+            if (secondary) {
+                settings.putList("index.sort.field", "@timestamp", "kw").putList("index.sort.order", "asc", "desc");
+            } else {
+                settings.put("index.sort.field", "kw").put("index.sort.order", descending ? "desc" : "asc");
+            }
+            indicesAdmin().prepareCreate(index).setSettings(settings).setMapping("""
+                {
+                  "properties": {
+                    "@timestamp": { "type": "date" },
+                    "kw": { "type": "keyword", "index": false, "doc_values": { "multi_value": false } }
+                  }
+                }""").get();
+
+            final List<Integer> order = new ArrayList<>();
+            for (int i = 0; i < numDocs; i++) {
+                order.add(i);
+            }
+            Collections.shuffle(order, random());
+            final Map<String, String> values = new LinkedHashMap<>();
+            for (int batch = 0; batch < 3; batch++) {
+                final BulkRequestBuilder bulk = client().prepareBulk();
+                for (int i = batch * numDocs / 3; i < (batch + 1) * numDocs / 3; i++) {
+                    final int doc = order.get(i);
+                    final Map<String, Object> source = new LinkedHashMap<>();
+                    source.put("@timestamp", "2024-01-01T00:00:00Z");
+                    if (missing == false || doc % 10 != 0) {
+                        source.put("kw", Strings.format("v-%06d", doc));
+                        values.put(Integer.toString(doc), Strings.format("v-%06d", doc));
+                    }
+                    bulk.add(prepareIndex(index).setId(Integer.toString(doc)).setSource(source));
+                }
+                final var response = bulk.get();
+                assertFalse(response.buildFailureMessage(), response.hasFailures());
+                indicesAdmin().prepareRefresh(index).get();
+            }
+            for (int doc = 0; doc < numDocs; doc += 7) {
+                client().prepareDelete(index, Integer.toString(doc)).get();
+                values.remove(Integer.toString(doc));
+            }
+            indicesAdmin().prepareRefresh(index).get();
+            assertQueriesMatch(index, values);
+            indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+            indicesAdmin().prepareRefresh(index).get();
+            assertKeywordFieldUsesColumnarFormat(index);
+            assertQueriesMatch(index, values);
+            bytes.put(variant, skipIndexBytes(index));
+        }
+        final long oneEntry = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+        assertEquals(
+            "ascending and descending primary sorts write the same bounds: " + bytes,
+            bytes.get("ascending"),
+            bytes.get("descending")
+        );
+        assertEquals(
+            "documents without the field do not change them: " + bytes,
+            bytes.get("ascending"),
+            bytes.get("ascending-with-missing")
+        );
+        assertTrue("a secondary sort key writes none: " + bytes, bytes.get("descending-secondary") + oneEntry <= bytes.get("descending"));
+    }
+
+    private void assertQueriesMatch(String index, Map<String, String> values) {
+        final List<String> present = new ArrayList<>(values.values());
+        for (int i = 0; i < 10; i++) {
+            final String value = present.get(between(0, present.size() - 1));
+            assertHitCount(client().prepareSearch(index).setQuery(QueryBuilders.termQuery("kw", value)), 1);
+        }
+        assertHitCount(client().prepareSearch(index).setQuery(QueryBuilders.termQuery("kw", "v-absent")), 0);
+        final String low = Strings.format("v-%06d", between(0, 1500));
+        final String high = Strings.format("v-%06d", between(1500, 2999));
+        assertHitCount(
+            client().prepareSearch(index).setQuery(QueryBuilders.rangeQuery("kw").gte(low).lt(high)),
+            present.stream().filter(v -> v.compareTo(low) >= 0 && v.compareTo(high) < 0).count()
+        );
+        assertHitCount(
+            client().prepareSearch(index).setQuery(QueryBuilders.prefixQuery("kw", "v-001")),
+            present.stream().filter(v -> v.startsWith("v-001")).count()
+        );
+    }
+
+    private long skipIndexBytes(String index) throws IOException {
+        final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+        long bytes = 0;
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            for (LeafReaderContext leaf : searcher.getLeafContexts()) {
+                for (String file : Lucene.segmentReader(leaf.reader()).getSegmentInfo().files()) {
+                    if (file.endsWith(".cns")) {
+                        bytes += shard.store().directory().fileLength(file);
+                    }
+                }
+            }
+        }
+        return bytes;
     }
 
     /**

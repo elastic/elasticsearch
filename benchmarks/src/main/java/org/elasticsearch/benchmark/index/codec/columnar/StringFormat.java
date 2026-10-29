@@ -35,6 +35,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -51,6 +52,8 @@ import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.PageBudget;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringBlockSink;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.columnar.string.SummaryPolicy;
@@ -80,6 +83,8 @@ public enum StringFormat {
     ES95_SORTED,
     /** ColumNAR with no dictionary: values in written order. */
     COLUMNAR_PLAIN,
+    /** ColumNAR with no dictionary and the plain skip index on, as written for the primary field of an index sort. */
+    COLUMNAR_PLAIN_BOUNDED,
     /** ColumNAR with a dictionary, an ordinal per document, and an exception stream. */
     COLUMNAR_DICTIONARY,
     /** ColumNAR as it ships: the shape is whichever the values earn under the default policy. */
@@ -89,7 +94,7 @@ public enum StringFormat {
     private static final String COLUMNAR_FILE = "string.cnd";
 
     boolean isColumnar() {
-        return this == COLUMNAR_PLAIN || this == COLUMNAR_DICTIONARY || this == COLUMNAR;
+        return this == COLUMNAR_PLAIN || this == COLUMNAR_PLAIN_BOUNDED || this == COLUMNAR_DICTIONARY || this == COLUMNAR;
     }
 
     /** Writes the column and returns the bytes it occupies. */
@@ -161,14 +166,21 @@ public enum StringFormat {
                 writer.forceMerge(1);
             }
         }
+        return docValuesBytes(directory);
+    }
+
+    /** The bytes of every file a stock or a columnar doc values format keeps, the skip index and the value lengths included. */
+    private static long docValuesBytes(Directory directory) throws IOException {
         long bytes = 0;
         for (String file : directory.listAll()) {
             if (file.endsWith(".dvd")
                 || file.endsWith(".dvm")
                 || file.endsWith(".cnd")
                 || file.endsWith(".cna")
+                || file.endsWith(".cnl")
                 || file.endsWith(".cnn")
-                || file.endsWith(".cnm")) {
+                || file.endsWith(".cnm")
+                || file.endsWith(".cns")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -188,18 +200,7 @@ public enum StringFormat {
         try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             writer.forceMerge(1);
         }
-        long bytes = 0;
-        for (String file : directory.listAll()) {
-            if (file.endsWith(".dvd")
-                || file.endsWith(".dvm")
-                || file.endsWith(".cnd")
-                || file.endsWith(".cna")
-                || file.endsWith(".cnn")
-                || file.endsWith(".cnm")) {
-                bytes += directory.fileLength(file);
-            }
-        }
-        return bytes;
+        return docValuesBytes(directory);
     }
 
     /** Segments in the directory, so a merge benchmark can refuse to measure a merge that has nothing to do. */
@@ -248,7 +249,7 @@ public enum StringFormat {
             // Enough for every shape here to name all of its values: a budget that stops short leaves a
             // dictionary most values escape, which measures the shortfall rather than the layout.
             case COLUMNAR_DICTIONARY -> new DictionaryPolicy(4 << 20, 0.0, Double.MAX_VALUE);
-            case COLUMNAR_PLAIN -> DictionaryPolicy.NONE;
+            case COLUMNAR_PLAIN, COLUMNAR_PLAIN_BOUNDED -> DictionaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);
         };
     }
@@ -259,9 +260,53 @@ public enum StringFormat {
             case COLUMNAR -> ColumNARDocValuesFormat.DEFAULT_SUMMARY_POLICY;
             case COLUMNAR_DICTIONARY -> SummaryPolicy.sized(4 << 20);
             // Nothing is surveyed where no dictionary is allowed, so there is nothing to leave behind either.
-            case COLUMNAR_PLAIN -> SummaryPolicy.NONE;
+            case COLUMNAR_PLAIN, COLUMNAR_PLAIN_BOUNDED -> SummaryPolicy.NONE;
             default -> throw new IllegalStateException("not a columnar format: " + this);
         };
+    }
+
+    private ColumNARDocValuesFormat columnarFormat() {
+        return new ColumNARDocValuesFormat(
+            (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
+            field -> ColumnarFieldType.STRING,
+            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
+            StringColumnOptionsSelector.always(
+                StringColumnOptions.DEFAULT.withPolicies(dictionaryPolicy(), summaryPolicy())
+                    .withPlainSkipIndex(this == COLUMNAR_PLAIN_BOUNDED)
+            )
+        );
+    }
+
+    /**
+     * Throws unless the column is plain and carries a skip index exactly when the format asks for one.
+     */
+    void requirePlainLayout(Column column, int numDocs) throws IOException {
+        if (column.shape().startsWith("plain") == false) {
+            throw new IllegalStateException(this + " produced a non-plain layout: " + column.shape());
+        }
+        final boolean hasBounds = column.skipIndexBytes() >= emptySkipIndexBytes() + MIN_PLAIN_BOUNDS_BYTES;
+        if (hasBounds != (this == COLUMNAR_PLAIN_BOUNDED)) {
+            throw new IllegalStateException(
+                this + " wrote a skip index of " + column.skipIndexBytes() + " bytes for " + numDocs + " documents: " + column.shape()
+            );
+        }
+    }
+
+    /** One directory entry of a long, an int and a long, and the flag byte of its bounds. */
+    private static final long MIN_PLAIN_BOUNDS_BYTES = Long.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES;
+
+    /** The size of a skip index with nothing in it, which is what a plain column without bounds leaves. */
+    private static long emptySkipIndexBytes() throws IOException {
+        try (Directory directory = new ByteBuffersDirectory()) {
+            COLUMNAR_PLAIN.write(directory, new BytesRef[] { new BytesRef("a") });
+            long bytes = 0;
+            for (String file : directory.listAll()) {
+                if (file.endsWith(".cns")) {
+                    bytes += directory.fileLength(file);
+                }
+            }
+            return bytes;
+        }
     }
 
     private Codec codecFor() {
@@ -270,13 +315,7 @@ public enum StringFormat {
             case ES819_SORTED -> new ES819TSDBDocValuesFormat();
             case ES819_BINARY -> new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1);
             case ES95_SORTED -> ES95TSDBDocValuesFormatFactory.create(false, false, false, null);
-            case COLUMNAR_PLAIN, COLUMNAR_DICTIONARY, COLUMNAR -> new ColumNARDocValuesFormat(
-                (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
-                field -> ColumnarFieldType.STRING,
-                ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-                dictionaryPolicy(),
-                summaryPolicy()
-            );
+            case COLUMNAR_PLAIN, COLUMNAR_PLAIN_BOUNDED, COLUMNAR_DICTIONARY, COLUMNAR -> columnarFormat();
         };
         return new Elasticsearch96Codec() {
             @Override
@@ -290,13 +329,7 @@ public enum StringFormat {
         final FieldType type = new FieldType();
         type.setDocValuesType(DocValuesType.BINARY);
         type.freeze();
-        final DocValuesFormat dv = new ColumNARDocValuesFormat(
-            (fieldName, fieldType) -> org.elasticsearch.columnar.numeric.NumericPipeline::defaultPipeline,
-            field -> ColumnarFieldType.STRING,
-            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            dictionaryPolicy(),
-            summaryPolicy()
-        );
+        final DocValuesFormat dv = columnarFormat();
         final Codec codec = new Elasticsearch96Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -319,7 +352,12 @@ public enum StringFormat {
         }
         long bytes = 0;
         for (String file : directory.listAll()) {
-            if (file.endsWith(".cnd") || file.endsWith(".cna") || file.endsWith(".cnl") || file.endsWith(".cnn") || file.endsWith(".cnm")) {
+            if (file.endsWith(".cnd")
+                || file.endsWith(".cna")
+                || file.endsWith(".cnl")
+                || file.endsWith(".cnn")
+                || file.endsWith(".cnm")
+                || file.endsWith(".cns")) {
                 bytes += directory.fileLength(file);
             }
         }
@@ -393,6 +431,11 @@ public enum StringFormat {
         /** How the column stored its values, for a run to report what it measured. */
         String shape() throws IOException;
 
+        /** The bytes of the skip-index file, which holds the numeric and plain skip indexes of the segment. */
+        default long skipIndexBytes() throws IOException {
+            return 0;
+        }
+
         /** The prefix as a query, the shape of {@code LIKE "x*"}. */
         long queryPrefix(BytesRef prefix) throws IOException;
 
@@ -423,7 +466,16 @@ public enum StringFormat {
         private final int[] docs;
         private final int pageSize;
 
+        private final long skipIndexBytes;
+
         ColumnarColumn(Directory directory, int docCount, int pageSize) throws IOException {
+            long skipBytes = 0;
+            for (String file : directory.listAll()) {
+                if (file.endsWith(".cns")) {
+                    skipBytes += directory.fileLength(file);
+                }
+            }
+            this.skipIndexBytes = skipBytes;
             this.directoryReader = DirectoryReader.open(directory);
             this.searcher = new IndexSearcher(directoryReader);
             this.searcher.setQueryCache(null);
@@ -458,6 +510,11 @@ public enum StringFormat {
                 directoryReader.leaves().get(0),
                 ColumnarStringTermQuery.term(FIELD, term, false, ScanBudget.UNLIMITED)
             );
+        }
+
+        @Override
+        public long skipIndexBytes() {
+            return skipIndexBytes;
         }
 
         @Override

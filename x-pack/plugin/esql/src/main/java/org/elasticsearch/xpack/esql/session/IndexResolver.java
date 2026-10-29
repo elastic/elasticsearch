@@ -155,6 +155,7 @@ public class IndexResolver {
             false,
             null,
             DO_NOT_GROUP,
+            IndexViewOrigins.EMPTY,
             listener.map(Versioned::inner)
         );
     }
@@ -192,6 +193,7 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        IndexViewOrigins origins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
@@ -210,6 +212,7 @@ public class IndexResolver {
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
             ),
+            origins,
             listener
         );
     }
@@ -244,6 +247,7 @@ public class IndexResolver {
             false,
             null,
             RESOLVED_EXPRESSIONS,
+            IndexViewOrigins.EMPTY,
             listener
         );
     }
@@ -311,6 +315,7 @@ public class IndexResolver {
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
+            indexViewOrigins,
             listener.delegateResponse((l, e) -> {
                 if (e instanceof IllegalArgumentException
                     && e.getMessage().startsWith(RemoteClusterAware.ALL_INDICES_EXCLUDED_MESSAGE_PREFIX)) {
@@ -319,7 +324,7 @@ public class IndexResolver {
                 }
                 var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
                 if (infe != null) {
-                    l.onFailure(new VerificationException(EsqlCCSUtils.unknownIndexError(infe.getIndex().getName(), indexViewOrigins)));
+                    l.onFailure(new VerificationException(indexViewOrigins.indexNotFoundError(infe.getIndex().getName())));
                     return;
                 }
                 l.onFailure(e);
@@ -340,6 +345,7 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
+        IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         ActionListener<EsqlResolveFieldsResponse> responseHandler = listener.delegateFailureAndWrap((l, response) -> {
@@ -366,8 +372,9 @@ public class IndexResolver {
                     var localUnresolvedIndices = unresolved(null, response.caps().getResolvedLocally());
                     if (localUnresolvedIndices.isEmpty() == false) {
                         l.onFailure(
-                            new VerificationException(Strings.format("Unknown index [%s]", String.join(",", localUnresolvedIndices)))
+                            new VerificationException(indexViewOrigins.indexNotFoundError(String.join(",", localUnresolvedIndices)))
                         );
+                        return;
                     }
                 }
 

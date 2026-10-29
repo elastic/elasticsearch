@@ -230,7 +230,7 @@ public class EsqlCCSUtils {
         for (String c : clustersWithNoMatchingIndices) {
             var cluster = executionInfo.getCluster(c);
             if (concreteIndexRequested(cluster.getIndexExpression())) {
-                String error = unknownIndexError(cluster.getQualifiedIndexExpression(), indexViewOrigins);
+                String error = indexViewOrigins.indexNotFoundError(cluster.getQualifiedIndexExpression());
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
@@ -264,7 +264,7 @@ public class EsqlCCSUtils {
                     continue;
                 }
                 if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
-                    String error = unknownIndexError(indexResolution.get().name(), indexViewOrigins);
+                    String error = indexViewOrigins.indexNotFoundError(indexResolution.get().name());
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = new StringBuilder(error);
                     } else {
@@ -315,11 +315,6 @@ public class EsqlCCSUtils {
             // when queries use a remote cluster wildcard, e.g., `*:my-logs*`.
             markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, Cluster.Status.SKIPPED, nonIndexNotFound);
         }
-    }
-
-    static String unknownIndexError(String indexExpression, IndexViewOrigins indexViewOrigins) {
-        String error = "Unknown index [" + indexExpression + "]";
-        return indexViewOrigins.describe(indexExpression).map(views -> error + " " + views).orElse(error);
     }
 
     // visible for testing

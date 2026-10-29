@@ -2821,6 +2821,7 @@ public class EsqlSession {
                 preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
+                result.indexViewOrigins(),
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                     maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
@@ -2837,6 +2838,7 @@ public class EsqlSession {
                             preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
+                            result.indexViewOrigins(),
                             planningCpu.meteredCpu(retryListener)
                         );
                     });

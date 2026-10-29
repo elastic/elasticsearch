@@ -88,32 +88,33 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                 ensureGreen(index.getName());
             }
             case LOCAL_FAIL_SHARD -> {
+                int shardIdToFail = randomIntBetween(0, indexMetadata.getNumberOfShards() - 1);
+                boolean isIndexShard = randomBoolean();
+                IndexShard shard;
+                if (isIndexShard) {
+                    shard = findIndexShardOrNull(index, shardIdToFail);
+                } else {
+                    shard = findSearchShardOrNull(index, shardIdToFail);
+                }
+                if (shard == null) {
+                    // We picked a target shard that is not yet created.
+                    return;
+                }
+
                 try {
-                    int shardIdToFail = randomIntBetween(0, indexMetadata.getNumberOfShards() - 1);
-                    boolean isIndexShard = randomBoolean();
-                    IndexShard shard;
-                    if (isIndexShard) {
-                        shard = findIndexShardOrNull(index, shardIdToFail);
-                    } else {
-                        shard = findSearchShardOrNull(index, shardIdToFail);
-                    }
-                    if (shard == null) {
-                        // We picked a target shard that is not yet created.
-                        return;
-                    }
                     AllocationId allocationId = shard.routingEntry().allocationId();
-                    var changedAllocationListener = ClusterServiceUtils.addMasterTemporaryStateListener(cs -> {
+                    shard.failShard("broken", new Exception("boom local"));
+                    logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
+                    var failedAndRecoveredListener = ClusterServiceUtils.addMasterTemporaryStateListener(cs -> {
                         var shardRoutingTable = cs.routingTable(project.id()).index(index.getName()).shard(shard.shardId().id());
 
-                        return isIndexShard
-                            ? shardRoutingTable.primaryShard().allocationId().equals(allocationId) == false
-                            : shardRoutingTable.unpromotableShards().get(0).allocationId().equals(allocationId) == false;
+                        ShardRouting shardRouting = isIndexShard
+                            ? shardRoutingTable.primaryShard()
+                            : shardRoutingTable.unpromotableShards().get(0);
+                        return shardRouting.allocationId().equals(allocationId) == false && shardRouting.started();
                     });
-                    logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
-                    shard.failShard("broken", new Exception("boom local"));
-                    // ensureGreen may succeed before the cluster state reflects the failed shard
-                    safeAwait(changedAllocationListener);
-                    ensureGreen(index.getName());
+
+                    safeAwait(failedAndRecoveredListener);
                 } catch (AlreadyClosedException e) {
                     // Unlucky, shard is in recovery or is closed.
                 }

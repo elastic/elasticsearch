@@ -97,22 +97,16 @@ public class ShardWarmVolumes implements ClusterStateListener {
     @Nullable
     CollectedWarmVolumes getCollectedVolumesForShutdownSignal(ClusterState state, String sourceNodeId) {
         CollectedWarmVolumes collected = memo.get(sourceNodeId);
-        if (collected == null) {
-            return null;
-        }
-        var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
-        if (shutdown == null || shutdown.getStartedAtMillis() != collected.shutdownSignalTimestamp()) {
+        if (collected == null
+            || isCurrentShutdownSignal(state.metadata().nodeShutdowns(), sourceNodeId, collected.shutdownSignalTimestamp()) == false) {
             return null;
         }
         return collected;
     }
 
     public void completeFetch(ClusterState state, String respondingNodeId, long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {
-        if (state.nodes().nodeExists(respondingNodeId) == false) {
-            return;
-        }
-        var shutdown = state.metadata().nodeShutdowns().get(respondingNodeId);
-        if (shutdown == null || shutdown.getStartedAtMillis() != shutdownSignalTimestamp) {
+        if (state.nodes().nodeExists(respondingNodeId) == false
+            || isCurrentShutdownSignal(state.metadata().nodeShutdowns(), respondingNodeId, shutdownSignalTimestamp) == false) {
             return;
         }
         memo.put(respondingNodeId, new CollectedWarmVolumes(shutdownSignalTimestamp, volumes));
@@ -138,18 +132,16 @@ public class ShardWarmVolumes implements ClusterStateListener {
             if (nodes.nodeExists(e.getKey()) == false) {
                 return true;
             }
-            if (shutdownsChanged == false) {
-                return false;
-            }
-            var shutdown = shutdowns.get(e.getKey());
-            return shutdown == null || shutdown.getStartedAtMillis() != e.getValue();
+            return shutdownsChanged && isCurrentShutdownSignal(shutdowns, e.getKey(), e.getValue()) == false;
         });
         if (shutdownsChanged) {
-            memo.entrySet().removeIf(e -> {
-                var shutdown = shutdowns.get(e.getKey());
-                return shutdown == null || shutdown.getStartedAtMillis() != e.getValue().shutdownSignalTimestamp();
-            });
+            memo.entrySet().removeIf(e -> isCurrentShutdownSignal(shutdowns, e.getKey(), e.getValue().shutdownSignalTimestamp()) == false);
         }
+    }
+
+    private static boolean isCurrentShutdownSignal(NodesShutdownMetadata shutdowns, String nodeId, long shutdownSignalTimestamp) {
+        var shutdown = shutdowns.get(nodeId);
+        return shutdown != null && shutdown.getStartedAtMillis() == shutdownSignalTimestamp;
     }
 
     // visible for testing

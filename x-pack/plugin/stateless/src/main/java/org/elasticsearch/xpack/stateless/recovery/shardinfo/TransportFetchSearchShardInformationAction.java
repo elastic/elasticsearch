@@ -41,6 +41,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.cache.ShardWarmVolumes.CollectedWarmVolumes;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -364,8 +365,6 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             return Optional.of(candidate);
         }
     }
-
-    private record CollectedWarmVolumes(long shutdownSignalTimestamp, Map<ShardId, Long> volumes) {}
 
     public static class Request extends ActionRequest {
 

@@ -49,7 +49,7 @@ public class VectorScorerInt7uOperationBenchmark {
 
     byte[] byteArrayA;
     byte[] byteArrayB;
-    MemorySegment heapSegA, heapSegB;
+    MemorySegment heapSegA;
     MemorySegment nativeSegA, nativeSegB;
 
     Arena arena;
@@ -71,7 +71,6 @@ public class VectorScorerInt7uOperationBenchmark {
             randomInt7BytesBetween(byteArrayB);
         }
         heapSegA = MemorySegment.ofArray(byteArrayA);
-        heapSegB = MemorySegment.ofArray(byteArrayB);
 
         arena = Arena.ofConfined();
         nativeSegA = arena.allocate(byteArrayA.length);
@@ -106,10 +105,10 @@ public class VectorScorerInt7uOperationBenchmark {
     }
 
     @Benchmark
-    public int nativeWithHeapSeg() {
+    public int nativeWithHeapQuery() {
         return switch (function) {
-            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(heapSegA, heapSegB, size);
-            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(heapSegA, heapSegB, size);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(nativeSegB, heapSegA, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(nativeSegB, heapSegA, size);
             default -> throw new IllegalArgumentException(function.toString());
         };
     }

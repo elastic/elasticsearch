@@ -15,6 +15,8 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.foreign.testing.GuardPageAllocator;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -35,7 +37,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
     protected static SimdVecLibrary vectorSimilarityFunctions;
-    protected static Arena arena;
+    protected Arena arena;
 
     protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
@@ -64,18 +66,21 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
             assertNotNull("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions);
         }
         assumeTrue(notSupportedMsg(), simdVecSupported);
+    }
 
-        // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
+    @Before
+    public void createArena() {
+        // Occasionally back the segments of a test with a guard page, so that a native over-read faults
         // instead of silently returning a wrong score.
+        // The arena is per test, not per suite: guard pages keep mappings alive until the arena is closed,
+        // and repeating the tests many times in one suite run would otherwise exhaust the mapping limit.
         var useGuardPageAllocator = randomBoolean();
         arena = GuardPageAllocator.isSupported() && useGuardPageAllocator ? GuardPageAllocator.ofConfined() : Arena.ofConfined();
     }
 
-    public static void cleanup() {
-        if (arena != null) {
-            arena.close();
-            arena = null;
-        }
+    @After
+    public void closeArena() {
+        arena.close();
     }
 
     protected SimdVecLibrary getVectorDistance() {
@@ -134,7 +139,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     /** A native segment of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
-    protected static MemorySegment unselectedScoresSegment(int count) {
+    protected MemorySegment unselectedScoresSegment(int count) {
         MemorySegment scores = arena.allocate((long) count * Float.BYTES);
         MemorySegment.copy(unselectedScores(count), 0, scores, JAVA_FLOAT_UNALIGNED, 0L, count);
         return scores;

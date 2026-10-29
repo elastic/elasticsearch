@@ -163,8 +163,7 @@ public class DiskUsageTests extends ESTestCase {
             shardDataSetSizes,
             routingToPath,
             new HashMap<>(),
-            shardWriteLoadType,
-            true
+            shardWriteLoadType
         );
 
         assertThat(
@@ -215,6 +214,7 @@ public class DiskUsageTests extends ESTestCase {
     private IndexingStats randomIndexingStats() {
         return new IndexingStats(
             new IndexingStats.Stats(
+                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -75,6 +76,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Runtime-only state of the node that runs the query: it is not serialized.
      */
     private transient ResolvedSettings resolvedSettings;
+    /**
+     * The settings each resolved view's definition applies to its own body, by view name, once views are resolved.
+     * Runtime-only state of the node that runs the query: it is not serialized.
+     */
+    private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -198,6 +204,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public boolean async() {
         return async;
+    }
+
+    /**
+     * Whether execution stops once the query is analyzed. Such a request returns the analyzed columns and no rows, and does not
+     * count towards query logs or metrics. Only {@link PreparedEsqlQueryRequest} can request this.
+     */
+    public boolean analyzeOnly() {
+        return false;
     }
 
     public EsqlQueryRequest columnar(boolean columnar) {
@@ -417,6 +431,16 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Nullable
     public ResolvedSettings resolvedSettings() {
         return resolvedSettings;
+    }
+
+    /** Records the settings each resolved view's definition applies to its own body. Not serialized. */
+    public void setViewSettings(Map<String, ViewQuerySettings> viewSettings) {
+        this.viewSettings = Map.copyOf(viewSettings);
+    }
+
+    /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

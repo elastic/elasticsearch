@@ -961,7 +961,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, recentWriteLoad, 0.123)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, recentWriteLoad, 0.123)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }

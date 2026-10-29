@@ -129,7 +129,8 @@ Everything but `.cnm` is read through the mapped input, never materialized.
 
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; tables
 use the `DirectMonotonic` layout, written straight into their file and read from a mapped slice. Only a
-dictionary column stages anything in a temporary file: its ordinals and escapes, for its second pass.
+dictionary column with escapes stages anything in a temporary file: the escapes, whose stream needs their
+count before it starts; its ordinals stream into the data as the values are walked.
 Each segment carries a format version stamp in every file's header. The on-disk component ids
 (field type, block encoding, block-bytes codec, skip-index codec) are frozen once shipped and must
 never be reused or renumbered. A format bump is required for layout changes — new fields in `readFrom`,

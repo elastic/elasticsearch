@@ -11,7 +11,6 @@ package org.elasticsearch.foreign.processor;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 
 /**
  * Behavioral tests for {@link ImplClassWriter}-generated bounds-check code: unlike
@@ -403,18 +402,5 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
             MemorySegment tooSmall = real.reinterpret(n * n - 1);
             lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", large, tooSmall, n);
         }
-    }
-
-    /** Fills the whole segment with ascending byte values and returns it. */
-    private static MemorySegment fill(MemorySegment segment) {
-        return fill(segment, (int) segment.byteSize());
-    }
-
-    /** Fills the first {@code count} bytes of the segment with ascending byte values and returns it. */
-    private static MemorySegment fill(MemorySegment segment, int count) {
-        for (int i = 0; i < count; i++) {
-            segment.set(ValueLayout.JAVA_BYTE, i, (byte) i);
-        }
-        return segment;
     }
 }

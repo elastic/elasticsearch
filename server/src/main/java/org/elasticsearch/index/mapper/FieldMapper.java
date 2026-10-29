@@ -1736,15 +1736,11 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            // norms can be updated from 'true' to 'false' but not vice-versa
-            return Parameter.boolParam("norms", true, initializer, defaultValue)
-                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+            return Parameter.boolParam("norms", false, initializer, defaultValue);
         }
 
         public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
-            // norms can be updated from 'true' to 'false' but not vice-versa
-            return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
-                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+            return Parameter.boolParam("norms", false, initializer, defaultValueSupplier);
         }
 
         public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
@@ -2078,7 +2074,10 @@ public abstract class FieldMapper extends Mapper {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     super.setValue(backingValue(true, getDefaultValue().cardinality));
                 } else {
-                    super.setValue(Values.DISABLED_LOW_CARDINALITY);
+                    // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit
+                    // false must equal it so that it merges with an omitted doc_values and is not serialized.
+                    Values defaultValue = getDefaultValue();
+                    super.setValue(defaultValue.enabled ? Values.DISABLED_LOW_CARDINALITY : defaultValue);
                 }
             }
         }

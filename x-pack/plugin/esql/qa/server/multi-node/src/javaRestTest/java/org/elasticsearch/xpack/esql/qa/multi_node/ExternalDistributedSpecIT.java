@@ -93,6 +93,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> backendTests = readExternalSpecTests(
             "/datasources/external-basic.csv-spec",
+            "/datasources/external-highlight.csv-spec",
             "/datasources/external-multivalue.csv-spec",
             "/datasources/external-subquery-join.csv-spec"
         );

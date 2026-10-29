@@ -279,6 +279,7 @@ final class SnapshotExternalChangesBatcher {
                                 .processWaitingShardsAndRemovedNodes(
                                     snapshotEntry,
                                     currentState.routingTable(projectId),
+                                    currentState.metadata().getProject(projectId),
                                     nodes,
                                     snapshotsInProgress::isNodeIdForRemoval,
                                     knownFailures

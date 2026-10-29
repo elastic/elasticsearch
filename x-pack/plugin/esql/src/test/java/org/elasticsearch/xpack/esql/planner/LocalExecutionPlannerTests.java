@@ -931,7 +931,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
             PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold()
+            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold(),
+            PlannerSettings.DEFAULTS.tsInfoSampleMinRows(),
+            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

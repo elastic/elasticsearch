@@ -68,7 +68,7 @@ public class EncodedTDigestTests extends ESTestCase {
             while (iterator.next()) {
                 asIterator.add(new Centroid(iterator.currentMean(), iterator.currentCount()));
             }
-            assertThat(iterator.hasNext(), is(false));
+            assertThat(iterator.next(), is(false));
             assertCentroidsEqual(asCollection, asIterator);
         }
     }
@@ -84,9 +84,7 @@ public class EncodedTDigestTests extends ESTestCase {
         assertThat(cdf(encoded, 0.0), is(notANumber()));
         assertThat(quantile(encoded, 0.0), is(notANumber()));
         assertThat(quantile(encoded, 1.0), is(notANumber()));
-        EncodedTDigest.CentroidIterator iterator = encoded.centroidIterator();
-        assertThat(iterator.hasNext(), is(false));
-        assertThat(iterator.next(), is(false));
+        assertThat(encoded.centroidIterator().next(), is(false));
     }
 
     public void testEncodeUsingSeparateArrays() {

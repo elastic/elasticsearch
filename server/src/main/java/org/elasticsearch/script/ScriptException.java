@@ -10,7 +10,9 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
@@ -157,6 +159,12 @@ public class ScriptException extends ElasticsearchException {
 
     @Override
     public RestStatus status() {
+        // A script that trips a circuit breaker (for example when loading doc values accounts memory on the request breaker)
+        // fails because the node is out of resources, not because the script or the request is malformed. Surface
+        // the breaker's 429 so clients and retry policies treat the failure as retryable rather than permanent.
+        if (ExceptionsHelper.unwrap(this, CircuitBreakingException.class) != null) {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
         return RestStatus.BAD_REQUEST;
     }
 

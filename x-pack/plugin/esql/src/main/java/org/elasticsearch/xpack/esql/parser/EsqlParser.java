@@ -175,9 +175,8 @@ public class EsqlParser {
      * A view definition may {@code SET} only the settings that are scoped at view boundaries for callers
      * ({@code unmapped_fields}, {@code wildcards_match_views}, {@code wildcards_match_datasets}); any other
      * setting is rejected with a {@link ParsingException} — see {@link ViewQuerySettings#validate}. A setting the
-     * definition does not {@code SET} stays at its registry default. A cluster default, such as
-     * {@code esql.query.settings.unmapped_fields}, applies to a query run on its own and does not apply once that
-     * query is stored as a view: the definition stays self-contained if the cluster default later changes.
+     * definition does not {@code SET} takes its cluster default, such as {@code esql.query.settings.unmapped_fields}, as it
+     * would in a query run on its own; see {@link ViewQuerySettings}.
      */
     public EsqlStatement parseView(
         String query,

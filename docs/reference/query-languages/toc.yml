@@ -176,6 +176,7 @@ toc:
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/avg_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/changes.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/count_distinct_over_time.md
                   - file: esql/functions-operators/time-series-aggregation-functions/delta.md
@@ -440,6 +441,9 @@ toc:
           - file: esql/esql-data-federation-datasets.md
             children:
               - file: esql/esql-data-federation-manage-datasets.md
+                children:
+                  - file: esql/esql-data-federation-manage-datasets-ui.md
+                  - file: esql/esql-data-federation-manage-datasets-api.md
               - file: esql/esql-data-federation-file-formats.md
               - file: esql/esql-data-federation-patterns.md
               - file: esql/esql-data-federation-partition-spec.md
@@ -475,6 +479,7 @@ toc:
       - file: esql/limitations.md
   - file: promql.md
     children:
+      - file: promql/promql-tutorial.md
       - file: promql/promql-http-api.md
       - file: promql/functions.md
         children:

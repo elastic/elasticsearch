@@ -16,6 +16,7 @@ import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.MatrixSegment;
 import org.elasticsearch.foreign.Platform;
+import org.elasticsearch.foreign.RawAddress;
 import org.elasticsearch.foreign.VectorSegment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -181,15 +182,15 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti7u")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int dotProductI7u(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @RawAddress @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
     @Function("vec_doti7u_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI7uBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int count,
@@ -199,7 +200,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti7u_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI7uBulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length,
         int pitch,
@@ -242,8 +243,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri7u")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int squareDistanceI7u(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -276,21 +277,20 @@ public abstract class SimdVecLibrary {
     //
     // Int4 is asymmetric: the query holds one value per byte (`2 * documentBytes`) while the document
     // packs two nibbles per byte (`documentBytes`). `documentBytes` is the *packed* byte count, not the
-    // logical dimension count. Note the single-vector form takes the query first and the packed document
-    // second.
+    // logical dimension count.
 
     @Function("vec_doti4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract int dotProductI4(
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         int documentBytes
     );
 
     @Function("vec_doti4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductI4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -300,7 +300,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductI4BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -347,8 +347,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_cosi8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float cosineI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -380,8 +380,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_doti8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -393,6 +393,37 @@ public abstract class SimdVecLibrary {
         int length,
         int count,
         @VectorSegment(countParam = "count", elementBits = Float.SIZE) MemorySegment scores
+    );
+
+    /**
+     * Adds {@code a @ b} to columns {@code [colStart, colEnd)} of {@code c}, where {@code a} is {@code m x k},
+     * {@code b} is {@code k x n} and {@code c} is {@code m x n}, all row-major.
+     * {@code c} must be zeroed first to get the plain product. Disjoint column ranges can be computed in parallel.
+     */
+    @Function("vec_sgemm_i8")
+    public abstract void sgemmI8(
+        @RawAddress @MatrixSegment(rowsParam = "m", colsParam = "k", elementBits = Byte.SIZE) MemorySegment a,
+        @RawAddress @MatrixSegment(rowsParam = "k", colsParam = "n", elementBits = Byte.SIZE) MemorySegment b,
+        int m,
+        int k,
+        int n,
+        @RawAddress @MatrixSegment(rowsParam = "m", colsParam = "n", elementBits = Integer.SIZE) MemorySegment c,
+        int colStart,
+        int colEnd
+    );
+
+    /**
+     * Computes {@code result = a @ v} in exact int32 arithmetic, where {@code a} is a row-major
+     * {@code rows x cols} matrix and {@code v} has {@code cols} values.
+     */
+    @Function("vec_sgemv_i8")
+    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    public abstract void sgemvI8(
+        @MatrixSegment(rowsParam = "rows", colsParam = "cols", elementBits = Byte.SIZE) MemorySegment a,
+        @VectorSegment(countParam = "cols", elementBits = Byte.SIZE) MemorySegment v,
+        int rows,
+        int cols,
+        @VectorSegment(countParam = "rows", elementBits = Integer.SIZE) MemorySegment result
     );
 
     @Function("vec_doti8_bulk_sparse")
@@ -413,8 +444,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqri8")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceI8(
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
         int length
     );
 
@@ -450,8 +481,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float dotProductF32(
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 
@@ -507,8 +538,8 @@ public abstract class SimdVecLibrary {
     @Function("vec_sqrf32")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float squareDistanceF32(
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment a,
-        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment b,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment document,
+        @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
         int length
     );
 
@@ -722,7 +753,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q1")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD1Q1(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -730,7 +761,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q1_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD1Q1Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -740,7 +771,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q1_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD1Q1BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -768,7 +799,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD1Q4(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -776,7 +807,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD1Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -786,7 +817,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd1q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD1Q4BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -829,7 +860,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q2")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q2(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -837,7 +868,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q2_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q2Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -847,7 +878,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q2_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q2BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -875,7 +906,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q4(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -883,7 +914,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -893,7 +924,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q4BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -921,7 +952,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4_packed")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD2Q4Packed(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -929,7 +960,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4_packed_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD2Q4PackedBulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -939,7 +970,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd2q4_packed_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD2Q4PackedBulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -967,7 +998,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd4q4")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract long dotProductD4Q4(
-        @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
+        @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes
     );
@@ -975,7 +1006,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd4q4_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract void dotProductD4Q4Bulk(
-        @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int count,
@@ -985,7 +1016,7 @@ public abstract class SimdVecLibrary {
     @Function("vec_dotd4q4_bulk_masked")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     protected abstract void dotProductD4Q4BulkMasked_raw(
-        @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
+        @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
         int documentBytes,
         int pitch,
@@ -1026,7 +1057,7 @@ public abstract class SimdVecLibrary {
     @Function("diskbbq_apply_corrections_euclidean_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float applyCorrectionsEuclideanBulk(
-        MemorySegment corrections,
+        @RawAddress MemorySegment corrections,
         int bulkSize,
         int dimensions,
         float queryLowerInterval,
@@ -1043,7 +1074,7 @@ public abstract class SimdVecLibrary {
     @Function("diskbbq_apply_corrections_maximum_inner_product_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float applyCorrectionsMaxInnerProductBulk(
-        MemorySegment corrections,
+        @RawAddress MemorySegment corrections,
         int bulkSize,
         int dimensions,
         float queryLowerInterval,
@@ -1060,7 +1091,7 @@ public abstract class SimdVecLibrary {
     @Function("diskbbq_apply_corrections_dot_product_bulk")
     @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
     public abstract float applyCorrectionsDotProductBulk(
-        MemorySegment corrections,
+        @RawAddress MemorySegment corrections,
         int bulkSize,
         int dimensions,
         float queryLowerInterval,

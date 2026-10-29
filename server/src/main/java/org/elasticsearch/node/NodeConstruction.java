@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
+import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
@@ -71,6 +72,7 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthTracker;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -500,6 +502,16 @@ class NodeConstruction {
                 DeprecationCategory.SETTINGS,
                 "multiple-data-paths-list",
                 "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
+            );
+        }
+        if (Runtime.version().feature() < 25) {
+            deprecationLogger.critical(
+                DeprecationCategory.OTHER,
+                "java-version-below-25",
+                "Running Elasticsearch with Java 21-24 is deprecated. This node is running Java [{}] "
+                    + "from [{}]. A future Elasticsearch 9.x release will require Java 25 or later.",
+                Runtime.version(),
+                System.getProperty("java.home")
             );
         }
 
@@ -1366,7 +1378,8 @@ class NodeConstruction {
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
             telemetryProvider.getTracer(),
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            transportService.getTaskManager()
         );
         searchTransportService.setSearchService(searchService);
 
@@ -1407,7 +1420,8 @@ class NodeConstruction {
                 telemetryProvider,
                 repositoriesService,
                 fileSettingsHealthTracker,
-                projectResolver
+                projectResolver,
+                indicesService
             )
         );
 
@@ -1590,7 +1604,11 @@ class NodeConstruction {
 
     private UsageService createUsageService() {
         ClusterStatsTagsProvider tagsProvider = pluginsService.loadSingletonServiceProvider(ClusterStatsTagsProvider.class, () -> null);
-        UsageService usageService = new UsageService(tagsProvider);
+        SearchTierStatsProvider searchTierStatsProvider = pluginsService.loadSingletonServiceProvider(
+            SearchTierStatsProvider.class,
+            () -> null
+        );
+        UsageService usageService = new UsageService(tagsProvider, searchTierStatsProvider);
         modules.bindToInstance(UsageService.class, usageService);
         return usageService;
     }
@@ -1634,7 +1652,8 @@ class NodeConstruction {
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        IndicesService indicesService
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1671,7 +1690,8 @@ class NodeConstruction {
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
-            fileSettingsHealthTracker
+            fileSettingsHealthTracker,
+            new LocalRecoveryRetriesHealthTracker(indicesService)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

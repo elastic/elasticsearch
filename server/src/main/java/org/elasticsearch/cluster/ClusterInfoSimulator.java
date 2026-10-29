@@ -166,7 +166,21 @@ public class ClusterInfoSimulator {
      */
     private long nonShardHeapUsage() {
         long nonShardHeapUsage = 0L;
-        boolean foundIndexingNode = false;
+        for (NodeHeapMetrics metrics : initialNodeHeapMetrics.values()) {
+            final var routingNode = allocation.routingNodes().node(metrics.nodeId());
+            if (routingNode == null || routingNode.node() == null) {
+                continue;
+            }
+            if (routingNode.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE)) {
+                nonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
+                break;
+            }
+        }
+        assert assertNodeNonShardHeapUsageIsCorrect(nonShardHeapUsage);
+        return nonShardHeapUsage;
+    }
+
+    private boolean assertNodeNonShardHeapUsageIsCorrect(long nonShardHeapUsage) {
         for (NodeHeapMetrics metrics : initialNodeHeapMetrics.values()) {
             final var routingNode = allocation.routingNodes().node(metrics.nodeId());
             if (routingNode == null || routingNode.node() == null) {
@@ -175,25 +189,18 @@ public class ClusterInfoSimulator {
             final var roles = routingNode.node().getRoles();
             final long nodeNonShardHeapUsage = metrics.nodeHeapEstimates().nonShardHeapUsage();
             if (roles.contains(DiscoveryNodeRole.INDEX_ROLE)) {
-                if (foundIndexingNode == false) {
-                    nonShardHeapUsage = nodeNonShardHeapUsage;
-                    foundIndexingNode = true;
-                } else {
-                    assert nodeNonShardHeapUsage == nonShardHeapUsage
-                        : "indexing node ["
-                            + metrics.nodeId()
-                            + "] has nonShardHeapUsage ["
-                            + nodeNonShardHeapUsage
-                            + "] but another indexing node has ["
-                            + nonShardHeapUsage
-                            + "]";
-                }
-            } else if (roles.contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                assert nodeNonShardHeapUsage == 0L
-                    : "search node [" + metrics.nodeId() + "] has nonShardHeapUsage [" + nodeNonShardHeapUsage + "]";
-            }
+                assert nodeNonShardHeapUsage == nonShardHeapUsage
+                    : "indexing node ["
+                        + metrics.nodeId()
+                        + "] has nonShardHeapUsage ["
+                        + nodeNonShardHeapUsage
+                        + "] but another indexing node has ["
+                        + nonShardHeapUsage
+                        + "]";
+            } else assert !roles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeNonShardHeapUsage == 0L
+                : "search node [" + metrics.nodeId() + "] has nonShardHeapUsage [" + nodeNonShardHeapUsage + "]";
         }
-        return nonShardHeapUsage;
+        return true;
     }
 
     /**

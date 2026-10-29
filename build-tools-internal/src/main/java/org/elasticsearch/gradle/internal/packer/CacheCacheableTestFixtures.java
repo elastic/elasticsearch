@@ -75,7 +75,13 @@ public abstract class CacheCacheableTestFixtures extends DefaultTask {
                     new ConfigurationBuilder().setUrls(packageUrls).setScanners(new SubTypesScanner())
                 );
 
-                Class<?> ifClass = Class.forName("org.elasticsearch.test.fixtures.CacheableTestFixture");
+                Class<?> ifClass;
+                try {
+                    ifClass = Class.forName("org.elasticsearch.test.fixtures.CacheableTestFixture");
+                } catch (ClassNotFoundException e) {
+                    System.out.println("No cacheable test fixtures on classpath, skipping");
+                    return;
+                }
                 Set<Class<?>> classes = (Set<Class<?>>) reflections.getSubTypesOf(ifClass);
 
                 System.out.println("Fixtures found: " + classes.size());

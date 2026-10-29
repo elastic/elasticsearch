@@ -162,6 +162,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
                 throw new GradleException("Native-image classpath is empty");
             }
 
+            DockerImagePullSupport.ensureImageAvailable(execOperations, params.getDockerExecutable().get(), imageTag, platform);
+
             // Build classpath string for inside the container: /cp/0:/cp/1:...
             List<String> cpPaths = new ArrayList<>();
             for (int i = 0; i < classpathFiles.size(); i++) {
@@ -173,6 +175,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             List<String> args = new ArrayList<>();
             args.add("run");
             args.add("--rm");
+            // The image has been made available locally above, don't let `docker run` hit the registry again
+            args.add("--pull=never");
             for (int i = 0; i < classpathFiles.size(); i++) {
                 File f = classpathFiles.get(i);
                 String path = f.getAbsolutePath();

@@ -130,8 +130,8 @@ public final class DataNodeRecoveryThrottlingSettings {
     );
 
     /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for non-critical recoveries,
-    /// i.e. relocations and recoveries of unassigned shards which are only needed for performance. The remaining slots are kept
-    /// free for critical recoveries, so that the node can always immediately start work on at least one new critical recovery.
+    /// i.e. relocations, restores and recoveries of unassigned shards which are only needed for performance. The remaining slots
+    /// are kept free for critical recoveries, so that the node can always immediately start work on at least one of them.
     /// The max allowed concurrent recovery count is derived from [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING]
     /// and [#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING], when applicable.
     /// See [ThrottlingRecoveryService].

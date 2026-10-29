@@ -61,9 +61,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
         /// A shard which is unassigned because it is being restored from a snapshot.
         ///
-        /// This is lower priority than [#RELOCATION_CAN_REMAIN_NO] because the restored index is not available yet,
-        /// so delaying the restore does not reduce availability, whereas delaying a relocation away from a node which
-        /// must be vacated (e.g. because it is shutting down) may do so.
+        /// This is lower priority than [#RELOCATION_CAN_REMAIN_NO]. Restores are expected to be a lengthy operation and
+        /// the index being restored is not expected to be available until the restore completes, so delaying the restore
+        /// does not make anything less available than it already is. Delaying a relocation away from a node which must be
+        /// vacated (e.g. because it is shutting down) may cause a shard which is currently available to become unavailable.
         UNASSIGNED_RESTORING(false, true),
 
         /// A shard which is unassigned because it adds capacity to an index which is already fully available without it, e.g.:
@@ -74,8 +75,10 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         ///   once the target primary has taken over its share of the writes, and the split only waits a bounded time for them
         ///   before routing searches to the target.
         ///
-        /// This is lower priority than [#UNASSIGNED_RESTORING] and [#RELOCATION_CAN_REMAIN_NO] because we don't expect
-        /// unavailability while recovering this shard.
+        /// This is lower priority than [#RELOCATION_CAN_REMAIN_NO] for the same reason as [#UNASSIGNED_RESTORING]: delaying it
+        /// does not make anything less available than it already is. It is also lower priority than [#UNASSIGNED_RESTORING]
+        /// because the index is already fully available without this shard, whereas a restored index only becomes available
+        /// once its shards have recovered.
         UNASSIGNED_PERFORMANCE_SCALING(false, true),
 
         /// A shard which is assigned, and is being relocated because

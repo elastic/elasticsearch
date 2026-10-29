@@ -3502,6 +3502,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * The lowest persisted local checkpoint among this shard's tracked replicas, excluding this primary, or {@link Long#MAX_VALUE} when
+     * this primary is the only tracked copy. Unlike {@link #getMinInSyncReplicaLocalCheckpoint()} this also covers still-recovering copies.
+     * Operations at or below it have been persisted on every copy that could receive a replicated delta. Only meaningful on a primary.
+     */
+    public long getMinTrackedReplicaLocalCheckpoint() {
+        return replicationTracker.getMinTrackedReplicaLocalCheckpoint();
+    }
+
+    /**
      * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
      */
     public long getLastSyncedGlobalCheckpoint() {

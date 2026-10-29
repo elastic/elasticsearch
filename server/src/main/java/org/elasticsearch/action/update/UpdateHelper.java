@@ -68,9 +68,15 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
+    private final DocValuesUpdateMetrics docValuesUpdateMetrics;
 
     public UpdateHelper(ScriptService scriptService) {
+        this(scriptService, DocValuesUpdateMetrics.NOOP);
+    }
+
+    public UpdateHelper(ScriptService scriptService, DocValuesUpdateMetrics docValuesUpdateMetrics) {
         this.scriptService = scriptService;
+        this.docValuesUpdateMetrics = docValuesUpdateMetrics;
     }
 
     /**
@@ -114,9 +120,11 @@ public class UpdateHelper {
                         splitShardCountSummary
                     );
                 // Only take the fast path when the delta is safe to replicate (see inPlaceUpdateSafeToReplicate); otherwise fall through
-                // to the read-modify-reindex path, which replicates a self-sufficient document that reconciles correctly in any order.
+                // to the read-modify-reindex path, which replicates a self-sufficient document that reconciles correctly in any order. The
+                // fall-through re-decides and records the metric in tryBuildDocValuesUpdate, so only the in-place outcome is counted here.
                 if (getResult.isExists() && inPlaceUpdateSafeToReplicate(indexShard, getResult)) {
                     String routing = calculateRouting(getResult, request.doc(), request.routing());
+                    docValuesUpdateMetrics.onInPlace();
                     return new Result(
                         buildDocValuesUpdateRequest(request, getResult, routing, routingFromSlice(indexShard, request), updates),
                         DocWriteResponse.Result.UPDATED,
@@ -492,7 +500,7 @@ public class UpdateHelper {
      * anything makes the fast path inapplicable (feature flag off, no updatable fields, a non-updatable or non-scalar field, a null
      * value that would remove a value, etc.).
      */
-    private static DocValuesUpdateRequest tryBuildDocValuesUpdate(
+    private DocValuesUpdateRequest tryBuildDocValuesUpdate(
         IndexShard indexShard,
         UpdateRequest request,
         GetResult getResult,
@@ -506,25 +514,28 @@ public class UpdateHelper {
             inPlaceDocValuesUpdatesSupported
         );
         if (updates == null) {
+            // Not an in-place candidate (no updatable scalar fields), so this is not a fallback - leave both counters untouched.
             return null;
         }
         if (inPlaceUpdateSafeToReplicate(indexShard, getResult) == false) {
+            docValuesUpdateMetrics.onReindexFallback();
             return null;
         }
+        docValuesUpdateMetrics.onInPlace();
         return buildDocValuesUpdateRequest(request, getResult, routing, routingFromSlice, updates);
     }
 
     /**
-     * Whether an in-place delta update is safe to replicate. The base document (at {@code getResult}'s sequence number) was read on this
-     * primary, so it is present here; the delta only has to be present on every in-sync replica, each of which applies it against the base
-     * and cannot patch a base it has not received. That holds once the base is at or below every in-sync replica's persisted local
-     * checkpoint. A still-recovering copy is not in-sync and resolves the delta per operation on the copy itself (see
-     * InternalEngine#planDocValuesUpdateAsNonPrimary); otherwise the update falls back to a self-sufficient reindex.
+     * Whether an in-place delta update is safe to replicate. A copy cannot patch a base it has not received, so the delta is safe only once
+     * the base is at or below every tracked copy's persisted local checkpoint - including still-recovering copies, which already receive
+     * live deltas, not just the in-sync ones. Otherwise the update falls back to a self-sufficient reindex. The gate is read off the
+     * operation permit, so a copy that starts recovering just after it is read is caught per operation on the copy itself (see
+     * InternalEngine#planDocValuesUpdateAsNonPrimary).
      */
     private static boolean inPlaceUpdateSafeToReplicate(IndexShard indexShard, GetResult getResult) {
         // The global checkpoint also folds in this primary's own checkpoint, which trivially holds the base and lags a just-applied
-        // operation, so gate on the in-sync replicas' checkpoints directly to avoid a spurious reindex fallback right after an index.
-        return getResult.getSeqNo() <= indexShard.getMinInSyncReplicaLocalCheckpoint();
+        // operation, so gate on the replica checkpoints directly to avoid a spurious reindex fallback right after an index.
+        return getResult.getSeqNo() <= indexShard.getMinTrackedReplicaLocalCheckpoint();
     }
 
     /**

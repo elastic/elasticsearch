@@ -155,8 +155,9 @@ public class ParsedDocument {
     /**
      * Create the born-soft-deleted history document for an in-place doc-values update (see {@code doc_values.updatable}). The document
      * itself carries none of the updated values — those are applied to the live document via {@code IndexWriter#updateDocValues}. It
-     * exists only so the operation is visible when history is reconstructed from Lucene: it holds {@code _id}, {@code _seq_no},
-     * {@code _primary_term}, {@code _version}, and the serialized field updates in {@link #DOC_VALUES_UPDATE_FIELD}.
+     * exists only so the operation is visible when history is reconstructed from Lucene: it holds {@code _seq_no}, {@code _primary_term},
+     * {@code _version}, and the serialized field updates in {@link #DOC_VALUES_UPDATE_FIELD}. It deliberately carries no {@code _id} field
+     * (the uid rides in the payload instead); it is found by sequence number and identified by {@link #DOC_VALUES_UPDATE_FIELD}.
      */
     public static ParsedDocument docValuesUpdateHistory(
         SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions,

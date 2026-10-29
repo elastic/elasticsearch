@@ -2600,8 +2600,8 @@ public class InternalEngine extends Engine {
         }
         if (localCheckpointTracker.hasProcessed(baseSeqNo) == false) {
             // The base has not been applied on this copy yet (peer recovery and CCR deliver operations concurrently, so a delta can race
-            // ahead of its base): fail the operation so it is retried once the base arrives in order. A started replica never reaches
-            // here, since the primary ships a delta only once the base is at or below the global checkpoint (see UpdateHelper).
+            // ahead of its base): fail the operation so it is retried once the base arrives in order. The primary gates a delta on the base
+            // being at or below every tracked copy's checkpoint (see UpdateHelper), so this is only the residual off-permit race.
             throw new DocValuesUpdateBaseNotPresentException(shardId, op.id(), op.seqNo(), baseSeqNo);
         }
         versionMap.enforceSafeAccess();
@@ -4614,14 +4614,20 @@ public class InternalEngine extends Engine {
                         uid = compoundIdStr != null ? Uid.encodeId(compoundIdStr) : null;
                     }
                     if (uid == null) {
-                        assert isTombstone;
+                        // A doc-values update history document carries no _id (its uid rides in the payload) and is not a tombstone. It
+                        // holds no live-document identity to restore, so skip it; its sequence number was already marked above.
+                        assert isTombstone || dv.isDocValuesUpdate(docId)
+                            : "document [" + docId + "] has no _id but is neither a tombstone nor a doc-values update history document";
                         continue;
                     }
                     id = SliceIdFieldMapper.decodeCompoundId(uid);
                 } else {
                     id = leafIdLoader.getId(docId);
                     if (id == null) {
-                        assert isTombstone;
+                        // A doc-values update history document carries no _id (its uid rides in the payload) and is not a tombstone. It
+                        // holds no live-document identity to restore, so skip it; its sequence number was already marked above.
+                        assert isTombstone || dv.isDocValuesUpdate(docId)
+                            : "document [" + docId + "] has no _id but is neither a tombstone nor a doc-values update history document";
                         continue;
                     }
                     uid = Uid.encodeId(id);

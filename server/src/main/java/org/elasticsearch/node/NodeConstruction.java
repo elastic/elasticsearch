@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.update.DocValuesUpdateMetrics;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -355,7 +356,7 @@ class NodeConstruction {
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider, projectResolver);
 
-            constructor.createUpdateHelper(scriptService);
+            constructor.createUpdateHelper(scriptService, telemetryProvider.getMeterRegistry());
 
             constructor.construct(
                 threadPool,
@@ -713,8 +714,8 @@ class NodeConstruction {
         return dataStreamLifecycleSettings;
     }
 
-    private UpdateHelper createUpdateHelper(ScriptService scriptService) {
-        UpdateHelper updateHelper = new UpdateHelper(scriptService);
+    private UpdateHelper createUpdateHelper(ScriptService scriptService, MeterRegistry meterRegistry) {
+        UpdateHelper updateHelper = new UpdateHelper(scriptService, new DocValuesUpdateMetrics(meterRegistry));
 
         modules.add(b -> b.bind(UpdateHelper.class).toInstance(updateHelper));
         return updateHelper;

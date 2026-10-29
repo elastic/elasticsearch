@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
@@ -299,6 +300,7 @@ public class DataNodeComputeHandlerExternalDispatchTests extends ESTestCase {
         // No plan: the readiness predicate reads nothing but the version, as DataNodeRequestTests does for the indices.
         return new DataNodeRequest(
             "session",
+            TaskId.EMPTY_TASK_ID,
             randomConfiguration("from test", randomTables()),
             "",
             List.of(),

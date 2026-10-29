@@ -36,7 +36,7 @@ final class DriverScheduler {
         }
     }
 
-    void scheduleOrRunTask(ComputeExecutor executor, AbstractRunnable task, boolean resumed) {
+    void scheduleOrRunTask(DriverExecutor executor, AbstractRunnable task, boolean resumed) {
         final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
         final AbstractRunnable scheduled = new AbstractRunnable() {

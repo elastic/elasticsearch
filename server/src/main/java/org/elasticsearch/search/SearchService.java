@@ -135,6 +135,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -146,6 +147,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
@@ -426,11 +428,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /** How often the waiting of queued queries is charged to their shards, so it shows at most this late. */
+    static final TimeValue SEARCH_WAITING_CHARGE_INTERVAL = TimeValue.timeValueSeconds(1);
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
 
     private final ThreadPool threadPool;
+    private final QueryScheduler queryScheduler = new QueryScheduler(System::nanoTime);
 
     private final ClusterService clusterService;
 
@@ -475,6 +481,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile long memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
+
+    /** Charges the waiting of queued queries, so it shows in the shard stats before their tasks start. */
+    private final Cancellable searchWaitingCharger;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -529,6 +538,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, threadPool.executor(Names.SEARCH));
+        // not on the search pools, whose queues it measures
+        this.searchWaitingCharger = threadPool.scheduleWithFixedDelay(
+            queryScheduler::chargeWaiting,
+            SEARCH_WAITING_CHARGE_INTERVAL,
+            threadPool.generic()
+        );
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -771,6 +786,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     protected void doClose() {
         doStop();
         keepAliveReaper.cancel();
+        searchWaitingCharger.cancel();
     }
 
     /**
@@ -863,7 +879,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, task, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            ensureAfterSeqNoRefreshed(shard, request, () -> executeDfsPhase(request, task), l);
+            ensureAfterSeqNoRefreshed(shard, request, task, () -> executeDfsPhase(request, task), l);
         }));
     }
 
@@ -968,7 +984,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // failure before the supplier runs is still forwarded. Once the supplier sets it to the wrapped version,
         // the ActionListener.wrap callbacks will invoke the one that handles readerContext cleanup on failure.
         final var completionListenerRef = new AtomicReference<>(listener);
-        ensureAfterSeqNoRefreshed(shard, request, () -> {
+        ensureAfterSeqNoRefreshed(shard, request, task, () -> {
             final ReaderContext readerContext = createOrGetReaderContext(request, task);
             final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(request));
             completionListenerRef.set(wrapFailureListener(listener, readerContext, markAsUsed));
@@ -979,6 +995,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private <T extends RefCounted> void ensureAfterSeqNoRefreshed(
         IndexShard shard,
         ShardSearchRequest request,
+        Task task,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
@@ -987,7 +1004,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final AtomicBoolean isDone = new AtomicBoolean(false);
         try {
             if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
-                runAsync(executor, executable, listener);
+                runAsync(shard, task, executable, listener);
                 // we successfully submitted the async task to the search pool so let's prewarm the shard
                 if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                     onlinePrewarmingService.prewarm(shard);
@@ -1059,7 +1076,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 private void searchReady() {
                     if (isDone.compareAndSet(false, true)) {
                         cancelTimeout();
-                        runAsync(executor, executable, listener);
+                        runAsync(shard, task, executable, listener);
                         // we successfully submitted the async task to the search pool so let's prewarm the shard
                         if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
                             onlinePrewarmingService.prewarm(shard);
@@ -1132,12 +1149,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private static <T extends RefCounted> void runAsync(
-        Executor executor,
+    private <T extends RefCounted> void runAsync(
+        IndexShard shard,
+        Task task,
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
+        executeOnShard(shard, task, ActionRunnable.supplyAndDecRef(listener, executable));
+    }
+
+    /**
+     * Runs a phase of {@code task} on the pool of {@code shard}, through the {@link QueryScheduler}.
+     */
+    private void executeOnShard(IndexShard shard, Task task, Runnable runnable) {
+        try (var executor = queryScheduler.executor(queryId(task), getExecutor(shard), shard)) {
+            executor.execute(runnable);
+        }
+    }
+
+    /**
+     * The query of a shard task: its parent, the coordinator's task, or the task itself if it has no parent.
+     */
+    private TaskId queryId(Task task) {
+        TaskId parent = task.getParentTaskId();
+        return parent != null && parent.isSet() ? parent : new TaskId(clusterService.localNode().getId(), task.getId());
     }
 
     /**
@@ -1241,7 +1276,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             lifecycle
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
                 int[] docIds = request.getDocIds();
@@ -1348,7 +1383,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<FetchSearchResult> listener
     ) {
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
-        searchExecutor.execute(new AbstractRunnable() {
+        executeOnShard(readerContext.indexShard(), task, new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
@@ -1461,8 +1496,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id(), "scroll query phase keep-alive markAsUsed failed: " + e.getClass().getSimpleName());
             throw e;
         }
-        Executor executor = getExecutor(readerContext.indexShard());
-        runAsync(executor, () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
@@ -1492,7 +1526,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }, wrapFailureListener(listener, markAsUsed, e -> processScrollContinuationFailure(readerContext, e)));
         // we successfully submitted the async task to the search pool so let's prewarm the shard
-        if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+        if (isExecutorQueuedBeyondPrewarmingFactor(getExecutor(readerContext.indexShard()), prewarmingMaxPoolFactorThreshold) == false) {
             onlinePrewarmingService.prewarm(readerContext.indexShard());
         }
     }
@@ -1527,8 +1561,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, task, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            Executor executor = getExecutor(readerContext.indexShard());
-            runAsync(executor, () -> {
+            runAsync(readerContext.indexShard(), task, () -> {
                 final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
@@ -1569,7 +1602,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }, wrapFailureListener(l, readerContext, markAsUsed));
             // we successfully submitted the async task to the search pool so let's prewarm the shard
-            if (isExecutorQueuedBeyondPrewarmingFactor(executor, prewarmingMaxPoolFactorThreshold) == false) {
+            if (isExecutorQueuedBeyondPrewarmingFactor(
+                getExecutor(readerContext.indexShard()),
+                prewarmingMaxPoolFactorThreshold
+            ) == false) {
                 onlinePrewarmingService.prewarm(readerContext.indexShard());
             }
         }));
@@ -1601,7 +1637,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             throw e;
         }
 
-        runAsync(getExecutor(readerContext.indexShard()), () -> {
+        runAsync(readerContext.indexShard(), task, () -> {
             final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
@@ -3114,4 +3150,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
+    /**
+     * The {@link QueryScheduler} of this node.
+     */
+    public QueryScheduler queryScheduler() {
+        return queryScheduler;
+    }
 }

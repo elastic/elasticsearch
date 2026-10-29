@@ -109,6 +109,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -124,6 +126,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
@@ -149,6 +152,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * Whether a slice of this shard is not read yet. The supplier does not keep this context reachable.
+         */
+        public BooleanSupplier hasUnfinishedSlices() {
+            AtomicInteger unfinished = unfinishedSlices;
+            return () -> unfinished.get() > 0;
         }
 
         /**

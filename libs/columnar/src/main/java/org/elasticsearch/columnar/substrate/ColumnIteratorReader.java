@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.lucene.store.DocRanks;
 
 import java.io.IOException;
 
@@ -32,6 +33,21 @@ public final class ColumnIteratorReader {
     public ColumnIteratorReader(ColumnIteratorMetadata meta, IndexInput data) {
         this.meta = meta;
         this.data = data;
+    }
+
+    /** The ranks of a batch of documents in this column. */
+    public DocRanks ranks() {
+        if (meta.isSparse() == false) {
+            return DocRanks.dense();
+        }
+        return DocRanks.sparse(
+            data,
+            meta.offset(),
+            meta.length(),
+            meta.jumpTableEntryCount(),
+            meta.denseRankPower(),
+            meta.numDocsWithField()
+        );
     }
 
     public ColumnIterator iterator() throws IOException {

@@ -22,6 +22,8 @@ import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.ColumnPrefetcher;
+import org.elasticsearch.lucene.store.DocRanks;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -52,7 +54,8 @@ import java.util.function.Predicate;
  * does depend on it is {@link PlainStringColumnReader} and {@link DictionaryStringColumnReader}, and
  * {@link #open} picks between them from the metadata.
  */
-public abstract sealed class StringColumnReader permits PlainStringColumnReader, DictionaryStringColumnReader {
+public abstract sealed class StringColumnReader implements ColumnPrefetcher.Column permits PlainStringColumnReader,
+    DictionaryStringColumnReader {
 
     private final StringColumnMetadata meta;
     private final ColumnIteratorReader iteratorReader;
@@ -135,6 +138,22 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         return iteratorReader.iterator();
     }
 
+    @Override
+    public DocRanks ranks() {
+        return iteratorReader.ranks();
+    }
+
+    /** The slot counts are located from the navigation file, so nothing is prefetched before the ranks are known. */
+    @Override
+    public boolean prefetchTables() {
+        return false;
+    }
+
+    @Override
+    public boolean prefetchValueAddresses(long[] ranks, int count) throws IOException {
+        return addresses != null && addresses.prefetch(ranks, count);
+    }
+
     /**
      * Whether a document's value address has to be looked up rather than being its rank. False only when the
      * column holds exactly one slot per document.
@@ -211,11 +230,13 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     }
 
     /** The value address of a document's first slot, given its rank. */
+    @Override
     public long firstValueAddress(int rank) throws IOException {
         return addresses == null ? rank : addresses.firstValueAddress(rank);
     }
 
     /** The number of slots a document has, given its rank; null slots are counted. */
+    @Override
     public long valueCount(int rank) throws IOException {
         return addresses == null ? 1 : addresses.valueCount(rank);
     }

@@ -202,6 +202,12 @@ public final class LongBlocks {
             return meta.blockSize();
         }
 
+        /** Prefetches blocks {@code [first, last]}. */
+        public void prefetchBlocks(long first, long last) throws IOException {
+            final long start = blockOffsets.get(first);
+            data.prefetch(meta.valuesOffset() + start, blockOffsets.get(last + 1) - start);
+        }
+
         /**
          * Decodes the block at {@code blockIndex} and returns the shared buffer, valid until the next call
          * that touches a different block.

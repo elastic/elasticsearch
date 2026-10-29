@@ -13,10 +13,14 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.columnar.substrate.BytesSink;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnPrefetcher;
 import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.store.PrefetchableDocValues;
 
 import java.io.IOException;
 
@@ -30,21 +34,47 @@ import java.io.IOException;
  * <p>Which {@link StringColumnLayout} the segment used is invisible here — a layout resolves its own encoding
  * inside the reader, so nothing layout-specific reaches this surface.
  */
-public final class ColumnarStringBinaryDocValues extends BinaryDocValues implements StringColumnSource {
+public final class ColumnarStringBinaryDocValues extends BinaryDocValues implements StringColumnSource, PrefetchableDocValues {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
     private final boolean singleValued;
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
+    @Nullable
+    private final IOSupplier<StringColumnReader> prefetchColumn;
+    private ColumnPrefetcher prefetcher;
 
     /** The reader as a dictionary one, or null when the column has no dictionary. Typed once so a document is not asked. */
     private final DictionaryStringColumnReader dictionary;
 
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator, boolean singleValued) {
+        this(reader, iterator, singleValued, null);
+    }
+
+    /** @param prefetchColumn opens another reader of the column, which prefetches */
+    public ColumnarStringBinaryDocValues(
+        StringColumnReader reader,
+        ColumnIterator iterator,
+        boolean singleValued,
+        @Nullable IOSupplier<StringColumnReader> prefetchColumn
+    ) {
         this.reader = reader;
         this.iterator = iterator;
         this.singleValued = singleValued;
         this.dictionary = reader instanceof DictionaryStringColumnReader d ? d : null;
+        this.prefetchColumn = prefetchColumn;
+    }
+
+    /** Prefetches through a reader of its own, opened on first use; nothing without {@code prefetchColumn}. */
+    @Override
+    public boolean prefetch(int stage, int[] docs, int from, int to) throws IOException {
+        if (prefetchColumn == null) {
+            return false;
+        }
+        if (prefetcher == null) {
+            prefetcher = new ColumnPrefetcher(prefetchColumn.get());
+        }
+        return prefetcher.prefetch(stage, docs, from, to);
     }
 
     /**

@@ -67,7 +67,22 @@ public final class DockerImagePullSupport {
      * @param platform the Docker platform to pull, or {@code null} for the host platform
      */
     public static void pullImage(ExecOperations execOperations, String dockerExecutable, String image, String platform, int maxAttempts) {
-        long backoffMs = INITIAL_PULL_BACKOFF_MS;
+        pullImage(execOperations, dockerExecutable, image, platform, maxAttempts, INITIAL_PULL_BACKOFF_MS);
+    }
+
+    /**
+     * Package-private variant of {@link #pullImage(ExecOperations, String, String, String, int)} that allows the
+     * initial backoff to be overridden. Tests pass {@code 0} to avoid real sleeps between attempts.
+     */
+    static void pullImage(
+        ExecOperations execOperations,
+        String dockerExecutable,
+        String image,
+        String platform,
+        int maxAttempts,
+        long initialBackoffMs
+    ) {
+        long backoffMs = initialBackoffMs;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 LoggedExec.exec(execOperations, spec -> {
@@ -104,6 +119,32 @@ public final class DockerImagePullSupport {
                 backoffMs *= 2;
             }
         }
+    }
+
+    /**
+     * Resolves the local image ID (content-addressed digest) of the given image reference as currently stored in the
+     * Docker image store. Unlike a tag, which the daemon rebinds to whichever platform variant was pulled last, the
+     * returned image ID is immutable and platform-specific. Running a container by this ID is therefore safe against a
+     * concurrent pull of a different platform variant for the same tag: the classic image store holds a single variant
+     * per tag, but keeps each pulled image object around.
+     *
+     * @return the image ID (e.g. {@code sha256:...}), or {@code null} if the image is not present locally
+     */
+    public static String resolveLocalImageId(ExecOperations execOperations, String dockerExecutable, String image) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        var result = execOperations.exec(spec -> {
+            maybeConfigureDockerConfig(spec);
+            spec.executable(dockerExecutable);
+            spec.args("image", "inspect", "--format", "{{.Id}}", image);
+            spec.setStandardOutput(output);
+            spec.setErrorOutput(new ByteArrayOutputStream());
+            spec.setIgnoreExitValue(true);
+        });
+        if (result.getExitValue() != 0) {
+            return null;
+        }
+        String id = output.toString(StandardCharsets.UTF_8).trim();
+        return id.isEmpty() ? null : id;
     }
 
     /**

@@ -52,7 +52,18 @@ public abstract class CacheDockerImages extends DefaultTask {
         String platform = getPlatform().get();
         for (String image : getImages().get()) {
             getLogger().lifecycle("Caching Docker image {} for platform {}", image, platform);
-            DockerImagePullSupport.ensureImageAvailable(getExecOperations(), docker, image, platform);
+            try {
+                DockerImagePullSupport.ensureImageAvailable(getExecOperations(), docker, image, platform);
+            } catch (RuntimeException e) {
+                // Caching is a best-effort bake-time optimization: pre-pulling images so CI agents avoid the registry
+                // at job time. Not every base image is published for every architecture. For example the OIDC fixture
+                // declares the amd64-only c2id/c2id-server-demo base, which its Dockerfile pins to amd64 even though
+                // the final image is multi-arch; on an aarch64 agent that base simply cannot be pulled for the host
+                // platform. Such a failure must not break agent baking (resolveAllDependencies): the real build pulls
+                // with its own retries at job time and resolves per-stage platforms correctly. Warn and move on so the
+                // remaining images are still cached.
+                getLogger().warn("Skipping caching of Docker image {} for platform {}: {}", image, platform, e.getMessage());
+            }
         }
     }
 }

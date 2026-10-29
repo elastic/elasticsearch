@@ -166,6 +166,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
+        "aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin",
+        "aggFilter_ThenLookupJoin_PastInlineJoin",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
         "Lookup join after stats by",
         // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.

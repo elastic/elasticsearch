@@ -515,11 +515,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/163111
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and integer/double bounds}
-  issue: https://github.com/elastic/elasticsearch/issues/163273
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   tasks:
   - :modules:data-streams:yamlRestCompatTest

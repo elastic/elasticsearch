@@ -187,7 +187,7 @@ The limitations below include operations that require structures available only 
 | [Cross-cluster search](/reference/query-languages/esql/esql-cross-clusters.md) {applies_to}`stack: experimental =9.5` | Only local datasets can be queried. A query that matches a remote dataset fails. | `ES\|QL queries with remote datasets are not supported. Matched [...]` |
 | Snapshot and restore {applies_to}`stack: preview 9.6+` | Data sources and datasets are included in snapshots when `include_global_state=true`. After a restore, data source configuration (non-credential settings) and datasets are recovered, but credentials must be re-entered because they are stripped from the snapshot blob. Data sources and datasets that were not present at snapshot time are removed when global state is restored. | |
 | Snapshot and restore {applies_to}`stack: experimental =9.5` | Data sources and datasets cannot be snapshotted or restored. | |
-| Windows {applies_to}`stack: preview 9.6+` | {{esql}} Data Federation isn't available on Windows. If `esql.federation.enabled` is `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts. | |
+| Windows {applies_to}`stack: preview 9.6+` | {{esql}} Data Federation isn't available on Windows. If you explicitly set `esql.federation.enabled` to `true` on a Windows node, {{es}} ignores it and logs an error at startup. The node still starts. | |
 | Archived S3 storage classes | Objects in the S3 Glacier Flexible Retrieval or S3 Glacier Deep Archive storage classes cannot be read in real time. The same applies to objects that have transitioned to the Archive Access or Deep Archive Access tiers within S3 Intelligent-Tiering. Objects in other Intelligent-Tiering tiers are not affected. A `GetObject` call to archived objects returns `InvalidObjectState` until the object is restored. Restore the objects before querying. S3 Glacier Instant Retrieval is also not affected because it supports real-time access. | {applies_to}`stack: preview 9.6+` `External data object [<object>] is archived (HTTP 403 InvalidObjectState). It is in storage class [<class>]; restore it, or wait for a restore in progress to finish, before reading it.` |
 | Parquet MAP, nested LIST, and VARIANT | These complex types are not currently supported and return null. STRUCT is supported and flattened to dot-notation column names (for example, `address.city`). | |
 | `null` elements inside a Parquet LIST | An {{esql}} multivalued field cannot hold `null`, so a `null` element inside a list is omitted and the column returns fewer values than the file holds. A list of `[1, null, 2]` reads as `[1, 2]`, and a list whose elements are all `null` reads as `null`. The response includes a warning naming the affected columns. | |
@@ -209,6 +209,21 @@ Slow queries
 
 503 error while nodes join the cluster
 :   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+
+$$$unknown-index-dataset$$$
+
+`Unknown index` or `external data sources are not available` error for a dataset that exists
+:   A query on a dataset fails when {{esql}} Data Federation is off on a node that the query uses:
+
+    - Off on the coordinating node: `Unknown index [<dataset>]`
+    - Off on a data node that the query reads from: `external data sources are not available`
+
+    Check that [`esql.federation.enabled`](esql-data-federation-cluster-settings.md#esql-federation-enabled) isn't `false` on any node.
+
+    :::{dropdown} During a rolling upgrade from 9.5
+    Queries can fail with either error until the upgrade finishes, because upgraded nodes have the feature on and older nodes have it off. Data sources and datasets stay in the cluster state and aren't changed.<br><br>To avoid this, wait until the upgrade finishes before you create or query datasets. Or add `esql.federation.enabled: false` to every node before you upgrade, then remove it and restart each node afterwards.
+
+    :::
 
 New files not appearing in query results
 :   {{es}} caches file listings for each dataset. A file added to or removed from the bucket might not show up until the listing cache expires. Lower the listing cache TTL when new or removed files must be visible sooner. Refer to [caching settings](esql-data-federation-cluster-settings.md#caching).

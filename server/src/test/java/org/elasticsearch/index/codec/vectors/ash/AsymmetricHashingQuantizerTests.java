@@ -348,39 +348,40 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             float queryDotCentroid = ESVectorUtil.dotProduct(query, centroid, dim);
             AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
 
-            AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
-            double sumSqErr = 0;
-            double sumSqTrue = 0;
-            for (int start = 0; start < nVectors; start += maxBlockSize) {
-                int blockSize = Math.min(maxBlockSize, nVectors - start);
-                encoder.reset();
-                for (int j = 0; j < blockSize; j++) {
-                    encoder.add(vectors[start + j], centroid);
+            try (AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize)) {
+                double sumSqErr = 0;
+                double sumSqTrue = 0;
+                for (int start = 0; start < nVectors; start += maxBlockSize) {
+                    int blockSize = Math.min(maxBlockSize, nVectors - start);
+                    encoder.reset();
+                    for (int j = 0; j < blockSize; j++) {
+                        encoder.add(vectors[start + j], centroid);
+                    }
+                    encoder.encode(precomputed);
+
+                    for (int j = 0; j < blockSize; j++) {
+                        float trueDot = ESVectorUtil.dotProduct(query, vectors[start + j], dim);
+
+                        byte[] packed = ESVectorUtil.ashPack(encoder.code(j), config.bitsPerDim());
+                        float reconstructed = referenceScore(
+                            qt,
+                            new float[] { queryDotCentroid },
+                            packed,
+                            0,
+                            nDims,
+                            config.bitsPerDim(),
+                            encoder.scale(j),
+                            encoder.offset(j)
+                        );
+
+                        double err = reconstructed - trueDot;
+                        sumSqErr += err * err;
+                        sumSqTrue += (double) trueDot * trueDot;
+                    }
                 }
-                encoder.encode(precomputed);
-
-                for (int j = 0; j < blockSize; j++) {
-                    float trueDot = ESVectorUtil.dotProduct(query, vectors[start + j], dim);
-
-                    byte[] packed = ESVectorUtil.ashPack(encoder.code(j), config.bitsPerDim());
-                    float reconstructed = referenceScore(
-                        qt,
-                        new float[] { queryDotCentroid },
-                        packed,
-                        0,
-                        nDims,
-                        config.bitsPerDim(),
-                        encoder.scale(j),
-                        encoder.offset(j)
-                    );
-
-                    double err = reconstructed - trueDot;
-                    sumSqErr += err * err;
-                    sumSqTrue += (double) trueDot * trueDot;
-                }
+                double relRmse = Math.sqrt(sumSqErr / sumSqTrue);
+                assertThat("bitsPerDim=" + config.bitsPerDim() + " relative RMSE too high", relRmse, lessThan(config.relRmseThreshold()));
             }
-            double relRmse = Math.sqrt(sumSqErr / sumSqTrue);
-            assertThat("bitsPerDim=" + config.bitsPerDim() + " relative RMSE too high", relRmse, lessThan(config.relRmseThreshold()));
         }
     }
 
@@ -1073,38 +1074,39 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
 
         int maxBlockSize = 32;
-        AsymmetricHashingQuantizer.BlockEncoder encoder = ash.newBlockEncoder(w.w(), dim, maxBlockSize);
-        for (int c = 0; c < nClusters; c++) {
-            int[] cluster = clusterOrds[c];
-            for (int start = 0; start < cluster.length; start += maxBlockSize) {
-                int blockSize = Math.min(maxBlockSize, cluster.length - start);
-                encoder.reset();
-                for (int j = 0; j < blockSize; j++) {
-                    encoder.add(vectors[cluster[start + j]], centroids[c]);
-                }
-                encoder.encode(precomputedPerCluster[c]);
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = ash.newBlockEncoder(w.w(), dim, maxBlockSize)) {
+            for (int c = 0; c < nClusters; c++) {
+                int[] cluster = clusterOrds[c];
+                for (int start = 0; start < cluster.length; start += maxBlockSize) {
+                    int blockSize = Math.min(maxBlockSize, cluster.length - start);
+                    encoder.reset();
+                    for (int j = 0; j < blockSize; j++) {
+                        encoder.add(vectors[cluster[start + j]], centroids[c]);
+                    }
+                    encoder.encode(precomputedPerCluster[c]);
 
-                for (int j = 0; j < blockSize; j++) {
-                    int i = cluster[start + j];
-                    byte[] packed = ESVectorUtil.ashPack(encoder.code(j), bitsPerDim);
+                    for (int j = 0; j < blockSize; j++) {
+                        int i = cluster[start + j];
+                        byte[] packed = ESVectorUtil.ashPack(encoder.code(j), bitsPerDim);
 
-                    for (int q = 0; q < nQueries; q++) {
-                        double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
-                        double qDotC = ESVectorUtil.dotProduct(queries[q], centroids[c]);
+                        for (int q = 0; q < nQueries; q++) {
+                            double exactDot = ESVectorUtil.dotProduct(queries[q], vectors[i]);
+                            double qDotC = ESVectorUtil.dotProduct(queries[q], centroids[c]);
 
-                        float approxScore = referenceScore(
-                            qt[q],
-                            new float[] { (float) qDotC },
-                            packed,
-                            0,
-                            nDims,
-                            bitsPerDim,
-                            encoder.scale(j),
-                            encoder.offset(j)
-                        );
+                            float approxScore = referenceScore(
+                                qt[q],
+                                new float[] { (float) qDotC },
+                                packed,
+                                0,
+                                nDims,
+                                bitsPerDim,
+                                encoder.scale(j),
+                                encoder.offset(j)
+                            );
 
-                        exact[q][i] = exactDot;
-                        approx[q][i] = approxScore;
+                            exact[q][i] = exactDot;
+                            approx[q][i] = approxScore;
+                        }
                     }
                 }
             }
@@ -1168,31 +1170,83 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         var w = train(quantizer, vectors, centroidGetter);
         AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
 
-        AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize);
-        Float[] validLevels = new Float[] { -1.5f, -0.5f, 0.5f, 1.5f };
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize)) {
+            Float[] validLevels = new Float[] { -1.5f, -0.5f, 0.5f, 1.5f };
 
-        for (int start = 0; start < nVectors; start += maxBlockSize) {
-            int blockSize = Math.min(maxBlockSize, nVectors - start);
-            encoder.reset();
-            assertThat(encoder.size(), equalTo(0));
-            for (int j = 0; j < blockSize; j++) {
-                encoder.add(vectors[start + j], centroid);
-            }
-            encoder.encode(precomputed);
-
-            assertThat(encoder.size(), equalTo(blockSize));
-            for (int j = 0; j < blockSize; j++) {
-                float[] code = encoder.code(j);
-                assertThat(code.length, equalTo(nDims));
-                for (float level : code) {
-                    assertThat(level, oneOf(validLevels));
+            for (int start = 0; start < nVectors; start += maxBlockSize) {
+                int blockSize = Math.min(maxBlockSize, nVectors - start);
+                encoder.reset();
+                assertThat(encoder.size(), equalTo(0));
+                for (int j = 0; j < blockSize; j++) {
+                    encoder.add(vectors[start + j], centroid);
                 }
-                assertThat(encoder.scale(j), greaterThan(0f));
-                assertTrue(Float.isFinite(encoder.offset(j)));
-                // the dot product is taken before centering, so it must match the original vector
-                assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
+                encoder.encode(precomputed);
+
+                assertThat(encoder.size(), equalTo(blockSize));
+                for (int j = 0; j < blockSize; j++) {
+                    float[] code = encoder.code(j);
+                    assertThat(code.length, equalTo(nDims));
+                    for (float level : code) {
+                        assertThat(level, oneOf(validLevels));
+                    }
+                    assertThat(encoder.scale(j), greaterThan(0f));
+                    assertTrue(Float.isFinite(encoder.offset(j)));
+                    // the dot product is taken before centering, so it must match the original vector
+                    assertThat(encoder.vecCentroidDot(j), equalTo(ESVectorUtil.dotProduct(vectors[start + j], centroid)));
+                }
             }
         }
+    }
+
+    public void testInt8BlockEncoderMatchesFloatBlockEncoder() throws IOException {
+        int dim = randomIntBetween(128, 512);
+        int bitsPerDim = randomIntBetween(1, 4);
+        int nVectors = 100;
+        // does not divide nVectors, so the last block is a partial one
+        int maxBlockSize = 32;
+
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            randomFrom(0.5f, 1.0f),
+            bitsPerDim,
+            AsymmetricHashingQuantizer.Method.RANDOM,
+            0,
+            1,
+            42L,
+            executor()
+        );
+        var w = train(quantizer, new float[][] { new float[dim] }, i -> new float[dim]);
+        float[] centroid = AshUtils.randomGaussians(random(), dim);
+        var precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, w.wT());
+
+        double cosineSum = 0;
+        var floatEncoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize, false);
+        var int8Encoder = quantizer.newBlockEncoder(w.w(), dim, maxBlockSize, true);
+        for (int start = 0; start < nVectors; start += maxBlockSize) {
+            int blockSize = Math.min(maxBlockSize, nVectors - start);
+            floatEncoder.reset();
+            int8Encoder.reset();
+            for (int j = 0; j < blockSize; j++) {
+                float[] vector = AshUtils.randomGaussians(random(), dim);
+                floatEncoder.add(vector, centroid);
+                int8Encoder.add(vector, centroid);
+            }
+            floatEncoder.encode(precomputed);
+            int8Encoder.encode(precomputed);
+
+            for (int j = 0; j < blockSize; j++) {
+                float[] floatCode = floatEncoder.code(j);
+                float[] int8Code = int8Encoder.code(j);
+                double cosine = ESVectorUtil.dotProduct(floatCode, int8Code) / Math.sqrt(
+                    (double) ESVectorUtil.dotProduct(floatCode, floatCode) * ESVectorUtil.dotProduct(int8Code, int8Code)
+                );
+                cosineSum += cosine;
+                assertThat(int8Encoder.vecCentroidDot(j), equalTo(floatEncoder.vecCentroidDot(j)));
+                assertThat(int8Encoder.scale(j), greaterThan(0f));
+                assertTrue(Float.isFinite(int8Encoder.offset(j)));
+            }
+        }
+        // a single vector can differ by a few levels, so the check is on the mean
+        assertThat(cosineSum / nVectors, greaterThan(0.98));
     }
 
     /** An orthonormal set of {@code rank} vectors of length {@code dim}, one per row. */

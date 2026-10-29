@@ -171,6 +171,26 @@ public class SnapshotEncryptedDataIT extends AbstractSnapshotIntegTestCase {
         assertThat(withoutGlobalState.state(), equalTo(SnapshotState.SUCCESS));
     }
 
+    public void testEncryptedDataRequiredFailsSnapshotWhenDataAddedWhileRunning() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        awaitProjectEncryptionKey();
+        createRepository(REPO, "mock");
+        createIndexWithContent("index");
+        updateClusterSettings(Settings.builder().put(SnapshotsService.ENCRYPTED_DATA_REQUIRED_SETTING.getKey(), true));
+
+        blockDataNode(REPO, dataNode);
+        final var future = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, REPO, "snap").setWaitForCompletion(true).execute();
+        waitForBlock(dataNode, REPO);
+        seedEncryptedBlob(randomByteArrayOfLength(32));
+        unblockNode(REPO, dataNode);
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("[snapshot.encrypted_data.required] is true"));
+        awaitNoMoreRunningOperations();
+        assertThat(getRepositoryData(REPO).getSnapshotIds(), empty());
+    }
+
     public void testPasswordNotInClusterStateResponse() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();

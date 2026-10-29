@@ -317,6 +317,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.snapshotGlobalStateTransformer = Objects.requireNonNull(transformer);
     }
 
+    private boolean missingRequiredEncryptedData(ProjectId projectId, Metadata metadata, @Nullable SnapshotEncryptedData encryptedData) {
+        return encryptedData == null && encryptedDataRequired && snapshotGlobalStateTransformer.containsEncryptedData(projectId, metadata);
+    }
+
     @Override
     protected void doStart() {}
 
@@ -370,10 +374,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             listener.onFailure(new IllegalArgumentException("[encrypted_data] is not supported by this cluster"));
             return;
         }
-        if (request.encryptedData() == null
-            && encryptedDataRequired
-            && request.includeGlobalState()
-            && snapshotGlobalStateTransformer.containsEncryptedData(projectId, clusterService.state().metadata())) {
+        if (request.includeGlobalState()
+            && missingRequiredEncryptedData(projectId, clusterService.state().metadata(), request.encryptedData())) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "the cluster contains encrypted project data and [snapshot.encrypted_data.required] is true; "
@@ -2684,6 +2686,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         // a clone copies the source snapshot's global metadata, which is already in its snapshot form
                         recordedEncryptedData = encryptedData;
                     } else {
+                        if (missingRequiredEncryptedData(projectId, metaForSnapshot, encryptedData)) {
+                            throw new IllegalArgumentException(
+                                "the snapshot contains encrypted project data but no [encrypted_data] was supplied and "
+                                    + "[snapshot.encrypted_data.required] is true, so the snapshot was not written to the repository"
+                            );
+                        }
                         final Metadata transformed = snapshotGlobalStateTransformer.transformForSnapshot(
                             projectId,
                             metaForSnapshot,

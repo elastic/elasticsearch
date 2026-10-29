@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 
 import java.io.IOException;
@@ -25,13 +26,13 @@ import java.util.Objects;
  * fuzzy, range) expanding to more terms than its limit is reported as a client error.
  * <p>
  * Lucene enforces the expansion limit while it iterates the terms of a segment, when the scorer or the matches are
- * built, and reports it as an {@link IllegalStateException}. The request is what exceeds the limit, so this source
- * rethrows that exception as an {@link IllegalArgumentException}, which makes the search fail with a 400. The message
- * names the field, keeps Lucene's message and asks for a more selective pattern. Every other method delegates to the
- * wrapped source, so equality, the query string and visitors behave as they do for the wrapped source.
+ * built, and reports it as {@link IndexSearcher.TooManyClauses}. That exception is only mapped
+ * to a 400 when it is thrown from query rewrite; at scorer time it would be a 500. The request is what exceeds the
+ * limit, so this source rethrows that exception as an {@link IllegalArgumentException}, which makes the search fail
+ * with a 400. The message names the field, keeps Lucene's message and asks for a more selective pattern. Every other
+ * method delegates to the wrapped source, so equality, the query string and visitors behave as they do for the
+ * wrapped source.
  */
-// TODO: remove once Lucene throws IndexSearcher.TooManyClauses for intervals over-expansion (apache/lucene#16899)
-// and TooManyClauses is mapped to a 400.
 final class ExpansionLimitIntervalsSource extends IntervalsSource {
 
     /**
@@ -49,7 +50,7 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
     public IntervalIterator intervals(String field, LeafReaderContext ctx) throws IOException {
         try {
             return in.intervals(field, ctx);
-        } catch (IllegalStateException e) {
+        } catch (IndexSearcher.TooManyClauses e) {
             throw translate(field, e);
         }
     }
@@ -58,12 +59,12 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
     public IntervalMatchesIterator matches(String field, LeafReaderContext ctx, int doc) throws IOException {
         try {
             return in.matches(field, ctx, doc);
-        } catch (IllegalStateException e) {
+        } catch (IndexSearcher.TooManyClauses e) {
             throw translate(field, e);
         }
     }
 
-    private static RuntimeException translate(String field, IllegalStateException e) {
+    private static RuntimeException translate(String field, IndexSearcher.TooManyClauses e) {
         if (isExpansionLimit(e)) {
             return new IllegalArgumentException(
                 "[intervals] rule on field [" + field + "] " + e.getMessage() + "; use a more selective pattern",
@@ -76,7 +77,7 @@ final class ExpansionLimitIntervalsSource extends IntervalsSource {
     /**
      * Whether {@code e} is Lucene's report that a multi-term rule expanded to more terms than its limit.
      */
-    static boolean isExpansionLimit(IllegalStateException e) {
+    static boolean isExpansionLimit(RuntimeException e) {
         String message = e.getMessage();
         return message != null && message.contains(EXPANSION_LIMIT_MESSAGE);
     }

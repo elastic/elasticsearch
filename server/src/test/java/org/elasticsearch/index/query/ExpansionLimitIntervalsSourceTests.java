@@ -22,6 +22,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
@@ -80,7 +81,7 @@ public class ExpansionLimitIntervalsSourceTests extends ESTestCase {
     }
 
     private static void assertExpansionLimitException(IllegalArgumentException e) {
-        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause(), instanceOf(IndexSearcher.TooManyClauses.class));
         assertThat(e.getCause().getMessage(), containsString("expanded to too many terms (limit 1)"));
         assertThat(
             e.getMessage(),
@@ -89,22 +90,27 @@ public class ExpansionLimitIntervalsSourceTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testOtherIllegalStateExceptionPropagates() {
-        IllegalStateException failure = new IllegalStateException("unrelated failure");
-        IntervalsSource source = new ExpansionLimitIntervalsSource(new ThrowingIntervalsSource(failure));
-
-        assertThat(expectThrows(IllegalStateException.class, () -> source.intervals(FIELD, null)), sameInstance(failure));
-        assertThat(expectThrows(IllegalStateException.class, () -> source.matches(FIELD, null, 0)), sameInstance(failure));
+    public void testOtherRuntimeExceptionsPropagate() {
+        RuntimeException ise = new IllegalStateException("unrelated failure");
+        RuntimeException tooMany = new IndexSearcher.TooManyClauses();
+        RuntimeException nested = new IndexSearcher.TooManyNestedClauses();
+        for (RuntimeException failure : List.of(ise, tooMany, nested)) {
+            IntervalsSource source = new ExpansionLimitIntervalsSource(new ThrowingIntervalsSource(failure));
+            assertThat(expectThrows(failure.getClass(), () -> source.intervals(FIELD, null)), sameInstance(failure));
+            assertThat(expectThrows(failure.getClass(), () -> source.matches(FIELD, null, 0)), sameInstance(failure));
+        }
     }
 
     public void testIsExpansionLimit() {
         assertTrue(
             ExpansionLimitIntervalsSource.isExpansionLimit(
-                new IllegalStateException("Automaton [[0-9]{7,10}] expanded to too many terms (limit 20164)")
+                new IndexSearcher.TooManyClauses("Automaton [[0-9]{7,10}] expanded to too many terms (limit 20164)")
             )
         );
+        assertFalse(ExpansionLimitIntervalsSource.isExpansionLimit(new IndexSearcher.TooManyClauses("unrelated failure")));
+        assertFalse(ExpansionLimitIntervalsSource.isExpansionLimit(new IndexSearcher.TooManyClauses()));
+        assertFalse(ExpansionLimitIntervalsSource.isExpansionLimit(new IndexSearcher.TooManyNestedClauses()));
         assertFalse(ExpansionLimitIntervalsSource.isExpansionLimit(new IllegalStateException("unrelated failure")));
-        assertFalse(ExpansionLimitIntervalsSource.isExpansionLimit(new IllegalStateException()));
     }
 
     public void testDelegation() {
@@ -137,13 +143,13 @@ public class ExpansionLimitIntervalsSourceTests extends ESTestCase {
     }
 
     /**
-     * Throws a given exception from {@link #intervals} and {@link #matches}. It stands in for a source failing with an
-     * {@link IllegalStateException} that is not about the expansion limit, which no real source can be made to throw on demand.
+     * Throws a given exception from {@link #intervals} and {@link #matches}. It stands in for a source failing with a
+     * runtime exception that is not about the expansion limit, which no real source can be made to throw on demand.
      */
     private static class ThrowingIntervalsSource extends IntervalsSource {
-        private final IllegalStateException failure;
+        private final RuntimeException failure;
 
-        ThrowingIntervalsSource(IllegalStateException failure) {
+        ThrowingIntervalsSource(RuntimeException failure) {
             this.failure = failure;
         }
 

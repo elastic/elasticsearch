@@ -201,7 +201,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private static void assertExpansionLimitException(IllegalArgumentException e) {
-        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause(), instanceOf(IndexSearcher.TooManyClauses.class));
         assertThat(e.getCause().getMessage(), containsString("expanded to too many terms (limit 1)"));
         assertThat(
             e.getMessage(),

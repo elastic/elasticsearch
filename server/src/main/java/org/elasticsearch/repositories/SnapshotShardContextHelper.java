@@ -79,17 +79,15 @@ public class SnapshotShardContextHelper {
 
             // The check below is needed to handle shard snapshots during resharding.
             // Resharding changes the number of shards in the index and moves data between shards.
-            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data movements)
-            // or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
-            // We want to detect if a resharding operation has happened after this snapshot was started
-            // and if so we'll fail the shard snapshot to avoid such inconsistency.
-            // We perform this check here on the data node and not on the master node
-            // to correctly propagate this failure to SnapshotsService using existing listener
-            // in case resharding starts in the middle of the snapshot.
-            // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+            // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data
+            // movements) or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
+            // We want to detect if a resharding operation has happened after this snapshot was started and if so we'll
+            // fail the shard snapshot to avoid such inconsistency.
             // Note that the master already fails a shard snapshot whose index is being resharded at the time it assigns
-            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus), but this check is still needed for
-            // resharding operations that start or complete after the shard snapshot was assigned.
+            // it to a node (see SnapshotsServiceUtils#initShardSnapshotStatus) or when moving a WAITING shard to INIT
+            // (see SnapshotsServiceUtils#processWaitingShardsAndRemovedNodes). The data node check is still needed for
+            // resharding that starts after the master started the shard snapshot, and for resharding that already completed
+            // but after the snapshot was created, so the snapshot only contains the pre-split shards.
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.

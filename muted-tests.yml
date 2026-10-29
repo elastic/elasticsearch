@@ -216,6 +216,26 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=indices.get_field_mapping/20_missing_field/Return empty object if field doesn't exist, but index does}
   issue: https://github.com/elastic/elasticsearch/issues/163303
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=data_stream/150_tsdb/multi value dimensions}
+  issue: https://github.com/elastic/elasticsearch/issues/163800
+- class: org.elasticsearch.persistent.PersistentTasksExecutorShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  method: testOptOutTaskIsNotReassignedOnShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/163857
+- class: org.elasticsearch.persistent.PersistentTasksExecutorShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  method: testOptInTaskIsReassignedOnShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/163859
+- class: org.elasticsearch.persistent.PersistentTasksExecutorShutdownIT
+  tasks:
+  - :server:internalClusterTest
+  method: testLocalAbort
+  issue: https://github.com/elastic/elasticsearch/issues/163861
 
 # Examples:
 #

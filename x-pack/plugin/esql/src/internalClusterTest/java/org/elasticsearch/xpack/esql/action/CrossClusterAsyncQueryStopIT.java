@@ -161,7 +161,8 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         populateRuntimeIndex(LOCAL_CLUSTER, "pause", INDEX_WITH_BLOCKING_MAPPING);
 
         // Gets random node client but ensure it's the same node for all operations
-        Client client = cluster(LOCAL_CLUSTER).client();
+        String coordinatorNode = randomFrom(cluster(LOCAL_CLUSTER).getNodeNames());
+        Client client = cluster(LOCAL_CLUSTER).client(coordinatorNode);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         boolean responseExpectMeta = includeCCSMetadata.v2();
@@ -170,7 +171,8 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
         // there are no workers left to execute the final driver or fetch pages from remote clusters.
         // This can prevent remote clusters from being marked as successful on the coordinator, even if they
         // have completed. To avoid this, we lower the concurrency to 1 or 2.
-        var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class).getThreadPool();
+        // Test nodes get a random number of processors, so read the pool of the coordinator itself.
+        var threadpool = cluster(LOCAL_CLUSTER).getInstance(TransportService.class, coordinatorNode).getThreadPool();
         int maxEsqlWorkers = threadpool.info(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME).getMax();
         int concurrency = between(1, maxEsqlWorkers > 3 ? 2 : 1);
         LOGGER.info("--> Launching async query with concurrency={} max={}", concurrency, maxEsqlWorkers);

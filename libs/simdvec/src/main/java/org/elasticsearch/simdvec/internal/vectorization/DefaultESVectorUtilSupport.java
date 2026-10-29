@@ -21,6 +21,8 @@ import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -910,6 +912,101 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 c[j * n + i] = c[cBase + j];
             }
         }
+    }
+
+    @Override
+    public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
+        multiplyAccumulate(a, k, b, result, m, k, n, executor);
+    }
+
+    /**
+     * Accumulates {@code C = A @ B}, where element (i, l) of the left operand is
+     * {@code a[i * aRowStride + l]}.
+     *
+     * @param aRowStride distance in {@code a} between consecutive rows of the left operand
+     * @param cRows      rows of C, and of the left operand
+     * @param inner      inner dimension of the multiplication
+     * @param n          columns of C, and of B
+     */
+    private void multiplyAccumulate(
+        MemorySegment a,
+        int aRowStride,
+        MemorySegment b,
+        MemorySegment c,
+        int cRows,
+        int inner,
+        int n,
+        TaskExecutor executor
+    ) {
+        // unroll 4x, so 4 values are accumulated into each c cell at once
+        int innerLimit = inner - inner % 4;
+        int taskNum = cRows / 4;
+
+        if (executor == null || taskNum < MIN_PARALLEL_TASKS) {
+            for (int r = 0; r < cRows; r++) {
+                multiplyRow(a, aRowStride, b, c, inner, n, r, innerLimit);
+            }
+        } else {
+            List<Callable<Void>> ops = new ArrayList<>(taskNum);
+            for (int r = 0; r < cRows; r += 4) {
+                int rowStart = r;
+                int rowEnd = Math.min(r + 4, cRows);
+                ops.add(() -> {
+                    for (int i = rowStart; i < rowEnd; i++) {
+                        multiplyRow(a, aRowStride, b, c, inner, n, i, innerLimit);
+                    }
+                    return null;
+                });
+            }
+
+            try {
+                executor.invokeAll(ops);
+            } catch (IOException e) {
+                // can't happen
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    private void multiplyRow(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int inner, int n, int i, int innerLimit) {
+        int aBase = i * aRowStride;
+        int l = 0;
+        byte[][] bs = new byte[4][n];
+        int[] accs = new int[n];
+        for (; l < innerLimit; l += 4) {
+            int av = a.get(ValueLayout.JAVA_INT_UNALIGNED, aBase + l);
+            // bytes are signed here, so the sign needs to be maintained. Conversion from byte to int does that
+            byte aV0 = (byte) av;
+            byte aV1 = (byte) (av >> 8);
+            byte aV2 = (byte) (av >> 16);
+            byte aV3 = (byte) (av >> 24);
+
+            int b0 = l * n;
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0, bs[0], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n, bs[1], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 2L, bs[2], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 3L, bs[3], 0, n);
+
+            for (int j = 0; j < n; j++) {
+                int acc = accs[j];
+                acc += aV0 * bs[0][j];
+                acc += aV1 * bs[1][j];
+                acc += aV2 * bs[2][j];
+                acc += aV3 * bs[3][j];
+                accs[j] = acc;
+            }
+        }
+
+        // tail
+        for (; l < inner; l++) {
+            int aVal = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, (long) l * n, bs[0], 0, n);
+            for (int d = 0; d < n; d++) {
+                accs[d] += aVal * bs[0][d];
+            }
+        }
+
+        MemorySegment.copy(accs, 0, c, ValueLayout.JAVA_INT, (long) i * n * Integer.BYTES, n);
     }
 
     @Override

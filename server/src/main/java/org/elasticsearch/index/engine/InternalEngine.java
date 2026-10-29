@@ -3120,11 +3120,11 @@ public class InternalEngine extends Engine {
                 listener.afterFlushWithLock(generation);
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
-                countFlushFailure(ex);
+                reportFlushFailure(ex);
                 listener.onFailure(ex);
                 return;
             } catch (Exception e) {
-                countFlushFailure(e);
+                reportFlushFailure(e);
                 listener.onFailure(e);
                 return;
             } finally {
@@ -4100,16 +4100,12 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Reports a flush failure unless it is expected during normal operation. A pending translog recovery is expected. So is an
-     * {@link AlreadyClosedException} while the engine is closing and has not failed, for example during a relocation or shutdown. An
-     * {@link AlreadyClosedException} on an engine that is not closing comes from a tragically closed index writer or translog, so it
-     * is reported even if the engine is not yet marked as failed.
+     * Reports every flush failure to the event listener. Only the engine knows whether it was closing cleanly at the time, which
+     * the listener needs to tell an expected {@link AlreadyClosedException} from one caused by a tragic event.
      */
-    private void countFlushFailure(Exception e) {
-        final boolean closedCleanly = e instanceof AlreadyClosedException && failedEngine.get() == null && (isClosed.get() || isClosing());
-        if (closedCleanly == false && e instanceof PendingTranslogRecoveryException == false) {
-            eventListener.onFlushFailed();
-        }
+    private void reportFlushFailure(Exception e) {
+        final boolean closedCleanly = failedEngine.get() == null && (isClosed.get() || isClosing());
+        eventListener.onFlushFailed(e, closedCleanly);
     }
 
     @Override

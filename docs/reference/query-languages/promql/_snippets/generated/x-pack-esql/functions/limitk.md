@@ -27,4 +27,4 @@ limitk(3, http_requests_total)
 
 **Differences from Prometheus**
 
-Elements are returned in storage order (first-k) rather than truly arbitrary order. A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. A `without` grouping clause is not yet supported.
+Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. Across shards the merge keeps k of those partials with no global tsid sort, so the subset is not stable. A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. A `without` grouping clause is not yet supported.

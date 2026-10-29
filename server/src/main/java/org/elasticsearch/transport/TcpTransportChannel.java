@@ -10,6 +10,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 public final class TcpTransportChannel implements TransportChannel {
@@ -53,6 +55,11 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) {
+        sendResponse(response, null);
+    }
+
+    @Override
+    public void sendResponse(TransportResponse response, @Nullable CircuitBreaker circuitBreaker) {
         try {
             outboundHandler.sendResponse(
                 version,
@@ -62,7 +69,8 @@ public final class TcpTransportChannel implements TransportChannel {
                 response,
                 compressionScheme,
                 isHandshake,
-                responseStatsConsumer
+                responseStatsConsumer,
+                circuitBreaker
             );
         } finally {
             breakerRelease.close();

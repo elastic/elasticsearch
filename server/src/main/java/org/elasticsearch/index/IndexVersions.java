@@ -300,13 +300,11 @@ public class IndexVersions {
     public static final IndexVersion DISK_BBQ_AUTO_CALIBRATE_ENABLE_BY_DEFAULT = def(9_125_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion DOC_VALUES_TOP_LEVEL_ATTRIBUTES = def(9_126_0_00, Version.LUCENE_10_5_2);
     public static final IndexVersion COLUMNAR_CODEC_NO_FEATURE_FLAG = def(9_127_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion TSID_PREFIXED_DIMENSIONS_HASH = def(9_128_0_00, Version.LUCENE_10_5_2);
+    public static final IndexVersion HAASE_PHONETIK_ANCHORED_VARIATIONS = def(9_129_0_00, Version.LUCENE_10_5_2);
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_6_0 = def(9_300_00_0, Version.LUCENE_10_6_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_7_0 = def(9_400_00_0, Version.LUCENE_10_7_0);
-    // Placeholder id on lucene_snapshot, like the two above: renumber all three together when merging to main, keeping this
-    // one at or above the first id that ships with the Thai gate. Indices created on snapshot builds at the two ids above
-    // were analyzed with the new chain but are treated as legacy; that only affects unreleased builds.
-    public static final IndexVersion THAI_ANALYSIS_LUCENE_10_6 = def(9_401_0_00, Version.LUCENE_10_7_0);
+    public static final IndexVersion THAI_ANALYSIS_LUCENE_10_6 = def(9_301_0_00, Version.LUCENE_10_6_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

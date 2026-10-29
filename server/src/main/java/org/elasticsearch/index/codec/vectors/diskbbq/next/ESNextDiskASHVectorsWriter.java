@@ -179,7 +179,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ivfSegmentConfig,
             quantizerExec,
             null,
-            false // flush: vectors are on-heap, train on a reduced sample
+            false // flush: the flush training factor; the vectors are on-heap
         );
     }
 
@@ -210,7 +210,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ivfSegmentConfig,
             quantizerExec,
             inheritedWT,
-            true // merge: streams vectors off-heap by ordinal and trains on the full sample
+            true // merge: the merge training factor; the vectors are streamed off-heap by ordinal
         );
     }
 
@@ -292,7 +292,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         IvfSegmentConfig segmentConfig,
         TaskExecutor quantizerExec,
         float[] pretrainedWT,
-        boolean trainOnFullSample
+        boolean useMergeTrainingFactor
     ) throws IOException {
         if (vectorValues instanceof FloatVectorValues == false) {
             throw new IllegalStateException("ASH requires float vectors, got: " + vectorValues.getClass().getSimpleName());
@@ -314,7 +314,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             fieldInfo.getVectorSimilarityFunction(),
             skipDocIds,
             pretrainedWT,
-            trainOnFullSample
+            useMergeTrainingFactor
         );
         pendingAshMatrix = ashWriter.getAshProjectionMatrix();
         return new CentroidOffsetAndLength(result.offsets(), result.lengths());

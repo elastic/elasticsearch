@@ -540,9 +540,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     )
                 )
             );
+            // the target has enough free relocation slots for the shutting-down node, so the shard is not squeezed
             assertThat(
                 reevaluatedPlan.timeoutContext(),
-                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE)
             );
             assertThat(reevaluatedPlan.extendable(), is(true));
         }
@@ -838,6 +839,8 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         final var reshardTarget = TimeoutContext.RESHARD_SPLIT_TARGET;
         final var noShutdown = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_NO_CLUSTER_SHUTDOWN;
         final var metadataPresent = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT;
+        final var slotsAvailable = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE;
+        final var notShuttingDownDataVolume = TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_DATA_VOLUME;
         final var graceElapsed = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED;
         final var dataVolume = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_DATA_VOLUME;
         final var equalShare = TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_EQUAL_SHARE;
@@ -849,24 +852,67 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
             // extends, including the first data-volume plan
             anotherActiveCopy,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, equalShare),
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    notShuttingDownDataVolume,
+                    dataVolume,
+                    equalShare
+                ),
                 EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             noShutdown,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, dataVolume, equalShare),
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    notShuttingDownDataVolume,
+                    dataVolume,
+                    equalShare
+                ),
                 EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             // staying in "metadata present" does not extend again
             metadataPresent,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, dataVolume, equalShare),
+                EnumSet.of(anotherActiveCopy, noShutdown, slotsAvailable, notShuttingDownDataVolume, dataVolume, equalShare),
                 EnumSet.of(reshardTarget, metadataPresent, graceElapsed, skip)
+            ),
+            // the other-node-shutdown plans behave like "no shutdown" as the previous plan
+            slotsAvailable,
+            Tuple.tuple(
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    notShuttingDownDataVolume,
+                    dataVolume,
+                    equalShare
+                ),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
+            ),
+            notShuttingDownDataVolume,
+            Tuple.tuple(
+                EnumSet.of(
+                    anotherActiveCopy,
+                    noShutdown,
+                    metadataPresent,
+                    slotsAvailable,
+                    notShuttingDownDataVolume,
+                    dataVolume,
+                    equalShare
+                ),
+                EnumSet.of(reshardTarget, graceElapsed, skip)
             ),
             // within the shutdown phase only time saved by finished shards is handed out, a data-volume plan never follows
             equalShare,
             Tuple.tuple(
-                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, equalShare),
+                EnumSet.of(anotherActiveCopy, noShutdown, metadataPresent, slotsAvailable, notShuttingDownDataVolume, equalShare),
                 EnumSet.of(reshardTarget, dataVolume, graceElapsed, skip)
             )
         );

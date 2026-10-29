@@ -40,7 +40,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// opening a shard. Enabling this setting should reduce blob store cache misses after shard relocations.
     public static final Setting<Boolean> OFFLINE_WARMING_TIMEOUT_REEVALUATION_ENABLED_SETTING = Setting.boolSetting(
         OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX + ".enabled",
-        true, // TODO bring it back to false after testing
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -278,10 +278,10 @@ public class SearchRecoveryTimeoutCalculationService {
     /// The demand of shutting-down nodes on the target is pessimistically every search shard already relocating to it from them plus every
     /// one still [ShardRoutingState#STARTED] on them, as the master throttles per target and we cannot know where those will go.
     ///
-    /// - With enough free slots for all of that demand, the regular relocation timeout applies.
+    /// - With enough free slots for all of that demand, the relocation-with-shutdown timeout applies in full.
     /// - Otherwise this shard is one more participant (`P`) and the free slots are shared: each gets `slots / P` of the time left until the
     /// earliest grace deadline, using the larger of the equal share and the data-volume share as in
-    /// [#computeRelocationSourceShutdownWarmingTimeout]. The result never exceeds the regular relocation timeout.
+    /// [#computeRelocationSourceShutdownWarmingTimeout]. The result never exceeds the relocation-with-shutdown timeout.
     ///
     /// The shares can add up to more than the time available. They are upper bounds, and shards usually finish warming earlier.
     private SearchRecoveryTimeout relocationWithOtherNodeShutdownTimeout(ClusterState state, String targetNodeId, long totalBytesToWarm) {
@@ -304,13 +304,13 @@ public class SearchRecoveryTimeoutCalculationService {
         if (recoverySlotsNeeded <= freeRecoverySlots) {
             // we are below the demand, so we can treat this as if it were not a shutting-down node (longer timeout)
             return new SearchRecoveryTimeout(
-                searchRecoveryWarmingRelocationTimeout,
+                searchRecoveryWarmingRelocationWithShutdownTimeout,
                 TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE
             );
         }
         final long timeRemaining = Math.max(0L, earliestGraceDeadline(state) - threadPool.absoluteTimeInMillis());
-        // the share never exceeds the time left until the earliest grace deadline, nor the regular relocation timeout
-        final long maxShareMs = Math.min(timeRemaining, searchRecoveryWarmingRelocationTimeout.millis());
+        // the share never exceeds the time left until the earliest grace deadline, nor the relocation-with-shutdown timeout
+        final long maxShareMs = Math.min(timeRemaining, searchRecoveryWarmingRelocationWithShutdownTimeout.millis());
         final long slotsToShare = Math.max(1L, freeRecoverySlots);
 
         final double equalShareMs = (timeRemaining / (double) (recoverySlotsNeeded + 1)) * slotsToShare;

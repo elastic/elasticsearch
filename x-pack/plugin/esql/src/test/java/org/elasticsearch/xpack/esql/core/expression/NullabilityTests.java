@@ -6,13 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
@@ -68,5 +74,80 @@ public class NullabilityTests extends ESTestCase {
 
         assertEquals(TRUE, Expressions.nullable(asList(YES, YES)));
         assertEquals(TRUE, Expressions.nullable(asList(YES, NO)));
+    }
+
+    /**
+     * Patch bases of 9.4 and 8.19. The definition reserves patch ids for them, but the change was never
+     * backported there, so those patch ranges must keep using the legacy format.
+     */
+    private static final Set<Integer> UNUSED_PATCH_BASES = Set.of(9348, 8841);
+
+    public void testSerialization_legacyFormat() throws IOException {
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN);
+        assertLegacyFormat(version);
+    }
+
+    public void testSerialization_booleanFormat() throws IOException {
+        TransportVersion version = randomValueOtherThanMany(
+            v -> UNUSED_PATCH_BASES.contains(v.id() / 1000),
+            () -> TransportVersionUtils.randomVersionSupporting(Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN)
+        );
+        assertBooleanFormat(version);
+    }
+
+    public void testSerialization_formatAtPatchVersions() throws IOException {
+        for (TransportVersion id = Nullability.ESQL_NULLABILITY_REMOVE_UNKNOWN; id != null; id = id.nextPatchVersion()) {
+            logger.info("Testing serialization for version [{}]", id);
+            TransportVersion before = new TransportVersion(id.id() - 1);
+            TransportVersion after = new TransportVersion(id.id() + 1);
+            assertLegacyFormat(before);
+            if (UNUSED_PATCH_BASES.contains(id.id() / 1000)) {
+                assertLegacyFormat(id);
+                assertLegacyFormat(after);
+            } else {
+                assertBooleanFormat(id);
+                assertBooleanFormat(after);
+            }
+        }
+    }
+
+    private static void assertLegacyFormat(TransportVersion version) throws IOException {
+        assertArrayEquals(version.toString(), new byte[] { 0 }, write(TRUE, version));
+        assertEquals(version.toString(), TRUE, read(new byte[] { 0 }, version));
+
+        assertArrayEquals(version.toString(), new byte[] { 1 }, write(FALSE, version));
+        assertEquals(version.toString(), FALSE, read(new byte[] { 1 }, version));
+
+        // legacy UNKNOWN
+        assertEquals(version.toString(), TRUE, read(new byte[] { 2 }, version));
+
+        IOException e = expectThrows(IOException.class, () -> read(new byte[] { 3 }, version));
+        assertEquals("Unknown ordinal [3] for Nullability", e.getMessage());
+    }
+
+    private static void assertBooleanFormat(TransportVersion version) throws IOException {
+        assertArrayEquals(version.toString(), new byte[] { 1 }, write(TRUE, version));
+        assertEquals(version.toString(), TRUE, read(new byte[] { 1 }, version));
+
+        assertArrayEquals(version.toString(), new byte[] { 0 }, write(FALSE, version));
+        assertEquals(version.toString(), FALSE, read(new byte[] { 0 }, version));
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> read(new byte[] { 2 }, version));
+        assertEquals("unexpected byte [0x02]", e.getMessage());
+    }
+
+    private static Nullability read(byte[] bytes, TransportVersion version) throws IOException {
+        try (ByteArrayStreamInput in = new ByteArrayStreamInput(bytes)) {
+            in.setTransportVersion(version);
+            return Nullability.readFrom(in);
+        }
+    }
+
+    private static byte[] write(Nullability nullability, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            nullability.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 }

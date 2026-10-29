@@ -186,11 +186,11 @@ public class SharingKeyTests extends ESTestCase {
     }
 
     /**
-     * Every Thai entry point changed output in Lucene 10.6 and is gated on {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}, so
+     * Every Thai entry point changed output in Lucene 10.6 and is gated on {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}, so
      * indices on opposite sides of the gate must never share an analyzer built from it, while indices on the same side still do.
      */
     public void testThaiAnalysisDoesNotShareAcrossThaiGate() throws IOException {
-        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
         IndexVersion current = IndexVersion.current();
         List<Settings> recipes = List.of(
             Settings.builder().put("index.analysis.analyzer.a.type", "thai").build(),
@@ -214,7 +214,7 @@ public class SharingKeyTests extends ESTestCase {
 
     /** The prebuilt {@code thai} analyzer is version-sensitive too; its default name-based sharing key would collapse the two sides. */
     public void testPrebuiltThaiAnalyzerDoesNotShareAcrossThaiGate() throws IOException {
-        Analyzer legacy = buildPrebuilt(IndexVersionUtils.getPreviousVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6), "thai");
+        Analyzer legacy = buildPrebuilt(IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0), "thai");
         Analyzer current = buildPrebuilt(IndexVersion.current(), "thai");
         assertThat(legacy, instanceOf(LegacyThaiAnalyzer.class));
         assertThat(current, instanceOf(ThaiAnalyzer.class));

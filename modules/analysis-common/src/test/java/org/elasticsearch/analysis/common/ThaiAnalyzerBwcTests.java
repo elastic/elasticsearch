@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Pins every Elasticsearch entry point to Thai analysis to the token stream its index was created with. Lucene 10.6 changed what
- * Lucene's Thai analysis produces; indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} must keep the Lucene 10.5
+ * Lucene's Thai analysis produces; indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep the Lucene 10.5
  * tokens (otherwise documents indexed after an upgrade, and queries, would be analyzed differently from the documents already in the
  * index), while newer indices get Lucene's current output. The entry points are:
  * <ul>
@@ -129,8 +129,8 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
 
     /** The version immediately before the gate is legacy and the gate version itself is not. */
     public void testGateBoundary() throws IOException {
-        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
-        IndexVersion at = IndexVersions.THAI_ANALYSIS_LUCENE_10_6;
+        IndexVersion before = IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
+        IndexVersion at = IndexVersions.UPGRADE_TO_LUCENE_10_6_0;
 
         assertThat(new ThaiAnalyzerProvider(indexSettings(before), env(), "a", Settings.EMPTY).get(), instanceOf(LegacyThaiAnalyzer.class));
         assertThat(new ThaiAnalyzerProvider(indexSettings(at), env(), "a", Settings.EMPTY).get(), instanceOf(ThaiAnalyzer.class));
@@ -182,11 +182,11 @@ public class ThaiAnalyzerBwcTests extends ESTokenStreamTestCase {
     }
 
     private static IndexVersion legacyVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        return IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
     }
 
     private static IndexVersion gatedVersion() {
-        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
     }
 
     private IndexSettings indexSettings(IndexVersion version) {

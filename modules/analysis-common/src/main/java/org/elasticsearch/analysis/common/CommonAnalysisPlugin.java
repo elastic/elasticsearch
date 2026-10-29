@@ -504,7 +504,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             PreBuiltAnalyzerProviderFactory.indexVersion(
                 "thai",
                 CachingStrategy.INDEX,
-                version -> version.onOrAfter(IndexVersions.THAI_ANALYSIS_LUCENE_10_6) ? new ThaiAnalyzer() : new LegacyThaiAnalyzer()
+                version -> version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? new ThaiAnalyzer() : new LegacyThaiAnalyzer()
             )
         );
         return analyzers;
@@ -651,7 +651,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(
             PreConfiguredTokenizer.indexVersion(
                 "thai",
-                version -> version.onOrAfter(IndexVersions.THAI_ANALYSIS_LUCENE_10_6) ? new ThaiTokenizer() : new LegacyThaiTokenizer()
+                version -> version.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? new ThaiTokenizer() : new LegacyThaiTokenizer()
             )
         );
         // TODO deprecate and remove in API

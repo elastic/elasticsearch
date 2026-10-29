@@ -29,7 +29,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Lucene 10.6 changed the output of Thai analysis; indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} must keep
+ * Lucene 10.6 changed the output of Thai analysis; indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep
  * the old output. In a mixed cluster every copy of a shard analyzes documents and queries itself, so old and new nodes must agree on
  * how an old index analyzes Thai text or the copies diverge. The old index has a copy on every node, and each phase indexes a document
  * and then queries each node's copy separately ({@code preference=_only_nodes}) to check that every copy indexed every document,
@@ -98,7 +98,7 @@ public class ThaiAnalysisRollingUpgradeIT extends AbstractRollingUpgradeTestCase
     private static boolean isLegacy(String index) throws IOException {
         Response response = client().performRequest(new Request("GET", "/" + index + "/_settings"));
         String created = ObjectPath.createFromResponse(response).evaluate(index + ".settings.index.version.created");
-        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
     }
 
     private static int count(String index) throws IOException {

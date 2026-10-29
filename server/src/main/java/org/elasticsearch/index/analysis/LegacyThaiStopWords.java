@@ -19,7 +19,7 @@ import java.io.UncheckedIOException;
 
 /**
  * The Lucene 10.5 default Thai stopword set (115 entries). Lucene 10.6 (apache/lucene#16718) curated the list down to 87.
- * Indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} must keep resolving {@code _thai_} and the
+ * Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep resolving {@code _thai_} and the
  * {@code thai} analyzer default to this set, otherwise terms that were indexed on the old set would no longer be
  * removed at query time (and vice versa for documents indexed after an upgrade).
  * <p>

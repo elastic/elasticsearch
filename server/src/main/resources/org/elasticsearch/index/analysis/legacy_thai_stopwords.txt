@@ -1,5 +1,5 @@
 # Lucene 10.5.0 org/apache/lucene/analysis/th/stopwords.txt, vendored verbatim below. DO NOT EDIT: indices created before
-# IndexVersions.THAI_ANALYSIS_LUCENE_10_6 depend on this exact set. See LegacyThaiStopWords.
+# IndexVersions.UPGRADE_TO_LUCENE_10_6_0 depend on this exact set. See LegacyThaiStopWords.
 # Thai stopwords from:
 # "Opinion Detection in Thai Political News Columns
 # Based on Subjectivity Analysis"

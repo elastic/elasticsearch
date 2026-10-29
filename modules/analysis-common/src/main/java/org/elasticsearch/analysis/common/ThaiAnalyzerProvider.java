@@ -21,7 +21,7 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.Analysis;
 
 /**
- * Provider for the {@code thai} analyzer type. Indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} get
+ * Provider for the {@code thai} analyzer type. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
  * {@link LegacyThaiAnalyzer} (the Lucene 10.5 chain and default stopwords); newer indices get Lucene's {@link ThaiAnalyzer}.
  */
 public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
@@ -32,7 +32,7 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         IndexVersion created = indexSettings.getIndexVersionCreated();
-        boolean legacy = created.before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        boolean legacy = created.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
         CharArraySet defaults = legacy ? LegacyThaiAnalyzer.getDefaultStopSet() : ThaiAnalyzer.getDefaultStopSet();
         CharArraySet stopWords = Analysis.parseStopWords(created, env, settings, defaults);
         analyzer = legacy ? new LegacyThaiAnalyzer(stopWords) : new ThaiAnalyzer(stopWords);

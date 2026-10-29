@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexVersions;
  * {@link ThaiTokenizer} with the pre-Lucene-10.6 buffer-boundary rule. Lucene 10.6 (apache/lucene#16727) started treating any
  * whitespace as a safe place to cut the 1024-char segmenting buffer; before that only line terminators were. On text longer than
  * the buffer without line breaks the two rules cut in different places and so can produce different tokens. Used for indices
- * created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} so their analysis does not change under them.
+ * created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} so their analysis does not change under them.
  */
 final class LegacyThaiTokenizer extends ThaiTokenizer {
 

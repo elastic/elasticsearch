@@ -111,16 +111,16 @@ public class FactorySharingKeyTests extends ESTestCase {
     }
 
     /**
-     * {@code _thai_} resolves to a different list on either side of {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}; the
+     * {@code _thai_} resolves to a different list on either side of {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}; the
      * content-hashed stop set in the key must keep the two apart.
      */
     public void testStopFactoryThaiNamedSetDiffersAcrossThaiGate() {
         Environment env = env();
         Settings thai = Settings.builder().put("stopwords", "_thai_").build();
-        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        IndexVersion legacy = IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
         StopTokenFilterFactory oldA = new StopTokenFilterFactory(indexSettings(legacy), env, "a", thai);
         StopTokenFilterFactory oldB = new StopTokenFilterFactory(
-            indexSettings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.THAI_ANALYSIS_LUCENE_10_6)),
+            indexSettings(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.UPGRADE_TO_LUCENE_10_6_0)),
             env,
             "b",
             thai

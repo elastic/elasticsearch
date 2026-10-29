@@ -23,7 +23,7 @@ import org.elasticsearch.index.analysis.LegacyThaiStopWords;
  * The Lucene 10.5 {@code ThaiAnalyzer}: {@link LegacyThaiTokenizer}, lowercase, decimal digit, stop, with the 10.5 default stopword
  * list. No {@code ThaiCharFilter}, {@code ThaiNormalizationFilter} or {@code ThaiRepeatFilter}. Lucene's {@code ThaiAnalyzer} is final
  * and changed its chain in 10.6, so the old chain is rebuilt here. Used for indices created before
- * {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} so that query-time analysis keeps matching the terms they were indexed with.
+ * {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} so that query-time analysis keeps matching the terms they were indexed with.
  */
 final class LegacyThaiAnalyzer extends StopwordAnalyzerBase {
 

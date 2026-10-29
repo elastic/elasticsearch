@@ -20,7 +20,7 @@ public final class AnalyzeCapabilities {
 
     /**
      * Thai analysis ({@code thai} analyzer and tokenizer, {@code _thai_} stopwords) follows the index's creation version: indices
-     * created before {@code IndexVersions.THAI_ANALYSIS_LUCENE_10_6} keep the Lucene 10.5 output, newer indices and index-less
+     * created before {@code IndexVersions.UPGRADE_TO_LUCENE_10_6_0} keep the Lucene 10.5 output, newer indices and index-less
      * requests get Lucene's current output.
      */
     private static final String THAI_ANALYSIS_BY_INDEX_VERSION_CAPABILITY = "thai_analysis_by_index_version";

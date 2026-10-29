@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Lucene 10.6 changed the output of Thai analysis. Indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} must keep
+ * Lucene 10.6 changed the output of Thai analysis. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} must keep
  * analyzing exactly as they did before the upgrade, at both index and query time and for documents indexed after the upgrade, while
  * indices created on the upgraded cluster get Lucene's current output. Covers every Thai entry point: the prebuilt {@code thai}
  * analyzer, a {@code type: thai} analyzer, the preconfigured {@code thai} tokenizer, a {@code type: thai} tokenizer and
@@ -145,7 +145,7 @@ public class ThaiAnalysisFullClusterRestartIT extends ParameterizedFullClusterRe
     private static boolean isLegacy(String index) throws IOException {
         Response response = client().performRequest(new Request("GET", "/" + index + "/_settings"));
         String created = ObjectPath.createFromResponse(response).evaluate(index + ".settings.index.version.created");
-        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        return IndexVersion.fromId(Integer.parseInt(created)).before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
     }
 
     private static void createThaiIndex(String index) throws IOException {

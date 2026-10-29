@@ -139,7 +139,7 @@ public class Analysis {
     );
 
     /**
-     * {@link #NAMED_STOP_WORDS} as seen by indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6}: identical except
+     * {@link #NAMED_STOP_WORDS} as seen by indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0}: identical except
      * that {@code _thai_} resolves to the Lucene 10.5 list. Held in a nested class so the legacy resource is only read once an old
      * index actually resolves named stopwords.
      */
@@ -159,7 +159,7 @@ public class Analysis {
      * terms at query time than were removed at index time.
      */
     private static Map<String, Set<?>> namedStopWords(IndexVersion indexCreatedVersion) {
-        return indexCreatedVersion.before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6) ? LegacyNamedStopWords.MAP : NAMED_STOP_WORDS;
+        return indexCreatedVersion.before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0) ? LegacyNamedStopWords.MAP : NAMED_STOP_WORDS;
     }
 
     public static CharArraySet parseWords(

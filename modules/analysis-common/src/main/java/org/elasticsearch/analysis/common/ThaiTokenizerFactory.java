@@ -18,7 +18,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 /**
- * Factory for {@link ThaiTokenizer}. Indices created before {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} get
+ * Factory for {@link ThaiTokenizer}. Indices created before {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} get
  * {@link LegacyThaiTokenizer} so that their tokenization does not change after an upgrade.
  */
 public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
@@ -27,7 +27,7 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
 
     ThaiTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        this.legacy = indexSettings.getIndexVersionCreated().before(IndexVersions.THAI_ANALYSIS_LUCENE_10_6);
+        this.legacy = indexSettings.getIndexVersionCreated().before(IndexVersions.UPGRADE_TO_LUCENE_10_6_0);
     }
 
     @Override
@@ -36,7 +36,7 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     /**
-     * Includes the side of the {@link IndexVersions#THAI_ANALYSIS_LUCENE_10_6} gate so that indices on either side never share
+     * Includes the side of the {@link IndexVersions#UPGRADE_TO_LUCENE_10_6_0} gate so that indices on either side never share
      * an analyzer built from this factory.
      */
     @Override

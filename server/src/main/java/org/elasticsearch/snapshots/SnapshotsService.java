@@ -270,7 +270,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 // starts immediately, which means that no other task is currently updating it.
                 null
             ),
-            this::startExecutableClones,
+            this::runReadyShardClonesInCluster,
             (entry, minVersion) -> submitDeleteSnapshotsRepositoryDataWriteTask(
                 entry.projectId(),
                 entry.repoName(),
@@ -405,6 +405,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // Snapshot cloning
     // ------------------------------------------------------------------------------------------------------------------------------------
 
+    /// Clone a snapshot as requested by the given [CloneSnapshotRequest].
+    ///
+    /// @param listener Completed when the clone process completes. If this node stops being the elected master before the clone is
+    /// finalized, this listener may be completed exceptionally even while the clone continues running to its eventual
+    /// success.
     // TODO: It is worth revisiting the design choice of creating a placeholder entry in snapshots-in-progress here once we have a cache
     // for repository metadata and loading it has predictable performance
     public void cloneSnapshot(ProjectId projectId, CloneSnapshotRequest request, ActionListener<Void> listener) {
@@ -501,18 +506,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             public void clusterStateProcessed(ClusterState oldState, final ClusterState newState) {
                 logger.info("snapshot clone [{}] started", snapshot);
                 addSnapshotFinalizationListener(snapshot, listener.delegateFailureAndWrap((l, r) -> l.onResponse(null)));
-                startCloning(repository, newEntry);
+                createShardCloneEntries(repository, newEntry);
             }
         }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
-    /**
-     * Determine the number of shards in each index of a clone operation and update the cluster state accordingly.
-     *
-     * @param repository     repository to run operation on
-     * @param cloneEntry     clone operation in the cluster state
-     */
-    private void startCloning(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
+    /// Determine the number of shards in each index of a clone operation and populate the [SnapshotsInProgress.Entry] with its shard-level
+    /// work.
+    ///
+    /// @param cloneEntry Newly-created clone operation in the cluster state, containing no shard-level work yet.
+    private void createShardCloneEntries(Repository repository, SnapshotsInProgress.Entry cloneEntry) {
         final Collection<IndexId> indices = cloneEntry.indices().values();
         final SnapshotId sourceSnapshot = cloneEntry.source();
         final Snapshot targetSnapshot = cloneEntry.snapshot();
@@ -643,7 +646,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             final RepositoryShardId repoShardId = indexClone.getKey();
                             final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
                             if (shardStatusBefore.state() == ShardState.INIT) {
-                                runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                                runReadyShardClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
                             } else if (shardStatusBefore.state() == ShardState.ABORTED) {
                                 createAndSubmitRequestToUpdateSnapshotState(
                                     target,
@@ -655,7 +658,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                         shardStatusBefore.generation(),
                                         shardStatusBefore.reason()
                                     ),
-                                    failedCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
+                                    failedShardCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
                                 );
                             }
                         }
@@ -743,38 +746,38 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         );
     }
 
-    /**
-     * Maybe kick off new shard clone operations for all repositories from all projects
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any repository.
+    private void runReadyShardClonesInCluster(SnapshotsInProgress snapshotsInProgress) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
-            startExecutableClones(entries);
+            runReadyShardClonesInEntries(entries);
         }
     }
 
-    /**
-     * Maybe kick off new shard clone operations for all repositories of the specified project
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any repository from the
+    /// given project.
+    private void runReadyShardClonesInProject(SnapshotsInProgress snapshotsInProgress, ProjectId projectId) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo(projectId)) {
-            startExecutableClones(entries);
+            runReadyShardClonesInEntries(entries);
         }
     }
 
-    /**
-     * Maybe kick off new shard clone operations for the single specified project repository
-     */
-    private void startExecutableClones(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
-        startExecutableClones(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in the given repository.
+    private void runReadyShardClonesInRepository(SnapshotsInProgress snapshotsInProgress, ProjectRepo projectRepo) {
+        runReadyShardClonesInEntries(snapshotsInProgress.forRepo(Objects.requireNonNull(projectRepo)));
     }
 
-    private void startExecutableClones(List<SnapshotsInProgress.Entry> entries) {
+    /// Start running any shard-level clone tasks that are ready to start (e.g. in state [ShardState#INIT]), in any of the given
+    /// [SnapshotsInProgress.Entry] entries.
+    ///
+    /// @param entries The entries to search for ready-to-run shard clones. In practice all callers today pass a value containing entries
+    /// from a single repository.
+    private void runReadyShardClonesInEntries(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry entry : entries) {
             if (entry.isClone() && entry.state() == SnapshotsInProgress.State.STARTED) {
                 // this is a clone, see if new work is ready
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> clone : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     if (clone.getValue().state() == ShardState.INIT) {
-                        runReadyClone(
+                        runReadyShardClone(
                             entry.snapshot(),
                             entry.source(),
                             clone.getValue(),
@@ -792,7 +795,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 clone.getValue().generation(),
                                 clone.getValue().reason()
                             ),
-                            failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
+                            failedShardCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
                         );
                     }
                 }
@@ -801,9 +804,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     // RepositoryShardId is unique across projects because RepositoryShardId.index().getId() is an UUID
-    private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
+    private final Set<RepositoryShardId> runningShardClones = Collections.synchronizedSet(new HashSet<>());
 
-    private void runReadyClone(
+    /// Start running the given shard-level clone task, which must be ready to start (i.e. in state [ShardState#INIT]) in the current
+    /// cluster state. Safe to call multiple times for each shard, as requests are deduplicated via [#runningShardClones].
+    private void runReadyShardClone(
         Snapshot target,
         SnapshotId sourceSnapshot,
         ShardSnapshotStatus shardStatusBefore,
@@ -812,7 +817,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     ) {
         final SnapshotId targetSnapshot = target.getSnapshotId();
         final String localNodeId = clusterService.localNode().getId();
-        if (currentlyCloning.add(repoShardId)) {
+        if (runningShardClones.add(repoShardId)) {
             repository.cloneShardSnapshot(
                 sourceSnapshot,
                 targetSnapshot,
@@ -837,7 +842,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                     failAllListenersOnMasterFailOver(e);
                                 }
                             ),
-                            () -> currentlyCloning.remove(repoShardId)
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     ),
                     e -> createAndSubmitRequestToUpdateSnapshotState(
@@ -851,8 +856,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
-                            failedCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
-                            () -> currentlyCloning.remove(repoShardId)
+                            failedShardCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
+                            () -> runningShardClones.remove(repoShardId)
                         )
                     )
                 )
@@ -860,7 +865,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    private ActionListener<Void> failedCloneUpdateListener(
+    /// @return a listener which handles the result of marking a shard clone operation as failed: if the operation was successfully marked
+    /// as failed then no further action is needed, whereas if the marking operation also failed then that indicates a master failover is
+    /// in progress.
+    private ActionListener<Void> failedShardCloneUpdateListener(
         SnapshotId sourceSnapshot,
         SnapshotId targetSnapshot,
         RepositoryShardId repoShardId
@@ -1242,7 +1250,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
             // TODO: be more efficient here, we could collect newly ready shard clones as we compute them and then directly start them
             // instead of looping over all possible clones to execute
-            startExecutableClones(SnapshotsInProgress.get(newState), deleteEntry.projectId());
+            runReadyShardClonesInProject(SnapshotsInProgress.get(newState), deleteEntry.projectId());
         }
 
         /**
@@ -2049,7 +2057,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         // Likewise this state update may enable some new shard clones on any affected repository, so check them all.
         for (final var updatedRepository : updatedRepositories) {
-            startExecutableClones(snapshotsInProgress, updatedRepository);
+            runReadyShardClonesInRepository(snapshotsInProgress, updatedRepository);
         }
         // Also shard snapshot completions may free up some shards to move to other nodes, so we must trigger a reroute.
         if (updatedRepositories.isEmpty() == false) {

@@ -50,12 +50,10 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
 
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
     ] as Set
 
     private static final Set<String> KNOWN_GET_ALL_SUB_PROJECTS = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
-        "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
     ] as Set
 
     private static final Set<String> KNOWN_ALL_SUB_PROJECTS_CALLBACK = [] as Set

@@ -546,3 +546,8 @@ tests:
   - :server:test
   method: testAllFieldsLoaderReleasesItsReservationWhenItFails
   issue: https://github.com/elastic/elasticsearch/issues/163868
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testEvaluateInManyThreads {TestCase=<random tdigest> with random bucket count and long/double bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/163887

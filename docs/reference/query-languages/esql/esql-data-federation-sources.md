@@ -2,7 +2,7 @@
 navigation_title: "Data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation. Create and manage data sources, choose an authentication model, and grant read access to your data."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -71,7 +71,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-esql-delete-data-source) |
-| [Test connection](#test-a-connection) {applies_to}`stack: experimental 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
+| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-data-source-test-connection) |
 
 ### Create or update a data source
 
@@ -79,7 +79,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 
 The create request does not validate connectivity to the external system.
 
-{applies_to}`stack: experimental 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+{applies_to}`stack: preview 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 
 :::{important}
 Data source names follow the same naming rules as index names: lowercase only, at most 255 bytes, and they cannot begin with `-`, `_`, or `+`, contain spaces, or contain the characters `\ / * ? " < > |`.
@@ -210,7 +210,7 @@ A data source cannot be deleted while datasets still reference it. Delete the de
 
 ### Test a connection
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
@@ -293,7 +293,7 @@ A data source authenticates to its store with one of the following models. The m
 | Static credentials | `static_credentials` | A fixed access key and secret key. The common form for a service account. To set one up, refer to [connect with static credentials](esql-data-federation-static-credentials.md). |
 | Anonymous | `anonymous` | For public data that needs no credentials. The [quickstart](esql-data-federation-quickstart.md) walks through this method. |
 | Federated identity | `federated_identity` | Keyless. {{es}} exchanges a short-lived OIDC token for temporary AWS credentials via STS, so no static keys are stored. Available on {{ech}} on AWS, Azure, and Google Cloud. Not available on IBM Cloud, in special environments such as AWS GovCloud, or on self-managed, {{ece}}, or {{eck}} deployments. To set it up, refer to [connect with federated identity](esql-data-federation-federated-identity.md). |
-| Managed identity | `managed_identity` | Keyless. Uses the {{es}} node's own cloud identity, for example an EC2 instance IAM role. Operator-only and API-only, and not available in serverless. Requires a [cluster setting](esql-data-federation-cluster-settings.md).<br>{applies_to}`stack: experimental 9.6+` `esql.external.managed_identity.enabled`<br>{applies_to}`stack: deprecated 9.6+, experimental =9.5` `esql.datasource.managed_identity.enabled` |
+| Managed identity | `managed_identity` | Keyless. Uses the {{es}} node's own cloud identity, for example an EC2 instance IAM role. Operator-only and API-only, and not available in serverless. Requires a [cluster setting](esql-data-federation-cluster-settings.md).<br>{applies_to}`stack: preview 9.6+` `esql.external.managed_identity.enabled`<br>{applies_to}`stack: deprecated 9.6+, experimental =9.5` `esql.datasource.managed_identity.enabled` |
 
 :::{warning}
 Managed identity uses the cloud identity attached to each {{es}} node (for example, an IAM role on EC2 or a service account on GKE). Different nodes might have different identities, and the node that performs the connection is not guaranteed. You are responsible for configuring cloud IAM so that every node's identity has the required permissions on the target bucket. This model is best suited for single-cloud, single-tenant deployments where node identities are uniform.

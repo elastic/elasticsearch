@@ -10,6 +10,7 @@
 package org.elasticsearch.update;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -24,11 +25,15 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +46,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesUpdateIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // InternalSettingsPlugin registers index.global_checkpoint_sync.interval, used to speed up replica-checkpoint propagation.
+        return List.of(InternalSettingsPlugin.class);
+    }
 
     private static final String MAPPING = """
         {
@@ -80,6 +92,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
                     .put("index.disable_sequence_numbers", false)
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 1)
+                    // propagate the replica's checkpoint to the primary quickly so the await below resolves promptly
+                    .put("index.global_checkpoint_sync.interval", "100ms")
             ).setMapping(MAPPING)
         );
         ensureGreen("idx");
@@ -89,6 +103,10 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
+
+        // The in-place fast path ships the delta only once the base is on every tracked copy, so wait until the replica has caught up (the
+        // primary's tracked checkpoint reaches the base). Otherwise the update races the base's replication and falls back to a reindex.
+        awaitReplicasCaughtUp("idx", indexResponse.getSeqNo());
 
         // Update only the updatable fields; this must be applied in place, not by reindexing the document. The write waits for the
         // replica so the replica path is exercised too.
@@ -224,6 +242,26 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
         assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(42L));
         assertThat(get.getSourceAsMap().get("name"), equalTo("widget"));
+    }
+
+    /**
+     * Waits until the primary's global checkpoint has advanced to {@code seqNo}: every in-sync copy has then persisted up to it and the
+     * primary knows it, so the in-place fast path's replica-checkpoint gate passes deterministically rather than falling back to a reindex
+     * while the base is still propagating.
+     */
+    private void awaitReplicasCaughtUp(String index, long seqNo) throws Exception {
+        assertBusy(() -> {
+            boolean sawPrimary = false;
+            for (ShardStats shardStats : indicesAdmin().prepareStats(index).get().getShards()) {
+                if (shardStats.getShardRouting().primary()) {
+                    sawPrimary = true;
+                    SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                    assertThat(seqNoStats, notNullValue());
+                    assertThat(seqNoStats.getGlobalCheckpoint(), greaterThanOrEqualTo(seqNo));
+                }
+            }
+            assertTrue("no primary shard stats for [" + index + "]", sawPrimary);
+        });
     }
 
     private static void assertOverlaidSource(Map<String, Object> source) {
@@ -396,6 +434,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
                     .put("index.disable_sequence_numbers", false)
+                    // this test covers type decoding, not replication; no replica keeps the in-place fast path deterministic
+                    .put("index.number_of_replicas", 0)
             ).setMapping(mapping)
         );
         ensureGreen("idx");

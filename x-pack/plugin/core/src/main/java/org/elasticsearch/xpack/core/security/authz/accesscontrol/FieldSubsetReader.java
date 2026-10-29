@@ -373,21 +373,10 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
-        if (hasField(field) == false || isFilteredCountsField(field)) {
+        if (hasField(field) == false || isIgnoredSourceCountsField(field)) {
             return null;
         }
         return super.getDocValuesSkipper(field);
-    }
-
-    /**
-     * Returns whether {@code field} is a counts field that stays visible but whose numeric doc values this reader filters:
-     * {@code _ignored_source.counts}, which {@link #getNumericDocValues} hides, and {@code _unmapped._keyed.counts}, which it
-     * reduces to the slots of granted unmapped fields. The skipper stored for such a field summarizes the unfiltered values,
-     * including those of hidden fields, so it must not be exposed. Returning no skipper is always correct: readers treat it
-     * as optional and read the doc values without one.
-     */
-    private boolean isFilteredCountsField(String field) {
-        return isIgnoredSourceCountsField(field) || UNMAPPED_SINK_COUNTS.equals(field);
     }
 
     /**

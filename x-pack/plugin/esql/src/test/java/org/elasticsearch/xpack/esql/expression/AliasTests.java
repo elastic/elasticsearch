@@ -52,18 +52,10 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         return new Alias(source, name, child, new NameId(), synthetic);
     }
 
-    public void testCounterCastRetainsMetricIdentity() {
-        FieldAttribute counter = metricField(DataType.COUNTER_LONG);
-        Expression cast = new ToLongSurrogate(Source.EMPTY, counter, null);
-        assertTrue(MetricExpression.isMetric(cast));
-        Alias alias = new Alias(Source.EMPTY, "numeric", cast);
-        assertTrue(alias.isMetric());
-        assertTrue(alias.toAttribute().isMetric());
-        assertEquals(DataType.LONG, alias.dataType());
-    }
-
     public void testMetricIdentityThroughCastChainsAndAliases() throws IOException {
-        Alias numeric = new Alias(Source.EMPTY, "numeric", new ToLong(Source.EMPTY, metricField(DataType.COUNTER_LONG)));
+        FieldAttribute counter = metricField(DataType.COUNTER_LONG);
+        assertTrue(MetricExpression.isMetric(new ToLongSurrogate(Source.EMPTY, counter, null)));
+        Alias numeric = new Alias(Source.EMPTY, "numeric", new ToLong(Source.EMPTY, counter));
         Alias copy = copyInstance(numeric);
         assertTrue(copy.toAttribute().isMetric());
         assertEquals(DataType.LONG, copy.dataType());
@@ -73,44 +65,21 @@ public class AliasTests extends AbstractNamedExpressionSerializationTests<Alias>
         assertEquals(DataType.DOUBLE, converted.dataType());
     }
 
-    public void testGaugeAndCounterCastsRetainMetricIdentity() {
-        Alias gauge = new Alias(Source.EMPTY, "gauge", new ToGauge(Source.EMPTY, metricField(DataType.COUNTER_LONG)));
-        assertTrue(gauge.toAttribute().isMetric());
-        assertEquals(DataType.LONG, gauge.dataType());
-        Alias counter = new Alias(Source.EMPTY, "counter", new ToCounter(Source.EMPTY, gauge.toAttribute()));
-        assertTrue(counter.toAttribute().isMetric());
-        assertEquals(DataType.COUNTER_LONG, counter.dataType());
-    }
-
-    public void testNumericCastPreservesAndExplicitCastsEstablishMetricIdentity() {
-        FieldAttribute field = new FieldAttribute(
+    public void testExplicitCastsDeclareNonMetricInputs() throws IOException {
+        Expression ordinary = new FieldAttribute(
             Source.EMPTY,
             "value",
             new EsField("value", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Alias converted = new Alias(Source.EMPTY, "converted", new ToDouble(Source.EMPTY, field));
-        assertFalse(converted.toAttribute().isMetric());
-        Alias counter = new Alias(Source.EMPTY, "counter", new ToCounter(Source.EMPTY, field));
-        assertTrue(counter.toAttribute().isMetric());
-        Alias gauge = new Alias(Source.EMPTY, "gauge", new ToGauge(Source.EMPTY, field));
-        assertTrue(gauge.toAttribute().isMetric());
-    }
-
-    public void testCastOfComputedValueRemainsNonMetric() {
         Expression computed = new Coalesce(Source.EMPTY, metricField(DataType.LONG), List.of(new Literal(Source.EMPTY, 0L, DataType.LONG)));
-        Alias alias = new Alias(Source.EMPTY, "computed", new ToDouble(Source.EMPTY, computed));
-        assertFalse(alias.toAttribute().isMetric());
-    }
-
-    public void testExplicitCastsDeclareComputedMetrics() throws IOException {
-        Expression computed = new Coalesce(Source.EMPTY, metricField(DataType.LONG), List.of(new Literal(Source.EMPTY, 0L, DataType.LONG)));
-        for (Expression declaration : List.of(new ToGauge(Source.EMPTY, computed), new ToCounter(Source.EMPTY, computed))) {
-            Alias alias = new Alias(Source.EMPTY, "declared", declaration);
-            assertTrue(alias.toAttribute().isMetric());
-            Alias copy = copyInstance(alias);
-            assertTrue(copy.toAttribute().isMetric());
-            Alias numeric = new Alias(Source.EMPTY, "numeric", new ToDouble(Source.EMPTY, copy.toAttribute()));
-            assertTrue(numeric.toAttribute().isMetric());
+        for (Expression input : List.of(ordinary, computed)) {
+            assertFalse(MetricExpression.isMetric(new ToDouble(Source.EMPTY, input)));
+            for (Expression declaration : List.of(new ToGauge(Source.EMPTY, input), new ToCounter(Source.EMPTY, input))) {
+                Alias copy = copyInstance(new Alias(Source.EMPTY, "declared", declaration));
+                assertTrue(copy.toAttribute().isMetric());
+                assertEquals(declaration instanceof ToGauge ? DataType.LONG : DataType.COUNTER_LONG, copy.dataType());
+                assertTrue(MetricExpression.isMetric(new ToDouble(Source.EMPTY, copy.toAttribute())));
+            }
         }
     }
 

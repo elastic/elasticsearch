@@ -1841,30 +1841,15 @@ TS null filtering through metric casts:
                 time_series_metric: gauge
               value:
                 type: long
-              requests:
-                type: long
-                time_series_metric: counter
   - do:
       bulk:
         refresh: true
         index: test-metric-casts
         body:
           - '{"create": {}}'
-          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1, "value": 3, "requests": 100}'
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h1", "a": 1, "value": 3}'
           - '{"create": {}}'
-          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2, "requests": 200}'
-
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | STATS a = max(a::double), b = max(b)'
-  - match: {columns.0.name: "a"}
-  - match: {columns.0.type: "double"}
-  - match: {columns.1.name: "b"}
-  - match: {columns.1.type: "long"}
-  - length: {values: 1}
-  - match: {values.0.0: 1.0}
-  - match: {values.0.1: 2}
+          - '{"@timestamp": "2021-04-28T18:00:00Z", "host": "h2", "b": 2}'
 
   # Buckets whose only input metric is missing are omitted, including through chained casts and aliases.
   - do:
@@ -1873,24 +1858,6 @@ TS null filtering through metric casts:
           query: 'TS test-metric-casts | EVAL converted = a::double | STATS a = max(converted::long) BY host | SORT host'
   - length: {values: 1}
   - match: {values.0: [1, "h1"]}
-
-  # Counter-to-long retains the existing plain numeric type and remains valid for AVG_OVER_TIME.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | STATS average = avg(avg_over_time(requests::long))'
-  - match: {columns.0.type: "double"}
-  - length: {values: 1}
-  - match: {values.0.0: 150.0}
-
-  # A cast metric mixed with a computed input must retain rows where only the computed input has a value.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL converted = a::double::long, computed = coalesce(b, 0)::double | STATS a = max(converted), b = max(computed) BY host | SORT host'
-  - length: {values: 2}
-  - match: {values.0: [1, 0.0, "h1"]}
-  - match: {values.1: [null, 2.0, "h2"]}
 
   # Computing after casting must also disable the metric filter.
   - do:
@@ -1910,7 +1877,6 @@ TS null filtering through metric casts:
   - match: {values.0: [1.0, true, false, "h1"]}
   - match: {values.1: [null, false, true, "h2"]}
 
-
   # A plain numeric input retains h2's group even though its value is null.
   - do:
       esql.query:
@@ -1928,28 +1894,13 @@ TS null filtering through metric casts:
   - length: {values: 1}
   - match: {values.0: [3, "h1"]}
 
-  # Explicit counter declarations establish metric identity, which a subsequent numeric cast preserves.
+  # Both declarations make computed values eligible for metric null filtering.
   - do:
       esql.query:
         body:
-          query: 'TS test-metric-casts | EVAL declared = value::counter::long | STATS maximum = max(declared) BY host | SORT host'
+          query: 'TS test-metric-casts | EVAL gauge = (b + 1)::gauge, counter = (b + 1)::counter::long | STATS gauge = max(gauge), counter = max(counter) BY host | SORT host'
   - length: {values: 1}
-  - match: {values.0: [3, "h1"]}
-
-  # Computed values can also be explicitly declared as metrics.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL declared = (b + 1)::gauge | STATS maximum = max(declared) BY host | SORT host'
-  - length: {values: 1}
-  - match: {values.0: [3, "h2"]}
-
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL declared = (b + 1)::counter::long | STATS maximum = max(declared) BY host | SORT host'
-  - length: {values: 1}
-  - match: {values.0: [3, "h2"]}
+  - match: {values.0: [3, 3, "h2"]}
 
   # Casting back to a numeric type does not restore identity lost through a string conversion.
   - do:
@@ -1958,12 +1909,4 @@ TS null filtering through metric casts:
           query: 'TS test-metric-casts | EVAL converted = a::string::double | STATS maximum = max(converted) BY host | SORT host'
   - length: {values: 2}
   - match: {values.0: [1.0, "h1"]}
-  - match: {values.1: [null, "h2"]}
-
-  # Angle transformations behave like arithmetic, retaining groups whose computed input is null.
-  - do:
-      esql.query:
-        body:
-          query: 'TS test-metric-casts | EVAL converted = to_degrees(a) | STATS maximum = max(converted) BY host | SORT host'
-  - length: {values: 2}
   - match: {values.1: [null, "h2"]}

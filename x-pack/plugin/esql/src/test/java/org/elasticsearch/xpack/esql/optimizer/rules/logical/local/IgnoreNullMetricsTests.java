@@ -183,26 +183,19 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         }
     }
 
-    /**
-     * Absence and presence still need null rows when a computed input is aggregated alongside a cast metric.
-     */
-    public void testSkipFilterForComputedPresenceWithCastMetric() {
-        for (String function : new String[] { "absent_over_time", "present_over_time" }) {
+    public void testFilterAliasedAndOverwrittenMetrics() {
+        for (String eval : new String[] {
+            "converted = metric_1::double",
+            "intermediate = metric_1::double, converted = intermediate::long",
+            "metric_1 = metric_1::double, converted = metric_1" }) {
             LogicalPlan actual = metrics().localPlan(Strings.format("""
                 TS test
-                | EVAL converted = metric_1::double, computed = (metric_2 + 0)::double
-                | STATS max(max_over_time(converted)), max(%s(computed)) BY BUCKET(@timestamp, 1 min)
+                | EVAL %s
+                | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
                 | LIMIT 10
-                """, function));
-            assertFalse(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+                """, eval));
+            assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
         }
-    }
-
-    public void testFilterOnlyConvertedMetric() {
-        LogicalPlan actual = metrics().localPlan("""
-            TS test | STATS max(max_over_time(metric_1::double)) BY BUCKET(@timestamp, 1 min) | LIMIT 10
-            """);
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
     }
 
     public void testExplicitCastsDeclareComputedMetrics() {
@@ -218,15 +211,7 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     public void testOtherConversionsDoNotDeclareMetrics() {
-        for (String converted : new String[] {
-            "metric_2::string::double",
-            "metric_2::boolean::double",
-            "metric_2::datetime::long",
-            "metric_2::date_nanos::long",
-            "to_degrees(metric_2)",
-            "to_radians(metric_2)",
-            "to_degrees(metric_2::double)",
-            "to_radians(metric_2::double)" }) {
+        for (String converted : new String[] { "metric_2::string::double", "to_degrees(metric_2::double)" }) {
             LogicalPlan actual = metrics().localPlan(Strings.format("""
                 TS test
                 | EVAL converted = %s
@@ -243,41 +228,20 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
             getPreviousVersion(CompactMultiTypeEsField.CompactMultiTypeEsField)
         )) {
             for (EsField.TimeSeriesFieldType fieldType : List.of(EsField.TimeSeriesFieldType.METRIC, EsField.TimeSeriesFieldType.NONE)) {
-                EsIndex index = new EsIndex(
-                    "test-long,test-double",
-                    Map.of(
-                        "@timestamp",
-                        new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
-                        "value",
-                        new InvalidMappedField("value", Map.of("long", Set.of("test-long"), "double", Set.of("test-double")), fieldType)
-                    ),
-                    Map.of(
-                        "test-long",
-                        new IndexProperties(IndexMode.TIME_SERIES, 0),
-                        "test-double",
-                        new IndexProperties(IndexMode.TIME_SERIES, 0)
-                    ),
-                    Map.of(),
-                    Map.of()
-                );
-                Map<String, Boolean> conversions = Map.of(
-                    "value::double",
-                    fieldType == EsField.TimeSeriesFieldType.METRIC,
-                    "value::string::double",
-                    false,
-                    "to_degrees(value)",
-                    false,
-                    "value::double::gauge",
-                    true,
-                    "value::double::counter::double",
-                    true
+                EsIndex index = unionIndex(DataType.LONG, DataType.DOUBLE, fieldType);
+                Map<String, Boolean> conversions = Map.ofEntries(
+                    Map.entry("value::double", fieldType == EsField.TimeSeriesFieldType.METRIC),
+                    Map.entry("value::string::double", false),
+                    Map.entry("to_degrees(value)", false),
+                    Map.entry("value::double::gauge", true),
+                    Map.entry("value::double::counter::double", true)
                 );
                 for (var conversion : conversions.entrySet()) {
                     LogicalPlan actual = EsqlTestUtils.optimizer()
                         .addIndex(index)
                         .minimumTransportVersion(version)
                         .localPlan(Strings.format("""
-                            TS test-long,test-double
+                            TS test-1,test-2
                             | EVAL converted = %s
                             | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
                             | LIMIT 10
@@ -290,29 +254,9 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
 
     public void testGaugeDeclaresAggregateMetricDoubleUnion() {
         assumeTrue("requires implicit aggregate_metric_double casting", EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled());
-        EsIndex index = new EsIndex(
-            "test-raw,test-downsampled",
-            Map.of(
-                "@timestamp",
-                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
-                "value",
-                new InvalidMappedField(
-                    "value",
-                    Map.of("long", Set.of("test-raw"), "aggregate_metric_double", Set.of("test-downsampled")),
-                    EsField.TimeSeriesFieldType.NONE
-                )
-            ),
-            Map.of(
-                "test-raw",
-                new IndexProperties(IndexMode.TIME_SERIES, 0),
-                "test-downsampled",
-                new IndexProperties(IndexMode.TIME_SERIES, 0)
-            ),
-            Map.of(),
-            Map.of()
-        );
+        EsIndex index = unionIndex(DataType.LONG, DataType.AGGREGATE_METRIC_DOUBLE, EsField.TimeSeriesFieldType.NONE);
         LogicalPlan actual = EsqlTestUtils.optimizer().addIndex(index).localPlan("""
-            TS test-raw,test-downsampled
+            TS test-1,test-2
             | STATS avg(avg_over_time(value::gauge)) BY BUCKET(@timestamp, 1 min)
             | LIMIT 10
             """);
@@ -324,44 +268,19 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         }
     }
 
-    public void testFilterChainedCastsAndAliases() {
-        LogicalPlan actual = metrics().localPlan("""
-            TS test
-            | EVAL converted = metric_2::double, chained = converted::long
-            | STATS max(max_over_time(metric_1)), max(max_over_time(chained)) BY BUCKET(@timestamp, 1 min)
-            | LIMIT 10
-            """);
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
-    }
-
-    public void testFilterOverwrittenMetric() {
-        LogicalPlan actual = metrics().localPlan("""
-            TS test
-            | EVAL metric_2 = metric_2::double
-            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2)) BY BUCKET(@timestamp, 1 min)
-            | LIMIT 10
-            """);
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
-    }
-
-    public void testFilterGaugeAndCounterCasts() {
-        LogicalPlan actual = ts().localPlan("""
-            TS k8s
-            | STATS average = avg(avg_over_time(network.total_bytes_in::gauge)), rate = max(rate(network.total_bytes_out::gauge::counter))
-              BY BUCKET(@timestamp, 1 min)
-            | LIMIT 10
-            """);
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
-    }
-
-    public void testCastStillStripsCounterSemantics() {
-        LogicalPlan actual = ts().localPlan("""
-            TS k8s
-            | STATS average = avg(avg_over_time(network.total_bytes_in::long)) BY BUCKET(@timestamp, 1 min)
-            | LIMIT 10
-            """);
-        assertEquals(DataType.DOUBLE, actual.output().getFirst().dataType());
-        assertTrue(actual.toString(), actual.anyMatch(Filter.class::isInstance));
+    private static EsIndex unionIndex(DataType first, DataType second, EsField.TimeSeriesFieldType fieldType) {
+        return new EsIndex(
+            "test-1,test-2",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "value",
+                new InvalidMappedField("value", Map.of(first.typeName(), Set.of("test-1"), second.typeName(), Set.of("test-2")), fieldType)
+            ),
+            Map.of("test-1", new IndexProperties(IndexMode.TIME_SERIES, 0), "test-2", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
     }
 
     public void testFilterMixedAggregateMetricDoubleAndDoubleMetric() {

@@ -35,6 +35,32 @@ if [[ -f build/task-status.json ]]; then
   cd "$WORKSPACE"
 fi
 
+if [[ "${JACOCO_REPORTING_ENABLED:-}" == "true" ]]; then
+  # Upload JaCoCo HTML coverage reports ({project}/build/reports/jacoco/{sourceset}/html/index.html)
+  # as artifacts and link them from a single annotation. Failures here must never fail the job.
+  jacoco_annotation=""
+  while IFS= read -r report_index; do
+    report_dir="${report_index#./}"
+    report_dir="${report_dir%/index.html}"
+    # {project}/build/reports/jacoco/{sourceset}/html -> "{project} ({sourceset})"
+    project_path="${report_dir%/build/reports/jacoco/*}"
+    source_set="${report_dir#*/build/reports/jacoco/}"
+    source_set="${source_set%/html}"
+
+    if buildkite-agent artifact upload "${report_dir}/**/*"; then
+      artifact_id="$(buildkite-agent artifact search "${report_dir}/index.html" --step "${BUILDKITE_JOB_ID:-}" --format '%i' || true)"
+      if [[ -n "$artifact_id" ]]; then
+        artifact_url="https://buildkite.com/organizations/${BUILDKITE_ORGANIZATION_SLUG}/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}/jobs/${BUILDKITE_JOB_ID}/artifacts/${artifact_id}"
+        jacoco_annotation+="<div>:coverage: <a href=\"${artifact_url}\"><code>${BUILDKITE_LABEL:-} / ${project_path} (${source_set})</code></a></div>"
+      fi
+    fi
+  done < <(find . -maxdepth 10 \( -name .git -o -name node_modules \) -prune -o -path '*/build/reports/jacoco/*/html/index.html' -type f -print 2>/dev/null)
+
+  if [[ -n "$jacoco_annotation" ]]; then
+    printf '%s' "$jacoco_annotation" | buildkite-agent annotate --context "jacoco-reports" --append --style "info" || true
+  fi
+fi
+
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in
 # Gradle 9, even with --no-daemon). When preempted, the Gradle build writes the desired
 # exit code (default 47) to a well-known file so retry rules (exit_status: 47) fire

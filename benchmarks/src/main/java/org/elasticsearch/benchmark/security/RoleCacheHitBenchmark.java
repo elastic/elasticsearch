@@ -58,8 +58,8 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * {@code roles} counts cache entries; {@code namesPerKey} counts role assignments combined in each entry. Names have fixed-seed
  * random suffixes: sequential numeric suffixes can cause substantial clustering in the JDK's immutable sets and confound key
- * size with collision cost. Role-key construction is outside the measurement; see {@link RoleKeyConstructionBenchmark} for
- * that cost. This benchmark does not measure cache misses or invalidation scans.
+ * size with collision cost. Role-key construction is outside the measurement. This benchmark does not measure cache misses
+ * or invalidation scans.
  * <p>
  * Run, for example, with
  * {@code ../gradlew run --args "org.elasticsearch.benchmark.security.RoleCacheHitBenchmark.getRole_08 -p roles=1024 -p namesPerKey=100 -bm thrpt -tu s"}.

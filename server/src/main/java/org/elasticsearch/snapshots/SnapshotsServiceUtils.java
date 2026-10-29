@@ -525,7 +525,12 @@ public class SnapshotsServiceUtils {
         }
     }
 
-    public static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
+    /**
+     * Whether a routing table change requires re-evaluating waiting, paused or queued shard snapshots, see
+     * {@link #processWaitingShardsAndRemovedNodes}. This is the case when a shard's primary started or became unassigned,
+     * its index was deleted, or its index started resharding.
+     */
+    public static boolean waitingShardsNeedUpdate(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
         for (List<SnapshotsInProgress.Entry> entries : snapshotsInProgress.entriesByRepo()) {
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (entry.state() == SnapshotsInProgress.State.STARTED && entry.isClone() == false) {
@@ -1134,6 +1139,7 @@ public class SnapshotsServiceUtils {
             // SnapshotShardContextHelper#acquireSnapshotIndexCommit). Fail it here instead of waiting for it to start.
             // This avoids keeping the snapshot open while split targets are still recovering. Shard snapshots that are
             // already completed (e.g. MISSING) keep their state.
+            logger.debug("failing snapshot of shard [{}] because its index is being resharded", primary.shardId());
             shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(
                 shardSnapshotStatus.nodeId(),
                 SnapshotsInProgress.ShardState.FAILED,

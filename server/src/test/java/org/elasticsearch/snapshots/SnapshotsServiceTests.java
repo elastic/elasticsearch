@@ -1431,11 +1431,20 @@ public class SnapshotsServiceTests extends ESTestCase {
                 )
             )
         );
-        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repoName, List.of(entry));
+        // A later snapshot of the same shard that is queued behind the waiting one.
+        final var queuedEntry = snapshotEntry(
+            snapshot(repoName, "queued-snapshot"),
+            Map.of(indexName, indexId),
+            Map.of(shardId, SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+        );
+        final var snapshotsInProgress = SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(
+            repoName,
+            List.of(entry, queuedEntry)
+        );
 
         // The primary is still relocating so without resharding the shard snapshot keeps waiting.
         assertFalse(
-            SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(
+            SnapshotsServiceUtils.waitingShardsNeedUpdate(
                 snapshotsInProgress,
                 new ClusterChangedEvent("test", splitIndexState(splitIndexMetadata(indexName, indexUuid, false), nodeId), stateBeforeSplit)
             )
@@ -1451,10 +1460,20 @@ public class SnapshotsServiceTests extends ESTestCase {
                 knownFailures
             )
         );
+        assertNull(
+            SnapshotsServiceUtils.processWaitingShardsAndRemovedNodes(
+                queuedEntry,
+                stateBeforeSplit.routingTable(),
+                stateBeforeSplit.metadata().getProject(),
+                stateBeforeSplit.nodes(),
+                n -> false,
+                knownFailures
+            )
+        );
         assertThat(knownFailures, anEmptyMap());
 
         assertTrue(
-            SnapshotsServiceUtils.waitingShardsStartedOrUnassigned(
+            SnapshotsServiceUtils.waitingShardsNeedUpdate(
                 snapshotsInProgress,
                 new ClusterChangedEvent("test", stateDuringSplit, stateBeforeSplit)
             )
@@ -1475,6 +1494,20 @@ public class SnapshotsServiceTests extends ESTestCase {
         assertThat(status.generation(), equalTo(generation));
         assertThat(knownFailures, equalTo(Map.of(new RepositoryShardId(indexId, 0), status)));
         assertThat(entry.withShardStates(shards).state(), is(SnapshotsInProgress.State.SUCCESS));
+
+        // The queued snapshot is processed next with the same known failures, like SnapshotExternalChangesBatcher does for
+        // the entries of a repository, and fails with the same reason.
+        final var queuedShards = SnapshotsServiceUtils.processWaitingShardsAndRemovedNodes(
+            queuedEntry,
+            stateDuringSplit.routingTable(),
+            stateDuringSplit.metadata().getProject(),
+            stateDuringSplit.nodes(),
+            n -> false,
+            knownFailures
+        );
+        assertNotNull(queuedShards);
+        assertThat(queuedShards.get(shardId), equalTo(status));
+        assertThat(queuedEntry.withShardStates(queuedShards).state(), is(SnapshotsInProgress.State.SUCCESS));
     }
 
     private static IndexMetadata splitIndexMetadata(String indexName, String indexUuid, boolean resharding) {

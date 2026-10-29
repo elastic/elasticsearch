@@ -916,7 +916,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor) {
-        result.fill((byte) 0);
         multiplyAccumulate(a, k, b, result, m, k, n, executor);
     }
 
@@ -971,36 +970,43 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private void multiplyRow(MemorySegment a, int aRowStride, MemorySegment b, MemorySegment c, int inner, int n, int i, int innerLimit) {
         int aBase = i * aRowStride;
-        int cBase = i * n;
         int l = 0;
+        byte[][] bs = new byte[4][n];
+        int[] accs = new int[n];
         for (; l < innerLimit; l += 4) {
-            int aV0 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
-            int aV1 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 1);
-            int aV2 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 2);
-            int aV3 = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l + 3);
+            int av = a.get(ValueLayout.JAVA_INT_UNALIGNED, aBase + l);
+            // bytes are signed here, so the sign needs to be maintained. Conversion from byte to int does that
+            byte aV0 = (byte) av;
+            byte aV1 = (byte) (av >> 8);
+            byte aV2 = (byte) (av >> 16);
+            byte aV3 = (byte) (av >> 24);
+
             int b0 = l * n;
-            int b1 = b0 + n;
-            int b2 = b0 + n * 2;
-            int b3 = b0 + n * 3;
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0, bs[0], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n, bs[1], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 2L, bs[2], 0, n);
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, b0 + n * 3L, bs[3], 0, n);
+
             for (int j = 0; j < n; j++) {
-                int acc = c.getAtIndex(ValueLayout.JAVA_INT, cBase + j);
-                acc += aV0 * b.getAtIndex(ValueLayout.JAVA_BYTE, b0 + j);
-                acc += aV1 * b.getAtIndex(ValueLayout.JAVA_BYTE, b1 + j);
-                acc += aV2 * b.getAtIndex(ValueLayout.JAVA_BYTE, b2 + j);
-                acc += aV3 * b.getAtIndex(ValueLayout.JAVA_BYTE, b3 + j);
-                c.setAtIndex(ValueLayout.JAVA_INT, cBase + j, acc);
+                int acc = accs[j];
+                acc += aV0 * bs[0][j];
+                acc += aV1 * bs[1][j];
+                acc += aV2 * bs[2][j];
+                acc += aV3 * bs[3][j];
+                accs[j] = acc;
             }
         }
 
         // tail
         for (; l < inner; l++) {
             int aVal = a.getAtIndex(ValueLayout.JAVA_BYTE, aBase + l);
-            int bl = l * n;
+            MemorySegment.copy(b, ValueLayout.JAVA_BYTE, (long) l * n, bs[0], 0, n);
             for (int d = 0; d < n; d++) {
-                int acc = c.getAtIndex(ValueLayout.JAVA_INT, cBase + d);
-                c.setAtIndex(ValueLayout.JAVA_INT, cBase + d, acc + aVal * b.getAtIndex(ValueLayout.JAVA_BYTE, bl + d));
+                accs[d] += aVal * bs[0][d];
             }
         }
+
+        MemorySegment.copy(accs, 0, c, ValueLayout.JAVA_INT, (long) i * n * Integer.BYTES, n);
     }
 
     @Override

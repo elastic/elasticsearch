@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -174,11 +175,23 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesActio
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteUserManagedServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutUserManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -191,6 +204,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermi
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -276,6 +290,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of()),
                 Map.entry("auditbeat-sample", Set.of()),
                 Map.entry("endgame-sample", Set.of()),
@@ -287,6 +302,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of()),
                 Map.entry("logs-endpoint.events.sample", Set.of()),
                 Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
                 Map.entry("packetbeat-sample", Set.of()),
                 Map.entry("traces-apmsample", Set.of()),
                 Map.entry("winlogbeat-sample", Set.of()),
@@ -303,15 +319,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     Set.of("index", "maintenance", "read", "view_index_metadata")
                 ),
                 Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
-                Map.entry(".alerts-security.alerts-sample", Set.of("read", "view_index_metadata")),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
                 Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
-                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of("read")),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of("auto_configure", "index", "read", "view_index_metadata")),
                 Map.entry("apm-sample-transactionsample", Set.of("read")),
                 Map.entry("auditbeat-sample", Set.of("read")),
                 Map.entry("endgame-sample", Set.of("read")),
@@ -323,6 +340,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of("read")),
                 Map.entry("logs-endpoint.events.sample", Set.of("read")),
                 Map.entry("logs-sample", Set.of("read")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
                 Map.entry("packetbeat-sample", Set.of("read")),
                 Map.entry("traces-apmsample", Set.of("read")),
                 Map.entry("winlogbeat-sample", Set.of("read")),
@@ -334,17 +352,21 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Map.entry(
             "alertzero_endpoint_analysis",
             Map.ofEntries(
-                Map.entry(".adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("read")),
+                Map.entry(
+                    ".adhoc.alerts-security.attack.discovery.alerts-sample",
+                    Set.of("index", "maintenance", "read", "view_index_metadata")
+                ),
                 Map.entry(".ai-index-idx-elastic-index", Set.of("view_index_metadata")),
-                Map.entry(".alerts-security.alerts-sample", Set.of("read")),
-                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("read")),
-                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of()),
-                Map.entry(".internal.alerts-security.alerts-sample", Set.of()),
-                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of()),
+                Map.entry(".alerts-security.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance", "read", "view_index_metadata")),
+                Map.entry(".internal.adhoc.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.alerts-sample", Set.of("index", "maintenance")),
+                Map.entry(".internal.alerts-security.attack.discovery.alerts-sample", Set.of("index", "maintenance")),
                 Map.entry(".internal.preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of()),
                 Map.entry("auditbeat-sample", Set.of()),
                 Map.entry("endgame-sample", Set.of()),
@@ -356,6 +378,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("logs-endpoint.events.sample", Set.of()),
                 Map.entry("logs-sample", Set.of()),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
                 Map.entry("packetbeat-sample", Set.of()),
                 Map.entry("traces-apmsample", Set.of()),
                 Map.entry("winlogbeat-sample", Set.of()),
@@ -378,6 +401,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of()),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read")),
                 Map.entry("auditbeat-sample", Set.of("read")),
                 Map.entry("endgame-sample", Set.of("read")),
@@ -389,6 +413,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of("read")),
                 Map.entry("logs-endpoint.events.sample", Set.of("read")),
                 Map.entry("logs-sample", Set.of("read")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of("read")),
                 Map.entry("packetbeat-sample", Set.of("read")),
                 Map.entry("traces-apmsample", Set.of("read")),
                 Map.entry("winlogbeat-sample", Set.of("read")),
@@ -411,6 +436,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
                 Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
@@ -422,6 +448,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("logs-endpoint.events.sample", Set.of("read", "view_index_metadata")),
                 Map.entry("logs-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
                 Map.entry("packetbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("traces-apmsample", Set.of("read", "view_index_metadata")),
                 Map.entry("winlogbeat-sample", Set.of("read", "view_index_metadata")),
@@ -444,6 +471,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry(".kibana-elastic-ai-assistant-anonymization-fields-sample", Set.of()),
                 Map.entry(".preview.alerts-security.alerts-sample", Set.of("read")),
                 Map.entry("ai-index-idx-security-investigations", Set.of("auto_configure", "index", "read", "view_index_metadata")),
+                Map.entry("ai-index-idx-security-attack-fingerprints", Set.of()),
                 Map.entry("apm-sample-transactionsample", Set.of("read", "view_index_metadata")),
                 Map.entry("auditbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("endgame-sample", Set.of("read", "view_index_metadata")),
@@ -455,6 +483,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 Map.entry("logs-endpoint.events.registry-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("logs-endpoint.events.sample", Set.of("read", "view_index_metadata")),
                 Map.entry("logs-sample", Set.of("read", "view_index_metadata")),
+                Map.entry("metrics-endpoint.metadata_current_sample", Set.of()),
                 Map.entry("packetbeat-sample", Set.of("read", "view_index_metadata")),
                 Map.entry("traces-apmsample", Set.of("read", "view_index_metadata")),
                 Map.entry("winlogbeat-sample", Set.of("read", "view_index_metadata")),
@@ -471,6 +500,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -491,6 +522,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -509,9 +542,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
+                "feature_securitySolutionAlertsV1.all",
                 "feature_siemV5.actions_log_management_read",
                 "feature_siemV5.host_isolation_all",
                 "feature_siemV5.minimal_read",
@@ -523,6 +559,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -537,6 +575,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_proposals.all",
@@ -550,6 +590,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             Set.of(
                 "feature_actions.read",
                 "feature_agentBuilder.read",
+                "feature_agenticInvestigations.investigations_all",
+                "feature_agenticInvestigations.minimal_all",
                 "feature_alertzero.all",
                 "feature_contextEngine.all",
                 "feature_fleet.read",
@@ -563,6 +605,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
     private static final Set<String> ALERTZERO_ALL_FEATURE_PRIVILEGES = Set.of(
         "feature_actions.read",
         "feature_agentBuilder.read",
+        "feature_agenticInvestigations.all",
+        "feature_agenticInvestigations.escalations_all",
+        "feature_agenticInvestigations.escalations_read",
+        "feature_agenticInvestigations.investigations_all",
+        "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.read",
         "feature_alertzero.all",
         "feature_alertzero.read",
         "feature_contextEngine.all",
@@ -816,6 +864,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
         queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(kibanaRole.cluster().check(QueryApiKeyAction.NAME, queryApiKeyRequest, authentication), is(true));
+
+        // Service accounts: read only
+        assertThat(kibanaRole.cluster().check(QueryServiceAccountAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountAction.NAME, request, authentication), is(true));
+        // Token names are not needed to name an account
+        assertThat(kibanaRole.cluster().check(GetServiceAccountCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetServiceAccountNodesCredentialsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(PutUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(CreateUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(DeleteUserManagedServiceAccountTokenAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(ClearSecurityCacheAction.NAME, request, authentication), is(false));
+        assertThat(
+            kibanaRole.cluster()
+                .check("cluster:admin/xpack/security/service_account/" + randomAlphaOfLengthBetween(3, 8), request, authentication),
+            is(false)
+        );
+        // The read grant is not a stand-in for read_security
+        assertThat(kibanaRole.cluster().check(GetUsersAction.NAME, request, authentication), is(false));
+        assertThat(kibanaRole.cluster().check(GetRolesAction.NAME, request, authentication), is(false));
 
         // ML
         assertRoleHasManageMl(kibanaRole);
@@ -1632,6 +1702,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // creates and manages itself, including its alias.
         Arrays.asList(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine AI index backing stores, read by the Kibana usage collector.
+        Arrays.asList(
+            "ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-idx-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".ai-index-ds-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(index -> assertOnlyReadAllowed(kibanaRole, index));
 
         // Context Engine feedback-loop signals: per-space, regular (non-system)
         // user indices that Kibana creates and manages via the storage adapter.
@@ -4596,7 +4674,92 @@ public class ReservedRolesStoreTests extends ESTestCase {
             }
         }
 
-        assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
+        assertThat(
+            rolesWithRemoteIndicesPrivileges,
+            containsInAnyOrder(
+                "kibana_system",
+                "monitoring_user",
+                "alertzero_threat_hunt",
+                "alertzero_rule_tuning",
+                "alertzero_rule_coverage"
+            )
+        );
+    }
+
+    public void testAlertZeroThreatHuntRoleRemoteIndices() {
+        final Role role = alertZeroRole("alertzero_threat_hunt");
+        final List<String> samples = List.of(
+            "apm-sample-transactionsample",
+            "auditbeat-sample",
+            "endgame-sample",
+            "filebeat-sample",
+            "logs-sample",
+            "packetbeat-sample",
+            "traces-apmsample",
+            "winlogbeat-sample",
+            "metrics-endpoint.metadata_current_sample"
+        );
+        for (String index : samples) {
+            assertRemoteAllowed(role, index, TransportSearchAction.TYPE.name(), true);
+            assertRemoteAllowed(role, index, ResolveIndexAction.NAME, true);
+            assertRemoteAllowed(role, index, TransportIndexAction.NAME, false);
+            assertRemoteAllowed(role, index, TransportDeleteIndexAction.TYPE.name(), false);
+        }
+        assertRemoteAllowed(role, "unrelated-sample", TransportSearchAction.TYPE.name(), false);
+    }
+
+    public void testAlertZeroRuleWorkerRolesRemoteIndices() {
+        final List<String> samples = List.of(
+            "apm-sample-transactionsample",
+            "auditbeat-sample",
+            "endgame-sample",
+            "filebeat-sample",
+            "logs-sample",
+            "packetbeat-sample",
+            "traces-apmsample",
+            "winlogbeat-sample"
+        );
+        for (String roleName : List.of("alertzero_rule_tuning", "alertzero_rule_coverage")) {
+            final Role role = alertZeroRole(roleName);
+            for (String index : samples) {
+                assertRemoteAllowed(role, index, TransportSearchAction.TYPE.name(), true);
+                assertRemoteAllowed(role, index, ResolveIndexAction.NAME, true);
+                assertRemoteAllowed(role, index, GetIndexAction.NAME, true);
+                assertRemoteAllowed(role, index, TransportIndexAction.NAME, false);
+                assertRemoteAllowed(role, index, TransportDeleteIndexAction.TYPE.name(), false);
+            }
+            // alerts are always written to the local cluster
+            assertRemoteAllowed(role, ".alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+            assertRemoteAllowed(role, ".preview.alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+        }
+    }
+
+    public void testAlertZeroWorkerRolesWithoutRemoteIndices() {
+        for (String roleName : List.of("alertzero_alert_triage", "alertzero_attack_discovery", "alertzero_endpoint_analysis")) {
+            final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+            assertNotNull(roleDescriptor);
+            assertThat(roleName, roleDescriptor.hasRemoteIndicesPrivileges(), is(false));
+        }
+    }
+
+    private static Role alertZeroRole(String roleName) {
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor(roleName);
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+        final Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        final List<RemoteIndicesPermission.RemoteIndicesGroup> groups = role.remoteIndices().remoteIndicesGroups();
+        assertThat(roleName, groups.stream().allMatch(g -> g.checkRemoteClusterAlias(randomAlphaOfLengthBetween(3, 10))), is(true));
+        return role;
+    }
+
+    private static void assertRemoteAllowed(Role role, String index, String action, boolean expected) {
+        final boolean allowed = role.remoteIndices()
+            .forCluster(randomAlphaOfLengthBetween(3, 10))
+            .remoteIndicesGroups()
+            .stream()
+            .flatMap(g -> g.indicesPermissionGroups().stream())
+            .anyMatch(g -> StringMatcher.of(g.indices()).test(index) && g.privilege().predicate().test(action));
+        assertThat(action + " on remote " + index, allowed, is(expected));
     }
 
     /**

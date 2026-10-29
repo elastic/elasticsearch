@@ -23,26 +23,25 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.junit.Assume.assumeTrue;
 
 /**
- * Runs one keyword behavior duel pair: the same corpus is indexed, with the same write and merge plan, into a
- * baseline index and a contender index, then a set of {@link BehaviorCheck}s compares the baseline against the
- * contender. All failures across the checks are collected and reported together. The harness is shared across
- * keyword doc-values layouts: each {@link KeywordIndexConfig} carries its own settings, expected doc-values
- * format name, and selector-guard flag, so another keyword doc-values codec is dueled by a child IT class that
- * returns a new contender layout, without editing the harness.
+ * Runs one behavior duel pair: the same corpus is indexed, with the same write and merge plan, into a baseline
+ * index and a contender index, then the {@link BehaviorCheck}s of every {@link DuelField} compare the baseline
+ * against the contender. All failures across the checks are collected and reported together. The harness is shared
+ * across field types and doc-values layouts: each {@link DuelField} carries its own mapping and checks, and each
+ * {@link DuelIndexConfig} carries its own index mode, settings, expected doc-values format name, and
+ * selector-guard flag, so another field type or doc-values codec is dueled by a child IT class without editing
+ * the harness.
  *
- * <p>Before comparing, the harness asserts the distinct per-field doc-values formats recorded across an index's
- * started shard leaves are exactly its {@link KeywordIndexConfig#expectedDocValuesFormatName()}, so a
- * misconfigured contender cannot silently duel two identical layouts and pass without testing anything. A layout that requests
- * the ColumNAR selector guard
- * also asserts the production selector routes the keyword field to ColumNAR, and the pair is skipped when the
- * {@code columnar_codec} feature flag is disabled; a contender that does not request the guard is unaffected by
- * that flag.
+ * <p>Before comparing, the harness asserts that, for every field, the distinct per-field doc-values formats
+ * recorded across an index's started shard leaves are exactly its {@link DuelIndexConfig#expectedDocValuesFormatName()},
+ * so a misconfigured contender cannot silently duel two identical layouts and pass without testing anything. A
+ * layout that requests the ColumNAR selector guard also asserts the production selector routes the fields to
+ * ColumNAR.
  *
  * <p>The baseline is also validated against an identically built copy of itself before it is compared to the
  * contender. A baseline-versus-baseline failure means the duel itself is not yet trustworthy, so it fails the
@@ -50,31 +49,34 @@ import static org.junit.Assume.assumeTrue;
  */
 public final class BehaviorDuelHarness {
 
-    /** The keyword field under test. */
-    public static final String KEYWORD_FIELD = "kw";
-
     /** The numeric identity field used as the sort tiebreak and retrieval anchor. */
-    public static final String DOC_ID_FIELD = "doc_id";
+    public static final String DOC_ID_FIELD = BehaviorWritePlan.DOC_ID_FIELD;
+
+    /** The phase that compares the indices as the write plan left them. */
+    public static final String INITIAL_PHASE = "initial";
+
+    /** The phase that compares the indices again after the write plan's post-check force merge. */
+    public static final String MERGED_PHASE = "merged";
 
     private static final Logger logger = LogManager.getLogger(BehaviorDuelHarness.class);
 
     private final Client client;
     private final Function<String, IndexSettings> indexSettingsResolver;
-    private final Function<String, Set<String>> docValuesFormatsResolver;
+    private final BiFunction<String, String, Set<String>> docValuesFormatsResolver;
 
     /**
      * @param client                   the client to create, index, and query through
      * @param indexSettingsResolver    resolves a live index name to its {@link IndexSettings}, used to assert
      *                                 which doc-values format each index selects
-     * @param docValuesFormatsResolver resolves a live index name to the distinct per-field doc-values format
-     *                                 names written for the field under test across its started shard leaves,
-     *                                 empty when no doc-values segment exists; used to assert the exact format
-     *                                 engaged
+     * @param docValuesFormatsResolver resolves a live index name and a field name to the distinct per-field
+     *                                 doc-values format names written for that field across the index's started
+     *                                 shard leaves, empty when no doc-values segment exists; used to assert the
+     *                                 exact format engaged
      */
     public BehaviorDuelHarness(
         final Client client,
         final Function<String, IndexSettings> indexSettingsResolver,
-        final Function<String, Set<String>> docValuesFormatsResolver
+        final BiFunction<String, String, Set<String>> docValuesFormatsResolver
     ) {
         this.client = client;
         this.indexSettingsResolver = indexSettingsResolver;
@@ -82,110 +84,92 @@ public final class BehaviorDuelHarness {
     }
 
     /**
-     * Runs one duel pair: it validates the baseline against an identically built copy of itself, then indexes
-     * the same corpus with the same write plan into the baseline and the contender and runs every check
-     * comparing the baseline to the contender.
+     * Runs one duel pair: it indexes the same corpus with the same write plan into the baseline, an identical
+     * copy of the baseline, and the contender. It validates the baseline against its copy, then runs every check
+     * comparing the baseline to the contender. A plan with a post-check force merge repeats both steps after
+     * the merge.
      *
      * @param duelName  the name of the duel pair, included in failure messages
      * @param scenario  the corpus scenario
      * @param plan      the write and merge plan applied identically to every index
      * @param baseline  the baseline index config
      * @param contender the contender index config
-     * @param checks    the behavior checks to run
+     * @param fields    the fields mapped in both indices, each with the checks that compare it
      */
     public void run(
         final String duelName,
-        final KeywordScenario scenario,
+        final DuelScenario scenario,
         final BehaviorWritePlan plan,
-        final KeywordIndexConfig baseline,
-        final KeywordIndexConfig contender,
-        final List<BehaviorCheck> checks
+        final DuelIndexConfig baseline,
+        final DuelIndexConfig contender,
+        final List<DuelField> fields
     ) {
-        // Only a ColumNAR-backed contender depends on the feature flag; a future codec that does not request the
-        // selector guard must not be skipped by it.
-        if (contender.enforcesColumnarSelectorGuard()) {
-            assumeTrue(
-                "columnar_codec feature flag must be enabled",
-                ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            );
-        }
-
-        final List<KeywordDoc> docs = scenario.documents();
-        final boolean corpusHasKeywordValues = docs.stream().anyMatch(doc -> doc.nonNullValues().isEmpty() == false);
+        final List<DuelDoc> docs = scenario.documents();
+        final boolean corpusHasValues = docs.stream().anyMatch(doc -> doc.nonNullValues().isEmpty() == false);
+        final DuelIndexConfig reference = baseline.withIndexName(baseline.indexName() + "_ref");
 
         try {
-            createAndIndex(baseline, scenario, docs, plan);
-            assertDocValuesFormat(baseline, corpusHasKeywordValues);
-            assertBaselineValid(duelName, scenario, baseline, plan, docs, checks);
+            createAndIndex(baseline, scenario, docs, plan, fields);
+            createAndIndex(reference, scenario, docs, plan, fields);
+            createAndIndex(contender, scenario, docs, plan, fields);
+            assertDocValuesFormat(baseline, fields, corpusHasValues);
+            assertDocValuesFormat(contender, fields, corpusHasValues);
+            compare(INITIAL_PHASE, duelName, scenario, plan, docs, fields, baseline, reference, contender);
 
-            try {
-                createAndIndex(contender, scenario, docs, plan);
-                assertDocValuesFormat(contender, corpusHasKeywordValues);
-
-                final DuelContext context = duelContext(duelName, baseline, contender, scenario, plan, docs);
-                final List<String> mismatches = new ArrayList<>();
-                for (final BehaviorCheck check : checks) {
-                    try {
-                        check.check(context);
-                    } catch (AssertionError e) {
-                        mismatches.add(check.name() + ": " + e.getMessage());
-                    }
+            if (plan.mergesAfterChecks()) {
+                for (final DuelIndexConfig config : List.of(baseline, reference, contender)) {
+                    plan.forceMergeAfterChecks(client, config.indexName());
                 }
-                if (mismatches.isEmpty() == false) {
-                    throw new AssertionError(
-                        "keyword behavior duel ["
-                            + duelName
-                            + "] failed for scenario ["
-                            + scenario.name()
-                            + "] baseline ["
-                            + baseline.layoutLabel()
-                            + "] contender ["
-                            + contender.layoutLabel()
-                            + "]:\n"
-                            + String.join("\n", mismatches)
-                    );
-                }
-            } finally {
-                deleteIndex(contender.indexName());
+                assertDocValuesFormat(baseline, fields, corpusHasValues);
+                assertDocValuesFormat(contender, fields, corpusHasValues);
+                compare(MERGED_PHASE, duelName, scenario, plan, docs, fields, baseline, reference, contender);
             }
         } finally {
+            deleteIndex(contender.indexName());
+            deleteIndex(reference.indexName());
             deleteIndex(baseline.indexName());
         }
     }
 
     /**
-     * Proves the scenario, corpus, write plan, and checks are internally valid by dueling the baseline against
-     * an identically built copy of itself before it is compared to the contender. A baseline-versus-baseline
+     * Runs one comparison phase. It first proves the scenario, corpus, write plan, and checks are internally
+     * valid by dueling the baseline against an identically built copy of itself. A baseline-versus-baseline
      * failure fails the test directly and is never classified as a ColumNAR mismatch, preserving the original
-     * assertion as the cause. The write plan is stateless (immutable batch and force-merge targets with a
-     * deterministic split), so the same instance is reused for both baseline copies.
+     * assertion as the cause. Only then does it duel the baseline against the contender and report every
+     * mismatch together. The write plan is stateless (immutable batch and force-merge targets with a
+     * deterministic split), so the same instance is reused for every index.
      */
-    private void assertBaselineValid(
+    private void compare(
+        final String phase,
         final String duelName,
-        final KeywordScenario scenario,
-        final KeywordIndexConfig baseline,
+        final DuelScenario scenario,
         final BehaviorWritePlan plan,
-        final List<KeywordDoc> docs,
-        final List<BehaviorCheck> checks
+        final List<DuelDoc> docs,
+        final List<DuelField> fields,
+        final DuelIndexConfig baseline,
+        final DuelIndexConfig reference,
+        final DuelIndexConfig contender
     ) {
-        final KeywordIndexConfig reference = baseline.withIndexName(baseline.indexName() + "_ref");
-        try {
-            createAndIndex(reference, scenario, docs, plan);
-            final DuelContext context = duelContext(duelName, baseline, reference, scenario, plan, docs);
-            for (final BehaviorCheck check : checks) {
+        for (final DuelField field : fields) {
+            final DuelContext context = duelContext(duelName, phase, baseline, reference, scenario, plan, docs, field);
+            for (final BehaviorCheck check : field.checks()) {
                 try {
                     check.check(context);
-                } catch (AssertionError e) {
+                } catch (AssertionError | RuntimeException e) {
                     final String message = "LIKELY A TEST BUG (not a ColumNAR regression): baseline validation failed for duel ["
                         + duelName
                         + "], scenario ["
                         + scenario.name()
                         + "], baseline ["
                         + baseline.layoutLabel()
+                        + "], field ["
+                        + field.name()
                         + "], check ["
                         + check.name()
                         + "], write plan ["
                         + plan
+                        + "], phase ["
+                        + phase
                         + "]; the baseline disagrees with an identical copy of itself or with the corpus oracle, so this is"
                         + " most likely non-deterministic test behavior or a corpus/indexing/check/oracle bug rather than a"
                         + " ColumNAR contender mismatch";
@@ -193,18 +177,46 @@ public final class BehaviorDuelHarness {
                     throw new AssertionError(message, e);
                 }
             }
-        } finally {
-            deleteIndex(reference.indexName());
+        }
+
+        final List<String> mismatches = new ArrayList<>();
+        for (final DuelField field : fields) {
+            final DuelContext context = duelContext(duelName, phase, baseline, contender, scenario, plan, docs, field);
+            for (final BehaviorCheck check : field.checks()) {
+                try {
+                    check.check(context);
+                } catch (AssertionError | RuntimeException e) {
+                    mismatches.add(field.name() + "/" + check.name() + ": " + e.getMessage());
+                }
+            }
+        }
+        if (mismatches.isEmpty() == false) {
+            throw new AssertionError(
+                "behavior duel ["
+                    + duelName
+                    + "] failed for scenario ["
+                    + scenario.name()
+                    + "] phase ["
+                    + phase
+                    + "] baseline ["
+                    + baseline.layoutLabel()
+                    + "] contender ["
+                    + contender.layoutLabel()
+                    + "]:\n"
+                    + String.join("\n", mismatches)
+            );
         }
     }
 
     private DuelContext duelContext(
         final String duelName,
-        final KeywordIndexConfig baseline,
-        final KeywordIndexConfig contender,
-        final KeywordScenario scenario,
+        final String phase,
+        final DuelIndexConfig baseline,
+        final DuelIndexConfig contender,
+        final DuelScenario scenario,
         final BehaviorWritePlan plan,
-        final List<KeywordDoc> docs
+        final List<DuelDoc> docs,
+        final DuelField field
     ) {
         return new DuelContext(
             duelName,
@@ -213,74 +225,84 @@ public final class BehaviorDuelHarness {
             contender.indexName(),
             baseline,
             contender,
-            KEYWORD_FIELD,
+            field.name(),
             DOC_ID_FIELD,
             scenario,
             plan,
+            phase,
             docs
         );
     }
 
     private void createAndIndex(
-        final KeywordIndexConfig config,
-        final KeywordScenario scenario,
-        final List<KeywordDoc> docs,
-        final BehaviorWritePlan plan
+        final DuelIndexConfig config,
+        final DuelScenario scenario,
+        final List<DuelDoc> docs,
+        final BehaviorWritePlan plan,
+        final List<DuelField> fields
     ) {
         assertAcked(
             client.admin()
                 .indices()
                 .prepareCreate(config.indexName())
                 .setSettings(config.settings())
-                .setMapping(mapping(scenario.multiValue()))
+                .setMapping(mapping(fields, scenario.multiValue()))
         );
-        plan.apply(client, config.indexName(), docs, KEYWORD_FIELD);
+        plan.apply(client, config.indexName(), docs, fields.stream().map(DuelField::name).toList());
     }
 
-    private void assertDocValuesFormat(final KeywordIndexConfig config, boolean corpusHasKeywordValues) {
+    private void assertDocValuesFormat(final DuelIndexConfig config, final List<DuelField> fields, boolean corpusHasValues) {
         final IndexSettings indexSettings = indexSettingsResolver.apply(config.indexName());
         final boolean usesColumnar = ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings);
-        final Set<String> formats = docValuesFormatsResolver.apply(config.indexName());
 
-        // A ColumNAR-backed layout requests the selector guard, which asserts the production selector actually
-        // routes the keyword field to ColumNAR. Other codecs do not go through that selector, so it is not checked.
-        if (config.enforcesColumnarSelectorGuard() && usesColumnar == false) {
-            throw new AssertionError(
-                codecContext(config, indexSettings, usesColumnar, formats) + " expected the ColumNAR selector to engage"
-            );
-        }
+        for (final DuelField field : fields) {
+            final Set<String> formats = docValuesFormatsResolver.apply(config.indexName(), field.name());
 
-        // Assert the distinct codecs recorded across the started leaves are exactly the expected one, so the duel
-        // cannot pass with the wrong or a mixed codec engaged. An empty set means no doc-values segment was
-        // written, which is only legitimate when the corpus holds no keyword value.
-        if (formats.isEmpty()) {
-            if (corpusHasKeywordValues) {
+            // A ColumNAR-backed layout requests the selector guard, which asserts the production selector actually
+            // routes the field to ColumNAR. Other codecs do not go through that selector, so it is not checked.
+            if (config.enforcesColumnarSelectorGuard() && usesColumnar == false) {
                 throw new AssertionError(
-                    codecContext(config, indexSettings, usesColumnar, formats)
-                        + " wrote no doc-values segment for the field although the corpus holds keyword values"
+                    codecContext(config, field, indexSettings, usesColumnar, formats) + " expected the ColumNAR selector to engage"
                 );
             }
-            return;
-        }
-        if (formats.equals(Set.of(config.expectedDocValuesFormatName())) == false) {
-            throw new AssertionError(codecContext(config, indexSettings, usesColumnar, formats) + " unexpected field doc-values format");
+
+            // Assert the distinct codecs recorded across the started leaves are exactly the expected one, so the duel
+            // cannot pass with the wrong or a mixed codec engaged. An empty set means no doc-values segment was
+            // written, which is only legitimate when the corpus holds no value.
+            if (formats.isEmpty()) {
+                if (corpusHasValues) {
+                    throw new AssertionError(
+                        codecContext(config, field, indexSettings, usesColumnar, formats)
+                            + " wrote no doc-values segment for the field although the corpus holds values"
+                    );
+                }
+                continue;
+            }
+            if (formats.equals(Set.of(config.expectedDocValuesFormatName())) == false) {
+                throw new AssertionError(
+                    codecContext(config, field, indexSettings, usesColumnar, formats) + " unexpected field doc-values format"
+                );
+            }
         }
     }
 
     private static String codecContext(
-        final KeywordIndexConfig config,
+        final DuelIndexConfig config,
+        final DuelField field,
         final IndexSettings indexSettings,
         boolean usesColumnar,
         final Set<String> formats
     ) {
         return "index ["
             + config.indexName()
+            + "] field ["
+            + field.name()
             + "] layout ["
             + config.layoutLabel()
             + "] mode ["
             + indexSettings.getMode()
-            + "] index.columnar_codec.enabled ["
-            + indexSettings.getSettings().getAsBoolean(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), false)
+            + "] index version created ["
+            + indexSettings.getIndexVersionCreated()
             + "] useColumnarCodec ["
             + usesColumnar
             + "] expected format ["
@@ -293,17 +315,20 @@ public final class BehaviorDuelHarness {
         assertAcked(client.admin().indices().prepareDelete(indexName).setIndicesOptions(IndicesOptions.lenientExpandOpen()));
     }
 
-    private static XContentBuilder mapping(boolean multiValue) {
+    private static XContentBuilder mapping(final List<DuelField> fields, boolean multiValue) {
         try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject(KEYWORD_FIELD)
-                .field("type", "keyword");
-            if (multiValue == false) {
-                builder.startObject("doc_values").field("multi_value", false).endObject();
+            final XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");
+            for (final DuelField field : fields) {
+                field.mapping(builder, multiValue);
             }
-            return builder.endObject().startObject(DOC_ID_FIELD).field("type", "long").endObject().endObject().endObject();
+            return builder.startObject(DOC_ID_FIELD)
+                .field("type", "long")
+                .endObject()
+                .startObject(BehaviorWritePlan.TIMESTAMP_FIELD)
+                .field("type", "date")
+                .endObject()
+                .endObject()
+                .endObject();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

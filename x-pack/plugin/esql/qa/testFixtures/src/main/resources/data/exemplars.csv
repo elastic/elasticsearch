@@ -8,3 +8,5 @@
 2024-05-10T00:03:10.000Z,cpu1,busy,memory_usage,420.0,trace-busy-cpu1-mem,span-7
 2024-05-10T00:03:20.000Z,cpu1,busy,request_duration,38.0,trace-busy-cpu1-dur,span-8
 2024-05-10T00:04:10.000Z,cpu0,idle,memory_usage,105.0,trace-idle-cpu0-mem,span-9
+2024-05-10T00:00:20.000Z,cpu0,idle,disk_io,12.5,trace-idle-cpu0-disk,span-10
+2024-05-10T00:03:30.000Z,cpu1,busy,disk_io,33.0,trace-busy-cpu1-disk,span-11

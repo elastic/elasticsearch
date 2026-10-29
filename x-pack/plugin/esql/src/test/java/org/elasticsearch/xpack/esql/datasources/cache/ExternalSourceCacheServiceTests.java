@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -420,6 +421,44 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             leaderCompletion.get().onResponse(result);
             assertSame(result, leader.actionGet());
             assertSame(result, follower.actionGet());
+        }
+    }
+
+    /**
+     * A caller that becomes leader just after the previous leader finished takes the cache from the re-check, and must still
+     * complete the in-flight entry it registered: a caller that subscribed to it in the meantime would otherwise wait forever.
+     * The window is a few instructions wide, so this is a probabilistic stress test: it has not been seen to fail without
+     * the fix, and the resolver's concurrent-listing test is what exposed the race.
+     */
+    public void testAsyncListingNeverStrandsAFollowerOfARacedLeader() throws Exception {
+        int threads = 8;
+        int rounds = 2000;
+        FileList result = testCompactFileList();
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            for (int round = 0; round < rounds; round++) {
+                ListingCacheKey key = ListingCacheKey.build("s3", "bucket", "/data/" + round + "/*.parquet", "", "", Map.of(), "");
+                CyclicBarrier aligned = new CyclicBarrier(threads);
+                List<PlainActionFuture<FileList>> futures = new ArrayList<>();
+                for (int t = 0; t < threads; t++) {
+                    PlainActionFuture<FileList> future = new PlainActionFuture<>();
+                    futures.add(future);
+                    executor.execute(() -> {
+                        try {
+                            aligned.await(30, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            future.onFailure(e);
+                            return;
+                        }
+                        service.getOrComputeListingAsync(key, l -> l.onResponse(result), future);
+                    });
+                }
+                for (PlainActionFuture<FileList> future : futures) {
+                    assertSame(result, future.actionGet(30, TimeUnit.SECONDS));
+                }
+            }
+        } finally {
+            executor.shutdownNow();
         }
     }
 

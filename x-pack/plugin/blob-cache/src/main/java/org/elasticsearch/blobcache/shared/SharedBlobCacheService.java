@@ -3081,7 +3081,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

@@ -30,12 +30,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
@@ -44,7 +45,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Unit tests for {@link ViewRequestFilterRewriter}: the request-filter policy that installs a {@link Filter} above each
- * view branch in a {@link ViewUnionAll} (identified via {@link ViewUnionAll#isViewBranch(String)}), bound against the
+ * view branch in a {@link BranchPlan} (identified via {@link BranchPlan#isViewBranch(String)}), bound against the
  * view's output schema.
  */
 public class ViewRequestFilterRewriterTests extends ESTestCase {
@@ -81,40 +81,40 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         return new ExternalRelation(Source.EMPTY, path, metadata, output, FileList.UNRESOLVED, Map.of(), viewName);
     }
 
-    /** A bare EsRelation standing in for a plain index relation (null key in ViewUnionAll). */
+    /** A bare EsRelation standing in for a plain index relation (null key in BranchPlan). */
     private static EsRelation bareIndex() {
         return EsqlTestUtils.relation();
     }
 
     /**
-     * Builds a {@link ViewUnionAll} with one null-key (bare index) child and one named (view) child that outputs
+     * Builds a {@link BranchPlan} with one null-key (bare index) child and one named (view) child that outputs
      * the given attribute. The view child is registered in {@code viewBranchKeys} so that
-     * {@link ViewUnionAll#isViewBranch(String)} returns {@code true} for it.
+     * {@link BranchPlan#isViewBranch(String)} returns {@code true} for it.
      */
-    private static ViewUnionAll unionWithView(String viewName, Attribute viewOutputAttr) {
+    private static BranchPlan unionWithView(String viewName, Attribute viewOutputAttr) {
         LogicalPlan viewPlan = viewSubplan(viewName, viewOutputAttr);
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
         map.put(viewName, viewPlan);
-        return new ViewUnionAll(Source.EMPTY, map, Set.of(viewName), List.of(viewOutputAttr));
+        return new BranchPlan(Source.EMPTY, map, Map.of(viewName, BranchIdentity.view(viewName)), List.of(viewOutputAttr));
     }
 
-    /** Retrieves the named subplan for {@code viewName} from a (possibly rewritten) {@link ViewUnionAll}. */
+    /** Retrieves the named subplan for {@code viewName} from a (possibly rewritten) {@link BranchPlan}. */
     private static LogicalPlan viewChild(LogicalPlan plan, String viewName) {
-        assertThat(plan, instanceOf(ViewUnionAll.class));
-        LogicalPlan child = ((ViewUnionAll) plan).namedSubqueries().get(viewName);
+        assertThat(plan, instanceOf(BranchPlan.class));
+        LogicalPlan child = ((BranchPlan) plan).namedSubqueries().get(viewName);
         assertNotNull("expected a child for view '" + viewName + "'", child);
         return child;
     }
 
     /**
-     * Retrieves the null-key (bare index) child from a (possibly rewritten) {@link ViewUnionAll}.
+     * Retrieves the null-key (bare index) child from a (possibly rewritten) {@link BranchPlan}.
      * In tests, bare-index branches are stored under the {@code null} key to match the
      * {@link org.elasticsearch.xpack.esql.view.ViewCompaction} convention.
      */
     private static LogicalPlan bareIndexChild(LogicalPlan plan) {
-        assertThat(plan, instanceOf(ViewUnionAll.class));
-        LogicalPlan child = ((ViewUnionAll) plan).namedSubqueries().get(null);
+        assertThat(plan, instanceOf(BranchPlan.class));
+        LogicalPlan child = ((BranchPlan) plan).namedSubqueries().get(null);
         assertNotNull("expected a bare-index child (null key)", child);
         return child;
     }
@@ -134,7 +134,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LogicalPlan viewBody = new Eval(Source.EMPTY, dataset, List.of(new Alias(Source.EMPTY, "doubled", empNo, doubled.id())));
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("emp_eval_view", viewBody);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("emp_eval_view"), List.of(empNo, doubled));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("emp_eval_view", BranchIdentity.view("emp_eval_view")),
+            List.of(empNo, doubled)
+        );
 
         QueryBuilder filter = QueryBuilders.termQuery("doubled", 2);
         LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
@@ -155,7 +160,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareDataset);
         map.put("myView", viewSubplan("myView", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(y));
+        BranchPlan vua = new BranchPlan(Source.EMPTY, map, Map.of("myView", BranchIdentity.view("myView")), List.of(y));
 
         QueryBuilder filter = QueryBuilders.termQuery("y", 1);
         LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
@@ -184,7 +189,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, outsideView);
         map.put("emp_eval_view", viewBody);
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("emp_eval_view"), List.of(empNo, doubled));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("emp_eval_view", BranchIdentity.view("emp_eval_view")),
+            List.of(empNo, doubled)
+        );
 
         QueryBuilder filter = QueryBuilders.termQuery("emp_no", 1);
         LogicalPlan afterDataset = RequestFilterRewriter.rewrite(vua, filter, CONFIG, CURRENT, true);
@@ -209,12 +219,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         ExternalRelation innerDataset = viewSubplan("innerView", y);
         LinkedHashMap<String, LogicalPlan> innerMap = new LinkedHashMap<>();
         innerMap.put("innerView", innerDataset);
-        ViewUnionAll inner = new ViewUnionAll(Source.EMPTY, innerMap, Set.of("innerView"), List.of(y));
+        BranchPlan inner = new BranchPlan(Source.EMPTY, innerMap, Map.of("innerView", BranchIdentity.view("innerView")), List.of(y));
         LogicalPlan subquery = new Filter(Source.EMPTY, inner, Literal.TRUE);
         LinkedHashMap<String, LogicalPlan> outerMap = new LinkedHashMap<>();
         outerMap.put("outerView", viewSubplan("outerView", y));
         outerMap.put("unnamed_view_1", subquery);
-        ViewUnionAll outer = new ViewUnionAll(Source.EMPTY, outerMap, Set.of("outerView"), List.of(y));
+        BranchPlan outer = new BranchPlan(Source.EMPTY, outerMap, Map.of("outerView", BranchIdentity.view("outerView")), List.of(y));
 
         QueryBuilder filter = QueryBuilders.termQuery("y", 1);
         LogicalPlan afterDataset = RequestFilterRewriter.rewrite(outer, filter, CONFIG, CURRENT, true);
@@ -237,10 +247,10 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         ExternalRelation innerDataset = viewSubplan("innerView", y);
         LinkedHashMap<String, LogicalPlan> innerMap = new LinkedHashMap<>();
         innerMap.put("innerView", innerDataset);
-        ViewUnionAll inner = new ViewUnionAll(Source.EMPTY, innerMap, Set.of("innerView"), List.of(y));
+        BranchPlan inner = new BranchPlan(Source.EMPTY, innerMap, Map.of("innerView", BranchIdentity.view("innerView")), List.of(y));
         LinkedHashMap<String, LogicalPlan> outerMap = new LinkedHashMap<>();
         outerMap.put("outerView", inner);
-        ViewUnionAll outer = new ViewUnionAll(Source.EMPTY, outerMap, Set.of("outerView"), List.of(y));
+        BranchPlan outer = new BranchPlan(Source.EMPTY, outerMap, Map.of("outerView", BranchIdentity.view("outerView")), List.of(y));
 
         QueryBuilder filter = QueryBuilders.termQuery("y", 1);
         LogicalPlan afterDataset = RequestFilterRewriter.rewrite(outer, filter, CONFIG, CURRENT, true);
@@ -256,7 +266,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
 
     /** A null request filter is a no-op: the plan is returned unchanged. */
     public void testNullFilterLeavesPlanUnchanged() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
+        BranchPlan vua = unionWithView("myView", attr("y", DataType.INTEGER));
         assertSame(vua, ViewRequestFilterRewriter.rewrite(vua, null, CONFIG, CURRENT));
     }
 
@@ -266,7 +276,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      */
     public void testSupportedFilterIsInstalledAboveViewSubplan() {
         Attribute y = attr("y", DataType.INTEGER);
-        ViewUnionAll vua = unionWithView("myView", y);
+        BranchPlan vua = unionWithView("myView", y);
         LogicalPlan original = vua.namedSubqueries().get("myView");
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
@@ -292,7 +302,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bare);
         map.put("myView", viewSubplan("myView", attr("y", DataType.INTEGER)));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("myView"), List.of(attr("y", DataType.INTEGER)));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("myView", BranchIdentity.view("myView")),
+            List.of(attr("y", DataType.INTEGER))
+        );
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertThat(bareIndexChild(result), sameInstance(bare));
@@ -300,22 +315,22 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     }
 
     /**
-     * A {@link ViewUnionAll} that contains only a bare-index child (no view subplans) is returned unchanged: there is
+     * A {@link BranchPlan} that contains only a bare-index child (no view subplans) is returned unchanged: there is
      * nothing to filter.
      */
     public void testPlanWithNoViewSubplansIsUnchanged() {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put(null, bareIndex());
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of(), List.of());
+        BranchPlan vua = new BranchPlan(Source.EMPTY, map, Map.of(), List.of());
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT);
         assertSame(vua, result);
     }
 
     /**
-     * A plan containing no {@link ViewUnionAll} nodes at all (e.g. a plain index-only query) is returned unchanged.
+     * A plan containing no {@link BranchPlan} nodes at all (e.g. a plain index-only query) is returned unchanged.
      */
-    public void testPlanWithNoViewUnionAllIsUnchanged() {
+    public void testPlanWithNoBranchPlanIsUnchanged() {
         LogicalPlan indexOnly = bareIndex();
         assertSame(indexOnly, ViewRequestFilterRewriter.rewrite(indexOnly, QueryBuilders.termQuery("y", 42), CONFIG, CURRENT));
     }
@@ -325,7 +340,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      * which is a supported no-op: the view is left unfiltered rather than wrapped in a trivially-true {@link Filter}.
      */
     public void testMatchAllFilterLeavesViewUnfilteredNoWrap() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
+        BranchPlan vua = unionWithView("myView", attr("y", DataType.INTEGER));
         LogicalPlan original = vua.namedSubqueries().get("myView");
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.matchAllQuery(), CONFIG, CURRENT);
@@ -336,7 +351,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     // --- multi-view ---
 
     /**
-     * All view subplans in a single {@link ViewUnionAll} are wrapped independently, each bound against that subplan's
+     * All view subplans in a single {@link BranchPlan} are wrapped independently, each bound against that subplan's
      * own output schema. A field present in one view but absent in another binds to {@code NULL} in the second.
      */
     public void testMultipleViewSubplansAreEachWrapped() {
@@ -345,7 +360,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", z));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y, z));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y, z)
+        );
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, CURRENT);
 
@@ -370,7 +390,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      */
     public void testViewBranchDropsAGatedFunctionBelowItsPin() {
         Attribute y = attr("y", DataType.KEYWORD);
-        ViewUnionAll vua = unionWithView("myView", y);
+        BranchPlan vua = unionWithView("myView", y);
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.rangeQuery("y").gt("m"), CONFIG, CURRENT);
 
@@ -387,7 +407,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
     /** At or above the pin the same filter translates and installs, so the gate is the only thing stopping it. */
     public void testViewBranchInstallsTheSameFilterAtOrAboveThePin() {
         Attribute y = attr("y", DataType.KEYWORD);
-        ViewUnionAll vua = unionWithView("myView", y);
+        BranchPlan vua = unionWithView("myView", y);
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(
             vua,
@@ -409,7 +429,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      * no-op Filter.
      */
     public void testUnsupportedDslConstructIsDroppedWithWarning() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.KEYWORD));
+        BranchPlan vua = unionWithView("myView", attr("y", DataType.KEYWORD));
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.wildcardQuery("y", "x*"), CONFIG, CURRENT);
         assertThat("nothing translatable remains, so no Filter is installed", viewChild(result, "myView"), not(instanceOf(Filter.class)));
         assertWarnings(SKIPPED_WILDCARD_WARNING);
@@ -421,7 +441,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      */
     public void testMixedDslKeepsSupportedClausesAndWarnsAboutTheRest() {
         Attribute y = attr("y", DataType.INTEGER);
-        ViewUnionAll vua = unionWithView("myView", y);
+        BranchPlan vua = unionWithView("myView", y);
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(
             vua,
             QueryBuilders.boolQuery().must(QueryBuilders.termQuery("y", 1)).must(QueryBuilders.wildcardQuery("y", "x*")),
@@ -443,7 +463,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y)
+        );
 
         QueryBuilder twoWildcards = QueryBuilders.boolQuery()
             .must(QueryBuilders.wildcardQuery("y", "x*"))
@@ -464,7 +489,7 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
      * computed fields, hence the warning.
      */
     public void testOldMinimumVersionSkipsRewriteAndWarns() {
-        ViewUnionAll vua = unionWithView("myView", attr("y", DataType.INTEGER));
+        BranchPlan vua = unionWithView("myView", attr("y", DataType.INTEGER));
 
         LogicalPlan result = ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertSame(vua, result);
@@ -488,7 +513,12 @@ public class ViewRequestFilterRewriterTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> map = new LinkedHashMap<>();
         map.put("viewA", viewSubplan("viewA", y));
         map.put("viewB", viewSubplan("viewB", y));
-        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, map, Set.of("viewA", "viewB"), List.of(y));
+        BranchPlan vua = new BranchPlan(
+            Source.EMPTY,
+            map,
+            Map.of("viewA", BranchIdentity.view("viewA"), "viewB", BranchIdentity.view("viewB")),
+            List.of(y)
+        );
 
         ViewRequestFilterRewriter.rewrite(vua, QueryBuilders.termQuery("y", 1), CONFIG, TOO_OLD);
         assertWarnings(

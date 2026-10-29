@@ -1,0 +1,9 @@
+area: Columnar
+issues:
+ - 161603
+ - 161604
+ - 162250
+ - 162282
+pr: 161944
+summary: Use the columnar doc values format by default in columnar index modes
+type: feature

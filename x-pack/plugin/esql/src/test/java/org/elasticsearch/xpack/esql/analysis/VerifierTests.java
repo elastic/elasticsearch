@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
@@ -2175,6 +2177,32 @@ public class VerifierTests extends AnalyzerTestCase {
             """, containsString("conflicting values analyzers in FORK branches"));
     }
 
+    public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<String, EsField> mapping = Map.of(
+            "message",
+            new TextEsField("message", Map.of(), false, false, EsField.TimeSeriesFieldType.NONE),
+            "level",
+            new KeywordEsField("level", Map.of(), true, Integer.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("logs", mapping))
+            .addIndex(EsIndexGenerator.esIndex("old_logs", mapping))
+            .stripErrorPrefix(true);
+        // the merged column is the index-mapped field, so the error names that field rather than the FROM clause
+        analyzer.error(
+            """
+                FROM logs, (FROM old_logs | WHERE level == "error")
+                | EVAL m = TO_TEXT(message, {"analyzer": "whitespace"})
+                """,
+            allOf(
+                containsString(
+                    "[analyzer] option is not supported for [TO_TEXT] on index-mapped field [message]" + TO_TEXT_ANALYZER_REJECTION_REASON
+                ),
+                not(containsString("field [FROM logs"))
+            )
+        );
+    }
+
     public void testToTextAnalyzerOptionOnUnionTypedField() throws Exception {
         LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
         typesToIndices.put("keyword", Set.of("test1"));
@@ -2203,6 +2231,30 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().error(
             "from test | eval k = concat(title, body) | where match_phrase(k, \"cat\", {\"analyzer\": \"whitespace\"})",
             containsString("Options are not supported for [MATCH_PHRASE] function call on non-index-mapped, non-TEXT field [k]")
+        );
+    }
+
+    public void testFullTextFunctionsRuntimeOptionValueThatCannotBuildQuery() throws Exception {
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match(t, \"cat\", {\"max_expansions\": 0})",
+            containsString("[MATCH] function failed to build query for non-index-mapped field [t]")
+        );
+        fullText().error(
+            "from test | eval t = to_text(concat(title, body)) | where match_phrase(t, \"cat\", {\"slop\": -1})",
+            containsString("[MATCH_PHRASE] function failed to build query for non-index-mapped field [t]")
+        );
+    }
+
+    public void testMatchRuntimeQueryValueTypeMismatch() throws Exception {
+        // lenient is the default, so a query value that cannot be converted to the field's type passes verification
+        // (but matches nothing)
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\")");
+        fullText().query("from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": true})");
+
+        // 'lenient: false' results in an error about the mismatched types
+        fullText().error(
+            "from test | eval k = length(title) | where match(k, \"cat\", {\"lenient\": false})",
+            containsString("does not match the type ([integer]) of non-index-mapped field [k]")
         );
     }
 
@@ -3968,7 +4020,7 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     private static int filledColumns(LogicalPlan plan) {
-        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fields().size()).sum();
+        return plan.collect(FillNull.class).stream().mapToInt(fillNull -> fillNull.fillAliases().size()).sum();
     }
 
     private static String fillNullLimitError(int filled, int limit) {
@@ -4042,6 +4094,43 @@ public class VerifierTests extends AnalyzerTestCase {
         assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
         fullText().query("from test | FILLNULL \"\" ON title | where match(title, \"data\")");
         fullText().query("from test | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenToTextAnalyzerOnAFilledColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | FILLNULL \"x\" ON title | eval t = to_text(title, {\"analyzer\": \"whitespace\"})");
+        fullText().query("from test | rename title as m | FILLNULL \"x\" ON m | eval t = to_text(m, {\"analyzer\": \"whitespace\"})");
+    }
+
+    public void testFillNullThenFullTextAfterLimitIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().query("from test | limit 10 | FILLNULL \"\" ON title | where match(title, \"data\")");
+        fullText().query("from test | mv_expand title | FILLNULL \"\" ON title | where title : \"data\"");
+    }
+
+    public void testFillNullThenFullTextOnAFilledLookupFieldIsRuntimeSearch() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | FILLNULL "" ON language_name
+            | where match(language_name, "English")""");
+        fullText().addLanguagesLookup().query("""
+            from test
+            | eval language_code = 1
+            | lookup join languages_lookup on language_code
+            | rename language_name as ln
+            | FILLNULL "" ON ln
+            | where match(ln, "English")""");
+    }
+
+    public void testFillNullThenTimeSeriesGroupingByAFilledMetric() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        tsdb().query(
+            "TS test | FILLNULL 0 ON network.connections | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), "
+                + "network.connections"
+        );
     }
 
     public void testFullTextFunctionsInStats() {
@@ -4550,6 +4639,21 @@ public class VerifierTests extends AnalyzerTestCase {
         assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
     }
 
+    public void testTextEmbeddingFunctionNonFoldableArguments() {
+        defaultAnalyzer().addInferenceResolution(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING)
+            .error(
+                "from test | EVAL embedding = TEXT_EMBEDDING(first_name, ?)",
+                equalTo("1:30: first argument of [TEXT_EMBEDDING(first_name, ?)] must be a constant, received [first_name]"),
+                TEXT_EMBEDDING_INFERENCE_ID
+            );
+
+        defaultAnalyzer().error(
+            "from test | EVAL embedding = TEXT_EMBEDDING(?, first_name)",
+            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, first_name)] must be a constant, received [first_name]"),
+            "query text"
+        );
+    }
+
     public void testEmbeddingFunctionInvalidQuery() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
@@ -4599,9 +4703,18 @@ public class VerifierTests extends AnalyzerTestCase {
         analyzer.error(
             "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
             equalTo(
-                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image, audio, video, pdf]"
+                "1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], "
+                    + "must be one of [text, image, audio, video, pdf, html]"
             ),
             "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+
+        // html is a valid data type, but only for document extraction
+        analyzer.error(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"html\"})",
+            equalTo("1:30: Invalid options for EMBEDDING: Unsupported type [html], must be one of [text, image, audio, video, pdf]"),
+            "https://example.com/page.html",
             EMBEDDING_INFERENCE_ID
         );
 

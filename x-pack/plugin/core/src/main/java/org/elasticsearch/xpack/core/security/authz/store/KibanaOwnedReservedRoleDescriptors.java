@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivileg
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
@@ -96,6 +98,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 ActivateProfileAction.NAME,
                 SuggestProfilesAction.NAME,
                 ProfileHasPrivilegesAction.NAME,
+                // To show the service account a workload runs as to users who can see the workload but cannot read
+                // security. Read-only actions are named individually because "read_security" also covers users, roles,
+                // API keys and service account tokens, and "manage_service_account" also covers creating and deleting
+                // tokens.
+                QueryServiceAccountAction.NAME,
+                GetServiceAccountAction.NAME,
                 "write_fleet_secrets",
                 // To facilitate ML UI functionality being controlled using Kibana security
                 // privileges
@@ -782,6 +790,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ai-index-idx-elastic-index", ".ai-index-idx-elastic-index-*")
                     .privileges("all")
                     .build(),
+                // Context Engine AI index backing stores, read by the Kibana usage collector.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("ai-index-idx-*", "ai-index-ds-*", ".ai-index-idx-*", ".ai-index-ds-*")
+                    .privileges("read")
+                    .build(),
                 // Context Engine feedback-loop signals. Per-space, regular (non-system)
                 // user indices that Kibana creates and manages via the storage adapter
                 // (one index per Kibana space: context-engine-signals-<space>).
@@ -876,6 +889,8 @@ class KibanaOwnedReservedRoleDescriptors {
 
     private static final String[] ALERTZERO_WORKER_COMMON_FEATURE_PRIVILEGES = {
         "feature_alertzero.all",
+        "feature_agenticInvestigations.minimal_all",
+        "feature_agenticInvestigations.investigations_all",
         "feature_agentBuilder.read",
         "feature_contextEngine.all",
         "feature_proposals.all",
@@ -932,7 +947,15 @@ class KibanaOwnedReservedRoleDescriptors {
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.alerts-*")
-                .privileges("read", "view_index_metadata")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("ai-index-idx-security-attack-fingerprints")
+                .privileges("read", "view_index_metadata", "index", "auto_configure")
                 .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".kibana-elastic-ai-assistant-anonymization-fields-*")
@@ -964,12 +987,24 @@ class KibanaOwnedReservedRoleDescriptors {
                 "feature_siemV5.minimal_read",
                 "feature_siemV5.host_isolation_all",
                 "feature_siemV5.process_operations_all",
-                "feature_siemV5.actions_log_management_read" },
+                "feature_siemV5.actions_log_management_read",
+                "feature_securitySolutionAlertsV1.all" },
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.attack.discovery.alerts-*", ".adhoc.alerts-security.attack.discovery.alerts-*")
-                .privileges("read")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
                 .build(),
-            RoleDescriptor.IndicesPrivileges.builder().indices(".alerts-security.alerts-*").privileges("read").build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.attack.discovery.alerts-*", ".internal.adhoc.alerts-security.attack.discovery.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".alerts-security.alerts-*")
+                .privileges("read", "view_index_metadata", "index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".internal.alerts-security.alerts-*")
+                .privileges("index", "maintenance")
+                .build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(
                     "logs-endpoint.events.process-*",
@@ -984,6 +1019,23 @@ class KibanaOwnedReservedRoleDescriptors {
 
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor alertZeroThreatHunt(String name) {
+        final RoleDescriptor.IndicesPrivileges telemetry = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(
+                "apm-*-transaction*",
+                "auditbeat-*",
+                "endgame-*",
+                "filebeat-*",
+                "logs-*",
+                "packetbeat-*",
+                "traces-apm*",
+                "winlogbeat-*"
+            )
+            .privileges("read", "read_cross_cluster")
+            .build();
+        final RoleDescriptor.IndicesPrivileges endpointMetadata = RoleDescriptor.IndicesPrivileges.builder()
+            .indices("metrics-endpoint.metadata_current_*")
+            .privileges("read", "read_cross_cluster")
+            .build();
         return alertZeroWorker(
             name,
             "Continuous Threat Hunt",
@@ -992,24 +1044,29 @@ class KibanaOwnedReservedRoleDescriptors {
                 "feature_siemV5.host_isolation_all",
                 "feature_siemV5.process_operations_all",
                 "feature_siemV5.actions_log_management_read" },
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(
-                    "apm-*-transaction*",
-                    "auditbeat-*",
-                    "endgame-*",
-                    "filebeat-*",
-                    "logs-*",
-                    "packetbeat-*",
-                    "traces-apm*",
-                    "winlogbeat-*"
-                )
-                .privileges("read")
-                .build()
+            new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(telemetry, "*"),
+                new RoleDescriptor.RemoteIndicesPrivileges(endpointMetadata, "*") },
+            telemetry,
+            endpointMetadata
         );
     }
 
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor alertZeroRuleTuning(String name) {
+        final RoleDescriptor.IndicesPrivileges telemetry = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(
+                "apm-*-transaction*",
+                "auditbeat-*",
+                "endgame-*",
+                "filebeat-*",
+                "logs-*",
+                "packetbeat-*",
+                "traces-apm*",
+                "winlogbeat-*"
+            )
+            .privileges("read", "view_index_metadata", "read_cross_cluster")
+            .build();
         return alertZeroWorker(
             name,
             "Rule Tuning",
@@ -1017,6 +1074,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "feature_workflowsManagement.read",
                 "feature_securitySolutionRulesV4.read",
                 "feature_securitySolutionAlertsV1.all" },
+            new RoleDescriptor.RemoteIndicesPrivileges[] { new RoleDescriptor.RemoteIndicesPrivileges(telemetry, "*") },
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".alerts-security.alerts-*")
                 .privileges("read", "index", "maintenance", "view_index_metadata")
@@ -1029,45 +1087,35 @@ class KibanaOwnedReservedRoleDescriptors {
                 .indices(".preview.alerts-security.alerts-*", ".internal.preview.alerts-security.alerts-*")
                 .privileges("read")
                 .build(),
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(
-                    "apm-*-transaction*",
-                    "auditbeat-*",
-                    "endgame-*",
-                    "filebeat-*",
-                    "logs-*",
-                    "packetbeat-*",
-                    "traces-apm*",
-                    "winlogbeat-*"
-                )
-                .privileges("read", "view_index_metadata")
-                .build()
+            telemetry
         );
     }
 
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor alertZeroRuleCoverage(String name) {
+        final RoleDescriptor.IndicesPrivileges telemetry = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(
+                "apm-*-transaction*",
+                "auditbeat-*",
+                "endgame-*",
+                "filebeat-*",
+                "logs-*",
+                "packetbeat-*",
+                "traces-apm*",
+                "winlogbeat-*"
+            )
+            .privileges("read", "view_index_metadata", "read_cross_cluster")
+            .build();
         return alertZeroWorker(
             name,
             "Rule Coverage",
             new String[] { "feature_workflowsManagement.read", "feature_securitySolutionRulesV4.all", "feature_fleet.read" },
+            new RoleDescriptor.RemoteIndicesPrivileges[] { new RoleDescriptor.RemoteIndicesPrivileges(telemetry, "*") },
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".preview.alerts-security.alerts-*", ".internal.preview.alerts-security.alerts-*")
                 .privileges("read")
                 .build(),
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(
-                    "apm-*-transaction*",
-                    "auditbeat-*",
-                    "endgame-*",
-                    "filebeat-*",
-                    "logs-*",
-                    "packetbeat-*",
-                    "traces-apm*",
-                    "winlogbeat-*"
-                )
-                .privileges("read", "view_index_metadata")
-                .build()
+            telemetry
         );
     }
 
@@ -1075,6 +1123,16 @@ class KibanaOwnedReservedRoleDescriptors {
         String name,
         String workerName,
         String[] featurePrivileges,
+        RoleDescriptor.IndicesPrivileges... indices
+    ) {
+        return alertZeroWorker(name, workerName, featurePrivileges, null, indices);
+    }
+
+    private static RoleDescriptor alertZeroWorker(
+        String name,
+        String workerName,
+        String[] featurePrivileges,
+        RoleDescriptor.RemoteIndicesPrivileges[] remoteIndices,
         RoleDescriptor.IndicesPrivileges... indices
     ) {
         return new RoleDescriptor(
@@ -1091,7 +1149,7 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null,
-            null,
+            remoteIndices,
             null,
             null,
             "Grants the privileges required by the service account of the AlertZero "

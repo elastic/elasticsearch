@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 
 import java.io.IOException;

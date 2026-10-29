@@ -100,6 +100,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-distribution-bwc-setup'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
     }
+    internalDistributionPackageCheck {
+      id = 'elasticsearch.internal-distribution-package-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.InternalDistributionPackageCheckPlugin'
+    }
     internalDistributionDownload {
       id = 'elasticsearch.internal-distribution-download'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
@@ -131,6 +135,10 @@ gradlePlugin {
     nativeLibraryBuild {
       id = 'elasticsearch.native-library-build'
       implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryBuildPlugin'
+    }
+    nativeLibraryCollection {
+      id = 'elasticsearch.native-library-collection'
+      implementationClass = 'org.elasticsearch.gradle.internal.nativelibs.NativeLibraryCollectionPlugin'
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'

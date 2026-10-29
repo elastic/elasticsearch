@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;

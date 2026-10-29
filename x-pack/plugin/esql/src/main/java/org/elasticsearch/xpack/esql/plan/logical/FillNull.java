@@ -307,30 +307,23 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             result = result.transformExpressionsOnly(Attribute.class, a -> replaced.getOrDefault(a.id(), a));
         }
         if (result instanceof FillNull fillNull) {
-            LogicalPlan expanded = fillNull.expand();
-            List<Attribute> before = fillNull.output();
-            List<Attribute> after = expanded.output();
+            result = fillNull.expand();
+        }
+        // The parent can only reference this node's output, so the columns whose ids changed there are exactly what it has to
+        // follow. Comparing this node's own output, instead of the columns its children changed, matters for nodes whose output
+        // is not just their child's: INLINE STATS also outputs its Aggregate's input, so it can expose a filled column that the
+        // Aggregate itself does not. A column that leaves the output, because it is dropped, redefined, or behind a merge whose
+        // output has ids of its own, stops here.
+        if (result != plan) {
+            List<Attribute> before = plan.output();
+            List<Attribute> after = result.output();
             assert before.size() == after.size() && Expressions.names(before).equals(Expressions.names(after))
                 : "FILLNULL expansion changed the output from " + before + " to " + after;
             assert before.stream().map(Attribute::dataType).toList().equals(after.stream().map(Attribute::dataType).toList())
                 : "FILLNULL expansion changed the output types from " + before + " to " + after;
-            Map<NameId, Attribute> filled = new HashMap<>();
             for (int i = 0; i < before.size(); i++) {
                 if (before.get(i).id().equals(after.get(i).id()) == false) {
-                    filled.put(before.get(i).id(), after.get(i));
-                }
-            }
-            replaced.replaceAll((id, attr) -> filled.getOrDefault(attr.id(), attr));
-            replaced.putAll(filled);
-            result = expanded;
-        }
-        // A column that leaves the output - dropped, redefined, or behind a merge whose output has ids of its own - is not referenced
-        // further up, so its replacement stops here. This also keeps a FORK branch's replacements out of its siblings.
-        if (replaced.isEmpty() == false) {
-            AttributeSet output = result.outputSet();
-            for (Map.Entry<NameId, Attribute> entry : replaced.entrySet()) {
-                if (output.contains(entry.getValue())) {
-                    replacedInOutput.put(entry.getKey(), entry.getValue());
+                    replacedInOutput.put(before.get(i).id(), after.get(i));
                 }
             }
         }

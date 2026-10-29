@@ -4324,6 +4324,12 @@ public class EsqlCapabilities {
         FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
+         * Commands after an {@code INLINE STATS} without {@code BY} follow a column filled by an earlier {@code FILLNULL}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
+         */
+        FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of

@@ -36,7 +36,8 @@ public abstract class GeoHexGridTiler {
     protected final int precision;
     protected final GeoHexVisitor visitor = new GeoHexVisitor();
 
-    private GeoHexGridTiler(int precision) {
+    // package private for testing
+    GeoHexGridTiler(int precision) {
         this.precision = precision;
     }
 

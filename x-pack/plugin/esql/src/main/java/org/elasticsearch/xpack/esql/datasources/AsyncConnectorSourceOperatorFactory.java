@@ -132,7 +132,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             })
         );
 
-        ProducerState state = new ProducerState(request, sliceQueue, buffer);
+        ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -152,14 +152,24 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         @Nullable
         final ExternalSliceQueue queue;
         final AsyncExternalSourceBuffer buffer;
+        /** Context of the driver that consumes the buffer. The producer's CPU time is metered into it. */
+        final DriverContext driverContext;
 
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
         @Nullable
         ResultCursor cursor;
+        /** The buffer's space signal when the last drain returned {@link DrainResult#BLOCKED}, else {@code null}. */
+        @Nullable
+        SubscribableListener<Void> blockedOn;
 
-        ProducerState(QueryRequest request, @Nullable ExternalSliceQueue queue, AsyncExternalSourceBuffer buffer) {
+        ProducerState(
+            QueryRequest request,
+            @Nullable ExternalSliceQueue queue,
+            AsyncExternalSourceBuffer buffer,
+            DriverContext driverContext
+        ) {
             if (request == null) {
                 throw new IllegalArgumentException("ProducerState requires a non-null request");
             }
@@ -169,13 +179,14 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             this.request = request;
             this.queue = queue;
             this.buffer = buffer;
+            this.driverContext = driverContext;
         }
     }
 
     private enum DrainResult {
         /** Hit EOF on the current cursor; caller should advance to the next unit. */
         EOF,
-        /** Buffer is full; a callback is registered to resume the loop. */
+        /** Buffer is full; the space signal is in {@link ProducerState#blockedOn} for the caller to park on. */
         BLOCKED,
         /** Row limit exhausted or buffer finished; the whole producer is done. */
         DONE
@@ -189,28 +200,25 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      */
     private void runProducerLoop(ProducerState state, ActionListener<Void> completionListener) {
         try {
-            if (state.cursor == null) {
-                if (advanceToNextUnit(state) == false) {
+            // DONE finishes the producer on this thread, and removing the driver's async action there counts the open
+            // measurement first. EOF and BLOCKED hand off to another thread that can finish the producer, so the
+            // measurement has to end before them. See DriverContext#meteredCpu.
+            DrainResult result = state.driverContext.meteredCpu(() -> {
+                DrainResult produced = produce(state);
+                if (produced == DrainResult.DONE) {
                     completionListener.onResponse(null);
-                    return;
                 }
-            }
-            DrainResult result = drainHotPath(state, completionListener);
+                return produced;
+            });
             switch (result) {
                 case DONE -> {
-                    // Close the active cursor before reporting completion so no resources leak on
-                    // cancellation / row-budget exhaustion paths.
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    completionListener.onResponse(null);
+                    // Completed inside the measurement.
                 }
-                case EOF -> {
-                    closeCursorQuietly(state.cursor);
-                    state.cursor = null;
-                    executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
-                }
+                case EOF -> executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
                 case BLOCKED -> {
-                    // A waitForSpace listener has been registered that will re-submit runProducerLoop.
+                    SubscribableListener<Void> space = state.blockedOn;
+                    state.blockedOn = null;
+                    parkUntilReady(space, state, completionListener);
                 }
             }
         } catch (Exception e) {
@@ -221,11 +229,28 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     }
 
     /**
-     * Drain pages from the currently-open cursor into the buffer.
-     * Runs synchronously while the buffer has space; when full, registers a callback that
-     * re-submits {@link #runProducerLoop} via the executor and returns {@link DrainResult#BLOCKED}.
+     * Opens the next unit when no cursor is open, then drains the cursor. Closes the cursor unless the drain
+     * is {@link DrainResult#BLOCKED}, so no resources leak on cancellation / row-budget exhaustion paths.
+     * Returns {@link DrainResult#DONE} when there is no next unit.
      */
-    private DrainResult drainHotPath(ProducerState state, ActionListener<Void> completionListener) {
+    private DrainResult produce(ProducerState state) {
+        if (state.cursor == null && advanceToNextUnit(state) == false) {
+            return DrainResult.DONE;
+        }
+        DrainResult result = drainHotPath(state);
+        if (result != DrainResult.BLOCKED) {
+            closeCursorQuietly(state.cursor);
+            state.cursor = null;
+        }
+        return result;
+    }
+
+    /**
+     * Drain pages from the currently-open cursor into the buffer.
+     * Runs synchronously while the buffer has space; when full, stores the buffer's space signal in
+     * {@link ProducerState#blockedOn} and returns {@link DrainResult#BLOCKED}.
+     */
+    private DrainResult drainHotPath(ProducerState state) {
         ResultCursor cursor = state.cursor;
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
@@ -240,7 +265,8 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             SubscribableListener<Void> space = buffer.waitForSpace();
             if (space.isDone() == false) {
-                return parkUntilReady(space, state, completionListener);
+                state.blockedOn = space;
+                return DrainResult.BLOCKED;
             }
             if (buffer.noMoreInputs() || noFurtherCandidates()) {
                 return DrainResult.DONE;
@@ -257,8 +283,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
 
     /**
      * Register a single listener that resumes the producer loop when {@code signal} fires, and
-     * return synchronously. {@link DrainResult#BLOCKED} is returned immediately after listener
-     * registration; the producer resumes asynchronously when {@code signal} completes.
+     * return synchronously. The producer resumes asynchronously when {@code signal} completes.
      * <p>
      * Cleanup semantics by branch:
      * <ul>
@@ -275,7 +300,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
      * @param signal a not-done listener from {@code waitForSpace()}; callers must verify
      *               {@code signal.isDone() == false} before invoking this helper.
      */
-    private DrainResult parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
+    private void parkUntilReady(SubscribableListener<Void> signal, ProducerState state, ActionListener<Void> completionListener) {
         signal.addListener(ActionListener.wrap(v -> {
             try {
                 executor.execute(() -> runProducerLoop(state, completionListener));
@@ -289,7 +314,6 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             state.cursor = null;
             completionListener.onFailure(e);
         }));
-        return DrainResult.BLOCKED;
     }
 
     /**

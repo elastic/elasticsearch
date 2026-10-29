@@ -7,10 +7,13 @@ import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 import { deriveOutcome } from "../analyzer/outcome.ts";
 import { renderMarkdown, severity } from "../analyzer/render.ts";
 import {
+  BLOCK_ALL_PRS,
+  COMPILE_FAILED_ENV,
   DEFAULT_AGENT_CONFIG,
   FLAKINESS_PROVEN_EXIT_CODE,
   KIND_KEYS,
   matchedBlockingLabels,
+  SKIPPED_COUNT_ENV,
   type SkippedTest,
   STATUS_DIR_NAME,
   TASK_STATUS_FILE_PREFIX,
@@ -47,15 +50,11 @@ const MAX_FAILING_CLASSES = 50;
 const OUTCOMES_ARTIFACT_FILE = "flakiness-outcomes.json";
 
 // Written by the generate step: targets the resolver could not re-run, each with
-// its reason (e.g. "requires-packaging-host"). Downloaded next to this script and
-// folded into the outcomes as `not_applicable`. Keep in sync with SKIPPED_FILE in entrypoints/generate.ts,
-// which writes it, and FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts, which uploads it.
+// its reason (e.g. "requires-packaging-host"). Downloaded next to this script, scoped to the generate job,
+// and folded into the outcomes as `not_applicable`. Keep in sync with SKIPPED_FILE in
+// entrypoints/generate.ts, which writes it, and FLAKINESS_SKIPPED_ARTIFACT in runners/buildkite.ts, which
+// uploads it.
 const SKIPPED_FILE = "flakiness-skipped.json";
-
-// Written by the compile phase of the orchestration step only when compilation fails; folded in
-// as a single `build_failed` outcome (the skipped batches produce none). Keep in
-// sync with FLAKINESS_PRECOMPILE_ARTIFACT in runners/buildkite.ts.
-const PRECOMPILE_FILE = "flakiness-precompile.json";
 
 // Self-reported by each batch job's never-fail wrapper (runners/buildkite.ts).
 interface JobStatus {
@@ -244,14 +243,68 @@ async function buildPayload(statusWithSignals: JobStatusWithSignals): Promise<Fl
   return payload;
 }
 
-// Read the skip list the generate step wrote. Empty or absent = nothing skipped.
-async function readSkippedTests(): Promise<SkippedTest[]> {
-  try {
-    const parsed = JSON.parse(await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8"));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+/** The report inputs as analyze found them; a non-empty `problems` means the report is incomplete. */
+export interface ReportInputsRead {
+  compileFailed: boolean;
+  skipped: SkippedTest[];
+  problems: string[];
+}
+
+/**
+ * What the generate step declared, checked against the skip list that reached this step.
+ *
+ * The compile failure comes from the env. The skip list has to hold exactly the declared number of entries.
+ * Anything else, a missing list included, is returned as a problem, and the report then says it is incomplete.
+ *
+ * `skipListText` is the file's contents, or `null` when it is absent.
+ */
+export function parseReportInputs(
+  env: Record<string, string | undefined>,
+  skipListText: string | null
+): ReportInputsRead {
+  const problems: string[] = [];
+  const compileFailedValue = env[COMPILE_FAILED_ENV];
+  if (compileFailedValue !== "true" && compileFailedValue !== "false") {
+    problems.push(`${COMPILE_FAILED_ENV} is ${JSON.stringify(compileFailedValue)}, expected "true" or "false"`);
   }
+  const countValue = env[SKIPPED_COUNT_ENV];
+  const expected = countValue !== undefined && /^\d+$/.test(countValue) ? Number(countValue) : undefined;
+  if (expected === undefined) {
+    problems.push(`${SKIPPED_COUNT_ENV} is ${JSON.stringify(countValue)}, expected a non-negative integer`);
+  }
+
+  let skipped: SkippedTest[] = [];
+  if (expected !== 0) {
+    if (skipListText === null) {
+      const declared = expected === undefined ? "" : `, but the generate step declared ${expected} skipped target(s)`;
+      problems.push(`${SKIPPED_FILE} did not reach this step${declared}`);
+    } else {
+      try {
+        const parsed = JSON.parse(skipListText);
+        if (!Array.isArray(parsed)) {
+          problems.push(`${SKIPPED_FILE} is not a JSON array`);
+        } else {
+          skipped = parsed;
+          if (expected !== undefined && parsed.length !== expected) {
+            problems.push(`${SKIPPED_FILE} has ${parsed.length} entries, but the generate step declared ${expected}`);
+          }
+        }
+      } catch {
+        problems.push(`${SKIPPED_FILE} is not valid JSON`);
+      }
+    }
+  }
+  return { compileFailed: compileFailedValue === "true", skipped, problems };
+}
+
+async function readReportInputs(): Promise<ReportInputsRead> {
+  let skipListText: string | null = null;
+  try {
+    skipListText = await readFile(join(PROJECT_ROOT, SKIPPED_FILE), "utf8");
+  } catch {
+    skipListText = null;
+  }
+  return parseReportInputs(process.env, skipListText);
 }
 
 // A skipped test never ran as a job, so it has no rc/duration/XML. It is
@@ -275,33 +328,6 @@ export function notApplicablePayload(t: SkippedTest): FlakinessPayload {
     failingClasses: [],
     reason: t.reason ?? "not-runnable",
   };
-}
-
-// Pure: does the compile phase's marker signal a build failure?
-// `markerText` is the marker file's contents, or `null` when the file is absent.
-// Absent, unreadable, malformed, or any non-`build_failed` outcome all mean "no".
-export function isPrecompileFailure(markerText: string | null): boolean {
-  if (markerText === null) {
-    return false;
-  }
-  try {
-    const parsed = JSON.parse(markerText);
-    return parsed?.outcome === "build_failed";
-  } catch {
-    return false;
-  }
-}
-
-// True when the compile phase left a failure marker. A missing file
-// (the gate passed or never ran) reads as `null` -> not failed.
-async function precompileFailed(): Promise<boolean> {
-  let markerText: string | null = null;
-  try {
-    markerText = await readFile(join(PROJECT_ROOT, PRECOMPILE_FILE), "utf8");
-  } catch {
-    markerText = null;
-  }
-  return isPrecompileFailure(markerText);
 }
 
 // A single record standing in for the batches that were skipped because the
@@ -330,6 +356,28 @@ export function buildFailedPayload(): FlakinessPayload {
 }
 
 /**
+ * A record standing in for report inputs the analyze step could not read, so the external pipeline can tell
+ * an incomplete report from a complete one. `infra_fail` because the failure is in the reporting pipeline,
+ * not in the PR.
+ */
+export function reportErrorPayload(): FlakinessPayload {
+  return {
+    jobId: "report-error:inputs",
+    stepKey: "flakiness-orchestration:report",
+    kind: "",
+    rc: 1,
+    durationSec: 0,
+    realFailures: 0,
+    suiteTimeouts: 0,
+    totalCases: 0,
+    outcome: "infra_fail",
+    timedOut: false,
+    infraSubtype: "report_error",
+    failingClasses: [],
+  };
+}
+
+/**
  * The jobs that proved flakiness: a test case that actually failed on a re-run.
  *
  * This is the only outcome that may fail the step, and the reason the verdict lives here rather than in the
@@ -342,15 +390,52 @@ export function provenFlakinessJobs<T extends { outcome: string }>(payloads: T[]
 }
 
 /**
- * Whether this step must fail the build: flakiness was proven AND the PR opted in.
+ * Reads `BUILDKITE_PULL_REQUEST`. Both `"false"` and unset mean not a PR, so on a build where the variable
+ * is missing, proven flakiness fails the build.
+ */
+export function isPullRequestBuild(pullRequest: string): boolean {
+  const value = pullRequest.trim();
+  return value !== "" && value !== "false";
+}
+
+export interface BlockingContext {
+  pullRequest: string;
+  labels: string;
+  // Defaults to BLOCK_ALL_PRS; tests set it to cover both values.
+  blockAllPrs?: boolean;
+}
+
+export interface BlockingVerdict {
+  block: boolean;
+  reason: string;
+}
+
+/**
+ * Whether this step must fail the build. Only proven flakiness can fail it, and then only if the build is
+ * not a PR, blocking is enabled for all PRs, or the PR carries a blocking label. The rules are checked in
+ * that order and `reason` names the first one that matched.
  *
  * The single definition of what blocks, kept out of run()'s control flow so the rule is unit-testable and
- * so both the exit code and the message it prints derive from one expression. `labels` is the raw
- * `GITHUB_PR_LABELS` value; every other build - unlabelled PRs, and the manual pipeline, which has no PR -
- * reports exactly as before.
+ * so both the exit code and the message it prints derive from one expression.
  */
-export function shouldBlock(payloads: { outcome: string }[], labels: string): boolean {
-  return provenFlakinessJobs(payloads).length > 0 && matchedBlockingLabels(labels).length > 0;
+export function shouldBlock(
+  payloads: { outcome: string }[],
+  { pullRequest, labels, blockAllPrs = BLOCK_ALL_PRS }: BlockingContext
+): BlockingVerdict {
+  if (provenFlakinessJobs(payloads).length === 0) {
+    return { block: false, reason: "no job proved flakiness" };
+  }
+  if (!isPullRequestBuild(pullRequest)) {
+    return { block: true, reason: `this is not a PR build (BUILDKITE_PULL_REQUEST="${pullRequest}")` };
+  }
+  if (blockAllPrs) {
+    return { block: true, reason: "blocking is enabled for all PRs" };
+  }
+  const matched = matchedBlockingLabels(labels);
+  if (matched.length > 0) {
+    return { block: true, reason: `PR labelled ${matched.join(", ")}` };
+  }
+  return { block: false, reason: "this PR carries no blocking label" };
 }
 
 function annotate(context: string, style: string, body: string): void {
@@ -380,9 +465,14 @@ async function run(): Promise<void> {
     }
   }
 
+  const inputs = await readReportInputs();
+  for (const problem of inputs.problems) {
+    console.error(`Flakiness report is incomplete: ${problem}`);
+  }
+
   // Fold in the targets the resolver could not re-run: recorded as
   // `not_applicable` so they are counted separately from `hang`/`infra_fail`.
-  const skipped = await readSkippedTests();
+  const skipped = inputs.skipped;
   for (const t of skipped) {
     payloads.push(notApplicablePayload(t));
   }
@@ -394,10 +484,13 @@ async function run(): Promise<void> {
   // If the compile phase failed, the batches were skipped and produced
   // no statuses; record a single `build_failed` so a non-compiling PR does not
   // read as zero problems.
-  const buildFailed = await precompileFailed();
+  const buildFailed = inputs.compileFailed;
   if (buildFailed) {
     payloads.push(buildFailedPayload());
     console.log("Recorded build_failed (PR did not compile; re-runs were skipped).");
+  }
+  if (inputs.problems.length > 0) {
+    payloads.push(reportErrorPayload());
   }
 
   if (process.env.CI && payloads.length > 0) {
@@ -412,31 +505,31 @@ async function run(): Promise<void> {
 
   // Human-readable report aggregated across every downloaded job.
   const report = await analyzeReports([JOBS_DIR]);
-  const md = renderMarkdown(report, buildFailed);
+  const md = renderMarkdown(report, buildFailed, inputs.problems);
   console.log(md);
   if (process.env.CI) {
-    annotate("flakiness-detection-report", severity(report, buildFailed), md);
+    annotate("flakiness-detection-report", severity(report, buildFailed, inputs.problems), md);
   }
 
   // The verdict, last, so the outcomes artifact and the annotation that explains a red step have already
-  // landed. Only the exit code is gated on the labels: the artifact and the annotation say the same thing
-  // on every PR, so the observability data does not depend on who opted in.
+  // landed. Only the exit code depends on `shouldBlock`: the artifact and the annotation say the same thing
+  // on every build, so the observability data does not depend on who opted in.
   //
   // `exitCode` rather than `exit()`: the step's stdout is a pipe, and `exit()` abandons writes still
   // queued on it - which would truncate the report just printed above, the one thing a blocked developer
   // needs to read. Nothing runs after this, so the process exits with this code once the loop drains.
-  const labels = process.env.GITHUB_PR_LABELS ?? "";
   const proven = provenFlakinessJobs(payloads);
-  // One boolean drives both the message and the exit code, so the log cannot claim one thing while the
+  // One verdict drives both the message and the exit code, so the log cannot claim one thing while the
   // step does another.
-  const blocking = shouldBlock(payloads, labels);
+  const verdict = shouldBlock(payloads, {
+    pullRequest: process.env.BUILDKITE_PULL_REQUEST ?? "",
+    labels: process.env.GITHUB_PR_LABELS ?? "",
+  });
   if (proven.length > 0) {
-    const verdict = blocking
-      ? `failing this step, PR labelled ${matchedBlockingLabels(labels).join(", ")}`
-      : "reported only, this PR carries no blocking label";
-    console.log(`${proven.length} job(s) proved flakiness; ${verdict}.`);
+    const action = verdict.block ? "failing this step" : "reported only";
+    console.log(`${proven.length} job(s) proved flakiness; ${action}, ${verdict.reason}.`);
   }
-  if (blocking) {
+  if (verdict.block) {
     process.exitCode = FLAKINESS_PROVEN_EXIT_CODE;
   }
 }

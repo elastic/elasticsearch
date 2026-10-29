@@ -84,14 +84,18 @@ public final class TestTaskSelector {
     /**
      * The chosen tasks for one target.
      *
-     * @param taskPaths      the task paths to run, capped and newest-first; empty when {@code skipReason} is set
-     * @param candidateCount how many enabled candidates existed before the cap (for the report)
-     * @param skipReason     {@code null} when runnable, otherwise the precise reason the target cannot be run
+     * @param taskPaths          the task paths to run, capped and newest-first; empty when {@code skipReason} is set
+     * @param candidateTaskPaths  every enabled candidate task path before the cap, in deterministic order
+     * @param skipReason          {@code null} when runnable, otherwise the precise reason the target cannot be run
      */
-    public record Selection(List<String> taskPaths, int candidateCount, String skipReason) {
+    public record Selection(List<String> taskPaths, List<String> candidateTaskPaths, String skipReason) {
 
         public boolean runnable() {
             return skipReason == null;
+        }
+
+        public int candidateCount() {
+            return candidateTaskPaths == null ? 0 : candidateTaskPaths.size();
         }
     }
 
@@ -129,7 +133,7 @@ public final class TestTaskSelector {
             }
         }
         if (candidates.isEmpty()) {
-            return new Selection(List.of(), 0, REASON_NO_RUNNABLE_TASK);
+            return new Selection(List.of(), List.of(), REASON_NO_RUNNABLE_TASK);
         }
 
         // The bare conventional task, when it is enabled, remains the single canonical way to run the target -
@@ -140,23 +144,25 @@ public final class TestTaskSelector {
         // branch produced it, and made PlanBuilder claim a capped fan-out where the bare task was simply
         // chosen canonically.
         List<TestTaskInfo> runnableHere = candidates.stream().filter(t -> isDestructive(t) == false).toList();
+        List<String> runnableCandidateTaskPaths = runnableHere.stream().sorted(NEWEST_FIRST).map(TestTaskInfo::taskPath).toList();
+        List<String> candidateTaskPaths = candidates.stream().sorted(NEWEST_FIRST).map(TestTaskInfo::taskPath).toList();
 
         for (TestTaskInfo t : candidates) {
             if (t.name().equals(bareTaskName)) {
-                return new Selection(List.of(t.taskPath()), Math.max(runnableHere.size(), 1), null);
+                return new Selection(List.of(t.taskPath()), runnableCandidateTaskPaths, null);
             }
         }
 
         // The bare task is disabled (or absent): fall back to the alternatives that really run this output.
         if (runnableHere.isEmpty()) {
-            return new Selection(List.of(), candidates.size(), REASON_REQUIRES_PACKAGING_HOST);
+            return new Selection(List.of(), candidateTaskPaths, REASON_REQUIRES_PACKAGING_HOST);
         }
         List<String> selected = runnableHere.stream().sorted(NEWEST_FIRST).limit(Math.max(0, cap)).map(TestTaskInfo::taskPath).toList();
         if (selected.isEmpty()) {
             // A cap of zero disables the fan-out entirely; say so rather than emit an empty run entry.
-            return new Selection(List.of(), runnableHere.size(), REASON_NO_RUNNABLE_TASK);
+            return new Selection(List.of(), runnableCandidateTaskPaths, REASON_NO_RUNNABLE_TASK);
         }
-        return new Selection(selected, runnableHere.size(), null);
+        return new Selection(selected, runnableCandidateTaskPaths, null);
     }
 
     /**

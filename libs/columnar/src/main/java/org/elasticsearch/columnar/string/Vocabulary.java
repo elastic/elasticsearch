@@ -42,6 +42,9 @@ public final class Vocabulary {
     /** A value the table could not admit, so it has no id at all. */
     private static final int ABSENT = -1;
 
+    /** Longest value a {@link BytesRefHash} can hold; Lucene rejects anything longer. */
+    private static final int MAX_TERM_BYTES = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
+
     private Vocabulary() {}
 
     /** A share of {@code total}, which is zero for a column holding nothing rather than undefined. */
@@ -351,6 +354,10 @@ public final class Vocabulary {
             // NOTE: empty strings occupy an ordinal slot and a plain-path entry, so they count
             // as one virtual byte to keep the denominator positive and the metric meaningful.
             columnBytes += TermQuota.cost(value);
+            if (value.length > MAX_TERM_BYTES) {
+                // The table cannot hold it. Left out, the writer finds no id for it and writes it as an escape.
+                return;
+            }
             if (hasPrevious && previous.get().bytesEquals(value)) {
                 if (previousId != ABSENT) {
                     counts[previousId]++;

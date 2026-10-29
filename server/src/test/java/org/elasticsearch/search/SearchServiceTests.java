@@ -15,6 +15,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -60,6 +65,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -96,7 +102,10 @@ import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -254,6 +263,66 @@ public class SearchServiceTests extends IndexShardTestCase {
             lifecycle.closed();
         }
         return lifecycle;
+    }
+
+    public void testBadRequestIfPatternTooComplex() {
+        TooComplexToDeterminizeException tooComplex = new TooComplexToDeterminizeException(Automata.makeEmpty(), 10);
+
+        for (Exception e : List.of(tooComplex, new ElasticsearchException("wrapped", tooComplex))) {
+            Exception converted = SearchService.badRequestIfPatternTooComplex(e);
+            assertThat(converted, instanceOf(IllegalArgumentException.class));
+            assertThat(converted.getMessage(), equalTo("Pattern was too complex to determinize"));
+            assertThat(converted.getCause(), sameInstance(e));
+            assertThat(ExceptionsHelper.status(converted), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        Exception alreadyClientError = new ElasticsearchStatusException("bad", RestStatus.BAD_REQUEST, tooComplex);
+        assertThat(SearchService.badRequestIfPatternTooComplex(alreadyClientError), sameInstance(alreadyClientError));
+        Exception unrelated = new ElasticsearchException("boom", new IllegalStateException());
+        assertThat(SearchService.badRequestIfPatternTooComplex(unrelated), sameInstance(unrelated));
+    }
+
+    public void testWrapListenerForErrorHandlingTooComplexPattern() {
+        final String nodeId = "node";
+        final ShardId shardId = new ShardId("index", "index", 0);
+        final long taskId = 123L;
+        final String logMessage = format("[%s]%s: failed to execute search request for task [%d]", nodeId, shardId, taskId);
+        final TooComplexToDeterminizeException tooComplex = new TooComplexToDeterminizeException(Automata.makeEmpty(), 10);
+
+        for (Exception failure : List.of(tooComplex, new ElasticsearchException("wrapped", tooComplex))) {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                Configurator.setLevel(SearchService.class, Level.DEBUG);
+                mockLog.addExpectation(
+                    new MockLog.ExceptionSeenEventExpectation(
+                        "converted failure logged at debug",
+                        SearchService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        logMessage,
+                        IllegalArgumentException.class,
+                        "Pattern was too complex to determinize"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("no warn log", SearchService.class.getCanonicalName(), Level.WARN, "*")
+                );
+
+                AtomicReference<Exception> received = new AtomicReference<>();
+                ActionListener<SearchPhaseResult> listener = wrapListenerForErrorHandling(
+                    ActionListener.wrap(r -> fail("expected a failure"), received::set),
+                    TransportVersion.current(),
+                    nodeId,
+                    shardId,
+                    taskId,
+                    threadPool,
+                    randomInitializedOrStartedLifecycle()
+                );
+                listener.onFailure(failure);
+
+                assertThat(received.get(), instanceOf(IllegalArgumentException.class));
+                assertThat(received.get().getCause(), sameInstance(failure));
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
     }
 
     public void testWrapListenerForErrorHandlingDebugLog() {

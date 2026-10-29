@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasable;
 /**
  * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
  *
- * <p>Batches are {@link Releasable}; callers that own the batch must close it when done.
+ * <p>Batches are {@link Releasable}; callers that own the batch must close it exactly once when done.
  * Slices produced by {@link #slice(int, int)} do not own the underlying buffers and their
  * {@link #close()} is a no-op.
  */

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Identity of one row group's remaining object-store GETs. The query budget grants permits to
@@ -27,6 +28,7 @@ public final class RowGroupIo {
     private final AtomicInteger outstanding = new AtomicInteger();
     private final AtomicInteger unissued = new AtomicInteger();
     private final AtomicInteger inFlightGets = new AtomicInteger();
+    private final AtomicLong untracked = new AtomicLong();
     private final ConcurrentHashMap<Object, Runnable> wakes = new ConcurrentHashMap<>();
     private volatile boolean cancelled;
     private volatile boolean finished;
@@ -37,6 +39,33 @@ public final class RowGroupIo {
     /** Remaining GETs: not yet issued plus currently in flight. */
     public int outstanding() {
         return outstanding.get();
+    }
+
+    /**
+     * Force-added bytes currently attributed to this lease (sliding window, ungated alloc).
+     * A ticket waiter on this lease must see {@code 0}.
+     */
+    public long untracked() {
+        return untracked.get();
+    }
+
+    /** Attributes an unconditional {@link NodeByteBudget#add} to this lease. */
+    public void addUntracked(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        untracked.addAndGet(bytes);
+    }
+
+    /** Drops an unconditional {@link NodeByteBudget#release} attributed to this lease. */
+    public void releaseUntracked(long bytes) {
+        if (bytes <= 0L) {
+            return;
+        }
+        untracked.updateAndGet(current -> {
+            long next = current - bytes;
+            return next < 0L ? 0L : next;
+        });
     }
 
     /**
@@ -57,7 +86,7 @@ public final class RowGroupIo {
 
     /**
      * Drops {@code n} GETs that were counted in {@link #addUnissued} but will never start
-     * (for example after {@code admitWait} fails and remaining misses are not issued).
+     * (for example after a ticket is cancelled and remaining misses are not issued).
      * Does not change in-flight; those GETs never called {@link #onGetStart}.
      */
     public void forgetUnissued(int n) {

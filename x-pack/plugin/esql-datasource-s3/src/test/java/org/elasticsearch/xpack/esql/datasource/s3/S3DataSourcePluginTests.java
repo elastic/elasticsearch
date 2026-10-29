@@ -20,9 +20,11 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceTelemetryVocabulary.Type;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 import org.junit.Before;
@@ -35,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
@@ -288,5 +291,33 @@ public class S3DataSourcePluginTests extends ESTestCase {
         assertTrue(ExternalFailures.composedByStorageClient(S3Exception.builder().message("Access Denied").build()));
         assertTrue(ExternalFailures.composedByStorageClient(SdkClientException.create("Unable to load credentials")));
         assertTrue(ExternalFailures.composedByStorageClient(StsException.builder().message("not authorized").build()));
+    }
+
+    /**
+     * The credential policy the node threads through {@link StorageProviderServices} is what refuses a federated
+     * configuration at provider build; the plugin has to hand it to the factory for that to happen. With federated
+     * identity off, a config naming a role is refused with the validator's message and no S3 client is built.
+     */
+    public void testFederatedIdentityRefusedByThePolicyTheServicesCarry() throws IOException {
+        try (S3DataSourcePlugin plugin = new S3DataSourcePlugin()) {
+            StorageProviderFactory factory = plugin.storageProviders(
+                new StorageProviderServices(
+                    Settings.EMPTY,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    environment,
+                    mock(ResourceWatcherService.class),
+                    CredentialPolicy.of(() -> true, () -> false)
+                )
+            ).get("s3");
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> factory.create(
+                    Settings.EMPTY,
+                    Map.of("auth", "federated_identity", "role_arn", "arn:aws:iam::123456789012:role/reader", "region", "us-east-1")
+                )
+            );
+            assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
+        }
     }
 }

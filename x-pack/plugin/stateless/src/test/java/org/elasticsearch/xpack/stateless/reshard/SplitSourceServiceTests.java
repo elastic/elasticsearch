@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -245,6 +248,31 @@ public class SplitSourceServiceTests extends ESTestCase {
             () -> splitSourceService.setupTargetShard(null, new ShardId(indexMetadata.getIndex(), 0), 1L, 1L, ActionListener.noop())
         );
         assertThat(exception.getMessage(), containsString("No split is in progress"));
+    }
+
+    /// if cancelSplits fires (removing nothing) and then splitSourceShardStarted
+    /// is called with an already-CLOSED shard, the shard.state() == CLOSED guard in setupSourceShardStateMachine
+    /// must prevent adding a new state machine entry. This is the race that requires cancelSplits to run from
+    /// afterIndexShardClosed (after IndexShard.close() sets the state to CLOSED) rather than beforeIndexShardClosed.
+    public void testSetupSourceShardStateMachineSkipsClosedShard() {
+        var splitSourceService = new SplitSourceService(null, mock(ClusterService.class), null, null, null, null, null, Settings.EMPTY);
+
+        var shardId = new ShardId("index", "uuid", 0);
+        var indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
+
+        // Simulate cancelSplits firing before any state machine was added (e.g. beforeIndexShardClosed race window).
+        splitSourceService.cancelSplits(indexShard);
+        assertTrue(splitSourceService.getShardsWithActiveSplitState().isEmpty());
+
+        // Simulate splitSourceShardStarted called concurrently: source shard state is SOURCE (not DONE),
+        // so it reaches setupSourceShardStateMachine — but the CLOSED guard returns null and nothing is added.
+        splitSourceService.splitSourceShardStarted(indexShard, IndexReshardingMetadata.newSplitByMultiple(1, 2));
+        assertTrue(
+            "CLOSED guard must prevent adding a state machine for an already-closed source shard",
+            splitSourceService.getShardsWithActiveSplitState().isEmpty()
+        );
     }
 
     public void testRefCountedAcquirerRecordsDurationFromAcquireStart() {

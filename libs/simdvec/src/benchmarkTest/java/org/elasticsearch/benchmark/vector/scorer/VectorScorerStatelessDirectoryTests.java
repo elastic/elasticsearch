@@ -23,7 +23,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
@@ -44,6 +46,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     private static final int NUM_VECTORS_TO_SCORE = 200;
     private static final float DELTA = 1e-3f;
     private static final int SINGLE_READ_LENGTH = BlobCacheBufferedIndexInput.BUFFER_SIZE;
+    private static final IntFunction<MemorySegment> NO_COPY = len -> { throw new AssertionError("unexpected copy into scratch"); };
 
     @BeforeClass
     public static void skipUnsupported() {
@@ -66,7 +69,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
 
                 var directAccess = asInstanceOf(DirectAccessInput.class, in);
                 var invoked = new AtomicBoolean();
-                assertTrue(directAccess.withMemorySegmentSlice(0, SINGLE_READ_LENGTH, segment -> invoked.set(true)));
+                assertTrue(directAccess.withMemorySegmentSlice(0, SINGLE_READ_LENGTH, NO_COPY, segment -> invoked.set(true)));
                 assertTrue("the zero-copy path was not taken", invoked.get());
 
                 try (Arena arena = Arena.ofConfined()) {

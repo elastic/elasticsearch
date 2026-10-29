@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161531
+summary: "ESQL:DS: Keep derived STATS BY keys over external sources"
+type: bug

@@ -113,6 +113,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -147,6 +148,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -227,6 +229,7 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -2899,18 +2902,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         @Override
         public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-            return List.of(
-                (
-                    indexName,
-                    dataStreamName,
-                    templateIndexMode,
-                    registryInstalledTemplate,
-                    projectMetadata,
-                    resolvedAt,
-                    indexTemplateAndCreateRequestSettings,
-                    combinedTemplateMappings,
-                    indexVersion,
-                    additionalSettings) -> {
+            return List.of(new IndexSettingProvider() {
+                @Override
+                public void provideAdditionalSettings(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
+                    ProjectMetadata projectMetadata,
+                    Instant resolvedAt,
+                    Settings indexTemplateAndCreateRequestSettings,
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
+                ) {
                     if (IndexMode.isTsdb(templateIndexMode)) {
                         // Don't randomly enable columnar id mode, if time series index mode has been enabled.
                         // Enabling columnar id isn't possible because tsdb always uses synthetic id.
@@ -2940,7 +2945,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         additionalSettings.put("index.mapping.use_columnar_id_mode_by_default", true);
                     }
                 }
-            );
+
+                @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("index.mapping.use_columnar_id_mode_by_default");
+                }
+            });
         }
 
     }

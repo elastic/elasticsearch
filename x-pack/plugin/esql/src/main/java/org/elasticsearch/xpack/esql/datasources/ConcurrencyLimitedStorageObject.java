@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
@@ -48,7 +49,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     @Override
     public InputStream newStream() throws IOException {
-        limiter.acquireChecked();
+        acquireForStream();
         try {
             InputStream stream = delegate.newStream();
             return new PermitReleasingInputStream(stream, limiter);
@@ -60,13 +61,29 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        limiter.acquireChecked();
+        acquireForStream();
         try {
             InputStream stream = delegate.newStream(position, length);
             return new PermitReleasingInputStream(stream, limiter);
         } catch (Exception e) {
             limiter.release();
             throw e;
+        }
+    }
+
+    /**
+     * First GET parks on {@link ConcurrencyLimiter#acquireChecked()}. A text resume
+     * ({@link StoragePermitBarge}) barges ({@link ConcurrencyLimiter#tryAcquire()}) so the
+     * segmentator never joins the fair semaphore queue. A miss is
+     * {@link ConcurrencyLimiter.PermitMissException}; {@link RetryableStorageObject} polls
+     * on the reader rather than {@code acquireAsync().join()}, which would deadlock
+     * {@code esql_external_io}.
+     */
+    private void acquireForStream() {
+        if (StoragePermitBarge.active()) {
+            limiter.acquireBargeChecked();
+        } else {
+            limiter.acquireChecked();
         }
     }
 
@@ -94,6 +111,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     @Override
     public String contentGeneration() {
         return delegate.contentGeneration();
+    }
+
+    @Override
+    public String version() {
+        return delegate.version();
+    }
+
+    @Override
+    public String probedVersion() {
+        return delegate.probedVersion();
     }
 
     @Override
@@ -290,6 +317,16 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
         }
     }
 
+    /**
+     * Starts the delegated GET on the grant releaser (SDK completion thread or
+     * {@code esql_worker}). Native-async storage (S3, HTTP, Azure with
+     * {@code blobAsyncClient}) queues SDK I/O and returns without blocking.
+     * Executor-wrapped storage (GCS; Azure/S3 without an async client;
+     * {@link StorageObject} default) submits a blocking read on {@code executor}.
+     * Prefetch passes {@code Runnable::run}, so those reads run on this thread;
+     * forking them onto {@code esql_external_io} would queue a grant with no GET in flight. That
+     * occupancy is a later fix.
+     */
     private void startDelegate(
         long position,
         long length,
@@ -386,6 +423,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject, ResumeBypassingS
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics();
+    }
+
+    @Override
+    public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+        delegate.attachMetrics(metrics, scheme);
     }
 
     /**

@@ -22,6 +22,7 @@ import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMat
 import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNoDecisionWithNoExplanation;
 import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecision;
 import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithNoExplanation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -84,6 +85,11 @@ public class AllocationDecisionMatcherTests extends ESTestCase {
         final var notPreferred = new Decision.Single(Decision.Type.NOT_PREFERRED, label, "some explanation");
         assertThat(isNotPreferredDecisionWithExplanationMatching(label, containsString("some")).matches(notPreferred), equalTo(true));
         assertThat(isNotPreferredDecisionWithExplanationMatching(label, containsString("other")).matches(notPreferred), equalTo(false));
+
+        final var notPreferredWithoutExplanation = new Decision.Single(Decision.Type.NOT_PREFERRED, label, null);
+        assertThat(isNotPreferredDecisionWithNoExplanation(label).matches(notPreferredWithoutExplanation), equalTo(true));
+        assertThat(isNotPreferredDecisionWithNoExplanation(label).matches(notPreferred), equalTo(false));
+        assertThat(isNotPreferredDecisionWithNoExplanation(label).matches(withoutExplanation), equalTo(false));
     }
 
     public void testMultiDecisionMatchesOnEffectiveDecision() {

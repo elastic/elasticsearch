@@ -1,0 +1,10 @@
+{
+  "index": {
+    "mode": "columnar",
+    "mapping": {
+      "flattened_unmapped_fields": {
+        "enabled": true
+      }
+    }
+  }
+}

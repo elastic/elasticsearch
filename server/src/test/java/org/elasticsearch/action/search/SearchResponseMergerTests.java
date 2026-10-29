@@ -998,7 +998,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     null,
                     () -> false,
                     requestedAggs,
-                    new MultiBucketConsumerService.MultiBucketConsumer(maxBuckets, new NoopCircuitBreaker("test")),
+                    new MultiBucketConsumerService.MultiBucketConsumer(maxBuckets, NoopCircuitBreaker.INSTANCE),
                     topHitsToRelease
                 );
             }

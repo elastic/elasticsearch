@@ -20,16 +20,14 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notANumber;
 
 public class BBQDotProductTests extends BaseVectorizationTests {
 
@@ -145,7 +143,7 @@ public class BBQDotProductTests extends BaseVectorizationTests {
         }
     }
 
-    public void testBulkOffsets() throws Exception {
+    public void testBulkMasked() throws Exception {
         int nDims = randomDims();
         int planeBytes = BBQDotProduct.planeBytes(nDims);
         int count = randomIntBetween(1, BULK_SIZE);
@@ -155,16 +153,15 @@ public class BBQDotProductTests extends BaseVectorizationTests {
         for (int i = 0; i < count; i++) {
             vectors[i] = randomPackedVector(encoding.dataBits(), planeBytes, nDims);
         }
-        int[] offsets = new int[BULK_SIZE];
-        int offsetsCount = 0;
+        int mask = 0;
         for (int i = 0; i < count; i++) {
             if (randomBoolean()) {
-                offsets[offsetsCount++] = i;
+                mask = BulkMask.select(mask, i);
             }
         }
-        if (offsetsCount == 0) {
+        if (mask == 0) {
             // Ensure there's always *something* to score
-            offsets[offsetsCount++] = randomIntBetween(0, count - 1);
+            mask = BulkMask.select(mask, randomIntBetween(0, count - 1));
         }
 
         try (Directory dir = newParametrizedDirectory()) {
@@ -175,18 +172,13 @@ public class BBQDotProductTests extends BaseVectorizationTests {
                     BBQDotProduct dotProduct = getImpl(impl, read, nDims);
 
                     float[] scores = new float[BULK_SIZE];
-                    Arrays.fill(scores, Float.NaN);
-                    dotProduct.dotProductBulkOffsets(query, offsets, offsetsCount, scores, count);
+                    dotProduct.dotProductBulkMasked(query, mask, scores, count);
 
-                    int next = 0;
+                    // the scores of the vectors that are not selected are unspecified
                     for (int i = 0; i < count; i++) {
-                        boolean scored = next < offsetsCount && offsets[next] == i;
-                        if (scored) {
+                        if (BulkMask.isSelected(mask, i)) {
                             long expected = basicBitImplementation(query, vectors[i], planeBytes, nDims);
                             assertThat(describe(impl + ", vector " + i), scores[i], equalTo((float) expected));
-                            next++;
-                        } else {
-                            assertThat(describe(impl.toString()), (double) scores[i], either(notANumber()).or(is(0.0)));
                         }
                     }
 

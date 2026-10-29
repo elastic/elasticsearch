@@ -30,6 +30,11 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         assertRendered(Condition.MALFORMED_DATA, "Malformed data in [x.csv]", "Malformed external data");
         assertRendered(Condition.METADATA_UNAVAILABLE, "Failed to get metadata for [x.csv]", "Failed to get external data metadata");
         assertRendered(Condition.LISTING_FAILED, "Failed to list external data objects", "Failed to list external data objects");
+        assertRendered(
+            Condition.LOCAL_CAPACITY,
+            "External read concurrency limit reached on this node reading [x.csv]",
+            "External read concurrency limit reached on this node"
+        );
     }
 
     public void testDetailCodeAndRemedyAreAppended() {
@@ -84,6 +89,15 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         );
         assertEquals("Unexpected internal failure reading external source", Condition.CLIENT_BUG.render("x.csv", "", ""));
         assertEquals("Unexpected internal failure reading external source: boom", Condition.CLIENT_BUG.render("", "boom", ""));
+        // Names no object: the node, not any store object, is what cannot serve the read yet.
+        assertEquals(
+            "Node has not yet applied the cluster state this query was planned from",
+            Condition.WORKER_NOT_READY.render("x.csv", "", "ignored")
+        );
+        assertEquals(
+            "Node has not yet applied the cluster state this query was planned from (waited [10s])",
+            Condition.WORKER_NOT_READY.render("", "waited [10s]", "")
+        );
     }
 
     public void testObjectNameIsInsertedLiterally() {

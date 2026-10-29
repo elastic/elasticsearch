@@ -295,8 +295,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         if (canUseByteArrayFastPath(object)) {
             // Slurp the bounded (≤16 MiB) segment in one pull. external_max_record_size is enforced per-record
             // inside NdJsonPageDecoder on the pass Jackson already makes — no second walk over the buffer
-            // (the pre-#965 strict cap stream / lenient filter both re-scanned every byte before the
-            // decoder re-walked them; see issue 965). Splitter-side enforcement
+            // (the previous strict cap stream / lenient filter both re-scanned every byte before the
+            // decoder re-walked them). Splitter-side enforcement
             // (NdJsonRecordSplitter.findLastRecordBoundary at split-discovery time) still bounds parallel
             // chunks; the decoder cap protects whole-file and byte-range macro-split reads that bypass it.
             byte[] data;

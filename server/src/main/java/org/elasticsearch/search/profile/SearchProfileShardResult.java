@@ -28,6 +28,8 @@ import java.util.Objects;
  */
 public class SearchProfileShardResult implements Writeable, ToXContentFragment {
 
+    public static final String RESCORE = "rescore";
+
     private final SearchProfileQueryPhaseResult queryPhase;
     private final ProfileResult fetchPhase;
 
@@ -79,6 +81,13 @@ public class SearchProfileShardResult implements Writeable, ToXContentFragment {
         }
         builder.endArray();
         queryPhase.getAggregationProfileResults().toXContent(builder, params);
+        if (queryPhase.getRescoreProfileResults().isEmpty() == false) {
+            builder.startArray(RESCORE);
+            for (ProfileResult rescoreResult : queryPhase.getRescoreProfileResults()) {
+                rescoreResult.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
         if (fetchPhase != null) {
             builder.field("fetch");
             fetchPhase.toXContent(builder, params);

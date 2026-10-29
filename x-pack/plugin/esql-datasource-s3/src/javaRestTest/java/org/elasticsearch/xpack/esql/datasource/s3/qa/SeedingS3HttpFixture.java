@@ -22,6 +22,9 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +58,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     private final String bucket;
     private final BiPredicate<String, String> authorizationPredicate;
     private S3HttpHandler handler;
+    private final List<String> requestLog = Collections.synchronizedList(new ArrayList<>());
 
     /**
      * When non-null, requests signed for a different region receive 400 AuthorizationHeaderMalformed
@@ -96,11 +100,21 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         deniedKeys.put("/" + bucket + "/" + key, message);
     }
 
+    /** Every request the fixture received, as {@code "<METHOD> <path>"}, in arrival order. */
+    public List<String> requestLog() {
+        return List.copyOf(requestLog);
+    }
+
+    public void clearRequestLog() {
+        requestLog.clear();
+    }
+
     @Override
     protected HttpHandler createHandler() {
         handler = new S3HttpHandler(bucket, "", S3ConsistencyModel.STRONG_MPUS);
         return exchange -> {
             try {
+                requestLog.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
                 // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
                 final String cr = correctRegion;
                 if (cr != null) {

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
@@ -52,7 +53,7 @@ import java.util.Set;
  *
  * <p>Include and glob-exclude patterns use the syntax of {@link UnresolvedNamePattern#glob()}.
  */
-public final class UnmappedFieldsPattern implements NamedWriteable {
+public final class UnmappedFieldsPattern implements NamedWriteable, UnmappedFields.Filter {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         UnmappedFieldsPattern.class,
         "UnmappedFieldsPattern",
@@ -118,7 +119,7 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
      * The pattern of a {@code DROP} command, computed from the removal list it was written with.
      *
      * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
-     * will match, so the pattern has to be applied during the {@code _unmapped_fields} expansion. An explicitly
+     * will match. An explicitly
      * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
      * {@code EsRelation.output()} name — which covers both mapped columns and the fields
      * {@code ResolveUnmapped} demand-loads for explicit references.
@@ -203,14 +204,21 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
         return false;
     }
 
+    @Override
+    public boolean includes(String path) {
+        return matches(path);
+    }
+
+    @Override
+    public boolean mayIncludeBelow(String path) {
+        return objectSubfieldsCouldMatch(path);
+    }
+
     /**
-     * Whether a top-level {@code _source} object or array key should ship from the data node so the coordinator can flatten it into dotted
-     * leaf columns. Deliberately a superset of the per-leaf {@link #matches}: an array of scalars flattens to a leaf named exactly
-     * {@code name}, so anything {@code matches} would keep has to ship from here first.
+     * Whether some leaf below the object {@code name} could {@link #matches match}, so that a walk of {@code _source} has a
+     * reason to enter it. Never {@code false} for an object holding a leaf that matches.
      */
     public boolean objectSubfieldsCouldMatch(String name) {
-        // TODO: apply the UnmappedFieldsPattern early so that whatever is being shipped to the coordinator is bare minimum
-        // (as opposed to shipping the whole _source of that specific field + its subfields)
         if (isNone() || anyMatches(subtreeCoveringExcludes, name)) {
             return false;
         }
@@ -243,8 +251,8 @@ public final class UnmappedFieldsPattern implements NamedWriteable {
 
     /**
      * The pattern that keeps a field if {@code this} or {@code other} would keep it. Used when a {@link MergePlan} merges
-     * branches that stamped different patterns: the coordinator expands extras that <em>any</em> sibling shipped, so
-     * the output attribute must not inherit the first branch's restriction.
+     * branches that stamped different patterns, so that the output attribute keeps what <em>any</em> branch keeps rather
+     * than the first branch's restriction. Each branch reads its own pattern on the shard.
      * <p>
      * Excludes survive only when both sides would drop the name. An unrestricted include ({@code *}) on either side
      * wins. Otherwise include patterns are OR'd into one group, which is exact for typical per-branch KEEPs and an

@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.BytesSink;
 
 import java.io.IOException;
 
@@ -94,6 +95,33 @@ public abstract class StringColumnValues extends DocIdSetIterator {
      * than merely describing it differently.
      */
     public abstract BytesRef value() throws IOException;
+
+    /** Hands the value the cursor is on, which must not be null, to {@code sink}, a piece at a time where the cursor can. */
+    public void transferValue(BytesSink sink) throws IOException {
+        final BytesRef value = value();
+        sink.append(value.bytes, value.offset, value.length);
+    }
+
+    /**
+     * Whether a plain column can be written from this cursor without holding a value, through {@link #transferValue} and
+     * {@link #repeatsPrevious}.
+     */
+    public boolean streamsValues() {
+        return false;
+    }
+
+    /**
+     * Whether the value the cursor is on is known to equal the value it was on before. False when unknown, which stores
+     * the repeat again.
+     */
+    public boolean repeatsPrevious() throws IOException {
+        return false;
+    }
+
+    /** Whether the values may arrive in term order. False spares the writer comparing them. */
+    public boolean mayBeSorted() {
+        return true;
+    }
 
     /**
      * The ordinal the value the cursor is on takes in the column being written, when the cursor already

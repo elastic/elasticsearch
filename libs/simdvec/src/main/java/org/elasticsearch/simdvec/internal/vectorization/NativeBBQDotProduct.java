@@ -10,11 +10,13 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q1;
 import static org.elasticsearch.simdvec.BBQEncoding.D1Q4;
@@ -64,6 +66,7 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     private MemorySegment cachedQuerySegment;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSegment;
+    private final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     private NativeBBQDotProduct(IndexInput in, BBQEncoding bbqEncoding, int planeBytes) {
         super(in, bbqEncoding, planeBytes);
@@ -117,75 +120,60 @@ public final class NativeBBQDotProduct extends BBQDotProduct {
     }
 
     @Override
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+    public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
         assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
         MemorySegment querySegment = querySegment(query);
-        MemorySegment scoresSegment = scoresSegment(scores);
-        MemorySegment offsetsSegment = MemorySegment.ofArray(offsets);
+        MemorySegment scoresSegment = scoresScratch.apply(count * Float.BYTES);
         IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, dataSegment -> {
             switch (encoding.toSwitchValue()) {
-                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkWithOffsets(
+                case D1Q1 -> DISTANCE_FUNCS.dotProductD1Q1BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4BulkWithOffsets(
+                case D1Q4 -> DISTANCE_FUNCS.dotProductD1Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2BulkWithOffsets(
+                case D2Q2 -> DISTANCE_FUNCS.dotProductD2Q2BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4BulkWithOffsets(
+                case D2Q4 -> DISTANCE_FUNCS.dotProductD2Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
-                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4BulkWithOffsets(
+                case D4Q4 -> DISTANCE_FUNCS.dotProductD4Q4BulkMasked(
                     dataSegment,
                     querySegment,
                     docBytes,
                     docBytes,
-                    offsetsSegment,
-                    offsetsCount,
+                    mask,
+                    count,
                     scoresSegment
                 );
                 default -> throw new AssertionError("Unsupported encoding: " + encoding);
             }
         });
-        repositionScoresMatchingOffsets(offsets, offsetsCount, scores);
-    }
-
-    /**
-     * The native methods put their scores all at the start of {@code scores}.
-     * So we need to move each score to the correct position in {@code scores}.
-     */
-    private static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
-        for (int i = offsetsCount - 1; i >= 0; i--) {
-            int finalScoreIndex = offsets[i];
-            if (i < finalScoreIndex) {
-                scores[finalScoreIndex] = scores[i];
-                scores[i] = 0;
-            }
-        }
+        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0L, scores, 0, count);
     }
 }

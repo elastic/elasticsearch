@@ -157,13 +157,59 @@ public class StringMatchTests extends ColumnarStringTestCase {
                     while (end < docValues.length && docValues[end].length == 0) {
                         end++;
                     }
-                    assertEquals("run from " + doc + " with a dictionary: " + reader.hasDictionary(), end, empty.docIDRunEnd());
+                    int covered = doc;
+                    while (covered < end) {
+                        final int runEnd = empty.docIDRunEnd();
+                        assertTrue(
+                            "run from "
+                                + covered
+                                + " ends at "
+                                + runEnd
+                                + ", within "
+                                + end
+                                + ", with a dictionary: "
+                                + reader.hasDictionary(),
+                            runEnd > covered && runEnd <= end
+                        );
+                        covered = runEnd;
+                        if (covered < end) {
+                            assertEquals(covered, approximation.advance(covered));
+                            assertTrue(empty.matches());
+                        }
+                    }
                     runs++;
                     doc = end < docValues.length ? approximation.advance(end) : DocIdSetIterator.NO_MORE_DOCS;
                 }
                 assertTrue("expected several runs, saw " + runs, runs > 2);
             });
         }
+    }
+
+    public void testRunEndsAroundDoublingBoundaries() throws IOException {
+        // NOTE: the run end is bracketed by doubling, so the lengths either side of a power of two are where
+        // an off-by-one hides, and the last run reaches the column's end with no value above it to stop on.
+        final int[] lengths = { 1, 2, 3, 7, 8, 9, 15, 16, 17, 31, 32, 33, 1, 64, 65 };
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < lengths.length; i++) {
+            for (int repeat = 0; repeat < lengths[i]; repeat++) {
+                values.add(orderedTerm(i));
+            }
+        }
+        final BytesRef[] docValues = values.toArray(new BytesRef[0]);
+        for (DictionaryPolicy policy : List.of(DictionaryPolicy.NONE, ROOMY)) {
+            withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), policy, (metadata, reader) -> {
+                final String how = "policy=" + policy;
+                for (int i = 0; i < lengths.length; i++) {
+                    assertEquals(how + " run of " + lengths[i], lengths[i], count(reader.matchTerm(orderedTerm(i))));
+                }
+                assertEquals(how + " past the last run", 0, count(reader.matchTerm(orderedTerm(lengths.length))));
+                assertEquals(how + " below the first run", 0, count(reader.matchTerm(new BytesRef("s"))));
+            });
+        }
+    }
+
+    private static BytesRef orderedTerm(int position) {
+        return new BytesRef(position < 10 ? "t0" + position : "t" + position);
     }
 
     /**

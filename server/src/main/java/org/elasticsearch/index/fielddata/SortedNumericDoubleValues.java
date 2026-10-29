@@ -85,7 +85,7 @@ public abstract class SortedNumericDoubleValues {
     }
 
     /**
-     * @return an iterator over doc ids working togerther with {@link #advanceExact(int)} and {@link #nextValue()}
+     * @return an iterator over doc ids working together with {@link #advanceExact(int)} and {@link #nextValue()}
      *         or null if not supported.
      */
     @Nullable
@@ -102,10 +102,32 @@ public abstract class SortedNumericDoubleValues {
     }
 
     /**
-     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues}
+     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues} that has no
+     * {@link DocIdSetIterator}, so {@link #docIdIterator()} returns {@code null}.
+     *
+     * <p> Only use this when nothing backs {@code values} with a doc id iterator, for example when the
+     * values are computed by a script. If {@code values} is derived from another doc-values instance,
+     * use {@link #singleton(DoubleValues, DocIdSetIterator)} and pass that instance's iterator.
      */
-    public static SortedNumericDoubleValues singleton(DoubleValues values) {
-        return new SortedNumericDoubleValues(true, null) {
+    public static SortedNumericDoubleValues singletonWithoutDocIdIterator(DoubleValues values) {
+        return singleton(values, null);
+    }
+
+    /**
+     * Converts a {@link DoubleValues} to a {@link SortedNumericDoubleValues} preserving the
+     * given {@link DocIdSetIterator}.
+     *
+     * <p> Callers that derive a singleton view from another doc-values instance must pass that
+     * instance's {@link #docIdIterator()}, otherwise the returned view reports no iterator. The
+     * iterator is deliberately a required argument so that dropping it is always an explicit choice;
+     * use {@link #singletonWithoutDocIdIterator(DoubleValues)} when there is genuinely no iterator
+     * backing {@code values}.
+     *
+     * <p> The iterator is forward-only and is returned as-is (never copied) by {@link #docIdIterator()}.
+     * It must be the iterator that backs {@code values}.
+     */
+    public static SortedNumericDoubleValues singleton(DoubleValues values, @Nullable DocIdSetIterator docIdSetIterator) {
+        return new SortedNumericDoubleValues(true, docIdSetIterator) {
             @Override
             public boolean advanceExact(int target) throws IOException {
                 return values.advanceExact(target);

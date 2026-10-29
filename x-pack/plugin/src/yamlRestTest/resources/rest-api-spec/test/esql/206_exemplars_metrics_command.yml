@@ -1,0 +1,53 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ exemplars_setting_development_v6, subquery_in_from_command ]
+      reason: "requires the exemplars query setting and subqueries in FROM"
+
+  - do:
+      indices.create:
+        index: metrics-yaml
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu_time:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        index: "metrics-yaml"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-05-10T00:00:00Z", "host": "a", "cpu_time": 1.5 }
+
+---
+# TODO: the exemplars setting is limited to at most one TS ... | STATS or PROMQL command until combining them is designed.
+"the exemplars setting supports at most one TS ... | STATS or PROMQL command":
+  - do:
+      catch: /\[exemplars\] supports at most one TS ... \| STATS or PROMQL command, found \[2\]/
+      esql.query:
+        body:
+          query: 'SET exemplars=true; FROM (TS metrics-yaml | STATS AVG(cpu_time)), (TS metrics-yaml | STATS MAX(cpu_time))'
+
+  # the same queries are fine without the setting
+  - do:
+      esql.query:
+        body:
+          query: 'SET exemplars=false; FROM (TS metrics-yaml | STATS AVG(cpu_time)), (TS metrics-yaml | STATS MAX(cpu_time))'
+
+  - length: { values: 2 }

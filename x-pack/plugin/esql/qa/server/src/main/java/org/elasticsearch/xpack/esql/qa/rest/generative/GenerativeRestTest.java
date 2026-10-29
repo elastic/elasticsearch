@@ -13,6 +13,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.FillNullGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.HighlightGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
@@ -45,17 +47,21 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,6 +100,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Layered onto the global {@link #ALLOWED_ERRORS} via {@link #additionalAllowedErrors()}
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
+    private static final Set<String> UNMAPPED_FIELDS_LOAD_ERRORS = Set.of();
+
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,
         Set.of(
@@ -105,22 +113,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "has conflicting data types in subqueries"
         ),
         GenerativeFeature.UNMAPPED_FIELDS_LOAD,
-        Set.of(
-            // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
-            "missing references \\[.*\\]",
-            // https://github.com/elastic/elasticsearch/issues/142026
-            "column \\[.*\\] already resolved",
-            // Subqueries, views and FORK are now supported with unmapped_fields="load" (#142033); this still matches the remaining
-            // restrictions: PROMQL and partially unmapped non-KEYWORD fields.
-            "is not supported with unmapped_fields",
-            "does not support full-text search function",
-            "type \\[null\\] .* not supported",
-            // https://github.com/elastic/elasticsearch/issues/145555
-            "Multiple index patterns should be disabled with unmapped fields",
-            // https://github.com/elastic/elasticsearch/issues/146036
-            "argument of \\[.*\\] must be \\[unsupported\\], found value",
-            // https://github.com/elastic/elasticsearch/issues/146074
-            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]"
+        UNMAPPED_FIELDS_LOAD_ERRORS,
+        // Permanent design constraint: keep this pattern matching the message of Verifier.checkLoadAllModeSupportedCommands.
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL,
+        Sets.union(
+            UNMAPPED_FIELDS_LOAD_ERRORS,
+            Set.of("only supports the FROM, .* and subquery commands; \\[[^\\]]+\\] is not supported yet")
         ),
         GenerativeFeature.PARQUET_DATASET,
         Set.of(
@@ -132,6 +130,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // A wildcard FROM pattern that expands to include an external dataset creates a
             // federated/subquery-like structure internally; FORK cannot follow such a source.
             "FORK after subquery is not supported",
+            // A wildcard FROM pattern such as "parquet*" expands to several external datasets, each one a union branch,
+            // so with FORK the query can exceed the branch cap (esql.query.max_branch_count); the generator cannot predict
+            // how many datasets a pattern matches.
+            "query resolved to \\d+ branches in total, exceeding the limit of \\d+",
             // Full-text functions and the [:] operator are not allowed when the FROM clause resolves
             // to include external (parquet) datasets — the verifier rejects them with a message of the
             // form "[X] function/operator cannot be used after from <pattern>" (explicit index list) or
@@ -261,6 +263,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         // https://github.com/elastic/elasticsearch/issues/159298
         "Invalid types \\[DATETIME, NULL\\] If you see this error, there is a bug in DateDiff\\.resolveType\\(\\)",
 
+        // https://github.com/elastic/elasticsearch/issues/162181
+        "Unsupported field type \\[NULL\\]\\. If you're seeing this, there.s a bug in DateExtract\\.resolveType",
+
         // Queries can time out in the test cluster (e.g. ip_location on non-IP values, wide
         // inline-stats schemas, CHANGE_POINT + LOOKUP JOIN). The timeout itself is a test
         // infrastructure limit; the query was valid ES|QL.
@@ -373,6 +378,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     throw e;
                 }
             }
+        }
+    }
+
+    /**
+     * The cluster is preserved across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases, so external datasets registered by {@link #availableIndices()} would otherwise stay visible
+     * to every case that runs after {@link GenerativeFeature#PARQUET_DATASET}. Wildcard sources such as {@code FROM *} would
+     * then pick them up and fail on commands that are unsupported on federated sources. Remove them after each such case.
+     */
+    @After
+    public void cleanupExternalDatasetsAfterCase() throws IOException {
+        if (isFeatureEnabled(GenerativeFeature.PARQUET_DATASET) == false) {
+            return;
+        }
+        try {
+            DatasetRegistry.cleanup(adminClient());
+        } finally {
+            DatasetRegistry.clearCaches();
         }
     }
 
@@ -532,6 +555,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD)) {
             return FromLoadGenerator.INSTANCE;
         }
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL)) {
+            return FromLoadGenerator.LOAD_ALL_INSTANCE;
+        }
         if (isFeatureEnabled(GenerativeFeature.METRICS)) {
             return EsqlQueryGenerator.timeSeriesSourceCommand();
         }
@@ -619,14 +645,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isUserAgentLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalWhereFilterBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isEvalInlineStatsAggregateBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkAttributesInSubplansBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isFillNullUnmappedFieldsPatternBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRangeWithinNullRangeBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -655,7 +683,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return true;
             }
         }
-        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) && isUnmappedFieldsLoadAllowedFailure(ctx)) {
+        if ((isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) || isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD_ALL))
+            && isUnmappedFieldsLoadAllowedFailure(ctx)) {
             return true;
         }
         return false;
@@ -845,10 +874,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static boolean isUnmappedFieldsLoadAllowedFailure(FailureContext ctx) {
-        if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, FromLoadGenerator.SET_LOAD_PREFIX)) {
-            return true;
+        for (String prefix : FromLoadGenerator.LOAD_PREFIXES) {
+            if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, prefix)) {
+                return true;
+            }
         }
-        return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage);
+        return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage)
+            || isUnknownNamedUnmappedFieldsColumn(ctx.normalizedErrorMessage, ctx.query, ctx.currentSchema);
     }
 
     private static boolean isKeywordTypeMismatchForLoadedField(String errorMessage) {
@@ -858,6 +890,138 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
         return false;
+    }
+
+    private static final Pattern UNKNOWN_COLUMN_PROBLEM_PATTERN = Pattern.compile("Unknown column \\[([^\\]]*)\\]");
+
+    private static final Pattern KEEP_DROP_OR_RENAME_COMMAND_PATTERN = Pattern.compile("(?i)\\s*(keep|drop|rename)\\s+");
+
+    // Permanent design constraint: a named _unmapped_fields is an ordinary unmapped field, which an earlier KEEP, DROP or RENAME can remove
+    static boolean isUnknownNamedUnmappedFieldsColumn(String errorMessage, String query, List<Column> currentSchema) {
+        if (errorMessage == null || query == null || isLoadAllQuery(query) == false) {
+            return false;
+        }
+        if (currentSchema.stream().noneMatch(EsqlQueryGenerator::isUnmappedFieldsColumn)) {
+            return false;
+        }
+        Matcher problems = PROBLEM_LINE.matcher(errorMessage);
+        Matcher unknown = UNKNOWN_COLUMN_PROBLEM_PATTERN.matcher(errorMessage);
+        boolean namesColumn = false;
+        while (problems.find()) {
+            if (unknown.region(problems.end(), errorMessage.length()).lookingAt() == false) {
+                return false;
+            }
+            String column = unknown.group(1);
+            if (column.equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)) {
+                int line = Integer.parseInt(problems.group(1));
+                int offset = offsetInQuery(query, line, Integer.parseInt(problems.group(2)));
+                if (namesUnmappedFieldsAt(query, offset) == false || unmappedFieldsRemovedBefore(query, offset) == false) {
+                    return false;
+                }
+                namesColumn = true;
+            } else if (UNMAPPED_NAMES.contains(column) == false) {
+                return false;
+            }
+        }
+        return namesColumn;
+    }
+
+    private static boolean unmappedFieldsRemovedBefore(String query, int offset) {
+        List<Integer> commandStarts = new ArrayList<>();
+        Deque<Integer> openGroups = new ArrayDeque<>();
+        boolean inBacktick = false;
+        boolean inQuote = false;
+        for (int i = 0; i < offset; i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if (inBacktick || inQuote) {
+                continue;
+            } else if (c == '(') {
+                openGroups.push(commandStarts.size());
+                commandStarts.add(i + 1);
+            } else if (c == ')' && openGroups.isEmpty() == false) {
+                commandStarts.subList(openGroups.pop(), commandStarts.size()).clear();
+            } else if (c == '|') {
+                commandStarts.add(i + 1);
+            }
+        }
+        Matcher command = KEEP_DROP_OR_RENAME_COMMAND_PATTERN.matcher(query);
+        if (commandStarts.isEmpty() == false
+            && command.region(commandStarts.getLast(), offset).lookingAt()
+            && command.group(1).equalsIgnoreCase("rename")
+            && projectionsFrom(query.substring(0, offset), command.end()).stream().anyMatch(GenerativeRestTest::renamesToUnmappedFields)) {
+            return false;
+        }
+        for (int s = 0; s < commandStarts.size() - 1; s++) {
+            if (command.region(commandStarts.get(s), offset).lookingAt()) {
+                List<String> projections = projectionsFrom(query, command.end());
+                boolean removes = switch (command.group(1).toLowerCase(Locale.ROOT)) {
+                    case "keep" -> projections.stream().noneMatch(GenerativeRestTest::patternCoversUnmappedFields);
+                    case "drop" -> projections.stream().anyMatch(GenerativeRestTest::patternCoversUnmappedFields);
+                    case "rename" -> projections.stream().anyMatch(GenerativeRestTest::renamesUnmappedFieldsAway);
+                    default -> throw new IllegalStateException("unexpected command [" + command.group(1) + "]");
+                };
+                if (removes) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean renamesUnmappedFieldsAway(String renaming) {
+        Matcher pair = RENAME_PAIR_PATTERN.matcher(renaming);
+        return pair.matches() && isUnmappedFieldsName(pair.group(1)) && isUnmappedFieldsName(pair.group(2)) == false;
+    }
+
+    private static boolean renamesToUnmappedFields(String renaming) {
+        Matcher pair = RENAME_PAIR_PATTERN.matcher(renaming);
+        return pair.matches() && isUnmappedFieldsName(pair.group(1)) == false && isUnmappedFieldsName(pair.group(2));
+    }
+
+    private static boolean isUnmappedFieldsName(String name) {
+        return unquote(name).equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME);
+    }
+
+    private static List<String> projectionsFrom(String query, int from) {
+        List<String> projections = new ArrayList<>();
+        boolean inBacktick = false;
+        int start = from;
+        for (int i = from; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`') {
+                inBacktick = inBacktick == false;
+            } else if (inBacktick == false && (c == ',' || c == '|' || c == ')')) {
+                projections.add(query.substring(start, i).strip());
+                if (c != ',') {
+                    return projections;
+                }
+                start = i + 1;
+            }
+        }
+        projections.add(query.substring(start).strip());
+        return projections;
+    }
+
+    private static boolean namesUnmappedFieldsAt(String query, int offset) {
+        String name = UnmappedFieldsAttribute.ATTRIBUTE_NAME;
+        String quoted = EsqlQueryGenerator.quote(name);
+        int end;
+        if (query.startsWith(quoted, offset)) {
+            end = offset + quoted.length();
+        } else if (query.startsWith(name, offset)) {
+            end = offset + name.length();
+        } else {
+            return false;
+        }
+        return end == query.length() || continuesName(query.charAt(end)) == false;
+    }
+
+    private static boolean continuesName(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '.' || c == '*' || c == '`';
     }
 
     /**
@@ -994,6 +1158,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
             case StatsGenerator.STATS, InlineStatsGenerator.INLINE_STATS -> {
                 return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+            }
+            case FillNullGenerator.FILL_NULL -> {
+                // FILLNULL turns each filled column into a reference attribute. The all-fields form may fill any
+                // column, so conservatively clear the flag for all of them; the targeted form only touches its targets.
+                if (Boolean.TRUE.equals(command.context().get(FillNullGenerator.ALL_FIELDS))) {
+                    return newSchema.stream().map(col -> new Column(col.name(), col.type(), col.originalTypes(), false)).toList();
+                }
+                Object filled = command.context().get(FillNullGenerator.FILLED_FIELDS);
+                if (filled instanceof List<?> list) {
+                    list.forEach(name -> createdColumns.add((String) name));
+                }
             }
             case RenameGenerator.RENAME -> {
                 return handleRenameIndexMapped(newSchema, prevMapped, command.commandString());
@@ -1199,7 +1374,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             || errorMessage.contains("because \"builder\" is null") == false) {
             return false;
         }
-        return query.contains(FromLoadGenerator.SET_LOAD_PREFIX) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
+        return FromLoadGenerator.LOAD_PREFIXES.stream().anyMatch(query::contains) && FULL_TEXT_FUNCTION_CALL_PATTERN.matcher(query).find();
     }
 
     /**
@@ -1225,6 +1400,38 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
         Pattern.DOTALL
     );
+
+    private static final Pattern RANGE_WITHIN_FUNCTION_PATTERN = Pattern.compile("(?i)\\bRANGE_WITHIN\\s*\\(");
+
+    /**
+     * {@code RANGE_WITHIN} picks the datetime point evaluator when its range argument is {@code NULL}-typed (e.g.
+     * {@code COALESCE} over an unmapped field), which then fails to read a {@code double} point block as a {@code LongBlock}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162183">#162183</a>.
+     */
+    static boolean isRangeWithinNullRangeBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() && RANGE_WITHIN_FUNCTION_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern UNRESOLVED_OBJECT_PATTERN = Pattern.compile(
+        ".*Invalid call to attribute on an unresolved object \\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern KEEP_WILDCARD_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*KEEP\\b[^|]*\\*");
+
+    /**
+     * {@code ResolveUnionTypesInUnionAll.replaceConvertFunctions} asks an unresolved wildcard {@code KEEP} for its output when a
+     * {@code UnionAll} (subquery or multi-dataset {@code FROM}) pushed a conversion down.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/162184">#162184</a>.
+     */
+    static boolean isUnionAllUnresolvedKeepWildcardBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
+    }
 
     private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
         "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="
@@ -1347,26 +1554,199 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
-    private static final Pattern USER_AGENT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*USER_AGENT\\b");
-    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\d+\\s+BY\\b");
     private static final Pattern EVAL_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*EVAL\\b");
-    private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
 
-    /**
-     * The LIMIT BY optimizer prunes the {@code USER_AGENT} input field from {@code ProjectExec}
-     * because it does not appear in the LIMIT BY output columns, but {@code UserAgentExec} still
-     * needs it as its source reference.
-     * See https://github.com/elastic/elasticsearch/issues/154069
-     */
-    static boolean isUserAgentLimitByBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
+    private static final Pattern PROBLEM_LINE = Pattern.compile("line (-?\\d+):(-?\\d+)(?: \\(in view \\[[^\\]]*\\]\\))?: ");
+
+    private static final Pattern NO_MATCHES_FOR_PATTERN = Pattern.compile(
+        "No matches found for pattern \\[([^\\]]*)\\](?:, did you mean to match .*)?"
+    );
+
+    private static final Pattern FILLNULL_COMMAND_PATTERN = Pattern.compile("(?i)^\\s*\\(?\\s*\\|?\\s*fillnull\\b");
+
+    private static final Pattern LATER_UNMAPPED_FIELDS_SETTING = Pattern.compile("(?i)set\\s+`?unmapped_fields`?\\s*=");
+
+    private static final Object ANY_STRING = new Object();
+
+    // FILLNULL pattern that covers _unmapped_fields matches no resolvable field.
+    // https://github.com/elastic/elasticsearch/issues/162182
+    static boolean isFillNullUnmappedFieldsPatternBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null || isLoadAllQuery(query) == false) {
             return false;
         }
-        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
+        Matcher problems = PROBLEM_LINE.matcher(errorMessage);
+        boolean any = false;
+        while (problems.find()) {
+            Matcher reported = NO_MATCHES_FOR_PATTERN.matcher(errorMessage.substring(problems.end()));
+            if (reported.lookingAt() == false) {
+                return false;
+            }
+            String pattern = reported.group(1);
+            int line = Integer.parseInt(problems.group(1));
+            int column = Integer.parseInt(problems.group(2));
+            if (patternCoversUnmappedFields(pattern) == false || fillNullPatternAt(query, line, column, pattern) == false) {
+                return false;
+            }
+            any = true;
         }
-        return USER_AGENT_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
+        return any;
     }
+
+    private static boolean isLoadAllQuery(String query) {
+        if (query.startsWith(FromLoadGenerator.SET_LOAD_ALL_PREFIX) == false) {
+            return false;
+        }
+        String rest = query.substring(FromLoadGenerator.SET_LOAD_ALL_PREFIX.length());
+        return LATER_UNMAPPED_FIELDS_SETTING.matcher(rest).find() == false;
+    }
+
+    private static boolean fillNullPatternAt(String query, int line, int column, String pattern) {
+        int offset = offsetInQuery(query, line, column);
+        if (offset < 0 || offset + pattern.length() > query.length() || query.startsWith(pattern, offset) == false) {
+            return false;
+        }
+        return isFillNullCommand(query, offset);
+    }
+
+    private static int offsetInQuery(String query, int line, int column) {
+        if (line < 1 || column < 1) {
+            return -1;
+        }
+        int lineNumber = 1;
+        int index = 0;
+        while (index < query.length() && lineNumber < line) {
+            if (query.charAt(index) == '\n') {
+                lineNumber++;
+            }
+            index++;
+        }
+        if (lineNumber != line) {
+            return -1;
+        }
+        return index + column - 1;
+    }
+
+    private static boolean isFillNullCommand(String query, int offset) {
+        int start = 0;
+        boolean inBacktick = false;
+        boolean inQuote = false;
+        for (int i = 0; i < offset && i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if ((c == '|' || c == '(') && inBacktick == false && inQuote == false) {
+                start = i;
+            }
+        }
+        int end = query.length();
+        inBacktick = false;
+        inQuote = false;
+        for (int i = start; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (c == '`' && inQuote == false) {
+                inBacktick = inBacktick == false;
+            } else if (c == '"' && inBacktick == false) {
+                inQuote = inQuote == false;
+            } else if ((c == '|' || c == ')') && i > start && inBacktick == false && inQuote == false) {
+                end = i;
+                break;
+            }
+        }
+        if (offset >= end) {
+            return false;
+        }
+        return FILLNULL_COMMAND_PATTERN.matcher(query.substring(start, end)).find();
+    }
+
+    private static boolean patternCoversUnmappedFields(String pattern) {
+        return matchesPattern(patternAtoms(pattern), 0, UnmappedFieldsAttribute.ATTRIBUTE_NAME, 0);
+    }
+
+    private static List<Object> patternAtoms(String pattern) {
+        List<Object> atoms = new ArrayList<>();
+        for (String fragment : patternFragments(pattern)) {
+            if (fragment.isEmpty()) {
+                continue;
+            }
+            if (fragment.charAt(0) == '`' && fragment.charAt(fragment.length() - 1) == '`' && fragment.length() >= 2) {
+                appendLiteral(atoms, fragment.substring(1, fragment.length() - 1).replace("``", "`"));
+            } else {
+                int start = 0;
+                for (int i = 0; i < fragment.length(); i++) {
+                    if (fragment.charAt(i) == '*') {
+                        appendLiteral(atoms, fragment.substring(start, i));
+                        atoms.add(ANY_STRING);
+                        start = i + 1;
+                    }
+                }
+                appendLiteral(atoms, fragment.substring(start));
+            }
+        }
+        return atoms;
+    }
+
+    private static void appendLiteral(List<Object> atoms, String literal) {
+        if (literal.isEmpty()) {
+            return;
+        }
+        if (atoms.isEmpty() == false && atoms.get(atoms.size() - 1) instanceof String previous) {
+            atoms.set(atoms.size() - 1, previous + literal);
+        } else {
+            atoms.add(literal);
+        }
+    }
+
+    private static List<String> patternFragments(String pattern) {
+        List<String> fragments = new ArrayList<>();
+        boolean inQuotes = false;
+        int from = 0;
+        for (int offset = 0; offset < pattern.length(); offset++) {
+            if (pattern.charAt(offset) != '`') {
+                continue;
+            }
+            if (inQuotes == false) {
+                if (offset > from) {
+                    fragments.add(pattern.substring(from, offset));
+                }
+                from = offset;
+                inQuotes = true;
+            } else if (offset + 1 < pattern.length() && pattern.charAt(offset + 1) == '`') {
+                offset++;
+            } else {
+                fragments.add(pattern.substring(from, offset + 1));
+                from = offset + 1;
+                inQuotes = false;
+            }
+        }
+        if (from < pattern.length()) {
+            fragments.add(pattern.substring(from));
+        }
+        return fragments;
+    }
+
+    private static boolean matchesPattern(List<Object> atoms, int atomIndex, String name, int nameIndex) {
+        if (atomIndex == atoms.size()) {
+            return nameIndex == name.length();
+        }
+        Object atom = atoms.get(atomIndex);
+        if (atom == ANY_STRING) {
+            for (int next = nameIndex; next <= name.length(); next++) {
+                if (matchesPattern(atoms, atomIndex + 1, name, next)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        String literal = (String) atom;
+        if (name.startsWith(literal, nameIndex) == false) {
+            return false;
+        }
+        return matchesPattern(atoms, atomIndex + 1, name, nameIndex + literal.length());
+    }
+
+    private static final Pattern WHERE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*WHERE\\b");
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(

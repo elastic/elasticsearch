@@ -51,8 +51,9 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
-    // this is compared against filter coverage which is in [0,1], so this marks it essentially off by default
-    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 1f;
+    // this is compared against filter coverage which is in [0,1]; filters matching at least 70% of the vectors
+    // take the post-filter path by default
+    public static final float DEFAULT_POST_FILTERING_THRESHOLD = 0.7f;
     // Early-exit check is skipped for small k, where the expected-hits heuristic is too noisy to
     // be meaningful (e.g. k=3, selectivity=0.7 → expected=2.1, threshold=1.05, a single passer
     // would block recovery rounds for no real reason).

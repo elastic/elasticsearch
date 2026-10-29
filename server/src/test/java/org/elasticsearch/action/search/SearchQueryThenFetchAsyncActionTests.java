@@ -215,7 +215,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
@@ -233,7 +233,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 resultConsumer,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 searchRequest,
                 null,
                 shardsIter,
@@ -420,7 +420,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
@@ -438,7 +438,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Collections.emptyMap(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 resultConsumer,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                NoopCircuitBreaker.INSTANCE,
                 searchRequest,
                 null,
                 shardsIter,
@@ -546,7 +546,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
             Tracer.NOOP,
-            OnlinePrewarmingService.NOOP
+            OnlinePrewarmingService.NOOP,
+            transport.getTaskManager()
         ) {
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
@@ -674,7 +675,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
             Tracer.NOOP,
-            OnlinePrewarmingService.NOOP
+            OnlinePrewarmingService.NOOP,
+            transport.getTaskManager()
         ) {
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {

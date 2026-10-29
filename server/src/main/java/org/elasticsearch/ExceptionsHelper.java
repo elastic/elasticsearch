@@ -9,8 +9,6 @@
 
 package org.elasticsearch;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -18,6 +16,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -117,6 +117,44 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    /**
+     * Like {@link #stackTrace(Throwable)} but prints {@code additionalSuppressed} after the suppressed exceptions of {@code e}, exactly as
+     * if they had been added to it with {@link Throwable#addSuppressed}. Use this instead of {@link Throwable#addSuppressed} when
+     * {@code e} may be shared and must not be mutated.
+     */
+    public static String stackTrace(Throwable e, Throwable[] additionalSuppressed) {
+        if (additionalSuppressed.length == 0) {
+            return stackTrace(e);
+        }
+        return stackTrace(new StackTraceView(e, additionalSuppressed));
+    }
+
+    /**
+     * Prints exactly like the throwable it wraps, with some extra suppressed exceptions. This works because
+     * {@link Throwable#printStackTrace} only reads the string form, the stack trace, the cause and the suppressed exceptions of the
+     * throwable it is called on.
+     */
+    private static final class StackTraceView extends Throwable {
+        private final Throwable delegate;
+
+        StackTraceView(Throwable delegate, Throwable[] additionalSuppressed) {
+            super(delegate.getMessage(), delegate.getCause());
+            this.delegate = delegate;
+            setStackTrace(delegate.getStackTrace());
+            for (Throwable suppressed : delegate.getSuppressed()) {
+                addSuppressed(suppressed);
+            }
+            for (Throwable suppressed : additionalSuppressed) {
+                addSuppressed(suppressed);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
     }
 
     /**
@@ -584,5 +622,40 @@ public final class ExceptionsHelper {
         public int hashCode() {
             return Objects.hash(reason, index, causeType);
         }
+    }
+
+    private static final Logger bugLogger = LogManager.getLogger("org.elasticsearch.BugLogger");
+
+    /**
+     * Unwraps the given exception, and if the real cause happens to indicate a bug in Elasticsearch, log it at {@code ERROR} level on the
+     * dedicated {@code org.elasticsearch.BugLogger} logger. Otherwise, do nothing.
+     * <p>
+     * The list of exceptions treated as bugs is as follows:
+     * <ul>
+     *     <li>{@link NullPointerException}
+     *     <li>{@link IndexOutOfBoundsException} and the exceptions that extend it
+     *     <li>{@link ClassCastException}
+     *     <li>{@link UnsupportedOperationException}
+     * </ul>
+     * Unwrapping the exception and logging the actual cause fills the {@code error.type} attribute with the real exception class name,
+     * allowing to set up alerts on it reliably.
+     *
+     * @param t the exception to check
+     */
+    public static void logIfUnexpectedBug(Throwable t) {
+        if (bugLogger.isErrorEnabled() == false) {
+            return;
+        }
+        t = unwrapCause(t);
+        if (isUnexpectedBug(t)) {
+            bugLogger.error("Exception indicating a bug was thrown: {} with message: {}", t.getClass().getSimpleName(), t.getMessage(), t);
+        }
+    }
+
+    private static boolean isUnexpectedBug(Throwable t) {
+        return t instanceof NullPointerException
+            || t instanceof IndexOutOfBoundsException
+            || t instanceof ClassCastException
+            || t instanceof UnsupportedOperationException;
     }
 }

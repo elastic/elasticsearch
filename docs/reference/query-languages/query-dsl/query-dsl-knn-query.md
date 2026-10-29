@@ -138,7 +138,9 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 `filter`
 :   (Optional, query object) Query to filter the documents that can match. The kNN search will return the top documents that also match this filter. The value can be a single query or a list of queries. If `filter` is not provided, all documents are allowed to match.
 
-The filter is a pre-filter, meaning that it is applied **during** the approximate kNN search to ensure that `num_candidates` matching documents are returned.
+    The filter is a pre-filter, meaning that it is applied **during** the approximate kNN search to ensure that `num_candidates` matching documents are returned.
+    
+    {applies_to}`stack: ga 9.6+` When the filter matches a large enough share of the vectors in a shard, {{es}} runs the approximate kNN search without the filter and applies it to the candidates afterward. If too few candidates match, {{es}} falls back to filtering during the search, so the search returns as many matching documents as regular filtered search does. To change the threshold, use the [`index.dense_vector.post_filter_selectivity_threshold`](/reference/elasticsearch/index-settings/index-modules.md#index-dense-vector-post-filter-selectivity-threshold) index setting. For details, refer to [Filtering behavior and performance](docs-content://solutions/search/vector/knn/filtered-knn-search.md#filtering-behavior-and-performance).
 
 
 `similarity`
@@ -502,7 +504,7 @@ Use the `lookup` query vector builder to retrieve an existing vector from a stor
 2. The ID of the document to look up.
 3. The name of the vector field in the document to use as the query vector.
 
-#### `text_embedding` [text-embedding-builder] 
+#### `text_embedding` [text-embedding-builder]
 
 Use the `text_embedding` query vector builder to generate a query vector from text input.
 

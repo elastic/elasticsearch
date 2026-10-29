@@ -486,17 +486,18 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     /**
-     * Bytes after the decoder's end-of-stream (trailing padding, or gzip members the decoder did not detect) are read
-     * to the end of the body when they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the
-     * connection is still pooled.
+     * Bytes left after a decoder that stops before the end of the raw body are read to the end of the body when
+     * they fit in {@link DecompressingStorageObject#MAX_TRAILING_DRAIN_BYTES}, so the connection is still pooled.
+     * Uses {@link StopsBeforeRawEndCodec} because the gzip decoder consumes its own zero tail before returning
+     * {@code -1}, which would make this pass even without the release-time drain.
      */
     public void testTrailingBytesWithinCapAreReadToEndOfBodyBeforeAbort() throws IOException {
         byte[] original = ndjsonLines(between(1, 10_000));
-        byte[] compressed = withTrailingZeros(gzip(original), between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
+        byte[] compressed = withTrailingZeros(original, between(1, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES));
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
             DrainSimulatingStorageObject.create(compressed, tracking),
-            new GzipDecompressionCodec()
+            new StopsBeforeRawEndCodec(original.length)
         );
 
         try (InputStream stream = decompressing.newStream()) {
@@ -511,12 +512,11 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     /** A tail larger than the cap is not transferred: the release gives up and aborts, as for an early stop. */
     public void testTrailingBytesBeyondCapAreAborted() throws IOException {
         byte[] original = ndjsonLines(between(1, 10_000));
-        byte[] gzipped = gzip(original);
-        byte[] compressed = withTrailingZeros(gzipped, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * between(4, 16));
+        byte[] raw = withTrailingZeros(original, DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * between(4, 16));
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(
-            DrainSimulatingStorageObject.create(compressed, tracking),
-            new GzipDecompressionCodec()
+            DrainSimulatingStorageObject.create(raw, tracking),
+            new StopsBeforeRawEndCodec(original.length)
         );
 
         try (InputStream stream = decompressing.newStream()) {
@@ -525,25 +525,168 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         assertEquals(1, tracking.abortCalls.get());
         assertFalse(tracking.endOfBodyReadBeforeAbort.get());
-        // What the decoder read ahead into its raw buffer (GzipDecompressionCodec's 64 KiB), plus the cap and the one
-        // byte past it that tells a longer tail apart.
-        long gzipRawBufferBytes = 64 * 1024;
+        // The decoder reads exactly its payload; the release adds the cap and the one byte past it that tells a longer tail apart.
         assertThat(
             tracking.bytesConsumed.get(),
-            Matchers.lessThanOrEqualTo(gzipped.length + gzipRawBufferBytes + DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
+            Matchers.lessThanOrEqualTo(original.length + (long) DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES + 1)
         );
+    }
+
+    /**
+     * Gzip rejects bytes after its last member itself, so a read that ends in an error still aborts the raw stream
+     * exactly once and surfaces the decoder's error.
+     */
+    public void testGzipTrailingGarbageFailsReadAndAborts() throws IOException {
+        byte[] original = ndjsonLines(between(1, 1_000));
+        byte[] compressed = gzip(original);
+        byte[] withGarbage = Arrays.copyOf(compressed, compressed.length + 4);
+        withGarbage[compressed.length] = 'x';
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(withGarbage, tracking),
+            new GzipDecompressionCodec()
+        );
+
+        InputStream stream = decompressing.newStream();
+        IOException e = expectThrows(IOException.class, stream::readAllBytes);
+        assertThat(e.getMessage(), Matchers.containsString("Trailing garbage"));
+        stream.close();
+        assertEquals(1, tracking.abortCalls.get());
+    }
+
+    /** Multi-member gzip read through a raw stream that reports nothing available and never crosses a member boundary. */
+    public void testMultiMemberGzipOverStreamReportingNothingAvailable() throws IOException {
+        int members = between(2, 20);
+        ByteArrayOutputStream expected = new ByteArrayOutputStream();
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        int[] boundaries = new int[members];
+        for (int i = 0; i < members; i++) {
+            byte[] member = ndjsonLines(between(1, 5_000));
+            expected.writeBytes(member);
+            compressed.writeBytes(gzip(member));
+            boundaries[i] = compressed.size();
+        }
+        byte[] all = compressed.toByteArray();
+        AtomicInteger abortCalls = new AtomicInteger();
+        StorageObject raw = new BytesStorageObject(all, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+            @Override
+            public InputStream newStream() {
+                return boundaryAlignedStream(all, boundaries);
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                abortCalls.incrementAndGet();
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+
+        try (InputStream stream = decompressing.newStream()) {
+            assertArrayEquals(expected.toByteArray(), stream.readAllBytes());
+        }
+        assertEquals(1, abortCalls.get());
+    }
+
+    /**
+     * Test double for a decoder with the old JDK gzip habit of reporting end-of-stream without reading its input to
+     * {@code -1}: it passes through exactly {@code payloadLength} raw bytes and then stops, leaving the rest of the raw
+     * stream unread. Needed because gzip now reads to the end itself, and the generic drain in
+     * {@link DecompressingStorageObject} must stay covered for the other codecs.
+     */
+    private static final class StopsBeforeRawEndCodec implements DecompressionCodec {
+        private final int payloadLength;
+
+        StopsBeforeRawEndCodec(int payloadLength) {
+            this.payloadLength = payloadLength;
+        }
+
+        @Override
+        public String name() {
+            return "stops-before-raw-end";
+        }
+
+        @Override
+        public java.util.List<String> extensions() {
+            return java.util.List.of(".test");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return new InputStream() {
+                private int remaining = payloadLength;
+
+                @Override
+                public int read() throws IOException {
+                    if (remaining == 0) {
+                        return -1;
+                    }
+                    int b = raw.read();
+                    if (b >= 0) {
+                        remaining--;
+                    }
+                    return b;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    if (remaining == 0) {
+                        return -1;
+                    }
+                    int n = raw.read(b, off, Math.min(len, remaining));
+                    if (n > 0) {
+                        remaining -= n;
+                    }
+                    return n;
+                }
+            };
+        }
+    }
+
+    /** Raw stream with {@code available() == 0} whose bulk reads stop at member boundaries, like a network read can. */
+    private static InputStream boundaryAlignedStream(byte[] all, int[] boundaries) {
+        return new InputStream() {
+            private int pos = 0;
+
+            @Override
+            public int read() {
+                return pos < all.length ? all[pos++] & 0xff : -1;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                if (pos >= all.length) {
+                    return -1;
+                }
+                int limit = all.length;
+                for (int boundary : boundaries) {
+                    if (boundary > pos) {
+                        limit = boundary;
+                        break;
+                    }
+                }
+                int n = Math.min(len, limit - pos);
+                System.arraycopy(all, pos, b, off, n);
+                pos += n;
+                return n;
+            }
+
+            @Override
+            public int available() {
+                return 0;
+            }
+        };
     }
 
     /** The logical read already succeeded, so a failing end-of-body read must not fail close() or skip the abort. */
     public void testTrailingReadFailureStillAborts() throws IOException {
         byte[] original = ndjsonLines(between(1, 1_000));
-        byte[] gzipped = gzip(original);
+        byte[] payload = original;
         AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+        StorageObject raw = new BytesStorageObject(payload, StoragePath.of("s3://bucket/test.ndjson.gz")) {
             @Override
             public InputStream newStream() {
-                // Delivers the gzip bytes, then fails instead of returning -1, like a connection reset at end of body.
-                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                // Delivers the payload, then fails instead of returning -1, like a connection reset at end of body.
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         int n = super.read(b, off, len);
@@ -560,7 +703,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                 abortCalls.incrementAndGet();
             }
         };
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new StopsBeforeRawEndCodec(original.length));
 
         try (InputStream stream = decompressing.newStream()) {
             assertArrayEquals(original, stream.readAllBytes());
@@ -572,13 +715,13 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     /** An {@link Error} from the end-of-body read is not swallowed, but it still must not skip the abort. */
     public void testTrailingReadErrorStillAborts() throws IOException {
         byte[] original = ndjsonLines(between(1, 1_000));
-        byte[] gzipped = gzip(original);
+        byte[] payload = original;
         AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject raw = new BytesStorageObject(gzipped, StoragePath.of("s3://bucket/test.ndjson.gz")) {
+        StorageObject raw = new BytesStorageObject(payload, StoragePath.of("s3://bucket/test.ndjson.gz")) {
             @Override
             public InputStream newStream() {
-                // Delivers the gzip bytes, then throws an Error instead of returning -1.
-                return new FilterInputStream(new ByteArrayInputStream(gzipped)) {
+                // Delivers the payload, then throws an Error instead of returning -1.
+                return new FilterInputStream(new ByteArrayInputStream(payload)) {
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         int n = super.read(b, off, len);
@@ -595,7 +738,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
                 abortCalls.incrementAndGet();
             }
         };
-        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new GzipDecompressionCodec());
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(raw, new StopsBeforeRawEndCodec(original.length));
 
         InputStream stream = decompressing.newStream();
         assertArrayEquals(original, stream.readAllBytes());

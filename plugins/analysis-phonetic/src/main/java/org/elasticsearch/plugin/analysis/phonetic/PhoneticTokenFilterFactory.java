@@ -34,16 +34,19 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
+    private int maxVariations;
     private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
+    private final Object sharingKey;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -51,6 +54,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
+        this.maxVariations = 0;
         this.isDaitchMokotoff = false;
         this.replace = settings.getAsBoolean("replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
@@ -94,9 +98,11 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik();
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new KoelnerPhonetik(maxVariations);
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik();
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new HaasePhonetik(maxVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -105,6 +111,35 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
+        // The commons-codec encoders are built with their defaults, except the Koelner variants which take
+        // max_variations, so the class plus the keyed limits identifies the encoding; the language set is
+        // used as a set, so its order and duplicates do not matter.
+        this.sharingKey = new Key(
+            encoder == null ? null : encoder.getClass(),
+            replace,
+            maxcodelength,
+            maxVariations,
+            languageset == null ? null : Set.copyOf(languageset),
+            nametype,
+            ruletype,
+            isDaitchMokotoff
+        );
+    }
+
+    // Only the koelnerphonetik and haasephonetik encoders generate spelling variations; the limit is ignored
+    // for every other encoder, like the other encoder-specific settings above.
+    private static int maxVariations(Settings settings) {
+        int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+        if (maxVariations < 1 || maxVariations > KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "[max_variations] must be between 1 and "
+                    + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND
+                    + " for phonetic token filter, got ["
+                    + maxVariations
+                    + "]"
+            );
+        }
+        return maxVariations;
     }
 
     @Override
@@ -133,4 +168,20 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        Class<? extends Encoder> encoder,
+        boolean replace,
+        int maxCodeLength,
+        int maxVariations,
+        Set<String> languageSet,
+        NameType nameType,
+        RuleType ruleType,
+        boolean daitchMokotoff
+    ) {}
 }

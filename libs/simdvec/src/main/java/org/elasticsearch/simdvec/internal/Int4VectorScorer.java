@@ -150,7 +150,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final VectorSimilarityFunction similarityFunction;
         private final float centroidDP;
         private final Int4Corrections.SingleCorrection correction;
-        private final FixedSizeScratch scratch;
+        private final FixedSizeSegmentScratch scratch;
         private final AddressesScratch addrsScratch = new AddressesScratch();
         private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -172,7 +172,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             this.similarityFunction = similarityFunction;
             this.centroidDP = centroidDP;
             this.correction = correction;
-            this.scratch = new FixedSizeScratch(vectorPitch);
+            this.scratch = new FixedSizeSegmentScratch(vectorPitch);
         }
 
         void checkOrdinal(int ord) {
@@ -226,7 +226,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
             return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
+                int rawScore = DISTANCE_FUNCS.dotProductI4(seg, query.unpackedQuery(), packedDims);
                 return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
             });
         }

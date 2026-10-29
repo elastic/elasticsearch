@@ -15,6 +15,8 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.foreign.testing.GuardPageAllocator;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -35,7 +37,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
     protected static SimdVecLibrary vectorSimilarityFunctions;
-    protected static Arena arena;
+    protected Arena arena;
 
     protected final SimdVecLibrary.SimilarityFunction function;
     protected final int size;
@@ -64,18 +66,21 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
             assertNotNull("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions);
         }
         assumeTrue(notSupportedMsg(), simdVecSupported);
+    }
 
-        // Occasionally back every segment of this suite with a guard page, so that a native over-read faults
+    @Before
+    public void createArena() {
+        // Occasionally back the segments of a test with a guard page, so that a native over-read faults
         // instead of silently returning a wrong score.
+        // The arena is per test, not per suite: guard pages keep mappings alive until the arena is closed,
+        // and repeating the tests many times in one suite run would otherwise exhaust the mapping limit.
         var useGuardPageAllocator = randomBoolean();
         arena = GuardPageAllocator.isSupported() && useGuardPageAllocator ? GuardPageAllocator.ofConfined() : Arena.ofConfined();
     }
 
-    public static void cleanup() {
-        if (arena != null) {
-            arena.close();
-            arena = null;
-        }
+    @After
+    public void closeArena() {
+        arena.close();
     }
 
     protected SimdVecLibrary getVectorDistance() {
@@ -110,6 +115,34 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
             fa[i] = randomFloat();
         }
         return fa;
+    }
+
+    /** The masked kernels leave the slots of unselected vectors untouched; no similarity under test produces this value. */
+    protected static final float UNSELECTED_SCORE = Float.NaN;
+
+    /** A random mask over a block of {@code count} vectors: none, all, a single one, or a random selection. */
+    protected static int randomBulkMask(int count) {
+        return switch (randomInt(3)) {
+            case 0 -> 0;
+            case 1 -> BulkMask.all(count);
+            case 2 -> BulkMask.select(0, randomInt(count - 1));
+            case 3 -> randomInt() & BulkMask.all(count);
+            default -> throw new AssertionError();
+        };
+    }
+
+    /** A float array of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
+    protected static float[] unselectedScores(int count) {
+        float[] scores = new float[count];
+        Arrays.fill(scores, UNSELECTED_SCORE);
+        return scores;
+    }
+
+    /** A native segment of {@code count} scores, all {@link #UNSELECTED_SCORE}. */
+    protected MemorySegment unselectedScoresSegment(int count) {
+        MemorySegment scores = arena.allocate((long) count * Float.BYTES);
+        MemorySegment.copy(unselectedScores(count), 0, scores, JAVA_FLOAT_UNALIGNED, 0L, count);
+        return scores;
     }
 
     protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,17 +30,29 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.ShardRestoringException;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -53,6 +67,8 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -309,5 +325,167 @@ public class TransportUpdateActionTests extends ESTestCase {
                 fail("expected and IllegalStateException");
             }
         }
+    }
+
+    /**
+     * A request that times out while the primary is being restored by a restore that reports shard restoring fails with
+     * {@link ShardRestoringException} for the restore, rather than the generic {@link UnavailableShardsException}. The request never
+     * reaches the transport because the primary is not active.
+     */
+    public void testTimeoutFailsWithShardRestoringExceptionWhenRestoreReportsShardRestoring() throws Exception {
+        final String restoreUuid = randomUUID();
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(TimeValue.ZERO);
+        request.shardId = new ShardId("test", "_na_", 0);
+        PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
+        setState(clusterService, stateWithPrimaryBeingRestored("test", restoreUuid, true));
+
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
+
+        // the timeout fires on another thread, so wait for the listener to be failed
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        final ShardRestoringException cause = (ShardRestoringException) ExceptionsHelper.unwrap(e, ShardRestoringException.class);
+        assertNotNull("expected ShardRestoringException but got " + e, cause);
+        assertThat(cause.recoveryId(), equalTo(restoreUuid));
+        assertThat(cause.getMetadata("es.index"), equalTo(List.of("test")));
+        assertThat(cause.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    /**
+     * A restore that did not ask for shard restoring to be reported keeps the generic {@link UnavailableShardsException} on timeout.
+     */
+    public void testTimeoutFailsWithUnavailableShardsWhenRestoreDoesNotReportShardRestoring() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(TimeValue.ZERO);
+        request.shardId = new ShardId("test", "_na_", 0);
+        PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
+        setState(clusterService, stateWithPrimaryBeingRestored("test", randomUUID(), false));
+
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
+
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        assertNotNull("expected UnavailableShardsException but got " + e, ExceptionsHelper.unwrap(e, UnavailableShardsException.class));
+        assertNull("unexpected ShardRestoringException in " + e, ExceptionsHelper.unwrap(e, ShardRestoringException.class));
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    /**
+     * Unlike the replication actions, an update does not fail fast: it keeps waiting for the primary until its timeout expires even if
+     * the restore reports shard restoring, and only then reports {@link ShardRestoringException}.
+     */
+    public void testRequestWaitsForPrimaryBeingRestoredUntilTimeout() {
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(TimeValue.timeValueMinutes(1));
+        request.shardId = new ShardId("test", "_na_", 0);
+        PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
+        setState(clusterService, stateWithPrimaryBeingRestored("test", randomUUID(), true));
+
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
+
+        assertFalse("a request for a primary being restored should keep waiting until its timeout", listener.isDone());
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    /**
+     * A coordinating node that has not applied the restore yet still sees an active primary and sends the update. The node holding the
+     * shard answers with a shard-level error, and if the coordinator never learns of the restore the request fails with that error
+     * rather than with {@link ShardRestoringException}.
+     */
+    public void testCoordinatorThatNeverLearnsOfRestoreFailsWithShardLevelError() throws Exception {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(TimeValue.ZERO);
+        request.shardId = shardId;
+        PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
+        setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
+
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        long requestId = transport.capturedRequests()[0].requestId();
+        transport.clear();
+        transport.handleRemoteError(requestId, shardRecoveringException(shardId));
+
+        // the timeout fires and the last attempt runs against the same stale state, so the update is sent again
+        assertBusy(() -> assertThat(transport.capturedRequests().length, equalTo(1)));
+        transport.handleRemoteError(transport.capturedRequests()[0].requestId(), shardRecoveringException(shardId));
+
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        assertNotNull(
+            "expected IllegalIndexShardStateException but got " + e,
+            ExceptionsHelper.unwrap(e, IllegalIndexShardStateException.class)
+        );
+        assertNull("unexpected ShardRestoringException in " + e, ExceptionsHelper.unwrap(e, ShardRestoringException.class));
+    }
+
+    /**
+     * A coordinating node that applies the restore while the update is in flight reports {@link ShardRestoringException} once the node
+     * holding the shard answers with a shard-level error: the retry runs against the newer state, which shows the restore.
+     */
+    public void testCoordinatorThatLearnsOfRestoreWhileUpdateIsInFlightFailsWithShardRestoringException() throws Exception {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final String restoreUuid = randomUUID();
+        UpdateRequest request = new UpdateRequest("test", "id").timeout(TimeValue.ZERO);
+        request.shardId = shardId;
+        PlainActionFuture<UpdateResponse> listener = new PlainActionFuture<>();
+        setState(clusterService, ClusterStateCreationUtils.state(projectId, "test", randomBoolean(), ShardRoutingState.STARTED));
+
+        new TestTransportUpdateAction().new AsyncSingleAction(request, listener).start();
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        long requestId = transport.capturedRequests()[0].requestId();
+        transport.clear();
+
+        // the restore reaches the coordinator after the update was sent, but before the shard-level error comes back
+        setState(clusterService, stateWithPrimaryBeingRestored("test", restoreUuid, true));
+        transport.handleRemoteError(requestId, shardRecoveringException(shardId));
+
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        final ShardRestoringException cause = (ShardRestoringException) ExceptionsHelper.unwrap(e, ShardRestoringException.class);
+        assertNotNull("expected ShardRestoringException but got " + e, cause);
+        assertThat(cause.recoveryId(), equalTo(restoreUuid));
+        assertThat(transport.capturedRequests().length, equalTo(0));
+    }
+
+    private static IllegalIndexShardStateException shardRecoveringException(ShardId shardId) {
+        return new IllegalIndexShardStateException(shardId, IndexShardState.RECOVERING, "operation only allowed when started");
+    }
+
+    /**
+     * A cluster state in which the only shard's primary is initializing from a snapshot, with a matching started restore.
+     */
+    private ClusterState stateWithPrimaryBeingRestored(String index, String restoreUuid, boolean reportShardRestoring) {
+        final ClusterState state = ClusterStateCreationUtils.state(projectId, index, randomBoolean(), ShardRoutingState.INITIALIZING);
+        final ShardRouting initializing = state.routingTable(projectId).index(index).shard(0).primaryShard();
+        final ShardId shardId = initializing.shardId();
+        final Snapshot snapshot = new Snapshot(projectId, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID()));
+        final ShardRouting restoring = TestShardRouting.shardRoutingBuilder(
+            shardId,
+            initializing.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(
+                new RecoverySource.SnapshotRecoverySource(
+                    restoreUuid,
+                    snapshot,
+                    IndexVersion.current(),
+                    new IndexId(index, shardId.getIndex().getUUID())
+                )
+            )
+            .build();
+        final RestoreInProgress restoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                restoreUuid,
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(index),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(initializing.currentNodeId())),
+                reportShardRestoring
+            )
+        ).build();
+        return ClusterState.builder(state)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(restoring)).build()
+            )
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
     }
 }

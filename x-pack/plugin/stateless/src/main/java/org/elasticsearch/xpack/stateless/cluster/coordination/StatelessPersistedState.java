@@ -57,6 +57,8 @@ import java.util.concurrent.Executor;
 import java.util.function.LongFunction;
 
 class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
+    static final int MAX_FILE_DOWNLOAD_CONCURRENCY = 5;
+
     private final Logger logger = LogManager.getLogger(StatelessPersistedState.class);
     private final LongFunction<BlobContainer> blobContainerSupplier;
     private final PersistedClusterStateService persistedClusterStateService;
@@ -86,7 +88,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         this.statelessElectionStrategy = statelessElectionStrategy;
 
         this.readStateTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 1, executor);
-        this.readFileTaskRunner = new ThrottledTaskRunner("cluster_state_file_downloader", 5, executor);
+        this.readFileTaskRunner = new ThrottledTaskRunner("cluster_state_file_downloader", MAX_FILE_DOWNLOAD_CONCURRENCY, executor);
     }
 
     @Override
@@ -195,8 +197,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         readFileTaskRunner.enqueueTask(new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(Releasable releasable) {
-                BlobContainer blobContainer = blobContainerSupplier.apply(targetTerm);
-                try (releasable; Directory dir = new TermBlobDirectory(blobContainer)) {
+                try (releasable; Directory dir = new TermBlobDirectory(blobContainerSupplier.apply(targetTerm))) {
                     SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(dir);
                     var onDiskStateMetadata = persistedClusterStateService.loadOnDiskStateMetadataFromUserData(
                         segmentCommitInfos.getUserData()
@@ -218,7 +219,8 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                     } else {
                         delegate.onResponse(Optional.empty());
                     }
-                } catch (IOException e) {
+                } catch (IOException | IllegalStateException e) {
+                    // IllegalStateException is thrown by blobContainerSupplier::apply if the object store has been closed
                     delegate.onFailure(e);
                 }
             }

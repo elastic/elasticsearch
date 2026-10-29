@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
@@ -85,11 +86,13 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     protected EsqlStatsResponse.NodeStatsResponse nodeOperation(EsqlStatsRequest.NodeStatsRequest request, Task task) {
         EsqlStatsResponse.NodeStatsResponse statsResponse = new EsqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         Counters counters = planExecutor.metrics().stats();
-        DataSourceUsageAccumulator acc = planExecutor.dataSourceModule() != null
-            ? planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator()
-            : null;
+        DataSourceModule module = planExecutor.dataSourceModule();
+        DataSourceUsageAccumulator acc = module != null ? module.externalSourceMetrics().usageAccumulator() : null;
         if (acc != null) {
             DataSourceCounters.populate(acc, counters);
+        }
+        if (module != null) {
+            module.populateAdmissionStats(counters);
         }
         statsResponse.setStats(counters);
         return statsResponse;

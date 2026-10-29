@@ -111,6 +111,21 @@ public class CommandBuilderTests {
         assertThat(cmds.get(1).command(), containsString(":y:yamlRestTest --rerun"));
     }
 
+    @Test
+    public void testYamlRunnerDedupingPreservesTaskUnion() {
+        List<PlanCommand> cmds = CommandBuilder.build(
+            List.of(
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, null, null, null, List.of(":x:yamlRestTestA")),
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_RUNNER, null, null, null, List.of(":x:yamlRestTestB"))
+            ),
+            CommandBuilder.Config.defaults()
+        );
+
+        assertThat(cmds, hasSize(2));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlRestTestA --rerun"));
+        assertThat(cmds.get(1).command(), containsString(":x:yamlRestTestB --rerun"));
+    }
+
     /**
      * The case the identical-runner test above cannot reach. Runners with no {@code fqcn} share an identity
      * of {@code ""}, so the generic {@link CommandBuilder} dedupe collapses them before the runner-specific
@@ -152,6 +167,21 @@ public class CommandBuilderTests {
     }
 
     @Test
+    public void testYamlSuiteCollapsePreservesTaskUnion() {
+        List<PlanCommand> cmds = CommandBuilder.build(
+            List.of(
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_SUITE, null, "esql/10_a", null, List.of(":x:yamlA")),
+                runOn(":x", "yamlRestTest", Kinds.YAML_REST_TEST_SUITE, null, "esql/20_b", null, List.of(":x:yamlB"))
+            ),
+            CommandBuilder.Config.defaults()
+        );
+
+        assertThat(cmds, hasSize(1));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlA --rerun"));
+        assertThat(cmds.get(0).command(), containsString(":x:yamlB --rerun"));
+    }
+
+    @Test
     public void testYamlCaseUsesQuotedFqcnDotYamlTest() {
         List<PlanCommand> cmds = CommandBuilder.build(
             List.of(yamlCase(":x", "org.EsqlIT", "test {yaml=esql/10_a/Case}")),
@@ -168,6 +198,23 @@ public class CommandBuilderTests {
         assertThat(cmds, hasSize(1));
         // Only one --tests org.A after dedupe.
         assertThat(cmds.get(0).command(), equalTo("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :s:test --tests org.A"));
+    }
+
+    @Test
+    public void testDedupePreservesTaskUnionForTheSameTarget() {
+        PlanEntry first = runOn(":s", "test", Kinds.TEST, "org.A", null, null, List.of(":s:testA"));
+        PlanEntry second = runOn(":s", "test", Kinds.TEST, "org.A", null, null, List.of(":s:testB"));
+
+        List<PlanCommand> cmds = CommandBuilder.build(List.of(first, second), CommandBuilder.Config.defaults());
+
+        assertThat(cmds, hasSize(1));
+        assertThat(
+            cmds.get(0).command(),
+            equalTo(
+                "__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000! "
+                    + ":s:testA --tests org.A :s:testB --tests org.A"
+            )
+        );
     }
 
     /**

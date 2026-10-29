@@ -226,6 +226,21 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Perform document extraction inference on the model.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void documentExtractionInfer(
+        Model model,
+        DocumentExtractionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
      * Perform rerank inference on the model.
      *
      * @param model The model
@@ -247,6 +262,31 @@ public interface InferenceService extends Closeable {
         ActionListener<InferenceServiceResults> listener
     ) {
         rerankInfer(model, request, timeout, listener);
+    }
+
+    /**
+     * Perform decision inference on the model, answering the {@link DecisionQuestions} resolved from the task settings of the model and
+     * the request.
+     *
+     * @param model The model
+     * @param request Parameters for the request
+     * @param timeout The timeout for the request
+     * @param listener Inference result listener
+     */
+    void decisionInfer(Model model, DecisionRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
+
+    /**
+     * Same as {@link #decisionInfer(Model, DecisionRequest, TimeValue, ActionListener)}, with the requests sent by the service
+     * registered as children of {@code parentTaskId}.
+     */
+    default void decisionInfer(
+        Model model,
+        DecisionRequest request,
+        TimeValue timeout,
+        TaskId parentTaskId,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        decisionInfer(model, request, timeout, listener);
     }
 
     /**

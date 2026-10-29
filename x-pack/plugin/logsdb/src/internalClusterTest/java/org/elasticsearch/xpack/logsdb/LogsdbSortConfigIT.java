@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
@@ -23,6 +26,7 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -35,7 +39,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -50,6 +53,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -57,17 +61,39 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
+
+    /**
+     * Every test runs in both modes rather than one picked at random, so each run checks the default sort of {@code logsdb_columnar},
+     * whose keyword sort fields go through binary doc values, as well as {@code logsdb}.
+     */
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { "logsdb" }, new Object[] { "logsdb_columnar" });
+    }
+
+    private final String indexMode;
+
+    public LogsdbSortConfigIT(@Name("indexMode") String indexMode) {
+        this.indexMode = indexMode;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -298,6 +324,228 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         assertOrder(backingIndex, orderedDocs);
     }
 
+    /**
+     * A custom sort on a multi-valued keyword then {@code @timestamp} descending, replacing the defaults. Documents tie on the keyword's
+     * minimum so the order within each group is decided by the timestamp, and documents without the keyword sort last.
+     */
+    public void testCustomKeywordTimestampSortConfig() throws IOException {
+        final String dataStreamName = "test-logsdb-sort-custom-keyword-timestamp";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\": \"2025-01-01T13:00:00\", \"service\": \"aaa\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T12:00:00\", \"service\": [\"bbb\", \"aaa\"], \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T11:00:00\", \"service\": \"aaa\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T15:00:00\", \"service\": \"bbb\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T14:00:00\", \"service\": [\"ccc\", \"bbb\"], \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T16:00:00\", \"service\": \"ccc\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T17:00:00\", \"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\": \"2025-01-01T10:00:00\", \"test_id\": \"%id%\"}") };
+
+        createDataStream(
+            dataStreamName,
+            mapping,
+            s -> s.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "service", "@timestamp")
+                .putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc")
+        );
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+
+        assertOrder(getBackingIndex(dataStreamName), orderedDocs);
+    }
+
+    /**
+     * A top-N search that does not track total hits and is sorted like the index stops reading each segment once it holds the top N.
+     * That needs the query phase to build a sort comparing equal to the segments' index sort and a collector that is allowed to stop.
+     * The search runs through the search API with profiling on, whose {@code next_doc_count} is how many documents the query iterated;
+     * the same search asking for every document, which cannot stop early, has to iterate them all, and both are checked against a sort
+     * computed here. They run over the segments as flushed and again once merged into one, and have to return the same either way.
+     */
+    public void testTopNTerminatesEarlyWhenSortedLikeTheIndex() throws IOException {
+        final String dataStreamName = "test-logsdb-sort-early-termination";
+        final boolean descending = randomBoolean();
+        final SortOrder order = descending ? SortOrder.DESC : SortOrder.ASC;
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "service": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+            """;
+        createDataStream(
+            dataStreamName,
+            mapping,
+            s -> s.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "service")
+                .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), order.toString())
+        );
+
+        // One segment per batch, each holding several times the top N, so a segment that stops early leaves most of itself unread.
+        final int size = between(1, 5);
+        final List<String> keys = new ArrayList<>();
+        for (int batch = between(2, 4); batch > 0; batch--) {
+            final BulkRequest bulk = new BulkRequest(dataStreamName);
+            for (int i = between(size * 4, size * 10); i > 0; i--) {
+                final List<String> values = randomServiceValues();
+                final Map<String, Object> source = new LinkedHashMap<>();
+                source.put("@timestamp", "2025-01-01T00:00:00Z");
+                if (values != null) {
+                    source.put("service", values);
+                }
+                bulk.add(new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE).source(source));
+                // An ascending sort reads each document's smallest value and a descending one its largest.
+                keys.add(values == null ? null : extreme(values, descending));
+            }
+            assertFalse(client().bulk(bulk).actionGet().hasFailures());
+            indicesAdmin().prepareRefresh(dataStreamName).get();
+        }
+        final Comparator<String> byKey = descending ? Comparator.<String>reverseOrder() : Comparator.<String>naturalOrder();
+        keys.sort(Comparator.nullsLast(byKey));
+
+        // The same searches over the segments as flushed and over the one segment merged from them: each segment of either is sorted
+        // by the index sort, so both stop early and both return the same documents in the same order.
+        final Index backingIndex = getBackingIndex(dataStreamName);
+        final List<List<String>> beforeMerge = assertSortedSearches(dataStreamName, backingIndex, order, size, keys);
+        indicesAdmin().forceMerge(new ForceMergeRequest(backingIndex.getName()).maxNumSegments(1).flush(true)).actionGet();
+        indicesAdmin().prepareRefresh(dataStreamName).get();
+        assertThat(segmentCount(backingIndex), equalTo(1));
+        final List<List<String>> afterMerge = assertSortedSearches(dataStreamName, backingIndex, order, size, keys);
+        assertEquals("order=" + order + " size=" + size + ": the same results before and after merging", beforeMerge, afterMerge);
+    }
+
+    /**
+     * Runs the top-{@code size} search of {@link #testTopNTerminatesEarlyWhenSortedLikeTheIndex} and the search for every document,
+     * checking how many documents each reads and that each returns the first of {@code keys}, and returns the sort keys of both.
+     */
+    private List<List<String>> assertSortedSearches(
+        String dataStreamName,
+        Index backingIndex,
+        SortOrder order,
+        int size,
+        List<String> keys
+    ) {
+        final int segments = segmentCount(backingIndex);
+        final String description = "order=" + order + " size=" + size + " docs=" + keys.size() + " segments=" + segments;
+
+        final var untracked = client().prepareSearch(dataStreamName)
+            .setSize(size)
+            .setTrackTotalHits(false)
+            .addSort(SortBuilders.fieldSort("service").order(order))
+            .setProfile(true)
+            .get();
+        final List<String> topKeys;
+        try {
+            // Each segment reads at most the top N and the one document past it that it stops on.
+            final long iterated = documentsIterated(untracked);
+            assertThat(description, iterated, lessThanOrEqualTo((long) segments * (size + 1)));
+            assertThat(description, iterated, lessThan((long) keys.size()));
+            topKeys = sortKeys(untracked);
+            assertEquals(description, keys.subList(0, size), topKeys);
+        } finally {
+            untracked.decRef();
+        }
+
+        // The same search asking for every document can stop nowhere, so it pins what a full read counts as. Tracking total hits
+        // would not do: a match-all query counts its hits without reading them, which leaves the collector free to stop anyway.
+        final var everything = client().prepareSearch(dataStreamName)
+            .setSize(keys.size())
+            .setTrackTotalHits(false)
+            .addSort(SortBuilders.fieldSort("service").order(order))
+            .setProfile(true)
+            .get();
+        final List<String> allKeys;
+        try {
+            assertThat(
+                "a search for every document reads them all, " + description,
+                documentsIterated(everything),
+                greaterThanOrEqualTo((long) keys.size())
+            );
+            allKeys = sortKeys(everything);
+            assertEquals(description, keys, allKeys);
+        } finally {
+            everything.decRef();
+        }
+        return List.of(topKeys, allKeys);
+    }
+
+    private int segmentCount(Index backingIndex) {
+        final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            return searcher.getLeafContexts().size();
+        }
+    }
+
+    /** The {@code service} sort value of each hit, in the order the search returned them. */
+    private static List<String> sortKeys(SearchResponse response) {
+        final List<String> sortKeys = new ArrayList<>();
+        for (var hit : response.getHits().getHits()) {
+            sortKeys.add((String) hit.getSortValues()[0]);
+        }
+        return sortKeys;
+    }
+
+    /** How many documents the profiled query iterated on the search's one shard, from the {@code next_doc_count} of its breakdown. */
+    private static long documentsIterated(SearchResponse response) {
+        final var shards = response.getSearchProfileShardResults();
+        assertThat(shards.values(), hasSize(1));
+        long iterated = 0;
+        for (var queryProfile : shards.values().iterator().next().getQueryProfileResults()) {
+            for (var query : queryProfile.getQueryResults()) {
+                iterated += query.getTimeBreakdown().get("next_doc_count");
+            }
+        }
+        return iterated;
+    }
+
+    /** The {@code service} values of one document: absent, only a null, one value, or several in no order with a null among them. */
+    private List<String> randomServiceValues() {
+        return switch (between(0, 3)) {
+            case 0 -> null;
+            case 1 -> Arrays.asList((String) null);
+            case 2 -> List.of("svc-" + between(0, 30));
+            default -> {
+                final List<String> values = new ArrayList<>();
+                for (int v = between(2, 4); v > 0; v--) {
+                    values.add(randomBoolean() || values.isEmpty() ? "svc-" + between(0, 30) : null);
+                }
+                yield values;
+            }
+        };
+    }
+
+    /** The largest non-null value when {@code max}, else the smallest, or {@code null} where there is none. */
+    private static String extreme(List<String> values, boolean max) {
+        return values.stream()
+            .filter(v -> v != null)
+            .reduce((a, b) -> (max ? a.compareTo(b) >= 0 : a.compareTo(b) <= 0) ? a : b)
+            .orElse(null);
+    }
+
     public void testMatchTailWithMissingHostname() throws Exception {
         final String dataStreamName = "test-logsdb-match-tail-with-missing-hostname";
 
@@ -442,7 +690,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
      * timestamp, whatever framing the hostname was written with.
      */
     public void testMatchTailWithMultipleSingleValuedColumnarHostnames() throws Exception {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("only meaningful in logsdb_columnar, which this test always uses", "logsdb_columnar".equals(indexMode));
         final String dataStreamName = "test-logsdb-match-tail-with-multiple-single-valued-columnar-hostnames";
 
         final String mapping = """
@@ -454,7 +702,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                   },
                   "host.name": {
                     "type": "keyword",
-                    "doc_values": { "multi_value": false }
+                    "multi_value": false
                   },
                   "test_id": {
                     "type": "text"
@@ -500,7 +748,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
-        createDataStream(dataStreamName, mapping, settings, randomBoolean() ? "logsdb_columnar" : "logsdb");
+        createDataStream(dataStreamName, mapping, settings, indexMode);
     }
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings, String indexMode)

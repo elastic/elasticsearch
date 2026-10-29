@@ -9,10 +9,24 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +39,7 @@ import org.elasticsearch.index.query.IntervalQueryBuilder;
 import org.elasticsearch.index.query.IntervalsSourceProvider;
 import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -37,12 +52,14 @@ import org.elasticsearch.index.query.SpanOrQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -58,7 +75,9 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             // The gap a text field's analyzer carries in an index, which sits between two values of one document.
             Map.of(
                 "default",
-                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP),
+                "synonym",
+                new NamedAnalyzer("synonym", AnalyzerScope.INDEX, multiWordSynonym())
             ),
             Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
@@ -176,14 +195,43 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         );
     }
 
-    /** With no terms there is nothing to confirm over, so the field refuses however many values it keeps. */
-    public void testWithoutTermsItRefuses() throws IOException {
-        assertRefuses(
+    /** A field that indexes no terms answers from its values too, which {@link TextNoTermsSearchTests} covers. */
+    public void testWithoutTermsItAnswersFromValues() throws IOException {
+        final SearchExecutionContext context = createSearchExecutionContext(
             createMapperService(
                 Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
                 mapping(b -> b.startObject("body").field("type", "text").field("index", false).endObject())
             )
         );
+        assertThat(new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context), instanceOf(ReanalyzingTextQuery.class));
+    }
+
+    /**
+     * With terms indexed the score stays what an indexed phrase would give, over the frequency the document really
+     * holds, so the bound a collector reads has to leave room for that frequency.
+     */
+    public void testTheScoreBoundLeavesRoomForTheFrequency() throws IOException {
+        final MapperService mapperService = mapper("docs");
+        withLuceneIndex(mapperService, iw -> {
+            for (String doc : List.of("quick brown quick brown", "quick brown")) {
+                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+            }
+        }, reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            final IndexSearcher searcher = newSearcher(reader);
+            final Query query = searcher.rewrite(new MatchPhraseQueryBuilder("body", "quick brown").toQuery(context));
+            final float best = searcher.search(query, 1).scoreDocs[0].score;
+            // ScoreMode in this file is the join one, so the search one is named in full.
+            final Weight weight = searcher.createWeight(query, org.apache.lucene.search.ScoreMode.COMPLETE, 1f);
+            for (LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
+                final ScorerSupplier supplier = weight.scorerSupplier(leaf);
+                if (supplier != null) {
+                    final Scorer scorer = supplier.get(Long.MAX_VALUE);
+                    scorer.advanceShallow(0);
+                    assertThat(scorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), greaterThanOrEqualTo(best));
+                }
+            }
+        });
     }
 
     private void assertRefuses(MapperService mapperService) {
@@ -294,7 +342,6 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         }
     }
 
-    /** A span reads positions straight from the index, so with none indexed every form of it says so. */
     /**
      * One term asks nothing of positions: the query over the terms the index holds answers it whole, so the values
      * are not read for it. Two terms are a phrase, and those are read.
@@ -305,6 +352,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         assertThat(new MatchPhrasePrefixQueryBuilder("body", "quick bro").toQuery(context), instanceOf(ReanalyzingTextQuery.class));
     }
 
+    /** A span reads positions straight from the index, so with none indexed every form of it says so. */
     public void testSpanQueriesRefuse() throws IOException {
         final SearchExecutionContext context = createSearchExecutionContext(mapper("docs"));
         final SpanTermQueryBuilder term = new SpanTermQueryBuilder("body", "quick");
@@ -323,6 +371,53 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
         }
     }
 
+    /** Holds {@code new york} beside {@code ny}, as a multi word synonym does. */
+    private static Analyzer multiWordSynonym() {
+        final SynonymMap.Builder synonyms = new SynonymMap.Builder(true);
+        synonyms.add(new CharsRef("ny"), SynonymMap.Builder.join(new String[] { "new", "york" }, new CharsRefBuilder()), true);
+        final SynonymMap map;
+        try {
+            map = synonyms.build();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                final Tokenizer source = new StandardTokenizer();
+                return new TokenStreamComponents(source, new SynonymGraphFilter(source, map, true));
+            }
+        };
+    }
+
+    /**
+     * A word a synonym replaces with two of them is matched as a phrase of those two, so it does not match a value
+     * holding them the other way round. The field reads its values with their positions, so it answers that phrase
+     * whether or not it indexed positions of its own.
+     */
+    public void testAMultiWordSynonymIsMatchedAsAPhrase() throws IOException {
+        final List<Object> docs = List.of("new york", "york new", "new jersey");
+        final QueryBuilder query = new MatchQueryBuilder("body", "ny").analyzer("synonym");
+        final List<Integer> withPositions = matching(mapper("positions"), docs, query);
+        final List<Integer> withoutPositions = matching(mapper("docs"), docs, query);
+        assertEquals("only the value holding the two words in order", List.of(0), withPositions);
+        assertEquals(query.toString(), withPositions, withoutPositions);
+    }
+
+    /** What {@code query} matches over an index of {@code docs}. */
+    private List<Integer> matching(MapperService mapperService, List<Object> docs, QueryBuilder query) throws IOException {
+        final List<Integer> hits = new ArrayList<>();
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, docs), reader -> {
+            final SearchExecutionContext context = createSearchExecutionContext(mapperService);
+            final IndexSearcher searcher = newSearcher(reader);
+            for (var hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
+                hits.add(hit.doc);
+            }
+            Collections.sort(hits);
+        });
+        return hits;
+    }
+
     private static QueryBuilder intervals(IntervalsSourceProvider source) {
         return new IntervalQueryBuilder("body", source);
     }
@@ -330,11 +425,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     /** What each of {@code queries} matches, over one index built from {@link #DOCS}. */
     private List<List<Integer>> matching(MapperService mapperService, List<QueryBuilder> queries) throws IOException {
         final List<List<Integer>> perQuery = new ArrayList<>();
-        withLuceneIndex(mapperService, iw -> {
-            for (Object doc : DOCS) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
-            }
-        }, reader -> {
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, DOCS), reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (QueryBuilder query : queries) {
@@ -347,5 +438,13 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             }
         });
         return perQuery;
+    }
+
+    private void addInOrder(MapperService mapperService, RandomIndexWriter iw, List<Object> docs) throws IOException {
+        final List<LuceneDocument> block = new ArrayList<>();
+        for (Object doc : docs) {
+            block.add(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+        }
+        iw.addDocuments(block);
     }
 }

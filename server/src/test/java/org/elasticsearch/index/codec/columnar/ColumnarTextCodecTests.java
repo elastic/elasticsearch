@@ -12,15 +12,18 @@ package org.elasticsearch.index.codec.columnar;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -38,10 +41,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
 
     private static final String INDEX = "columnar-text-index";
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        // Need to set IndexVersion version of baseline ES819 index.
+        return false;
+    }
+
     private static final String FIELD = "body";
 
     public void testTextIsStoredByTheCodec() throws IOException {
-        assumeColumnarCodecEnabled();
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode, true), "@timestamp", "type=date", FIELD, "type=text");
         index(0, "\"a line of a log\"");
@@ -52,7 +61,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
 
     /** With the codec off the same field keeps the format it had, so the gate is what moves it. */
     public void testTextIsNotStoredByTheCodecWhenItIsOff() throws IOException {
-        assumeColumnarCodecEnabled();
         final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         createIndex(INDEX, columnarSettings(mode, false), "@timestamp", "type=date", FIELD, "type=text");
         index(0, "\"a line of a log\"");
@@ -62,7 +70,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
     }
 
     public void testTextIsSearchableAndReadableThroughTheCodec() throws IOException {
-        assumeColumnarCodecEnabled();
         createIndex(
             INDEX,
             columnarSettings(randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR), true),
@@ -88,7 +95,6 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
      * with an inline null has to come back through {@code _source} exactly as it went in, position and all.
      */
     public void testArraysAndNullsRoundTripThroughSource() throws IOException {
-        assumeColumnarCodecEnabled();
         createIndex(
             INDEX,
             columnarSettings(randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR), true),
@@ -123,15 +129,19 @@ public class ColumnarTextCodecTests extends ESSingleNodeTestCase {
             .get();
     }
 
-    private void assumeColumnarCodecEnabled() {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
-    }
-
+    /**
+     * A strictly columnar index, created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} when it should not use
+     * the codec, since every columnar index created from that version does.
+     */
     private static Settings columnarSettings(IndexMode mode, boolean codecEnabled) {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), mode)
-            .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codecEnabled)
-            .build();
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
+        if (codecEnabled == false) {
+            settings.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+            );
+        }
+        return settings.build();
     }
 
     /** The doc-values format the field's values were actually written with. */

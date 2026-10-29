@@ -92,11 +92,12 @@ public final class ExternalUnavailableException extends ExternalException {
 
     /**
      * Structured constructor. The condition should be {@link Condition#STORE_UNAVAILABLE} for
-     * plain transient failures or {@link Condition#STORE_THROTTLED} for back-pressure (429/503).
+     * plain transient failures, {@link Condition#STORE_THROTTLED} for back-pressure from the store (429/503), or
+     * {@link Condition#LOCAL_CAPACITY} when this node's own concurrency limit was reached and the store is not at fault.
      * Only the object name (last path segment) appears in the message — the full URI is never
      * included.
      *
-     * @param condition      {@link Condition#STORE_UNAVAILABLE} or {@link Condition#STORE_THROTTLED}
+     * @param condition      {@link Condition#STORE_UNAVAILABLE}, {@link Condition#STORE_THROTTLED} or {@link Condition#LOCAL_CAPACITY}
      * @param path           storage path — only {@link StoragePath#objectName()} is used in the message
      * @param detailCode     short qualifier, e.g. "HTTP 503"; empty string if absent
      * @param remedy         actionable advice; empty string if absent
@@ -133,6 +134,20 @@ public final class ExternalUnavailableException extends ExternalException {
         super(condition, path, detailCode, remedy);
         this.throttling = throttling;
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
+    }
+
+    /**
+     * Structured constructor for a condition that names no object and is neither throttling nor carries a retry hint:
+     * {@link Condition#WORKER_NOT_READY}, where the node, not the store, is what cannot serve the read yet.
+     *
+     * @param condition  the object-less condition
+     * @param detailCode short qualifier; empty string if absent
+     * @param remedy     actionable advice; empty string if absent
+     */
+    public ExternalUnavailableException(Condition condition, String detailCode, String remedy) {
+        super(condition, detailCode, remedy);
+        this.throttling = false;
+        this.retryAfterMs = 0L;
     }
 
     private ExternalUnavailableException(ExternalUnavailableException source) {

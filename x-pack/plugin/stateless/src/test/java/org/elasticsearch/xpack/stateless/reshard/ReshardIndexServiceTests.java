@@ -42,7 +42,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -362,10 +361,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
         var projectId = randomProjectIdOrDefault();
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
 
-        var reshardableModes = new ArrayList<>(List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT));
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            reshardableModes.add(IndexMode.VECTORDB_COLUMNAR);
-        }
+        var reshardableModes = List.of(IndexMode.STANDARD, IndexMode.VECTORDB_DOCUMENT, IndexMode.VECTORDB_COLUMNAR);
         for (IndexMode indexMode : reshardableModes) {
             var indexMetadata = indexMetadataWithMode(projectId, index, indexMode);
             IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());

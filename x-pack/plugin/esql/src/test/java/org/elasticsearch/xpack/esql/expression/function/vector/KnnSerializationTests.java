@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -27,7 +26,7 @@ public class KnnSerializationTests extends AbstractExpressionSerializationTests<
         Expression options = randomOptions();
         Integer implicitK = randomIntBetween(10, 100);
         List<Expression> filterExpressions = randomList(0, 3, AbstractExpressionSerializationTests::randomChild);
-        return new Knn(source, field, query, options, implicitK, null, filterExpressions, EsqlTestUtils.TEST_CFG);
+        return new Knn(source, field, query, options, implicitK, null, filterExpressions);
     }
 
     @Override
@@ -48,7 +47,7 @@ public class KnnSerializationTests extends AbstractExpressionSerializationTests<
             );
             case 4 -> implicitK = randomValueOtherThan(instance.implicitK(), () -> randomIntBetween(10, 100));
         }
-        return new Knn(source, field, query, options, implicitK, null, filterExpressions, EsqlTestUtils.TEST_CFG);
+        return new Knn(source, field, query, options, implicitK, null, filterExpressions);
     }
 
     private Expression randomOptions() {

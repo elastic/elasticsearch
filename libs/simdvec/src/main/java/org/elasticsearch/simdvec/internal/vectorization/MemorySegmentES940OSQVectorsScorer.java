@@ -20,9 +20,9 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.BufferScratch;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -136,10 +136,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        boolean scored = scorer.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+    public void quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
+        boolean scored = scorer.quantizeScoreBulkMasked(q, mask, scores, count);
         if (scored == false) {
-            super.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+            super.quantizeScoreBulkMasked(q, mask, scores, count);
         }
     }
 
@@ -219,7 +219,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public float scoreBulkOffsets(
+    public float scoreBulkMasked(
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -227,12 +227,11 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        int[] offsets,
-        int offsetsCount,
+        int mask,
         float[] scores,
         int count
     ) throws IOException {
-        float score = scorer.scoreBulkOffsets(
+        float score = scorer.scoreBulkMasked(
             q,
             queryLowerInterval,
             queryUpperInterval,
@@ -240,15 +239,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            offsets,
-            offsetsCount,
+            mask,
             scores,
             count
         );
         if (score != Float.NEGATIVE_INFINITY) {
             return score;
         }
-        return super.scoreBulkOffsets(
+        return super.scoreBulkMasked(
             q,
             queryLowerInterval,
             queryUpperInterval,
@@ -256,8 +254,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            offsets,
-            offsetsCount,
+            mask,
             scores,
             count
         );
@@ -284,7 +281,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return ES940OSQVectorsScorer.bitScale(bits);
         }
 
-        protected final BufferScratch scratch = new BufferScratch();
+        protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
 
         /**
          * Creates a new MemorySegmentScorer. The index input must be a
@@ -312,25 +309,6 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         }
 
         /**
-         * Re-adjust scores based on the scored offsets positions.
-         * Native code uses {@param offsets} to compute {@param offsetsCount} scores, placing them in the first {@param offsetsCount}
-         * positions of {@param scores}.
-         * This method re-positions them, placing each score at the index indicated in {@param offsets}.
-         * @param offsets scored offsets array
-         * @param offsetsCount number of scored offsets
-         * @param scores scores array
-         */
-        static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
-            for (int i = offsetsCount - 1; i >= 0; i--) {
-                int finalScoreIndex = offsets[i];
-                if (i < finalScoreIndex) {
-                    scores[finalScoreIndex] = scores[i];
-                    scores[i] = 0;
-                }
-            }
-        }
-
-        /**
          * Quantized scoring operation. Returns {@link Long#MIN_VALUE}
          * if this scorer does not implement this scoring.
          */
@@ -347,10 +325,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         }
 
         /**
-         * Quantized scoring bulk-with-offsets operation. Returns {@code false}
+         * Quantized scoring masked bulk operation. Returns {@code false}
          * if this scorer does not implement this scoring.
          */
-        boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        boolean quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
             return false;
         }
 
@@ -396,10 +374,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         }
 
         /**
-         * Score bulk-with-offsets operation. Returns {@link Float#NEGATIVE_INFINITY}
+         * Score masked bulk operation. Returns {@link Float#NEGATIVE_INFINITY}
          * if this scorer does not implement this scoring.
          */
-        float scoreBulkOffsets(
+        float scoreBulkMasked(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -407,8 +385,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float queryAdditionalCorrection,
             VectorSimilarityFunction similarityFunction,
             float centroidDp,
-            int[] offsets,
-            int offsetsCount,
+            int mask,
             float[] scores,
             int count
         ) throws IOException {

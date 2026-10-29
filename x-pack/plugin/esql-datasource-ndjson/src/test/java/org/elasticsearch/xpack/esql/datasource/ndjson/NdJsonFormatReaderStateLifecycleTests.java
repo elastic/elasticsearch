@@ -40,7 +40,7 @@ import java.util.TreeSet;
 public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
 
     private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("noop"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     /**
@@ -89,11 +89,15 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
         WitherLifecycle.SHARES_COUNTERS,
         "withReadConfig",
         WitherLifecycle.SHARES_COUNTERS,
+        "withSchemaSampleShare",
+        WitherLifecycle.SHARES_COUNTERS,
         "withPushedFilter",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredTypeColumns",
         WitherLifecycle.IDENTITY_NO_COPY,
         "withDeclaredProvenanceBinding",
+        WitherLifecycle.SHARES_COUNTERS,
+        "withHeaderBindingByProvenance",
         WitherLifecycle.IDENTITY_NO_COPY
     );
 
@@ -245,9 +249,11 @@ public class NdJsonFormatReaderStateLifecycleTests extends ESTestCase {
             case "withSchema" -> new Object[] { List.of(new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG)) };
             case "withDeclaredDateFormats" -> new Object[] { Map.of("b", "yyyy-MM-dd") };
             case "withReadConfig" -> new Object[] { "0123456789abcdef0123456789abcdef" };
+            case "withSchemaSampleShare" -> new Object[] { 8 };
             case "withPushedFilter" -> new Object[] { new Object() };
             case "withDeclaredTypeColumns" -> new Object[] { Set.of("a") };
             case "withDeclaredProvenanceBinding" -> new Object[] { true };
+            case "withHeaderBindingByProvenance" -> new Object[] { true };
             default -> throw new AssertionError("update sampleArgsFor() for new wither: " + wither);
         };
     }

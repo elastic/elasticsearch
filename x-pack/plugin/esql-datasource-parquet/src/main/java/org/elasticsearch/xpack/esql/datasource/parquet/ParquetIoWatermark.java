@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
@@ -14,47 +16,38 @@ import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
 import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 /**
  * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
- * windows). Copied from the ClickHouse parquet high-watermark shape: cap at {@code heap / 8},
- * shared by every query on the node. Crossing the limit does not fail the query; the REQUEST
- * circuit breaker remains the hard stop. Look-ahead is refused once {@code used + next} would
- * exceed the cap. One in-flight group may overshoot when it is larger than the remaining budget,
- * so a scan cannot stall; that overshoot is node-wide, not per iterator, and belongs to one
- * owner lease until {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than
- * fail the query. Coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. The
- * parking {@link #admitWaitUntil} path remains for leftover parquet column iterator tests
- * until the hard cap lands. The REQUEST circuit breaker remains the hard stop for allocation.
+ * windows) plus the decode working-set admitted beside those buffers. Cap at {@code heap / 8},
+ * shared by every query on the node. Tickets are a concurrency cap, not a substitute for the
+ * REQUEST circuit breaker: dest/dict still charge under that breaker, and assembled blocks
+ * still charge {@code <esql_block_factory>}. Crossing the ticket limit does not fail the
+ * query. Look-ahead is refused once {@code used + next} would exceed the cap. One in-flight
+ * group may overshoot when it is larger than the remaining budget, so a scan cannot stall;
+ * that overshoot is node-wide, not per iterator, and belongs to one owner lease until
+ * {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than fail the query.
+ * Test-only coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
+ * wait and no charge-on-expiry.
  */
 final class ParquetIoWatermark implements AdmissionGate {
 
     static final int HEAP_DIVISOR = NodeByteBudgetService.HEAP_DIVISOR;
 
     /**
-     * Waiting longer cannot help when bytes are released only by work queued behind the waiter
-     * on the same compute pool. The REQUEST circuit breaker remains the hard stop. This is a
-     * code constant, not a cluster Setting.
-     */
-    static final long DEFAULT_ADMIT_WAIT_MS = NodeByteBudgetService.DEFAULT_ADMIT_WAIT_MS;
-
-    /**
-     * Forced admits after the wait budget may charge up to this many times {@link #limit}.
-     * The in-flight overshoot owner may already sit above this; waiters then fail instead of
-     * stacking more bytes.
-     */
-    static final int FORCE_ADMIT_LIMIT_MULTIPLIER = NodeByteBudgetService.FORCE_ADMIT_LIMIT_MULTIPLIER;
-
-    /**
      * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
      * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
-     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} draws one unit ticket covering
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} is test-only: one unit ticket covering
      * every miss in the coalesced call. A null hold is never {@link #PER_GET}.
      */
     enum ByteGate {
@@ -72,11 +65,7 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     ParquetIoWatermark(long limit) {
-        this(limit, DEFAULT_ADMIT_WAIT_MS);
-    }
-
-    ParquetIoWatermark(long limit, long admitWaitMs) {
-        this(new NodeByteBudgetService(limit, admitWaitMs));
+        this(new NodeByteBudgetService(limit));
     }
 
     ParquetIoWatermark(NodeByteBudget nodeByteBudget) {
@@ -122,47 +111,27 @@ final class ParquetIoWatermark implements AdmissionGate {
         return hold == null ? null : new AdmitHold(this, hold);
     }
 
+    /**
+     * FIFO ticket for a unit that must proceed. Uncontended grants complete on the caller;
+     * contended grants are forked onto {@code executor}. {@link AdmitHold#drop()} is the
+     * same leftover-estimate swap as {@link #tryAdmit}.
+     */
+    SubscribableListener<AdmitHold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<AdmitHold> listener = new SubscribableListener<>();
+        budget.admitAsync(bytes, lease, cancelSignal, executor)
+            .addListener(ActionListener.wrap(hold -> { listener.onResponse(wrap(hold)); }, listener::onFailure));
+        return listener;
+    }
+
     AdmitHold wrap(NodeByteBudget.Hold hold) {
         return new AdmitHold(this, hold);
     }
 
     /**
-     * Caller-supplied timeout wrapper around {@link #admitWaitUntil}. Tests use this; production
-     * coalesced PER_GET uses a unit ticket instead.
-     */
-    AdmitHold admitWait(long bytes, RowGroupIo lease, long timeoutMs) {
-        return admitWaitUntil(bytes, lease, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs));
-    }
-
-    /**
-     * Blocks until {@code bytes} can be charged for {@code lease}, or {@code deadlineNanos} elapses.
-     * Leftover OPCI / characterization tests only; production CRR no longer parks here.
-     */
-    AdmitHold admitWaitUntil(long bytes, RowGroupIo lease, long deadlineNanos) {
-        AdmissionTracker.Wait trackedWait = tracker.waitStarted(AdmissionTracker.GATE_BYTES, Thread.currentThread().getName());
-        boolean success = false;
-        try {
-            AdmitHold hold = new AdmitHold(this, budget.admitWaitUntil(bytes, lease, deadlineNanos));
-            success = true;
-            return hold;
-        } finally {
-            if (success) {
-                trackedWait.granted();
-            } else {
-                trackedWait.finished();
-            }
-        }
-    }
-
-    long forceAdmitLimit() {
-        return budget.forceAdmitLimit();
-    }
-
-    /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes; those already returned from {@link DirectReadBuffer#close()}.
-     * No-op when another lease is the owner. Signals waiters. Call after budget {@code finish()}
-     * has released the budget lock.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes; those already returned from {@link DirectReadBuffer#close()}. Call after
+     * budget {@code finish()} has released the budget lock.
      */
     void clearOwner(RowGroupIo lease) {
         budget.clearOwner(lease);
@@ -171,6 +140,21 @@ final class ParquetIoWatermark implements AdmissionGate {
     @Override
     public String name() {
         return AdmissionTracker.GATE_BYTES;
+    }
+
+    @Override
+    public StallPolicy stallPolicy() {
+        return StallPolicy.GRANT_AGE;
+    }
+
+    @Override
+    public RescueResult rescueHead(@Nullable Executor delivery) {
+        return budget.rescueHeadOverCap(delivery);
+    }
+
+    @Override
+    public void failCancelledWaiters() {
+        budget.failCancelledWaiters();
     }
 
     @Override
@@ -196,18 +180,27 @@ final class ParquetIoWatermark implements AdmissionGate {
 
     /**
      * Unconditional charge used for buffers that must exist (sliding window on first use, actual
-     * coalesced {@code DirectReadBuffer} size). Admission of look-ahead happens in
+     * coalesced {@code DirectReadBuffer} size) and for decode-working-set shortfalls that exceed
+     * the footer estimate already in a hold. Never waits. Admission of look-ahead happens in
      * {@link #tryReserve}. When a prefetch already {@link #tryAdmit}ted a footer estimate,
      * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that many estimate bytes on
      * each alloc so in-flight sibling GETs keep their hold until they allocate. Does not set
      * the overshoot owner.
      */
     void forceAdd(long bytes) {
-        budget.add(bytes);
+        forceAdd(bytes, null);
+    }
+
+    void forceAdd(long bytes, @Nullable RowGroupIo lease) {
+        budget.add(bytes, lease);
     }
 
     void release(long bytes) {
-        budget.release(bytes);
+        release(bytes, null);
+    }
+
+    void release(long bytes, @Nullable RowGroupIo lease) {
+        budget.release(bytes, lease);
     }
 
     long used() {
@@ -218,25 +211,15 @@ final class ParquetIoWatermark implements AdmissionGate {
         return budget.limit();
     }
 
-    long admitWaitMs() {
-        return budget.admitWaitMs();
-    }
-
-    long forcedAdmits() {
-        return budget.forcedAdmits();
-    }
-
-    long waitNanos() {
-        return budget.waitNanos();
-    }
-
     DirectBufferFactory accountingFactory(CircuitBreaker breaker) {
         return accountingFactory(breaker, null);
     }
 
     /**
-     * Factory that charges this watermark with the actual allocated length beside the REQUEST
-     * breaker, and releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
+     * Factory that charges this watermark with the allocated buffer's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint} beside the REQUEST breaker
+     * (which {@link DirectReadBuffer#allocate(CircuitBreaker, int)} charges the same figure), and
+     * releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
      * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
      * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
      * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
@@ -247,9 +230,10 @@ final class ParquetIoWatermark implements AdmissionGate {
             DirectReadBuffer allocated = inner.allocate(len);
             DirectReadBuffer wrapped = null;
             try {
-                wrapped = account(allocated, len);
+                long footprint = HeapFootprint.byteArrayBytes(len);
+                wrapped = account(allocated, footprint);
                 if (admitHold != null) {
-                    admitHold.drop(len);
+                    admitHold.drop(footprint);
                 }
                 return wrapped;
             } catch (Throwable t) {
@@ -267,19 +251,26 @@ final class ParquetIoWatermark implements AdmissionGate {
         };
     }
 
-    private DirectReadBuffer account(DirectReadBuffer inner, int length) {
+    private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
+        RowGroupIo lease = affinityLease();
         AtomicBoolean released = new AtomicBoolean();
         DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
             try {
                 inner.close();
             } finally {
                 if (released.compareAndSet(false, true)) {
-                    release(length);
+                    release(footprint, lease);
                 }
             }
         });
-        forceAdd(length);
+        forceAdd(footprint, lease);
         return wrapped;
+    }
+
+    @Nullable
+    private static RowGroupIo affinityLease() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        return scope == null ? null : scope.lease();
     }
 
     static DirectBufferFactory bufferFactory(CircuitBreaker breaker, @Nullable ParquetIoWatermark watermark) {
@@ -295,13 +286,16 @@ final class ParquetIoWatermark implements AdmissionGate {
     }
 
     /**
-     * Footer-estimate reservation released as real buffers allocate ({@link #drop(long)}) and
-     * cleared when the prefetch future settles ({@link #drop()}).
+     * Footer-estimate reservation released as real buffers allocate ({@link #drop(long)}).
+     * Leftover I/O estimate is dropped when the GET settles ({@link #dropIoRemainder}); decode
+     * working-set stays until {@link #drop()} at group release.
      */
     static final class AdmitHold {
         private final ParquetIoWatermark watermark;
         private final NodeByteBudget.Hold inner;
         private final AtomicBoolean counted = new AtomicBoolean(true);
+        private final AtomicLong restoredDecode = new AtomicLong();
+        private boolean remainderDropped;
 
         private AdmitHold(ParquetIoWatermark watermark, NodeByteBudget.Hold inner) {
             this.watermark = watermark;
@@ -313,13 +307,81 @@ final class ParquetIoWatermark implements AdmissionGate {
          * Drops up to {@code bytes} of leftover estimate, swapping that slice for a retained
          * array charged by {@link #forceAdd}. Sibling in-flight ranges keep their estimate.
          */
-        void drop(long bytes) {
+        synchronized void drop(long bytes) {
+            if (counted.get() == false) {
+                return;
+            }
             inner.drop(bytes);
         }
 
-        void drop() {
-            inner.close();
-            if (counted.compareAndSet(true, false)) {
+        /**
+         * Grows or drops leftover estimate so {@link #remaining()} equals {@code target}.
+         * Never grows past {@link #bytes()}; a drop re-runs the grant loop.
+         */
+        synchronized void retarget(long target) {
+            if (counted.get() == false) {
+                return;
+            }
+            long want = Math.max(0L, Math.min(target, inner.bytes()));
+            long current = inner.remaining();
+            if (want > current) {
+                inner.grow(want - current);
+            } else if (want < current) {
+                inner.drop(current - want);
+            }
+        }
+
+        synchronized long remaining() {
+            return inner.remaining();
+        }
+
+        long bytes() {
+            return inner.bytes();
+        }
+
+        /**
+         * Releases unused I/O estimate after the GET settles, keeping {@code decodeBytes} of
+         * working-set reservation on this hold. {@code decodeBytes <= 0} drops the leftover
+         * I/O (the whole hold) because there is no decode slice to keep; dest that still
+         * allocates then {@code forceAdd}s. If I/O alloc already ate into the decode slice,
+         * {@link ParquetIoWatermark#forceAdd} restores it and never waits. No-op after
+         * {@link #drop()}.
+         */
+        synchronized void dropIoRemainder(long decodeBytes) {
+            if (counted.get() == false || remainderDropped) {
+                return;
+            }
+            remainderDropped = true;
+            if (decodeBytes <= 0L) {
+                drop();
+                return;
+            }
+            long leftover = inner.remaining();
+            if (leftover > decodeBytes) {
+                inner.drop(leftover - decodeBytes);
+            } else if (leftover < decodeBytes) {
+                long restore = decodeBytes - leftover;
+                watermark.forceAdd(restore);
+                restoredDecode.addAndGet(restore);
+            }
+        }
+
+        @Nullable
+        RowGroupIo lease() {
+            return inner.lease();
+        }
+
+        synchronized void drop() {
+            if (counted.compareAndSet(true, false) == false) {
+                return;
+            }
+            try {
+                inner.close();
+            } finally {
+                long restore = restoredDecode.getAndSet(0L);
+                if (restore > 0L) {
+                    watermark.release(restore);
+                }
                 watermark.holds.decrementAndGet();
             }
         }

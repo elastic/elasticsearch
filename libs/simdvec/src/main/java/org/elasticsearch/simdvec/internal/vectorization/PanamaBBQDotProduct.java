@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.BulkMask;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -83,7 +84,7 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
     public abstract void dotProductBulk(byte[] query, int count, float[] scores) throws IOException;
 
     @Override
-    public abstract void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
+    public abstract void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException;
 
     private static final class D1Q1Impl extends PanamaBBQDotProduct {
 
@@ -138,39 +139,31 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         }
 
         @Override
-        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
             assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
             // one slice covers the whole block, so skipped vectors are simply not scored
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-                    int next = 0;
-                    for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
-                            next++;
-
-                            long offset = (long) i * docBytes;
-                            long dot = 0;
-                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                                dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                            }
-                            scores[i] = dot;
+                    for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                        int i = BulkMask.first(m);
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                            dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
+                        scores[i] = dot;
                     }
                 });
             } else {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-                    int next = 0;
-                    for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
-                            next++;
-
-                            long offset = (long) i * docBytes;
-                            long dot = 0;
-                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                                dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                            }
-                            scores[i] = dot;
+                    for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                        int i = BulkMask.first(m);
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                            dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
+                        scores[i] = dot;
                     }
                 });
             }
@@ -298,39 +291,31 @@ public abstract class PanamaBBQDotProduct extends BBQDotProduct {
         }
 
         @Override
-        public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        public void dotProductBulkMasked(byte[] query, int mask, float[] scores, int count) throws IOException {
             assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
             // one slice covers the whole block, so skipped vectors are simply not scored
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-                    int next = 0;
-                    for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
-                            next++;
-
-                            long offset = (long) i * docBytes;
-                            long dot = 0;
-                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                                dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                            }
-                            scores[i] = dot;
+                    for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                        int i = BulkMask.first(m);
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                            dot += dotProduct256(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
+                        scores[i] = dot;
                     }
                 });
             } else {
                 IndexInputUtils.withVoidSlice(in, (long) docBytes * count, scratch, segment -> {
-                    int next = 0;
-                    for (int i = 0; i < count; i++) {
-                        if (next < offsetsCount && offsets[next] == i) {
-                            next++;
-
-                            long offset = (long) i * docBytes;
-                            long dot = 0;
-                            for (int dp = 0; dp < encoding.dataBits(); dp++) {
-                                dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
-                            }
-                            scores[i] = dot;
+                    for (int m = mask; m != 0; m = BulkMask.deselectFirst(m)) {
+                        int i = BulkMask.first(m);
+                        long offset = (long) i * docBytes;
+                        long dot = 0;
+                        for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                            dot += dotProduct128(query, segment, offset + (long) dp * planeBytes, planeBytes) << dp;
                         }
+                        scores[i] = dot;
                     }
                 });
             }

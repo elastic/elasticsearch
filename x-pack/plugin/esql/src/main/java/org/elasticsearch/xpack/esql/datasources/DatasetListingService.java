@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
+import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
@@ -22,7 +24,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 
 /**
@@ -130,6 +135,20 @@ public final class DatasetListingService {
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws Exception {
+        return expand(path, provider, hints, config, storagePath, extents, memory, cancelled, null);
+    }
+
+    public FileList expand(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws Exception {
         return GlobExpander.expandAndCompact(
             path,
             provider,
@@ -141,14 +160,183 @@ public final class DatasetListingService {
             maxListedObjects.getAsInt(),
             extents,
             memory,
-            cancelled
+            cancelled,
+            folderRange
         );
     }
 
     /**
-     * The compacted listing for a cacheable provider, from the cache or computed into it. Always the whole pattern:
-     * a bounded listing is a sample of a dataset rather than the dataset, so it must never become the answer another
-     * query is served, and the refusal below is what holds that.
+     * Async counterpart of {@link #expand}: a wide glob is listed as concurrent per-prefix lists on {@code executor}
+     * rather than on the calling thread, which neither blocks nor waits on a pool that still has to run the lists.
+     * {@code listener} fires on whichever thread finishes last.
+     *
+     * @param concurrency how many per-prefix lists may run at once; at most one disables the fan-out
+     */
+    public void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener
+    ) {
+        expandAsync(path, provider, hints, config, storagePath, extents, memory, cancelled, concurrency, executor, listener, null);
+    }
+
+    public void expandAsync(
+        String path,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        StoragePath storagePath,
+        ListingExtents extents,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        GlobExpander.expandAndCompactAsync(
+            path,
+            provider,
+            hints,
+            config,
+            storagePath,
+            maxDiscoveredFiles.getAsInt(),
+            maxGlobExpansion.getAsInt(),
+            maxListedObjects.getAsInt(),
+            extents,
+            memory,
+            concurrency,
+            cancelled,
+            executor,
+            listener,
+            folderRange
+        );
+    }
+
+    /**
+     * Async counterpart of {@link #cachedListing}, with the same reservation rule. It keys on the extent it is
+     * given; the synchronous overload always lists unbounded. Concurrent cold misses for one key share one
+     * listing: the first query's listing is the one that runs, and the others wait on it rather than each
+     * starting a fan-out. A query that waited allocated nothing in the walk, so
+     * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
+     * others list again.
+     */
+    public void cachedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        Consumer<ListingCacheKey> usedListing,
+        ListingExtents extents,
+        ActionListener<FileList> listener
+    ) {
+        cachedListingAsync(
+            path,
+            storagePath,
+            provider,
+            storageIdentity,
+            secretIdentity,
+            hints,
+            config,
+            memory,
+            cancelled,
+            concurrency,
+            executor,
+            usedListing,
+            extents,
+            listener,
+            null
+        );
+    }
+
+    public void cachedListingAsync(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int concurrency,
+        Executor executor,
+        Consumer<ListingCacheKey> usedListing,
+        ListingExtents extents,
+        ActionListener<FileList> listener,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        ListingCacheKey listingKey = ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config, extents, folderRange)
+        );
+        usedListing.accept(listingKey);
+        // Set by whichever thread runs the compute and read by whichever completes the listing.
+        AtomicBoolean computedHere = new AtomicBoolean();
+        cacheService.getOrComputeListingAsync(listingKey, innerListener -> {
+            computedHere.set(true);
+            expandAsync(
+                path,
+                provider,
+                hints,
+                config,
+                storagePath,
+                extents,
+                memory,
+                cancelled,
+                concurrency,
+                executor,
+                innerListener,
+                folderRange
+            );
+        }, ActionListener.wrap(listing -> {
+            // Same refusal as the synchronous path, and for the same reason - except that the bound is now part of
+            // the key, so a bounded prefix is addressed as a prefix. What must never be served from the cache is a
+            // listing that truncated when no bound was asked for: that one would answer for the full dataset.
+            if (listing.isTruncated() && extents.boundsFileSet() == false) {
+                listener.onFailure(
+                    new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path)
+                );
+                return;
+            }
+            try {
+                // Caps are not part of the listing key; see cachedListing.
+                GlobExpander.checkDiscoveredFilesLimit(listing.fileCount(), maxDiscoveredFiles.getAsInt());
+                if (computedHere.get() == false) {
+                    memory.reserve(listing.fileCount() * FileList.LISTING_BYTES_PER_ENTRY);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(listing);
+        }, listener::onFailure));
+    }
+
+    /**
+     * The compacted listing for a cacheable provider, from the cache or computed into it. The scan path always
+     * lists unbounded: every reading query wants the full dataset, not a prefix of it.
      * <p>
      * {@code memory} reserves the entries either way, once each, and the same figure either way: a miss reserves
      * through the walk as it grows, a hit reserves the equivalent here.
@@ -164,6 +352,21 @@ public final class DatasetListingService {
         PlanningMemory memory,
         BooleanSupplier cancelled
     ) throws Exception {
+        return cachedListing(path, storagePath, provider, storageIdentity, secretIdentity, hints, config, memory, cancelled, null);
+    }
+
+    public FileList cachedListing(
+        String path,
+        StoragePath storagePath,
+        StorageProvider provider,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        @Nullable FolderRangePredicate folderRange
+    ) throws Exception {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
         // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
@@ -175,23 +378,25 @@ public final class DatasetListingService {
             secretIdentity,
             ExternalSourceResolver.storageConfig(config),
             // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config)
+            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED, folderRange)
         );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };
         try {
             listing = cacheService.getOrComputeListing(listingKey, k -> {
                 servedFromCacheHolder[0] = false;
-                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled);
+                return expand(path, provider, hints, config, storagePath, ListingExtents.UNBOUNDED, memory, cancelled, folderRange);
             });
         } catch (ExecutionException e) {
             throw asListingFailure(e);
         }
         // A refusal rather than an assertion: assertions are off in production, and a truncated listing reaching
-        // this cache is served to later queries as though it were the dataset - they would answer from a prefix
-        // with nothing to tell them. Unreachable today, because this method always lists the whole pattern.
+        // this cache would be served to later queries as though it were the dataset - they would answer from a
+        // prefix with nothing to tell them. Nothing reaches it today: this path lists unbounded, so truncation
+        // would need Integer.MAX_VALUE keys, and the object-count cap throws from expand instead. A guard for a
+        // future bounded caller.
         if (listing.isTruncated()) {
-            throw new IllegalStateException("a truncated listing must never enter the shared listing cache: " + path);
+            throw new IllegalStateException("a truncated listing must never be served from the shared listing cache: " + path);
         }
         // Caps are not part of the listing key: a raise must keep hitting. A later drop still has to fail closed, or
         // a cached FileList computed under a looser cap would bypass the setting until TTL. Expand already checked;

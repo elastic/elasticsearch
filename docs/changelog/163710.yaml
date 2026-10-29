@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 163710
+summary: Upgrade Jackson to 2.21.8
+type: upgrade

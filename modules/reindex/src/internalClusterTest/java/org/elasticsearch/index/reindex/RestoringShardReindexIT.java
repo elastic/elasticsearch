@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static org.elasticsearch.reindex.ReindexTestCase.matcher;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -96,15 +97,14 @@ public class RestoringShardReindexIT extends AbstractSnapshotIntegTestCase {
      */
     public void testUpdateByQueryWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
-        UpdateByQueryRequest request = new UpdateByQueryRequest(INDEX);
-        var future = client().execute(UpdateByQueryAction.INSTANCE, request);
         try {
+            UpdateByQueryRequest request = new UpdateByQueryRequest(INDEX);
+            var future = client().execute(UpdateByQueryAction.INSTANCE, request);
             expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
+            unblockAllDataNodes(REPO);
+            assertThat(future.get(30, TimeUnit.SECONDS), matcher().updated(1));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
-            try {
-                future.get(30, TimeUnit.SECONDS);
-            } catch (Exception ignored) {}
         }
     }
 
@@ -114,15 +114,14 @@ public class RestoringShardReindexIT extends AbstractSnapshotIntegTestCase {
      */
     public void testDeleteByQueryWhileRestoringParks() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(INDEX).setQuery(QueryBuilders.matchAllQuery());
-        var future = client().execute(DeleteByQueryAction.INSTANCE, request);
         try {
+            DeleteByQueryRequest request = new DeleteByQueryRequest(INDEX).setQuery(QueryBuilders.matchAllQuery());
+            var future = client().execute(DeleteByQueryAction.INSTANCE, request);
             expectThrows(TimeoutException.class, () -> future.get(200, TimeUnit.MILLISECONDS));
+            unblockAllDataNodes(REPO);
+            assertThat(future.get(30, TimeUnit.SECONDS), matcher().deleted(1));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
-            try {
-                future.get(30, TimeUnit.SECONDS);
-            } catch (Exception ignored) {}
         }
     }
 }

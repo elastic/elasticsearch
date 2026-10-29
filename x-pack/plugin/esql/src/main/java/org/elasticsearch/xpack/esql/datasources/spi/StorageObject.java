@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -120,9 +121,41 @@ public interface StorageObject {
      * request that transfers object bytes (or, for GCS, the metadata GET issued specifically to
      * acquire the pin), never from a metadata-only request, and must not move it once set. Pin
      * acquisition must be atomic: concurrent first reads from different generations cannot both succeed.
+     * <p>
+     * The one exception is a pin seeded from a listing version (see {@link #version()}), set before the first request
+     * so that the first read is already conditional on the version the listing reported. Such a pin has not been
+     * observed on a response from this object.
      */
     default String contentGeneration() {
         return null;
+    }
+
+    /**
+     * Version of this object for addressing the footer caches: the ETag, generation or modification time that the
+     * listing or a probe reported when this instance was created, or else the pin its own reads acquired. Unlike
+     * {@link #contentGeneration()} it is available before any read, because the listing supplies it. {@code null}
+     * when no version is known, and such an object is not footer-cached, so an overwrite can never be answered from
+     * a footer that was read for an earlier version.
+     * <p>
+     * Decorators must return {@code delegate.version()}, as they do for {@link #contentGeneration()}.
+     */
+    @Nullable
+    default String version() {
+        return contentGeneration();
+    }
+
+    /**
+     * The version that this object's existence or metadata probe saw, for a caller that found the object by probing
+     * and then records that version in a listing entry. Unlike {@link #version()} it never comes from a pin, and a probe
+     * does not acquire the read pin: the object a later read opens is seeded with this version, so its first read is
+     * conditional on it. {@code null} when the probe saw no version. Defaults to {@link #version()}, which is right for a
+     * store whose probe already establishes the pin.
+     * <p>
+     * Decorators must return {@code delegate.probedVersion()}.
+     */
+    @Nullable
+    default String probedVersion() {
+        return version();
     }
 
     /**
@@ -465,10 +498,11 @@ public interface StorageObject {
      * Attaches the node telemetry sink and the storage {@code scheme} dimension so that this object's
      * read/retry events are published to {@link ExternalSourceMetrics} (in addition to the profile
      * counters surfaced by {@link #metrics()}). Called once by the operator wiring when it opens the
-     * object. The default is a no-op for objects that don't track I/O; decorator wrappers must forward
-     * to the wrapped object so the metrics attach to the underlying store, not the wrapper layer.
+     * object. Decorator wrappers must forward to the wrapped object so the metrics attach to the underlying
+     * store, not the wrapper layer. Implementations with no I/O counters implement it as an explicit no-op.
+     * There is no default: a silent default let decorators drop the attach without any failure.
      */
-    default void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+    void attachMetrics(ExternalSourceMetrics metrics, String scheme);
 
     /**
      * Binds {@code io} to the query-budget scheduler that will grant this object's GETs.
@@ -478,10 +512,9 @@ public interface StorageObject {
 
     /**
      * Timeout in milliseconds exposed by query-budget decorators for permit-acquire waits.
-     * Parquet coalesced PER_GET byte admission no longer reads this; that wait is
-     * {@code ParquetIoWatermark.DEFAULT_ADMIT_WAIT_MS}. Decorators that wrap a query budget still
-     * return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS} (or the budget acquire timeout)
-     * so tests and any remaining permit-wait callers can observe it.
+     * Parquet coalesced PER_GET byte admission no longer reads this; that path uses tickets.
+     * Decorators that wrap a query budget still return {@link QueryAdmission#DEFAULT_ACQUIRE_TIMEOUT_MS}
+     * (or the budget acquire timeout) so tests and any remaining permit-wait callers can observe it.
      */
     default long admissionWaitTimeoutMs() {
         return QueryAdmission.DEFAULT_ACQUIRE_TIMEOUT_MS;

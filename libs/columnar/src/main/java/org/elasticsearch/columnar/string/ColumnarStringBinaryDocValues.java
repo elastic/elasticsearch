@@ -13,14 +13,17 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.columnar.substrate.BytesSink;
+import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
 
 /**
  * A string column at the {@code BINARY} surface. The API carries one {@link BytesRef} per document, so a
  * document's slots are re-encoded on the way out: {@link #binaryValue} rebuilds the {@link StringBinaryPayload}
- * the mapper wrote, count and all, which is what every reader of these fields decodes.
+ * the mapper wrote, count and all, or hands back the value's own bytes for a single-valued column.
  *
  * <p>Ingest is the mirror image — {@link #decodePayloads} splits the payload the mapper writes.
  *
@@ -34,10 +37,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     private final boolean singleValued;
     private final StringBinaryPayload.Builder payload = new StringBinaryPayload.Builder();
 
+    /** The reader as a dictionary one, or null when the column has no dictionary. Typed once so a document is not asked. */
+    private final DictionaryStringColumnReader dictionary;
+
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator, boolean singleValued) {
         this.reader = reader;
         this.iterator = iterator;
         this.singleValued = singleValued;
+        this.dictionary = reader instanceof DictionaryStringColumnReader d ? d : null;
     }
 
     /**
@@ -56,12 +63,40 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
         }
         final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
+        if ((long) reader.maxLength() * count > ChunkedBytesReader.RETAINED_SPAN_BYTES) {
+            return largePayload(first, count);
+        }
         payload.reset();
         for (long i = 0; i < count; i++) {
             // A null slot reads back as null, which is what appendSlot takes for one.
             payload.appendSlot(reader.valueAt(first + i));
         }
         return payload.build();
+    }
+
+    /**
+     * A document whose payload may run past {@link ChunkedBytesReader#RETAINED_SPAN_BYTES}: sized from the stored lengths,
+     * each value copied into it straight from the column, and built in a buffer of its own when it is that large.
+     */
+    private BytesRef largePayload(long first, long count) throws IOException {
+        long bytes = 0;
+        for (long i = 0; i < count; i++) {
+            bytes += ByteArrayInts.MAX_VINT_BYTES + (reader.isNullSlot(first + i) ? 0 : reader.byteLengthAt(first + i));
+        }
+        final StringBinaryPayload.Builder target = bytes > ChunkedBytesReader.RETAINED_SPAN_BYTES
+            ? new StringBinaryPayload.Builder()
+            : payload;
+        target.reset();
+        target.reserve(bytes);
+        for (long i = 0; i < count; i++) {
+            final long address = first + i;
+            if (reader.isNullSlot(address)) {
+                target.appendSlot(null);
+            } else {
+                target.appendSlot(reader.byteLengthAt(address), sink -> reader.transferValueAt(address, sink));
+            }
+        }
+        return target.build();
     }
 
     /** The column behind this surface, so a merge can read what it recorded rather than its values. */
@@ -73,6 +108,67 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
     @Override
     public boolean singleValued() {
         return singleValued;
+    }
+
+    /**
+     * The address of the slot {@link #denseTermOrdinal} last answered for, which {@link #escapedValue} reads. It is -1
+     * after an answer of {@link #NO_VALUE} or {@link #MULTI_VALUED}, so a stale slot is never read.
+     */
+    private long valueSlot = -1;
+
+    @Override
+    public int denseTermOrdinal() throws IOException {
+        if (dictionary == null) {
+            throw new IllegalStateException("the column has no dictionary");
+        }
+        valueSlot = -1;
+        final int rank = iterator.rank();
+        if (reader.hasValueAddresses() == false) {
+            // One slot a document, whose address is the rank: read its ordinal once and decide.
+            final int ordinal = dictionary.ordinalAt(rank);
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                return NO_VALUE;
+            }
+            valueSlot = rank;
+            return denseOrdinal(ordinal);
+        }
+        final long first = reader.firstValueAddress(rank);
+        final long slots = reader.valueCount(rank);
+        int found = NO_VALUE;
+        for (long slot = first; slot < first + slots; slot++) {
+            final int ordinal = dictionary.ordinalAt(slot);
+            if (ordinal == StringColumnMetadata.Dictionary.NULL_ORDINAL) {
+                continue;
+            }
+            if (found != NO_VALUE) {
+                valueSlot = -1;
+                return MULTI_VALUED;
+            }
+            found = denseOrdinal(ordinal);
+            valueSlot = slot;
+        }
+        return found;
+    }
+
+    /** The dense ordinal of a stored one that names a value, or {@link #ESCAPED}. */
+    private int denseOrdinal(int storedOrdinal) {
+        assert storedOrdinal != StringColumnMetadata.Dictionary.NULL_ORDINAL : "a null slot names no value";
+        return storedOrdinal == dictionary.escapeOrdinal() ? ESCAPED : storedOrdinal - StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL;
+    }
+
+    @Override
+    public BytesRef termAt(int denseOrdinal, BytesRef dst) throws IOException {
+        assert dictionary != null : "the column has no dictionary";
+        assert denseOrdinal >= 0 && denseOrdinal < dictionary.dictionarySize()
+            : "ordinal [" + denseOrdinal + "] names no term in a dictionary of " + dictionary.dictionarySize();
+        return dictionary.termAt(denseOrdinal + StringColumnMetadata.Dictionary.FIRST_TERM_ORDINAL, dst);
+    }
+
+    @Override
+    public BytesRef escapedValue(BytesRef dst) throws IOException {
+        assert dictionary != null : "the column has no dictionary";
+        assert valueSlot >= 0 : "no document has answered with a value";
+        return dictionary.resolveEscape(valueSlot, dst);
     }
 
     @Override
@@ -213,6 +309,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             private long count;
             private int upto;
             private long at = -1;
+            private long previousAt = -1;
 
             @Override
             public int valueCount() {
@@ -234,6 +331,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
             @Override
             public void nextValue() {
+                previousAt = at;
                 at = first + upto++;
             }
 
@@ -254,6 +352,27 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
             @Override
             public BytesRef value() throws IOException {
                 return reader.valueAt(at);
+            }
+
+            @Override
+            public void transferValue(BytesSink sink) throws IOException {
+                reader.transferValueAt(at, sink);
+            }
+
+            @Override
+            public boolean streamsValues() {
+                return reader instanceof PlainStringColumnReader;
+            }
+
+            @Override
+            public boolean repeatsPrevious() throws IOException {
+                // A stored repeat is of the slot before, which is the previous value only if no slot was skipped since.
+                return at > 0 && previousAt == at - 1 && reader.repeatsPreviousSlot(at);
+            }
+
+            @Override
+            public boolean mayBeSorted() {
+                return reader.valuesSorted();
             }
 
             @Override

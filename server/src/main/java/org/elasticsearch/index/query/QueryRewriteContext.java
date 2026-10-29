@@ -23,10 +23,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -87,6 +89,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    protected Predicate<String> fieldVisibilityPredicate = Predicates.always();
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
@@ -400,9 +403,23 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
+        if (isInternalSliceField(name)) {
+            return null;
+        }
         final String fieldName = resolveSliceAlias(name);
         MappedFieldType fieldType = runtimeMappings.get(fieldName);
-        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+        if (fieldType == null) {
+            fieldType = mappingLookup.getFieldType(fieldName);
+        }
+
+        // if this field is a constant_keyword, and the user's role has FLS rules targeting this field, ensure these are respected
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
+            var visible = (mapperService != null && mapperService.isMetadataField(fieldType.name()))
+                || fieldVisibilityPredicate.test(fieldType.name());
+
+            return constantFieldType.applyFieldVisibility(visible);
+        }
+        return fieldType;
     }
 
     private String resolveSliceAlias(String fieldName) {
@@ -436,6 +453,14 @@ public class QueryRewriteContext {
 
     public void setAllowUnmappedFields(boolean allowUnmappedFields) {
         this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    /**
+     * Sets the field visibility predicate for this context.
+     * The default value allows all fields, so contexts requiring restricted visibility must set this before resolving fields.
+     */
+    public void setFieldVisibilityPredicate(Predicate<String> fieldVisibilityPredicate) {
+        this.fieldVisibilityPredicate = fieldVisibilityPredicate;
     }
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
@@ -598,8 +623,9 @@ public class QueryRewriteContext {
         if (isSliceFieldAlias(pattern)) {
             return Set.of(SliceIndexing.FIELD_NAME);
         }
-        if (isRoutingHiddenBySlice(pattern)) {
-            // A slice-enabled index hides _routing from field retrieval; it is fetched as _slice instead.
+        if (isRoutingHiddenBySlice(pattern) || isInternalSliceField(pattern)) {
+            // A slice-enabled index hides _routing from field retrieval (it is fetched as _slice instead) and never
+            // exposes its internal sort key and hash fields.
             return Set.of();
         }
         Set<String> matches;
@@ -622,6 +648,12 @@ public class QueryRewriteContext {
                 }
             }
         }
+        if (isSliceFieldAliasEnabled()
+            && (matches.contains(SliceIndexing.SLICE_KEY_FIELD_NAME) || matches.contains(SliceIndexing.SLICE_HASH_FIELD_NAME))) {
+            matches = new HashSet<>(matches);
+            matches.remove(SliceIndexing.SLICE_KEY_FIELD_NAME);
+            matches.remove(SliceIndexing.SLICE_HASH_FIELD_NAME);
+        }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
@@ -636,6 +668,15 @@ public class QueryRewriteContext {
      */
     protected final boolean isRoutingHiddenBySlice(String fieldName) {
         return isSliceFieldAliasEnabled() && RoutingFieldMapper.NAME.equals(fieldName);
+    }
+
+    /**
+     * {@code _slice_key} exists only for the slice layout (the index sort) and {@code _slice_hash} is a reserved name.
+     * Their encoded values mean nothing to users, so they are never resolvable by name on a slice-enabled index.
+     */
+    protected final boolean isInternalSliceField(String fieldName) {
+        return isSliceFieldAliasEnabled()
+            && (SliceIndexing.SLICE_KEY_FIELD_NAME.equals(fieldName) || SliceIndexing.SLICE_HASH_FIELD_NAME.equals(fieldName));
     }
 
     private boolean isSliceFieldAliasEnabled() {

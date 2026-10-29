@@ -932,6 +932,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -985,6 +990,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -1030,6 +1040,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("request_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -1072,6 +1087,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     Settings.Builder additionalSettings
                 ) {
                     additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
+                }
+
+                @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
                 }
 
                 @Override
@@ -1121,6 +1141,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public Set<String> affectedSettings() {
+                    return Set.of("template_setting", "other_setting");
+                }
+
+                @Override
                 public boolean overrulesTemplateAndRequestSettings() {
                     return true;
                 }
@@ -1130,6 +1155,64 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("overrule_value"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
         assertThat(aggregatedIndexSettings.get("other_setting"), equalTo("other_value"));
+    }
+
+    /**
+     * A {@code null} in the request cancels the value of a non-overruling provider and also takes precedence over a value from the
+     * template, so the setting is resolved to its default value.
+     */
+    public void testAggregateSettingsRequestNullCancelsProviderAndTemplateValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("nullified_setting", "template_value").put("other_template_setting", "value"));
+        });
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+        request.settings(Settings.builder().putNull("nullified_setting").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
+                additionalSettings -> additionalSettings.put("nullified_setting", "provided_value").put("other_provided_setting", "value")
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_template_setting"), equalTo("value"));
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
+    }
+
+    public void testAggregateSettingsTemplateNullCancelsProviderValue() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().putNull("nullified_setting"));
+        });
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            IndexSettingProviders.of(
+                Set.of("nullified_setting", "other_provided_setting"),
+                additionalSettings -> additionalSettings.put("nullified_setting", "provided_value").put("other_provided_setting", "value")
+            ).getIndexSettingProviders()
+        );
+
+        assertThat(aggregatedIndexSettings.get("nullified_setting"), nullValue());
+        assertThat(aggregatedIndexSettings.get("other_provided_setting"), equalTo("value"));
     }
 
     public void testInvalidAliasName() {
@@ -2248,6 +2331,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 EmptySystemIndices.INSTANCE,
                 true,
                 IndexSettingProviders.of(
+                    Set.of(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()),
                     (additionalSettings) -> additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting")
                 )
             );
@@ -2321,6 +2405,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     ) {
                         captured[0] = registryInstalledTemplate;
                     }
+
+                    @Override
+                    public Set<String> affectedSettings() {
+                        return Set.of();
+                    }
                 }))
             );
 
@@ -2378,6 +2467,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                         Settings.Builder additionalSettings
                     ) {
                         captured[0] = registryInstalledTemplate;
+                    }
+
+                    @Override
+                    public Set<String> affectedSettings() {
+                        return Set.of();
                     }
                 }))
             );

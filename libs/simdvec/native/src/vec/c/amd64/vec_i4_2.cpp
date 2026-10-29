@@ -64,7 +64,7 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
     return _mm512_reduce_add_epi32(_mm512_add_epi32(acc_high, acc_low));
 }
 
-EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packed_len) {
+EXPORT int32_t vec_doti4_2(const int8_t* doc, const int8_t* query, int32_t packed_len) {
     return doti4_inner_avx512(query, doc, packed_len);
 }
 

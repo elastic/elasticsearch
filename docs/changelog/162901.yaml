@@ -1,0 +1,5 @@
+area: Packaging
+issues: []
+pr: 162901
+summary: Remove compromised `eMudhra` roots from the bundled JDK's cacerts
+type: bug

@@ -237,7 +237,8 @@ public class BulkRequest extends UntypedActionRequest
     }
 
     /**
-     * The list of requests in this bulk request.
+     * The list of requests in this bulk request. This list may contain null values: requests are removed from it
+     * ({@code requests.set(idx, null)}) when a request is marked as failure, so that it is not processed again.
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;

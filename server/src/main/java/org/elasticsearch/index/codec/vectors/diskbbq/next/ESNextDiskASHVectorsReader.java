@@ -296,8 +296,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
                 endDoc = sliceAcceptDocs.endDoc();
             }
             return AshPostingsVisitor.createSliced(
-                ashMatrix.wT(),
-                dimension,
+                ashMatrix,
                 target,
                 fieldInfo.getVectorSimilarityFunction(),
                 unwrappedInput,
@@ -311,8 +310,7 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
             );
         }
         return AshPostingsVisitor.create(
-            ashMatrix.wT(),
-            dimension,
+            ashMatrix,
             target,
             fieldInfo.getVectorSimilarityFunction(),
             unwrappedInput,

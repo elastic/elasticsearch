@@ -254,6 +254,8 @@ public class InternalEngine extends Engine {
     protected static final String REAL_TIME_GET_FOR_UPDATE_REFRESH_SOURCE = "realtime_get_for_update";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
 
+    public static final String TOO_MANY_DOCS_MESSAGE_PREFIX = "Number of documents in the shard cannot exceed [";
+
     @SuppressWarnings("this-escape")
     public InternalEngine(EngineConfig engineConfig) {
         this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
@@ -2479,7 +2481,7 @@ public class InternalEngine extends Engine {
             releaseInFlightDocs(addingDocs);
             return new IllegalArgumentException(
                 Strings.format(
-                    "Number of documents in the shard cannot exceed [%d]; for more information, see [%s]",
+                    TOO_MANY_DOCS_MESSAGE_PREFIX + "%d]; for more information, see [%s]",
                     maxDocs,
                     ReferenceDocs.LUCENE_MAX_DOCS_LIMIT
                 )
@@ -2487,6 +2489,16 @@ public class InternalEngine extends Engine {
         } else {
             return null;
         }
+    }
+
+    /**
+     * The shard-full failure is a plain {@link IllegalArgumentException} so clients keep the same status and error type,
+     * which means it can only be recognised by its message.
+     */
+    public static boolean isTooManyDocsFailure(Throwable failure) {
+        return failure instanceof IllegalArgumentException
+            && failure.getMessage() != null
+            && failure.getMessage().startsWith(TOO_MANY_DOCS_MESSAGE_PREFIX);
     }
 
     private void releaseInFlightDocs(int numDocs) {

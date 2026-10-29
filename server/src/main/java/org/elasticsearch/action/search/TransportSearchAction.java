@@ -1220,8 +1220,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Whether {@code e} is a circuit breaker trip on this node. Unlike a failure of the remote cluster, which arrives wrapped in a transport
-     * exception, a 429 included, it fails the search even if the cluster can be skipped.
+     * Whether {@code e} is a circuit breaker trip on this node. Unlike a failure of the remote cluster, which arrives wrapped in a
+     * transport exception, a 429 included, it fails the search even if the cluster can be skipped.
      */
     static boolean isTripOnThisNode(Exception e) {
         return e instanceof CircuitBreakingException;

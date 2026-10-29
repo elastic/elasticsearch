@@ -1,8 +1,8 @@
 ---
 navigation_title: "Views"
 applies_to:
-  serverless: preview
-  stack: preview 9.4.0
+  serverless: ga
+  stack: ga 9.6+, preview 9.4-9.5
 products:
   - id: elasticsearch
 ---
@@ -101,11 +101,16 @@ Use views as if they were ordinary indices:
 FROM index_pattern
 ```
 
-Where `index_pattern` is a comma-separated list of index or view names, including
-wildcards and date-math.
+Where `index_pattern` is a comma-separated list of index or view names. Index
+expressions can include wildcards and date math. Whether a wildcard also matches
+views depends on the version and deployment type.
 
 ### Wildcard patterns and views [esql-views-wildcards]
-By default, a wildcard pattern in `FROM` does not match views. `FROM my_view` reads the view by exact name, while `FROM my-view-*` resolves to indices, data streams, and aliases only — registered views are excluded.
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+By default, a wildcard pattern in `FROM` does not match views. `FROM my-view-1`
+reads the view by exact name, while `FROM my-view-*` resolves to indices, data
+streams, and aliases only. Registered views are excluded.
 
 To include views in wildcard resolution, enable the `wildcards_match_views` setting:
 
@@ -114,7 +119,18 @@ SET wildcards_match_views = true;
 FROM my-view-*
 ```
 
-You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`, or change the cluster-wide default by setting `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or via the cluster settings API. A value set in the query overrides the request body, which overrides the cluster default.
+You can also send it in the `_query` request body as `"settings": {"wildcards_match_views": true}`. A value set in the query overrides the request body, but neither value enters a referenced view. Refer to [Settings across view boundaries](#settings-across-view-boundaries) for the limits and warnings.
+
+{applies_to}`stack: ga 9.6+` As an alternative, set the cluster-wide default
+with `esql.query.settings.wildcards_match_views` in `elasticsearch.yml` or
+through the cluster settings API. The cluster default applies both outside and
+inside views.
+
+:::
+:::{applies-item} stack: preview 9.4-9.5
+Wildcard patterns in `FROM` match registered views automatically.
+:::
+::::
 
 ## Privileges [esql-views-privileges]
 
@@ -180,9 +196,16 @@ The same country might appear in multiple views, producing multiple rows.
 We could combine these with a `STATS` command, using `SUM(count) BY country`.
 
 ### Use wildcards
+```{applies_to}
+stack: ga 9.6+, preview 9.4-9.5
+serverless: ga
+```
 
 :::{note}
-This example requires `wildcards_match_views = true`. By default, wildcards do not match views. Refer to [wildcard patterns and views](#esql-views-wildcards).
+:applies_to: { "stack": "ga 9.6+", "serverless": "ga" }
+This example requires `wildcards_match_views = true`. By default, wildcards do
+not match views. Refer to [wildcard patterns and views](#esql-views-wildcards)
+and review the [ES|QL view limitations](#esql-views-limitations).
 :::
 
 :::{include} _snippets/commands/examples/views.csv-spec/views_country_wildcard_sum.md
@@ -258,7 +281,7 @@ When multiple views are referenced within the same index pattern, each view exec
 
 ::::{applies-switch}
 
-:::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
 [Query compaction](#query-compaction) flattens nested view branches into one merge only when the result has at most 20 branches by default (`esql.query.max_branch_count`). If flattening would exceed that cap, {{esql}} keeps the nested plan instead of failing the query. The same setting also caps the total number of leaf branches in the query.
 
 A query and the views and subqueries it references are limited to 500 commands in total (`esql.query.max_command_count`). The limit applies both to the query as written and to the expanded plan after every view and subquery body is inlined, so deeply nested or heavily repeated view references fail instead of consuming unbounded memory.
@@ -272,14 +295,46 @@ Views, subqueries, and `FORK` share a maximum branch count of 8. For example, a 
 
 ### Combining branching and nesting [combining-branching-and-nesting]
 
-Branching and nesting are allowed in combination as long as there is never more than one branch point. This means nested branching has restrictions:
+::::{applies-switch}
 
-* A view can contain subqueries, but that view cannot be used together with other views, and the subqueries can only reference nested views that contain no further branching.
-* A subquery can contain views, but those views must not introduce any additional branch points via subqueries or `FORK`.
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+Nested branching is supported. A view definition can contain `FROM` subqueries,
+nested views, and `FORK`, and a query can combine that view with other
+branched sources. The complete expanded query remains subject to the branch and
+command limits described above. The restriction on two user-written `FORK`
+commands along the same uninterrupted pipeline still applies.
+:::
+
+:::{applies-item} stack: preview 9.4-9.5
+Branching and nesting are allowed in combination only when there is no more than
+one branch point:
+
+* A view can contain subqueries, but that view cannot be used together with other
+  views, and the subqueries can reference only nested views that contain no
+  further branching.
+* A subquery can contain views, but those views must not introduce any additional
+  branch points through subqueries or `FORK`.
+:::
+
+::::
 
 ### Query compaction
 
-When a view definition itself contains branches (subqueries or references to other views), those inner branches would normally create a second level of branching, which ES|QL does not allow. Query compaction solves this by flattening the inner branches into the outer branch set, producing a single-level plan when the flattened width is within `esql.query.max_branch_count` (20 by default). If flattening would exceed that cap, compaction is skipped and the nested plan is kept.
+When a view definition contains branches, such as subqueries or references to
+other views, query compaction tries to flatten the inner branches into the outer
+branch set.
+
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+Compaction produces a single-level plan when the flattened width is within
+`esql.query.max_branch_count` (20 by default). If flattening would exceed the
+limit, {{esql}} keeps the nested plan.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+Compaction produces the single branch point these versions require when the
+flattened plan has at most 8 branches. Otherwise, the query fails.
+:::
+::::
 
 The following example shows how compaction works. Two views are each defined as a pair of subqueries:
 
@@ -342,7 +397,21 @@ flowchart TD
     S --> AP["apache-events-*"]
 ```
 
-Compaction does **not** apply if the view definition contains any processing commands after its subqueries. Those commands need to run on the combined branch output, so the branch level cannot be collapsed and the query will fail.
+Compaction doesn't apply if the view definition contains processing commands
+after its subqueries. Those commands must run on the combined branch output, so
+the branch level can't be collapsed.
+
+::::{applies-switch}
+:::{applies-item} { "stack": "ga 9.6+", "serverless": "ga" }
+If compaction isn't possible, or flattening would exceed the branch cap, {{esql}}
+keeps the nested plan and executes it subject to the overall branch and command
+limits.
+:::
+:::{applies-item} stack: preview 9.4-9.5
+If compaction isn't possible, the query fails because these versions allow only
+one branch point in the plan.
+:::
+::::
 
 ## Limitations [esql-views-limitations]
 

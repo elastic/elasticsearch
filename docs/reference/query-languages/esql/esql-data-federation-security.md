@@ -2,7 +2,7 @@
 navigation_title: "Security"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -79,7 +79,7 @@ The {{esql}} Data Federation UI in {{kib}} requires the cluster `manage` privile
 
 #### Grant data source privileges in {{kib}} [grant-data-source-privileges-in-kibana]
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 You can grant `global.data_source` privileges from the {{kib}} role editor:

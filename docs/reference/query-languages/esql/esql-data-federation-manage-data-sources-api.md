@@ -2,7 +2,7 @@
 navigation_title: "Manage with API"
 description: "Create, get, list, delete, and test ES|QL Data Federation data sources with the /_query/data_source API."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -21,7 +21,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources]({{es-apis}}operation/operation-esql-delete-data-source) |
-| [Test connection](#test-a-connection) {applies_to}`stack: experimental 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
+| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
 
 ## Create or update a data source
 
@@ -29,7 +29,7 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 
 The create request does not validate connectivity to the external system.
 
-{applies_to}`stack: experimental 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+{applies_to}`stack: preview 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
 
 ::::{tab-set}
 :group: api-ref
@@ -160,7 +160,7 @@ A data source cannot be deleted while datasets still reference it. Delete the de
 
 ## Test a connection
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.

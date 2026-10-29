@@ -2,7 +2,7 @@
 navigation_title: "Data sources"
 description: "Connect Elasticsearch to external storage with ES|QL Data Federation. Create and manage data sources, choose an authentication model, and grant read access to your data."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch

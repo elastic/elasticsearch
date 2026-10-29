@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.MergePolicy;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -18,6 +19,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.metric.MetricAttributes;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -31,14 +33,30 @@ public class MergeMetrics {
     public static final String MERGE_QUEUED_ESTIMATED_MEMORY_SIZE = "es.merge.segments.memory.size";
     public static final String MERGE_TIME_IN_SECONDS = "es.merge.time";
     public static final String MERGE_FAILURE_TOTAL = "es.merge.failure.total";
+    public static final String MERGE_FAILURE_BLOBSTORE_TRANSIENT_TOTAL = "es.merge.failure.blobstore_transient.total";
     public static final String MERGE_ABORTED_TOTAL = "es.merge.aborted.total";
     public static MergeMetrics NOOP = new MergeMetrics(TelemetryProvider.NOOP.getMeterRegistry());
+
+    /**
+     * Packages of the S3, GCS and Azure SDKs and of the Elasticsearch clients that wrap them. An exception of a class in one of these
+     * packages, or thrown from a class in one of them (e.g. a Lucene {@code AlreadyClosedException} from a closed client), means the
+     * merge failed on the blob store and not on the merge itself.
+     */
+    static final List<String> BLOB_STORE_CLIENT_PACKAGES = List.of(
+        "software.amazon.awssdk.",
+        "com.google.cloud.",
+        "com.azure.",
+        "org.elasticsearch.repositories.s3.",
+        "org.elasticsearch.repositories.gcs.",
+        "org.elasticsearch.repositories.azure."
+    );
 
     private final LongCounter mergeSizeInBytes;
     private final LongCounter mergeMergedSegmentSizeInBytes;
     private final LongCounter mergeNumDocs;
     private final LongHistogram mergeTimeInSeconds;
     private final LongCounter mergeFailures;
+    private final LongCounter mergeBlobStoreTransientFailures;
     private final LongCounter mergeAborts;
 
     private final AtomicLong runningMergeSizeInBytes = new AtomicLong();
@@ -69,6 +87,11 @@ public class MergeMetrics {
         mergeFailures = meterRegistry.registerLongCounter(
             MERGE_FAILURE_TOTAL,
             "Number of merges that failed with an exception after they started",
+            "unit"
+        );
+        mergeBlobStoreTransientFailures = meterRegistry.registerLongCounter(
+            MERGE_FAILURE_BLOBSTORE_TRANSIENT_TOTAL,
+            "Number of merges that failed because the blob store was unreachable or closed",
             "unit"
         );
         mergeAborts = meterRegistry.registerLongCounter(
@@ -108,10 +131,23 @@ public class MergeMetrics {
     }
 
     public void onFailure(IndexMode indexMode, Throwable error) {
-        mergeFailures.incrementBy(
-            1,
-            Map.of(MetricAttributes.ES_INDEX_MODE, indexMode.getName(), MetricAttributes.ERROR_TYPE, MetricAttributes.errorType(error))
+        Map<String, Object> attributes = Map.of(
+            MetricAttributes.ES_INDEX_MODE,
+            indexMode.getName(),
+            MetricAttributes.ERROR_TYPE,
+            MetricAttributes.errorType(error)
         );
+        mergeFailures.incrementBy(1, attributes);
+        if (ExceptionsHelper.unwrapCausesAndSuppressed(error, MergeMetrics::isFromBlobStoreClient).isPresent()) {
+            mergeBlobStoreTransientFailures.incrementBy(1, attributes);
+        }
+    }
+
+    private static boolean isFromBlobStoreClient(Throwable t) {
+        StackTraceElement[] stackTrace = t.getStackTrace();
+        String thrownFrom = stackTrace.length > 0 ? stackTrace[0].getClassName() : "";
+        String exceptionClass = t.getClass().getName();
+        return BLOB_STORE_CLIENT_PACKAGES.stream().anyMatch(pkg -> exceptionClass.startsWith(pkg) || thrownFrom.startsWith(pkg));
     }
 
     public void onAborted(IndexMode indexMode) {

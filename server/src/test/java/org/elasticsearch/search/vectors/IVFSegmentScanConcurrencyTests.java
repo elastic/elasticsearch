@@ -94,7 +94,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
                     assertEquals("visited", one.visited, many.visited);
                     assertArrayEquals("docs", one.docs, many.docs);
                     assertArrayEquals("scores", one.scores, many.scores, 0f);
-                    assertPauseAndResumeChangeNothing(threads, leaf, query, accept, visitRatio, one);
+                    assertOpeningFirstChangesNothing(threads, leaf, query, accept, visitRatio, one);
                 }
             }
         } finally {
@@ -139,39 +139,28 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
     }
 
     /**
-     * Re-entry pauses a scan between rounds: pausing and resuming must change nothing, and whether a paused scan is worth
-     * continuing must not depend on how many parts ran its first round.
+     * A split leaf is opened before its parts run: one part plans the search and lists the budget without claiming any of
+     * it. Opening first must change nothing, and the parts must share the query quantized per centroid.
      */
-    private static void assertPauseAndResumeChangeNothing(
+    private static void assertOpeningFirstChangesNothing(
         ExecutorService threads,
         LeafReader leaf,
         float[] query,
         Bits accept,
         float visitRatio,
-        Result unpaused
+        Result notOpened
     ) throws Exception {
-        float pauseAt = randomFrom(0.3f, 0.6f, 0.9f);
         int parts = randomIntBetween(1, 8);
-        IVFSegmentScan paused = new IVFSegmentScan(parts);
-        paused.pauseAt(pauseAt);
-        List<MaxScoreTopKnnCollector> collectors = new ArrayList<>(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
-
-        IVFSegmentScan pausedAlone = new IVFSegmentScan(1);
-        pausedAlone.pauseAt(pauseAt);
-        runParts(threads, leaf, query, accept, visitRatio, pausedAlone, 1, -1);
-        float bar = unpaused.scores.length == 0 ? 0f : unpaused.scores[unpaused.scores.length / 2];
-        long remaining = paused.remainingBudget();
-        assertEquals(pausedAlone.remainingBudget(), remaining);
-        assertEquals(pausedAlone.worthContinuing(0.1f, 10, bar, K), paused.worthContinuing(0.1f, 10, bar, K));
-
-        paused.resume();
-        assertEquals("the second round is sliced by the work left after resuming", remaining, paused.remainingBudget());
-        collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, paused, parts, -1));
-        assertFalse("the parts share the query quantized per centroid", paused.quantizedQueries().isEmpty());
-        Result resumed = merge(collectors);
-        assertEquals("visited", unpaused.visited, resumed.visited);
-        assertArrayEquals("docs", unpaused.docs, resumed.docs);
-        assertArrayEquals("scores", unpaused.scores, resumed.scores, 0f);
+        IVFSegmentScan scan = new IVFSegmentScan(parts);
+        scan.pause();
+        List<MaxScoreTopKnnCollector> collectors = new ArrayList<>(runParts(threads, leaf, query, accept, visitRatio, scan, 1, -1));
+        scan.resume();
+        collectors.addAll(runParts(threads, leaf, query, accept, visitRatio, scan, parts, -1));
+        assertFalse("the parts share the query quantized per centroid", scan.quantizedQueries().isEmpty());
+        Result opened = merge(collectors);
+        assertEquals("visited", notOpened.visited, opened.visited);
+        assertArrayEquals("docs", notOpened.docs, opened.docs);
+        assertArrayEquals("scores", notOpened.scores, opened.scores, 0f);
     }
 
     /** Searches one leaf with {@code parts} threads sharing a scan; {@code failingPart} >= 0 makes that part throw. */

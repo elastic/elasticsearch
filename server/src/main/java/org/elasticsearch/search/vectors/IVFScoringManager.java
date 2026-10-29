@@ -36,7 +36,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.function.ToLongFunction;
 import java.util.stream.IntStream;
 
 /**
@@ -51,12 +50,6 @@ final class IVFScoringManager {
      * that (1.5 per core), so its size alone is not enough.
      */
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
-    /** With re-entry, the first round scans this fraction of each splittable leaf's budget. */
-    static final float PAUSE_AT = 0.6f;
-    /** ... and a leaf continues if a posting in this last fraction of its budget beat the shard bar. */
-    static final float WINDOW = 0.1f;
-    /** The window covers at least this many postings; small budgets would otherwise judge a leaf on one or two. */
-    static final int MIN_WINDOW_POSTINGS = 10;
 
     /** How one leaf is searched: as a whole (shapes that cannot be split) or in parts that share a scan. */
     record LeafSearch(LeafReaderContext ctx, IVFCollectorManager collectorManager, boolean usePrecondition) {}
@@ -64,13 +57,10 @@ final class IVFScoringManager {
     private final AbstractIVFKnnVectorQuery query;
     private final Weight filterWeight;
     private final float visitRatio;
-    private final int reentryMergeK;
     private final int parallelism;
     private final Leaf[] leaves;
 
     /**
-     * @param reentryMergeK the size of the shard's rescore pool if leaves should re-enter optimistically (scan part of their
-     *                      budget, then continue only if still producing competitive hits), or 0 to scan full budgets
      * @param maxParallelSlices how many slices the searcher runs in parallel (1 without an executor): the query is cut into
      *                          at most that many slices, and no more than there are cores
      */
@@ -79,13 +69,11 @@ final class IVFScoringManager {
         Weight filterWeight,
         float visitRatio,
         List<LeafSearch> leafSearches,
-        int reentryMergeK,
         int maxParallelSlices
     ) throws IOException {
         this.query = query;
         this.filterWeight = filterWeight;
         this.visitRatio = visitRatio;
-        this.reentryMergeK = filterWeight == null ? reentryMergeK : 0; // filtered searches always scan their full budget
         this.parallelism = Math.min(maxParallelSlices, PROCESSORS);
         this.leaves = new Leaf[leafSearches.size()];
         for (int i = 0; i < leaves.length; i++) {
@@ -98,14 +86,16 @@ final class IVFScoringManager {
     /**
      * Searches every leaf and returns one result per leaf, in leaf order, with SOAR duplicates removed. A leaf split into
      * parts is opened first (planned, and its budget listed), so that its parts start with work instead of waiting for the
-     * plan. With re-entry, like Lucene's optimistic kNN collection, it runs two rounds: every leaf scans part of its budget,
-     * then only leaves that are not tapped out continue. Decisions are taken between rounds, so they don't depend on thread
-     * timing.
+     * plan.
      */
     TopDocs[] search(TaskExecutor executor) throws IOException {
-        int[] all = new int[leaves.length];
-        Arrays.setAll(all, i -> i);
-        int[][] slices = slicesOf(all, leaf -> leaf.work);
+        long[] work = new long[leaves.length];
+        boolean[] splittable = new boolean[leaves.length];
+        for (int i = 0; i < leaves.length; i++) {
+            work[i] = leaves[i].work;
+            splittable[i] = leaves[i].splittable;
+        }
+        int[][] slices = slices(work, splittable, parallelism);
         int[] parts = new int[leaves.length];
         for (int[] slice : slices) {
             for (int leaf : slice) {
@@ -116,22 +106,15 @@ final class IVFScoringManager {
         for (int i = 0; i < leaves.length; i++) {
             leaves[i].scan = new IVFSegmentScan(Math.max(1, parts[i]));
             if (parts[i] > 1) {
-                leaves[i].scan.pauseAt(0f); // opening claims nothing
+                leaves[i].scan.pause(); // opening claims nothing
                 split.add(new int[] { i });
             }
         }
         run(executor, split.toArray(int[][]::new));
         for (Leaf leaf : leaves) {
-            if (reentryMergeK > 0 && leaf.splittable) {
-                leaf.scan.pauseAt(PAUSE_AT);
-            } else {
-                leaf.scan.resume();
-            }
+            leaf.scan.resume();
         }
         run(executor, slices);
-        if (reentryMergeK > 0) {
-            run(executor, slicesOf(reenteringLeaves(shardBar()), leaf -> leaf.scan.remainingBudget()));
-        }
         TopDocs[] results = new TopDocs[leaves.length];
         for (int i = 0; i < leaves.length; i++) {
             results[i] = AbstractIVFKnnVectorQuery.keepBestCopies(leaves[i].hits(), leaves[i].search.ctx().docBase);
@@ -150,56 +133,6 @@ final class IVFScoringManager {
             });
         }
         executor.invokeAll(tasks);
-    }
-
-    /** Slices the given leaves by {@code work}; returns slices of leaf indices. */
-    private int[][] slicesOf(int[] leafIndices, ToLongFunction<Leaf> work) {
-        long[] w = new long[leafIndices.length];
-        boolean[] splittable = new boolean[leafIndices.length];
-        for (int i = 0; i < leafIndices.length; i++) {
-            w[i] = work.applyAsLong(leaves[leafIndices[i]]);
-            splittable[i] = leaves[leafIndices[i]].splittable;
-        }
-        int[][] slices = slices(w, splittable, parallelism);
-        for (int[] slice : slices) {
-            for (int j = 0; j < slice.length; j++) {
-                slice[j] = leafIndices[slice[j]];
-            }
-        }
-        return slices;
-    }
-
-    /** The lowest score a doc needs to enter the shard's rescore pool, given what the leaves found so far. */
-    private float shardBar() {
-        List<Float> scores = new ArrayList<>();
-        for (Leaf leaf : leaves) {
-            for (ScoreDoc hit : AbstractIVFKnnVectorQuery.keepBestCopies(leaf.hits(), 0).scoreDocs) {
-                scores.add(hit.score);
-            }
-        }
-        if (scores.size() < reentryMergeK) {
-            return Float.NEGATIVE_INFINITY;
-        }
-        scores.sort(Comparator.reverseOrder());
-        return scores.get(reentryMergeK - 1);
-    }
-
-    /** Resumes the paused leaves still producing hits above {@code bar}, stops the others, and returns those resumed. */
-    private int[] reenteringLeaves(float bar) {
-        List<Integer> resumed = new ArrayList<>();
-        for (int i = 0; i < leaves.length; i++) {
-            Leaf leaf = leaves[i];
-            if (leaf.splittable == false || leaf.scan.remainingBudget() == 0) {
-                continue; // searched whole, or already done
-            }
-            if (leaf.scan.worthContinuing(WINDOW, MIN_WINDOW_POSTINGS, bar, leaf.kLeaf)) {
-                leaf.scan.resume();
-                resumed.add(i);
-            } else {
-                leaf.scan.stop();
-            }
-        }
-        return resumed.stream().mapToInt(Integer::intValue).toArray();
     }
 
     /**
@@ -349,31 +282,22 @@ final class IVFScoringManager {
             hits = topDocs;
         }
 
-        /**
-         * The leaf's hits so far: its whole-leaf result, or the exact top hits of all its finished parts (folding in parts
-         * finished since the last call) with their total visited count.
-         */
+        /** The leaf's hits: its whole-leaf result, or the exact top hits of all its parts with their total visited count. */
         synchronized TopDocs hits() {
             if (parts.isEmpty()) {
                 return hits != null ? hits : AbstractIVFKnnVectorQuery.NO_RESULTS;
             }
             BulkNeighborQueue merged = BulkNeighborQueue.forMerging(kLeaf);
             long visited = 0;
-            if (hits != null) {
-                visited += hits.totalHits.value();
-                insert(merged, hits);
-            }
             for (AbstractMaxScoreKnnCollector part : parts) {
                 visited += part.visitedCount();
                 // parts only exist for the plain queries, whose collectors are MaxScoreTopKnnCollector
                 insert(merged, ((BulkKnnCollector) part).unsortedTopK());
             }
-            parts.clear();
             ScoreDoc[] sorted = new ScoreDoc[merged.size()];
             int[] at = { sorted.length - 1 };
             merged.drain(encoded -> sorted[at[0]--] = new ScoreDoc(merged.decodeNodeId(encoded), merged.decodeScore(encoded)));
-            hits = new TopDocs(new TotalHits(visited, TotalHits.Relation.EQUAL_TO), sorted);
-            return hits;
+            return new TopDocs(new TotalHits(visited, TotalHits.Relation.EQUAL_TO), sorted);
         }
 
         private static void insert(BulkNeighborQueue queue, TopDocs topDocs) {

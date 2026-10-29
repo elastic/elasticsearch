@@ -478,15 +478,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         int ticket;
         while ((ticket = scan.claim(visitor, knnCollector)) >= 0) {
             int scoredDocs = 0;
-            float maxScore = Float.NaN;
             try {
                 scoredDocs = visitor.visit(knnCollector);
-                maxScore = visitor.lastVisitMaxScore();
             } catch (Throwable t) {
                 scan.fail();
                 throw t;
             } finally {
-                scan.complete(ticket, scoredDocs, maxScore);
+                scan.complete(ticket, scoredDocs);
             }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
@@ -845,11 +843,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */
         int resetPostingsScorer(PostingMetadata metadata) throws IOException;
-
-        /** The best score of the last visited posting list, or NaN if this visitor does not track it. */
-        default float lastVisitMaxScore() {
-            return Float.NaN;
-        }
 
         /**
          * Uses, and adds to, the query quantizations by centroid ordinal of the other parts searching the segment, so each is

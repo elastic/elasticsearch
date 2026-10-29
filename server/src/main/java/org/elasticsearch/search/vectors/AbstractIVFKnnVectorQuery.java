@@ -211,22 +211,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             final boolean usePrecondition = resolved != null && resolved.usePrecondition();
             leafSearches.add(new IVFScoringManager.LeafSearch(context, knnCollectorManagerForSegment, usePrecondition));
         }
-        int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
-        int reentryMergeK = ContextIndexSearcher.ivfReentryEnabled(indexSearcher) ? mergeK : 0;
         TopDocs[] perLeafResults = slices
-            ? new IVFScoringManager(
-                this,
-                filterWeight,
-                visitRatio,
-                leafSearches,
-                reentryMergeK,
-                ContextIndexSearcher.maximumParallelSlices(indexSearcher)
-            ).search(taskExecutor)
+            ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches, ContextIndexSearcher.maximumParallelSlices(indexSearcher))
+                .search(taskExecutor)
             : searchLeaves(taskExecutor, filterWeight, visitRatio, leafSearches);
         if (postFilterDelegate) {
             this.rawPerLeafResults = perLeafResults;
         }
 
+        int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {

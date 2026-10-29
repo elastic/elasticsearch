@@ -283,17 +283,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
-    /**
-     * Lets sliced DiskBBQ (IVF) kNN queries re-enter optimistically, like Lucene's optimistic kNN collection: each segment
-     * scans part of its budget, and only segments still producing competitive hits scan the rest. Trades recall for work.
-     */
-    public static final Setting<Boolean> IVF_REENTRY_ENABLED = Setting.boolSetting(
-        "search.vectors.ivf.reentry.enabled",
-        false,
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
     public static final Setting<Boolean> FETCH_PHASE_CHUNKED_ENABLED = Setting.boolSetting(
         "search.fetch_phase_chunked_enabled",
         true,
@@ -469,10 +458,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final int prewarmingMaxPoolFactorThreshold;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
-
     private volatile boolean ivfSlicesEnabled;
-
-    private volatile boolean ivfReentryEnabled;
     private volatile boolean enableFetchPhaseChunked;
     private volatile int fetchPhaseMaxInFlightChunks;
     private volatile int fetchPhaseTargetChunkBytes;
@@ -579,8 +565,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         ivfSlicesEnabled = IVF_SLICES_ENABLED.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(IVF_SLICES_ENABLED, this::setIvfSlicesEnabled);
-        ivfReentryEnabled = IVF_REENTRY_ENABLED.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(IVF_REENTRY_ENABLED, this::setIvfReentryEnabled);
         batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         enableFetchPhaseChunked = FETCH_PHASE_CHUNKED_ENABLED.get(settings);
         fetchPhaseMaxInFlightChunks = FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
@@ -630,10 +614,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setIvfSlicesEnabled(boolean ivfSlicesEnabled) {
         this.ivfSlicesEnabled = ivfSlicesEnabled;
-    }
-
-    private void setIvfReentryEnabled(boolean ivfReentryEnabled) {
-        this.ivfReentryEnabled = ivfReentryEnabled;
     }
 
     private void setEnableFetchPhaseChunked(boolean enableFetchPhaseChunked) {
@@ -2094,7 +2074,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 this::directoryMetricsDelta
             );
             searchContext.searcher().setIvfSlicesEnabled(ivfSlicesEnabled);
-            searchContext.searcher().setIvfReentryEnabled(ivfReentryEnabled);
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.

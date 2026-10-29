@@ -419,16 +419,8 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
         return vectors;
     }
 
-    private float postingMaxScore = Float.NEGATIVE_INFINITY;
-
-    @Override
-    public float lastVisitMaxScore() {
-        return postingMaxScore;
-    }
-
     @Override
     public int visit(KnnCollector knnCollector) throws IOException {
-        postingMaxScore = Float.NEGATIVE_INFINITY;
         int scoredDocs = 0;
 
         int limit = vectors - BULK_SIZE + 1;
@@ -486,8 +478,6 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
                 }
             }
         }
-
-        postingMaxScore = Math.max(postingMaxScore, maxScore);
 
         if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
             collectBulk(knnCollector, blockSize, mask, docsToScore, maxScore);

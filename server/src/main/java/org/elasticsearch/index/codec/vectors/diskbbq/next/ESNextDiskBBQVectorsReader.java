@@ -887,16 +887,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             }
         }
 
-        private float postingMaxScore = Float.NEGATIVE_INFINITY;
-
-        @Override
-        public float lastVisitMaxScore() {
-            return postingMaxScore;
-        }
-
         @Override
         public int visit(KnnCollector knnCollector) throws IOException {
-            postingMaxScore = Float.NEGATIVE_INFINITY;
             indexInput.seek(slicePos);
             // block processing
             int scoredDocs = 0;
@@ -941,8 +933,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         scores
                     );
                 }
-                postingMaxScore = Math.max(postingMaxScore, maxScore);
-
                 if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                     collectBulk(knnCollector, scores, BULK_SIZE, mask, docsToBulkScore, maxScore);
                 }
@@ -987,8 +977,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                             tailSize
                         );
                     }
-                    postingMaxScore = Math.max(postingMaxScore, maxScore);
-
                     if (knnCollector.minCompetitiveSimilarity() <= maxScore) {
                         collectBulk(knnCollector, scores, tailSize, mask, docsToBulkScore, maxScore);
                     }

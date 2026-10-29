@@ -778,8 +778,7 @@ public class KnnSearcher {
 
     /**
      * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
-     * searches with, with DiskBBQ slices (and, with {@code -Dbench.ivf_reentry}, optimistic re-entry) turned on or off;
-     * comparing slices must use the same searcher in both arms. Like Elasticsearch, it runs at most as many slices in parallel
+     * searches with, with DiskBBQ slices turned on or off; comparing slices must use the same searcher in both arms. Like Elasticsearch, it runs at most as many slices in parallel
      * as the pool has threads, unless {@code -Dbench.max_slices} says otherwise.
      */
     private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
@@ -804,11 +803,9 @@ public class KnnSearcher {
             searcher.setIdleThreads(() -> pool.getMaximumPoolSize() - pool.getActiveCount());
         }
         searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
-        searcher.setIvfReentryEnabled(Boolean.getBoolean("bench.ivf_reentry"));
         logger.info(
-            "searching with ContextIndexSearcher, ivf slices: {}, re-entry: {}, max parallel slices: {}",
+            "searching with ContextIndexSearcher, ivf slices: {}, max parallel slices: {}",
             Boolean.parseBoolean(slices),
-            Boolean.getBoolean("bench.ivf_reentry"),
             ContextIndexSearcher.maximumParallelSlices(searcher)
         );
         return searcher;

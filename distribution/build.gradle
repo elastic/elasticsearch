@@ -309,6 +309,71 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     integTestBin.from(integTestBinFiles)
     defaultNotice.from(buildDefaultNoticeTaskProvider)
     integTestNotice.from(buildServerNoticeTaskProvider)
+
+    library('libs') {
+      from dependencies.project(path: ':server')
+      into ''
+    }
+    library('libsVersionChecker') {
+      from dependencies.project(path: ':distribution:tools:java-version-checker')
+      into 'java-version-checker'
+    }
+    library('libsCliLauncher') {
+      from dependencies.project(path: ':distribution:tools:cli-launcher')
+      into 'cli-launcher'
+    }
+    library('libsServerCli') {
+      from dependencies.project(path: ':distribution:tools:server-cli')
+      into 'tools/server-cli'
+    }
+    library('libsServerLauncher') {
+      from dependencies.project(path: ':distribution:tools:server-launcher')
+      into 'tools/server-launcher'
+      serverLauncher()
+      nativeX64(dependencies.project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxX64'))
+      nativeAarch64(dependencies.project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxAarch64'))
+    }
+    library('libsWindowsServiceCli') {
+      from dependencies.project(path: ':distribution:tools:windows-service-cli')
+      into 'tools/windows-service-cli'
+    }
+    library('libsGeoIpCli') {
+      from dependencies.project(path: ':distribution:tools:geoip-cli')
+      into 'tools/geoip-cli'
+    }
+    library('libsPluginCli') {
+      from dependencies.project(path: ':distribution:tools:plugin-cli')
+      into 'tools/plugin-cli'
+    }
+    library('libsKeystoreCli') {
+      from dependencies.project(path: ':distribution:tools:keystore-cli')
+      into 'tools/keystore-cli'
+    }
+    library('libsSecurityCli') {
+      from dependencies.project(path: ':x-pack:plugin:security:cli')
+      into 'tools/security-cli'
+    }
+    library('libsAnsiConsole') {
+      from dependencies.project(path: ':distribution:tools:ansi-console')
+      into 'tools/ansi-console'
+    }
+    library('libsNative') {
+      // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
+      // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
+      // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
+      from dependencies.project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
+      into 'platform'
+      platformNative()
+    }
+    library('libsEntitlementAgent') {
+      from dependencies.project(path: ':libs:entitlement:agent')
+      into 'entitlement-agent'
+    }
+    library('libsEntitlementBridge') {
+      from dependencies.project(path: ':libs:entitlement:bridge')
+      into 'entitlement-bridge'
+      filtered()
+    }
   }
 
   configurations {
@@ -317,29 +382,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup class"
       }
     }
-  }
-
-  dependencies {
-    libs project(':server')
-
-    libsVersionChecker project(':distribution:tools:java-version-checker')
-    libsCliLauncher project(':distribution:tools:cli-launcher')
-    libsServerCli project(':distribution:tools:server-cli')
-    libsServerLauncher project(':distribution:tools:server-launcher')
-    libsServerLauncherNativeX64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxX64')
-    libsServerLauncherNativeAarch64 project(path: ':distribution:tools:server-launcher', configuration: 'nativeLinuxAarch64')
-    libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
-    libsAnsiConsole project(':distribution:tools:ansi-console')
-    libsPluginCli project(':distribution:tools:plugin-cli')
-    libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
-    libsSecurityCli project(':x-pack:plugin:security:cli')
-    libsGeoIpCli project(':distribution:tools:geoip-cli')
-    // Request the dedicated `nativeLibs` consumable variant — see libs/native/libraries/build.gradle.
-    // Do not switch this back to the `default` configuration: it is plugin-order dependent and would
-    // silently bind to the Java runtime variant if `elasticsearch.build` is ever applied to that project.
-    libsNative project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')
-    libsEntitlementAgent project(':libs:entitlement:agent')
-    libsEntitlementBridge project(':libs:entitlement:bridge')
   }
 }
 

@@ -12,7 +12,15 @@ package org.elasticsearch.gradle.internal.distribution;
 import org.apache.tools.ant.filters.FixCrLfFilter;
 import org.apache.tools.ant.filters.ReplaceTokens;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.transform.FilteringJarTransform;
+import org.gradle.api.Action;
+import org.gradle.api.Named;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Bundling;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.DirectoryProperty;
@@ -21,6 +29,7 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +43,7 @@ public class DistributionLayoutExtension {
 
     private final Project project;
     private final FileSystemOperations fileSystemOperations;
+    private final ObjectFactory objects;
     private final Provider<Map<String, Map<String, String>>> requestedTokenExpansions;
 
     private final DirectoryProperty sourceDirectory;
@@ -49,6 +59,7 @@ public class DistributionLayoutExtension {
     private final ConfigurableFileCollection defaultNotice;
     private final ConfigurableFileCollection integTestNotice;
 
+    private final List<RegisteredLibrary> registeredLibraries = new ArrayList<>();
     private final Map<String, Map<String, String>> requestedExpansions = new LinkedHashMap<>();
 
     public DistributionLayoutExtension(
@@ -59,6 +70,7 @@ public class DistributionLayoutExtension {
     ) {
         this.project = project;
         this.fileSystemOperations = fileSystemOperations;
+        this.objects = objects;
 
         sourceDirectory = objects.directoryProperty();
         defaultModules = objects.fileCollection();
@@ -82,36 +94,58 @@ public class DistributionLayoutExtension {
         });
     }
 
+    /**
+     * Registers one distribution library and eagerly creates its backing resolvable configuration.
+     * <p>
+     * Keeping registration in the build script lets distribution library source declarations live beside the project path dependency
+     * declarations, while this extension applies a shared configuration model and consistent copy-layout behavior.
+     * </p>
+     */
+    public void library(String name, Action<LibrarySpec> action) {
+        LibrarySpec spec = new LibrarySpec(name);
+        action.execute(spec);
+        RegisteredLibrary registered = spec.build();
+
+        createRuntimeLibraryConfiguration(registered.name(), registered.filtered());
+        project.getDependencies().add(registered.name(), registered.dependencyNotation());
+
+        if (registered.layout() == DistributionLibraries.Layout.SERVER_LAUNCHER) {
+            createRuntimeLibraryConfiguration(registered.nativeX64Configuration(), false);
+            createRuntimeLibraryConfiguration(registered.nativeAarch64Configuration(), false);
+            project.getDependencies().add(registered.nativeX64Configuration(), registered.nativeX64DependencyNotation());
+            project.getDependencies().add(registered.nativeAarch64Configuration(), registered.nativeAarch64DependencyNotation());
+        }
+
+        registeredLibraries.add(registered);
+    }
+
     public CopySpec lib(String os, String architecture) {
         CopySpec spec = fileSystemOperations.copySpec();
-        for (DistributionLibraries.LibraryEntry entry : DistributionLibraries.entries()) {
-            switch (entry.configuration()) {
-                case DistributionLibraries.LIBS -> spec.from(configuration(entry.configuration()));
-                case DistributionLibraries.LIBS_SERVER_LAUNCHER -> spec.into(entry.targetDirectory(), nested -> {
-                    nested.from(configuration(entry.configuration()));
-                    for (String nativeConfig : DistributionLibraries.linuxServerLauncherNativeConfigurations(os, architecture)) {
-                        nested.from(configuration(nativeConfig));
+        for (RegisteredLibrary library : registeredLibraries) {
+            switch (library.layout()) {
+                case ROOT -> spec.from(configuration(library.name()));
+                case NESTED -> spec.into(library.targetDirectory(), nested -> nested.from(configuration(library.name())));
+                case SERVER_LAUNCHER -> spec.into(library.targetDirectory(), nested -> {
+                    nested.from(configuration(library.name()));
+                    String nativeConfiguration = DistributionLibraries.linuxServerLauncherNativeConfiguration(
+                        os,
+                        architecture,
+                        library.nativeX64Configuration(),
+                        library.nativeAarch64Configuration()
+                    );
+                    if (nativeConfiguration != null) {
+                        nested.from(configuration(nativeConfiguration));
                     }
                     nested.eachFile(DistributionPermissions.serverLauncher());
                 });
-                case DistributionLibraries.LIBS_NATIVE -> spec.into(entry.targetDirectory(), nested -> {
-                    nested.from(configuration(entry.configuration()));
+                case PLATFORM_NATIVE -> spec.into(library.targetDirectory(), nested -> {
+                    nested.from(configuration(library.name()));
                     String include = DistributionLibraries.platformInclude(os, architecture);
                     if (include != null) {
                         nested.include(include);
                     }
                 });
-                case DistributionLibraries.LIBS_VERSION_CHECKER, DistributionLibraries.LIBS_CLI_LAUNCHER,
-                    DistributionLibraries.LIBS_SERVER_CLI, DistributionLibraries.LIBS_WINDOWS_SERVICE_CLI,
-                    DistributionLibraries.LIBS_GEOIP_CLI, DistributionLibraries.LIBS_PLUGIN_CLI, DistributionLibraries.LIBS_KEYSTORE_CLI,
-                    DistributionLibraries.LIBS_SECURITY_CLI, DistributionLibraries.LIBS_ANSI_CONSOLE,
-                    DistributionLibraries.LIBS_ENTITLEMENT_AGENT, DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE -> spec.into(
-                        entry.targetDirectory(),
-                        nested -> nested.from(configuration(entry.configuration()))
-                    );
-                default -> throw new IllegalArgumentException(
-                    "Unexpected distribution library configuration [" + entry.configuration() + "]"
-                );
+                default -> throw new IllegalArgumentException("Unexpected distribution library layout [" + library.layout() + "]");
             }
         }
         return spec;
@@ -285,4 +319,165 @@ public class DistributionLayoutExtension {
     private Object configuration(String name) {
         return project.getConfigurations().getByName(name);
     }
+
+    private void createRuntimeLibraryConfiguration(String name, boolean filtered) {
+        project.getConfigurations().create(name, configuration -> {
+            configureRuntimeLibraryConfiguration(configuration);
+            if (filtered) {
+                configuration.getAttributes()
+                    .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, FilteringJarTransform.FILTERED_JAR_TYPE);
+            }
+        });
+    }
+
+    private void configureRuntimeLibraryConfiguration(Configuration configuration) {
+        configuration.setCanBeConsumed(false);
+        configuration.setCanBeResolved(true);
+        configuration.attributes(attributes -> {
+            attributes.attribute(Category.CATEGORY_ATTRIBUTE, named(Category.class, Category.LIBRARY));
+            attributes.attribute(Usage.USAGE_ATTRIBUTE, named(Usage.class, Usage.JAVA_RUNTIME));
+            attributes.attribute(Bundling.BUNDLING_ATTRIBUTE, named(Bundling.class, Bundling.EXTERNAL));
+        });
+    }
+
+    private <T extends Named> T named(Class<T> type, String name) {
+        return objects.named(type, name);
+    }
+
+    /**
+     * Specification of one script-declared distribution library registration.
+     */
+    public static final class LibrarySpec {
+
+        private final String name;
+
+        private Object dependencyNotation;
+        private String targetDirectory;
+        private boolean serverLauncher;
+        private boolean platformNative;
+        private boolean filtered;
+        private Object nativeX64DependencyNotation;
+        private Object nativeAarch64DependencyNotation;
+
+        private LibrarySpec(String name) {
+            this.name = name;
+        }
+
+        /**
+         * Declares the dependency notation to add to the library configuration.
+         */
+        public void from(Object dependencyNotation) {
+            this.dependencyNotation = dependencyNotation;
+        }
+
+        /**
+         * Declares the relative target directory under {@code lib/} where this library is copied.
+         */
+        public void into(String targetDirectory) {
+            this.targetDirectory = targetDirectory;
+        }
+
+        /**
+         * Marks this library as the server-launcher layout, enabling native launcher variants and executable permissions.
+         */
+        public void serverLauncher() {
+            this.serverLauncher = true;
+        }
+
+        /**
+         * Marks this library as platform-native and applies per-platform include filtering.
+         */
+        public void platformNative() {
+            this.platformNative = true;
+        }
+
+        /**
+         * Marks this library's configuration to request filtered JAR artifacts.
+         */
+        public void filtered() {
+            this.filtered = true;
+        }
+
+        /**
+         * Declares the native x64 dependency notation for a server-launcher library.
+         */
+        public void nativeX64(Object dependencyNotation) {
+            this.nativeX64DependencyNotation = dependencyNotation;
+        }
+
+        /**
+         * Declares the native aarch64 dependency notation for a server-launcher library.
+         */
+        public void nativeAarch64(Object dependencyNotation) {
+            this.nativeAarch64DependencyNotation = dependencyNotation;
+        }
+
+        private RegisteredLibrary build() {
+            if (dependencyNotation == null) {
+                throw new IllegalArgumentException("Missing from(...) declaration for distribution library [" + name + "]");
+            }
+            if (targetDirectory == null) {
+                throw new IllegalArgumentException("Missing into(...) declaration for distribution library [" + name + "]");
+            }
+            if (serverLauncher && platformNative) {
+                throw new IllegalArgumentException(
+                    "Distribution library [" + name + "] cannot be both serverLauncher() and platformNative()"
+                );
+            }
+            if (serverLauncher == false && (nativeX64DependencyNotation != null || nativeAarch64DependencyNotation != null)) {
+                throw new IllegalArgumentException(
+                    "Distribution library [" + name + "] declares native launcher dependencies without serverLauncher()"
+                );
+            }
+
+            DistributionLibraries.Layout layout = layout();
+            if (layout == DistributionLibraries.Layout.SERVER_LAUNCHER) {
+                if (nativeX64DependencyNotation == null || nativeAarch64DependencyNotation == null) {
+                    throw new IllegalArgumentException(
+                        "Distribution library ["
+                            + name
+                            + "] with serverLauncher() requires both nativeX64(...) and nativeAarch64(...) declarations"
+                    );
+                }
+                return new RegisteredLibrary(
+                    name,
+                    targetDirectory,
+                    layout,
+                    filtered,
+                    dependencyNotation,
+                    name + "NativeX64",
+                    name + "NativeAarch64",
+                    nativeX64DependencyNotation,
+                    nativeAarch64DependencyNotation
+                );
+            }
+
+            return new RegisteredLibrary(name, targetDirectory, layout, filtered, dependencyNotation, null, null, null, null);
+        }
+
+        private DistributionLibraries.Layout layout() {
+            if (serverLauncher) {
+                return DistributionLibraries.Layout.SERVER_LAUNCHER;
+            }
+            if (platformNative) {
+                return DistributionLibraries.Layout.PLATFORM_NATIVE;
+            }
+            if (targetDirectory.isEmpty()) {
+                return DistributionLibraries.Layout.ROOT;
+            }
+            return DistributionLibraries.Layout.NESTED;
+        }
+    }
+
+    private record RegisteredLibrary(
+        String name,
+        String targetDirectory,
+        DistributionLibraries.Layout layout,
+        boolean filtered,
+        Object dependencyNotation,
+        String nativeX64Configuration,
+        String nativeAarch64Configuration,
+        Object nativeX64DependencyNotation,
+        Object nativeAarch64DependencyNotation
+    ) {}
 }

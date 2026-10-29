@@ -12,7 +12,6 @@ package org.elasticsearch.gradle.internal.distribution;
 import org.elasticsearch.gradle.transform.FilteringJarTransform;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
-import org.gradle.api.internal.plugins.PluginApplicationException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Bundling;
@@ -54,24 +53,26 @@ public class DistributionLayoutPluginTests {
         Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder("project")).build();
 
         project.getPlugins().apply(DistributionLayoutPlugin.class);
+        DistributionLayoutExtension extension = extension(project);
+        registerLibraries(project, extension);
 
         for (String name : List.of(
-            DistributionLibraries.LIBS,
-            DistributionLibraries.LIBS_VERSION_CHECKER,
-            DistributionLibraries.LIBS_CLI_LAUNCHER,
-            DistributionLibraries.LIBS_SERVER_CLI,
-            DistributionLibraries.LIBS_SERVER_LAUNCHER,
-            DistributionLibraries.LIBS_SERVER_LAUNCHER_NATIVE_X64,
-            DistributionLibraries.LIBS_SERVER_LAUNCHER_NATIVE_AARCH64,
-            DistributionLibraries.LIBS_WINDOWS_SERVICE_CLI,
-            DistributionLibraries.LIBS_PLUGIN_CLI,
-            DistributionLibraries.LIBS_KEYSTORE_CLI,
-            DistributionLibraries.LIBS_SECURITY_CLI,
-            DistributionLibraries.LIBS_GEOIP_CLI,
-            DistributionLibraries.LIBS_ANSI_CONSOLE,
-            DistributionLibraries.LIBS_NATIVE,
-            DistributionLibraries.LIBS_ENTITLEMENT_AGENT,
-            DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE
+            "libs",
+            "libsVersionChecker",
+            "libsCliLauncher",
+            "libsServerCli",
+            "libsServerLauncher",
+            "libsServerLauncherNativeX64",
+            "libsServerLauncherNativeAarch64",
+            "libsWindowsServiceCli",
+            "libsPluginCli",
+            "libsKeystoreCli",
+            "libsSecurityCli",
+            "libsGeoIpCli",
+            "libsAnsiConsole",
+            "libsNative",
+            "libsEntitlementAgent",
+            "libsEntitlementBridge"
         )) {
             Configuration configuration = project.getConfigurations().getByName(name);
             assertEquals(false, configuration.isCanBeConsumed());
@@ -84,7 +85,7 @@ public class DistributionLayoutPluginTests {
         assertEquals(
             FilteringJarTransform.FILTERED_JAR_TYPE,
             project.getConfigurations()
-                .getByName(DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE)
+                .getByName("libsEntitlementBridge")
                 .getAttributes()
                 .getAttribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE)
         );
@@ -93,12 +94,20 @@ public class DistributionLayoutPluginTests {
     @Test
     public void duplicateConfigurationCreationFailsLoudly() throws IOException {
         Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder("duplicate")).build();
-        project.getConfigurations().create(DistributionLibraries.LIBS);
+        project.getPlugins().apply(DistributionLayoutPlugin.class);
 
-        PluginApplicationException error = assertThrows(PluginApplicationException.class, () -> project.getPlugins().apply(DistributionLayoutPlugin.class));
+        DistributionLayoutExtension extension = extension(project);
+        extension.library("libs", library -> {
+            library.from(project.files("server.jar"));
+            library.into("");
+        });
 
-        assertTrue(error.getCause() instanceof InvalidUserDataException);
-        assertTrue(error.getCause().getMessage().contains(DistributionLibraries.LIBS));
+        InvalidUserDataException error = assertThrows(InvalidUserDataException.class, () -> extension.library("libs", library -> {
+            library.from(project.files("server-duplicate.jar"));
+            library.into("");
+        }));
+
+        assertTrue(error.getMessage().contains("libs"));
     }
 
     @Test
@@ -109,9 +118,14 @@ public class DistributionLayoutPluginTests {
         File inputJar = temporaryFolder.newFile("bridge.jar");
         writeJar(inputJar);
 
-        project.getDependencies().add(DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE, project.files(inputJar));
+        DistributionLayoutExtension extension = extension(project);
+        extension.library("libsEntitlementBridge", library -> {
+            library.from(project.files(inputJar));
+            library.into("entitlement-bridge");
+            library.filtered();
+        });
 
-        File transformed = project.getConfigurations().getByName(DistributionLibraries.LIBS_ENTITLEMENT_BRIDGE).getSingleFile();
+        File transformed = project.getConfigurations().getByName("libsEntitlementBridge").getSingleFile();
 
         assertNotEquals(inputJar.getCanonicalFile(), transformed.getCanonicalFile());
         try (ZipFile zip = new ZipFile(transformed)) {
@@ -130,7 +144,7 @@ public class DistributionLayoutPluginTests {
         writeLicenses(project.getProjectDir().toPath());
         project.getPlugins().apply(DistributionLayoutPlugin.class);
 
-        DistributionLayoutExtension extension = (DistributionLayoutExtension) project.getExtensions().getByName("esDistributionLayout");
+        DistributionLayoutExtension extension = extension(project);
         extension.tokenExpansions("zip", true);
         extension.tokenExpansions("deb", false);
 
@@ -147,6 +161,74 @@ public class DistributionLayoutPluginTests {
             List<String> sortedKeys = new ArrayList<>(keys);
             Collections.sort(sortedKeys);
             assertEquals(sortedKeys, keys);
+        });
+    }
+
+    private static DistributionLayoutExtension extension(Project project) {
+        return (DistributionLayoutExtension) project.getExtensions().getByName("esDistributionLayout");
+    }
+
+    private static void registerLibraries(Project project, DistributionLayoutExtension extension) {
+        extension.library("libs", library -> {
+            library.from(project.files("server.jar"));
+            library.into("");
+        });
+        extension.library("libsVersionChecker", library -> {
+            library.from(project.files("java-version-checker.jar"));
+            library.into("java-version-checker");
+        });
+        extension.library("libsCliLauncher", library -> {
+            library.from(project.files("cli-launcher.jar"));
+            library.into("cli-launcher");
+        });
+        extension.library("libsServerCli", library -> {
+            library.from(project.files("server-cli.jar"));
+            library.into("tools/server-cli");
+        });
+        extension.library("libsServerLauncher", library -> {
+            library.from(project.files("server-launcher.jar"));
+            library.into("tools/server-launcher");
+            library.serverLauncher();
+            library.nativeX64(project.files("server-launcher-linux-x64"));
+            library.nativeAarch64(project.files("server-launcher-linux-aarch64"));
+        });
+        extension.library("libsWindowsServiceCli", library -> {
+            library.from(project.files("windows-service-cli.jar"));
+            library.into("tools/windows-service-cli");
+        });
+        extension.library("libsGeoIpCli", library -> {
+            library.from(project.files("geoip-cli.jar"));
+            library.into("tools/geoip-cli");
+        });
+        extension.library("libsPluginCli", library -> {
+            library.from(project.files("plugin-cli.jar"));
+            library.into("tools/plugin-cli");
+        });
+        extension.library("libsKeystoreCli", library -> {
+            library.from(project.files("keystore-cli.jar"));
+            library.into("tools/keystore-cli");
+        });
+        extension.library("libsSecurityCli", library -> {
+            library.from(project.files("security-cli.jar"));
+            library.into("tools/security-cli");
+        });
+        extension.library("libsAnsiConsole", library -> {
+            library.from(project.files("ansi-console.jar"));
+            library.into("tools/ansi-console");
+        });
+        extension.library("libsNative", library -> {
+            library.from(project.files("platform"));
+            library.into("platform");
+            library.platformNative();
+        });
+        extension.library("libsEntitlementAgent", library -> {
+            library.from(project.files("entitlement-agent.jar"));
+            library.into("entitlement-agent");
+        });
+        extension.library("libsEntitlementBridge", library -> {
+            library.from(project.files("entitlement-bridge.jar"));
+            library.into("entitlement-bridge");
+            library.filtered();
         });
     }
 

@@ -53,25 +53,68 @@ class DistributionLayoutPluginFuncTest extends AbstractGradleInternalPluginFuncT
               integTestBin.from(fileTree('fixtures/bin-integ'))
               defaultNotice.from(file('fixtures/notice/NOTICE.txt'))
               integTestNotice.from(file('fixtures/notice/NOTICE-SERVER.txt'))
-            }
 
-            dependencies {
-              libs files('fixtures/libs/server.jar')
-              libsVersionChecker files('fixtures/libs/java-version-checker.jar')
-              libsCliLauncher files('fixtures/libs/cli-launcher.jar')
-              libsServerCli files('fixtures/libs/server-cli.jar')
-              libsServerLauncher files('fixtures/libs/server-launcher.jar')
-              libsServerLauncherNativeX64 files('fixtures/libs/native-launchers/x64/server-launcher')
-              libsServerLauncherNativeAarch64 files('fixtures/libs/native-launchers/aarch64/server-launcher')
-              libsWindowsServiceCli files('fixtures/libs/windows-service-cli.jar')
-              libsPluginCli files('fixtures/libs/plugin-cli.jar')
-              libsKeystoreCli files('fixtures/libs/keystore-cli.jar')
-              libsSecurityCli files('fixtures/libs/security-cli.jar')
-              libsGeoIpCli files('fixtures/libs/geoip-cli.jar')
-              libsAnsiConsole files('fixtures/libs/ansi-console.jar')
-              libsNative files('fixtures/libs/platform')
-              libsEntitlementAgent files('fixtures/libs/entitlement-agent.jar')
-              libsEntitlementBridge files('fixtures/libs/entitlement-bridge.jar')
+              library('libs') {
+                from files('fixtures/libs/server.jar')
+                into ''
+              }
+              library('libsVersionChecker') {
+                from files('fixtures/libs/java-version-checker.jar')
+                into 'java-version-checker'
+              }
+              library('libsCliLauncher') {
+                from files('fixtures/libs/cli-launcher.jar')
+                into 'cli-launcher'
+              }
+              library('libsServerCli') {
+                from files('fixtures/libs/server-cli.jar')
+                into 'tools/server-cli'
+              }
+              library('libsServerLauncher') {
+                from files('fixtures/libs/server-launcher.jar')
+                into 'tools/server-launcher'
+                serverLauncher()
+                nativeX64(files('fixtures/libs/native-launchers/x64/server-launcher'))
+                nativeAarch64(files('fixtures/libs/native-launchers/aarch64/server-launcher'))
+              }
+              library('libsWindowsServiceCli') {
+                from files('fixtures/libs/windows-service-cli.jar')
+                into 'tools/windows-service-cli'
+              }
+              library('libsGeoIpCli') {
+                from files('fixtures/libs/geoip-cli.jar')
+                into 'tools/geoip-cli'
+              }
+              library('libsPluginCli') {
+                from files('fixtures/libs/plugin-cli.jar')
+                into 'tools/plugin-cli'
+              }
+              library('libsKeystoreCli') {
+                from files('fixtures/libs/keystore-cli.jar')
+                into 'tools/keystore-cli'
+              }
+              library('libsSecurityCli') {
+                from files('fixtures/libs/security-cli.jar')
+                into 'tools/security-cli'
+              }
+              library('libsAnsiConsole') {
+                from files('fixtures/libs/ansi-console.jar')
+                into 'tools/ansi-console'
+              }
+              library('libsNative') {
+                from files('fixtures/libs/platform')
+                into 'platform'
+                platformNative()
+              }
+              library('libsEntitlementAgent') {
+                from files('fixtures/libs/entitlement-agent.jar')
+                into 'entitlement-agent'
+              }
+              library('libsEntitlementBridge') {
+                from files('fixtures/libs/entitlement-bridge.jar')
+                into 'entitlement-bridge'
+                filtered()
+              }
             }
 
             tasks.register('buildLinuxTar', Tar) {

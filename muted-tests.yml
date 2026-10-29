@@ -453,3 +453,8 @@ tests:
   - :x-pack:plugin:security:internalClusterTest
   method: testColumnarGeoShapeRespectsFieldLevelSecurity
   issue: https://github.com/elastic/elasticsearch/issues/163935
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testBinaryWithDifferentSelectors
+  issue: https://github.com/elastic/elasticsearch/issues/163941

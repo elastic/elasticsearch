@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -60,7 +59,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -94,11 +92,17 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         masterNodeNames = internalCluster().startMasterOnlyNodes(2);
         dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
+        // A history write that is still buffered when the test ends can recreate .slm-history-* after the cluster is wiped
+        setSlmHistoryEnabled(false);
     }
 
     @After
     public void cleanUp() throws Exception {
         awaitNoMoreRunningOperations();
+    }
+
+    private static void setSlmHistoryEnabled(boolean enabled) {
+        updateClusterSettings(Settings.builder().put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), enabled));
     }
 
     @Override
@@ -163,6 +167,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     }
 
     public void testRetentionWhileSnapshotInProgress() throws Exception {
+        setSlmHistoryEnabled(true);
         final String indexName = "test";
         final String policyId = "slm-policy";
         int docCount = 20;
@@ -298,6 +303,15 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                     }
                 )
             );
+
+            // The second snapshot also writes one creation record, as a success or a failure. Wait for it so that
+            // no history write is still buffered when the cluster is wiped.
+            assertBusy(
+                () -> assertResponse(
+                    prepareSearch(".slm-history*").setQuery(QueryBuilders.termQuery("snapshot_name", secondSnapName)),
+                    resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(1L))
+                )
+            );
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
@@ -332,13 +346,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             ExecuteSnapshotLifecycleAction.INSTANCE,
             new ExecuteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policyId)
         ).get();
-        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
-        // are stopped
-        ensureGreen(SLM_HISTORY_DATA_STREAM);
-        updateIndexSettings(
-            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0),
-            SLM_HISTORY_DATA_STREAM
-        );
         testUnsuccessfulSnapshotRetention(randomBoolean());
     }
 

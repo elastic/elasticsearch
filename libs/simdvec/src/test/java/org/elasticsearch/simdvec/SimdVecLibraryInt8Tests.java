@@ -10,7 +10,6 @@
 package org.elasticsearch.simdvec;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
@@ -32,11 +31,6 @@ public class SimdVecLibraryInt8Tests extends SimdVecLibraryTests {
     @BeforeClass
     public static void beforeClass() {
         SimdVecLibraryTests.setup();
-    }
-
-    @AfterClass
-    public static void afterClass() {
-        SimdVecLibraryTests.cleanup();
     }
 
     public void testAllZeroValues() {

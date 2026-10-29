@@ -16,8 +16,10 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -192,5 +194,88 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         assertThat(shard, notNullValue());
         final TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
         assertThat(response.getFields(), containsInAnyOrder("group", "user.first", "user.last"));
+    }
+
+    public void testArtificialDocInvalidFieldThrowsBadRequest() throws IOException {
+        // Index with no object fields
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("title")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        final Settings settings = Settings.builder().put("number_of_shards", 1).build();
+        createIndex("test", settings, mapping);
+        ensureGreen();
+
+        final TermVectorsRequest request = new TermVectorsRequest().doc(
+            jsonBuilder().startObject().field("title.autocomplete", "Sea-view villas").endObject()
+        );
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        assertThat(shard, notNullValue());
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> TermVectorsService.getTermVectors(shard, request));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    public void testArtificialDocWithDottedFieldsUnderObjectMapping() throws IOException {
+        // Index with object fields
+        final XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("student")
+            .startObject("properties")
+            .startObject("address")
+            .startObject("properties")
+            .startObject("pinCode")
+            .field("type", "text")
+            .endObject()
+            .startObject("city")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        final Settings settings = Settings.builder().put("number_of_shards", 1).build();
+        createIndex("test", settings, mapping);
+        ensureGreen();
+
+        final TermVectorsRequest request = new TermVectorsRequest().doc(
+            jsonBuilder().startObject().field("student.address.pinCode", "533236").field("student.address.city", "Ryali").endObject()
+        );
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        assertThat(shard, notNullValue());
+
+        final TermVectorsResponse response = TermVectorsService.getTermVectors(shard, request);
+        assertThat(response.isArtificial(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getFields(), containsInAnyOrder("student.address.pinCode", "student.address.city"));
+
+        final Terms pinCodeTerms = response.getFields().terms("student.address.pinCode");
+        assertThat(pinCodeTerms, notNullValue());
+        assertThat(pinCodeTerms.size(), equalTo(1L));
+        final TermsEnum pinCodeIterator = pinCodeTerms.iterator();
+        assertThat(pinCodeIterator.next(), notNullValue());
+        assertThat(pinCodeIterator.term().utf8ToString(), equalTo("533236"));
+
+        final Terms cityTerms = response.getFields().terms("student.address.city");
+        assertThat(cityTerms, notNullValue());
+        assertThat(cityTerms.size(), equalTo(1L));
+        final TermsEnum cityIterator = cityTerms.iterator();
+        assertThat(cityIterator.next(), notNullValue());
+        assertThat(cityIterator.term().utf8ToString(), equalTo("ryali"));
     }
 }

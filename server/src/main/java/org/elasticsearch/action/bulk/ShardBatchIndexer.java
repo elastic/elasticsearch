@@ -39,7 +39,7 @@ public final class ShardBatchIndexer {
     private static final Logger logger = LogManager.getLogger(ShardBatchIndexer.class);
 
     // Maximum number of operations to parse and index in a single pass to bound memory usage.
-    static final int BATCH_CHUNK_SIZE = 5000;
+    public static final int BATCH_CHUNK_SIZE = 5000;
 
     private final BatchIndexingEnabled batchIndexingEnabled;
     private final Recycler<BytesRef> recycler;

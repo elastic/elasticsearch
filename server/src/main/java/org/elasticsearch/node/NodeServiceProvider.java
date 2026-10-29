@@ -199,7 +199,8 @@ class NodeServiceProvider {
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer,
-        OnlinePrewarmingService onlinePrewarmingService
+        OnlinePrewarmingService onlinePrewarmingService,
+        TaskManager taskManager
     ) {
         return new SearchService(
             clusterService,
@@ -211,7 +212,8 @@ class NodeServiceProvider {
             circuitBreakerService,
             executorSelector,
             tracer,
-            onlinePrewarmingService
+            onlinePrewarmingService,
+            taskManager
         );
     }
 

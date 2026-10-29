@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,8 @@ public final class AnthropicToolUtils {
     private static final String PROPERTIES_FIELD = "properties";
     private static final String REQUIRED_FIELD = "required";
 
+    private static final String SYSTEM_FIELD = "system";
+    private static final String SYSTEM_ROLE = "system";
     private static final String TOOL_ROLE = "tool";
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
@@ -83,6 +86,36 @@ public final class AnthropicToolUtils {
     private static final String PLAIN_TEXT_MEDIA_TYPE = "text/plain";
 
     private AnthropicToolUtils() {}
+
+    /**
+     * Returns the messages that are not {@code system} messages. Anthropic has no {@code system} role, so callers pass the result
+     * to {@link #writeMessages} and emit the system messages separately with {@link #writeSystemMessages}.
+     */
+    public static List<Message> excludeSystemMessages(List<Message> messages) {
+        List<Message> nonSystemMessages = new ArrayList<>();
+        for (var message : messages) {
+            if (SYSTEM_ROLE.equals(message.role()) == false) {
+                nonSystemMessages.add(message);
+            }
+        }
+        return nonSystemMessages;
+    }
+
+    /**
+     * Writes the {@code system} messages among the given messages as Anthropic's top-level {@code system} array of text blocks.
+     * Nothing is written when there are no system messages.
+     */
+    public static void writeSystemMessages(XContentBuilder builder, List<Message> messages) throws IOException {
+        var systemMessages = messages.stream().filter(message -> SYSTEM_ROLE.equals(message.role())).toList();
+        if (systemMessages.isEmpty()) {
+            return;
+        }
+        builder.startArray(SYSTEM_FIELD);
+        for (var message : systemMessages) {
+            writeTextBlock(builder, extractText(message.content()));
+        }
+        builder.endArray();
+    }
 
     /**
      * Writes the {@code messages} array, translating the unified (OpenAI-shaped) tool-calling messages into the content-block shape

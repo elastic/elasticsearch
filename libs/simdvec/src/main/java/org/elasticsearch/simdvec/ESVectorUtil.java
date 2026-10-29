@@ -19,6 +19,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -1233,6 +1234,44 @@ public class ESVectorUtil {
     }
 
     /**
+     * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
+     * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
+     * of the work of {@link #matrixMultiplyI8}, and copies them into the lower triangle. The result is undefined if the
+     * product is not symmetric. Whatever {@code result} held before is overwritten.
+     */
+    public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
+        if (a.length != n * k) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix multiplication");
+        }
+        if (b.length != k * n) {
+            throw new IllegalArgumentException("Invalid b array size [" + b.length + "] for matrix multiplication");
+        }
+        if (result.length != n * n) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
+        }
+        IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
+     * Result C is (m x n), accumulated in exact int32 arithmetic.
+     */
+    public static void matrixMultiplyI8(
+        MemorySegment a,
+        MemorySegment b,
+        int m,
+        int k,
+        int n,
+        MemorySegment result,
+        TaskExecutor executor
+    ) {
+        if (!a.isNative()) throw new IllegalArgumentException("a must be a native memory segment");
+        if (!b.isNative()) throw new IllegalArgumentException("b must be a native memory segment");
+        if (!result.isNative()) throw new IllegalArgumentException("result must be a native memory segment");
+        IMPL.matrixMultiplyI8(a, b, m, k, n, result, executor);
+    }
+
+    /**
      * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix.
      *
      * @param a    flat row-major matrix, length rows*cols
@@ -1257,6 +1296,29 @@ public class ESVectorUtil {
      * @param result output vector, length rows
      */
     public static void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result) {
+        if (a.length != rows * cols) {
+            throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
+        }
+        if (v.length != cols) {
+            throw new IllegalArgumentException("Invalid v array size [" + v.length + "] for matrix vector multiplication");
+        }
+        if (result.length != rows) {
+            throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix vector multiplication");
+        }
+        IMPL.matrixVectorMultiply(a, rows, cols, v, result);
+    }
+
+    /**
+     * Computes {@code result = A @ v} where A is a (rows x cols) row-major matrix of signed bytes,
+     * accumulated in exact int32 arithmetic.
+     *
+     * @param a      flat row-major matrix, length rows*cols
+     * @param rows   number of rows in A
+     * @param cols   number of columns in A, and length of v
+     * @param v      input vector, length cols
+     * @param result output vector, length rows
+     */
+    public static void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result) {
         if (a.length != rows * cols) {
             throw new IllegalArgumentException("Invalid a array size [" + a.length + "] for matrix vector multiplication");
         }
